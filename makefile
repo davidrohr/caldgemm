@@ -10,7 +10,7 @@ dgemm_bench:	caldgemm.o benchmark.o
 		g++ -o $@ $^ $(LIBS)
 
 caldgemm.o:	caldgemm.cpp caldgemm.h
-		g++ -c $@ $< $(CXXOPTS) $(INCLUDE)
+		g++ -c $< $(CXXOPTS) $(INCLUDE)
 
 benchmark.o:	benchmark.cpp caldgemm.h
-		g++ -c $@ $< $(CXXOPTS) $(INCLUDE)
+		g++ -c $< $(CXXOPTS) $(INCLUDE)
