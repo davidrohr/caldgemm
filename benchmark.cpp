@@ -434,7 +434,7 @@ int main(CALint argc, CALchar** argv)
     
     do
     {
-	if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0))
+	if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.n, Info.Width, Info.n, Info.n))
 	{
 	    printf("Error running CALDGEMM\n");
 	    return(1);

@@ -179,11 +179,12 @@ class caldgemm
     
     //CALDGEMM interface functions
     //Initiate an appropriate sampleinfo struct and call InitCALDGEMM for initialization
-    //Optimal parameters for big n,m are: DstMemory = 'c', DstCacheable = CAL_TRUE, Height = 2048, Width = 1024, MultiThread = CAL_TRUE
-    //m and n can be defined in the RunCALDGEMM call also and must be multiples of the Height parameter in SampleInfo
+    //Optimal parameters for big n,m are: DstMemory = 'c', DstCacheable = CAL_TRUE, Height = 2048, Width = 1024, MultiThread = CAL_TRUE, UseGPU = UseCPU = CAL_TRUE, GPURatio = 0.66
+    //m and n can be defined in the RunCALDGEMM call
+    //The Width (k in matrix multiply) is fixed and cannot be changed without reinitializing
     int InitCALDGEMM(SampleInfo* pInfo);
     int ExitCALDGEMM();
-    int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, int m = -1, int n = -1, int Bpitch = -1);
+    int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, int m = -1, int n = -1, int Apitch = -1, int Bpitch = -1, int Cpitch = -1);
     void ResetTimers();
 
     private:
@@ -268,7 +269,7 @@ class caldgemm
     
     CALdouble Alpha, Beta;
     
-    int B_pitch;
+    int A_pitch, B_pitch, C_pitch;
 
     static const CALuint aPartsNum = 8;
     static const CALuint bPartsNum = 2;
@@ -291,7 +292,6 @@ class caldgemm
 	Data* src;
 	CALint width;
 	CALint height;
-	CALint pitch;
 	CALint numBuffers;
 	int nContext;
 	CALboolean terminate;

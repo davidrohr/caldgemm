@@ -99,6 +99,8 @@ jurisdiction and venue of these courts.
 #include <sys/time.h>
 #endif
 
+#include <syscall.h>
+
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
 #define WAITFOREVENT(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
@@ -176,7 +178,7 @@ CALuint caldgemm::AnalyzeResults(Data* data)
         {
             for (CALuint j=0; j < Info->n; j++)
             {
-                if (!isDoubleEqual(C[i * Info->n + j],D[i * Info->n + j]))
+                if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
                 {
                     ++wrong;
                 }
@@ -393,9 +395,9 @@ CALvoid caldgemm::matmultCPU(CALdouble* a, CALdouble* b, CALdouble* c, CALdouble
             CALdouble temp = 0;
             for (CALint z=0; z < k; z++)
             {
-                temp += a[y * k + z] * b[z * n + x];
+                temp += a[y * A_pitch + z] * b[z * B_pitch + x];
             }
-            c[y * n + x] = c[y * n + x] * beta + temp * alpha;
+            c[y * C_pitch + x] = c[y * C_pitch + x] * beta + temp * alpha;
         }
     }
 }
@@ -1339,6 +1341,9 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     pthread_mutex_lock(&cParam.cblasMutex[0]);
     pthread_t thr;
     pthread_create(&thr, NULL, cblas_wrapper, &cParam);
+    
+    //unsigned long nodemask = 0xffffff;
+    //syscall(SYS_set_mempolicy, 3, &nodemask, sizeof(nodemask) * 8);
 
     return(0);
 }
@@ -1358,21 +1363,23 @@ void* cblas_wrapper(void* arg)
 	double* const A = par->cls->A;
 	double* const B = par->cls->B;
 	double* const C = par->cls->C;
+	const int A_pitch = par->cls->A_pitch;
 	const int B_pitch = par->cls->B_pitch;
+	const int C_pitch = par->cls->C_pitch;
 	if (Info->Debug) printf("\t\tSlave thread starting cblas\n");
 
 	par->cls->Info->CPUTimer.Start();
 	if (Info->m >= Info->n / 2)	//favor splitting m because of consecutive memory
 	{
-	    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, par->cblas_size, Info->n, Info->Width, Alpha, A + (Info->m - par->cblas_size) * Info->Width, Info->Width, B, B_pitch, Beta, C + (Info->m - par->cblas_size) * B_pitch, B_pitch);
+	    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, par->cblas_size, Info->n, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch, A_pitch, B, B_pitch, Beta, C + (Info->m - par->cblas_size) * B_pitch, C_pitch);
 	    if (Info->n % Info->Height)
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m - par->cblas_size, Info->n % Info->Height, Info->Width, Alpha, A, Info->Width, B + Info->n - Info->n % Info->Height, B_pitch, Beta, C + Info->n - Info->n % Info->Height, B_pitch);
+		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m - par->cblas_size, Info->n % Info->Height, Info->Width, Alpha, A, A_pitch, B + Info->n - Info->n % Info->Height, B_pitch, Beta, C + Info->n - Info->n % Info->Height, C_pitch);
 	}
 	else
 	{
-	    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m, par->cblas_size, Info->Width, Alpha, A, Info->Width, B + Info->n - par->cblas_size, B_pitch, Beta, C + Info->n - par->cblas_size, B_pitch);
+	    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m, par->cblas_size, Info->Width, Alpha, A, A_pitch, B + Info->n - par->cblas_size, B_pitch, Beta, C + Info->n - par->cblas_size, C_pitch);
 	    if (Info->m % Info->Height)
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * Info->Width, Info->Width, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * B_pitch, B_pitch);
+		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * B_pitch, C_pitch);
 	}
 	par->cls->Info->CPUTimer.Stop();
 
@@ -1391,7 +1398,7 @@ void* merge_wrapper(void* arg)
     while (pthread_mutex_lock(&par->cls->mergeMutex[1][par->nContext]) == 0 && par->terminate == CAL_FALSE)
     {
 	if (par->cls->Info->Debug) printf("\t\tSlave thread starting merge process\n");
-        par->cls->mergeBuffers(par->dst, par->src, par->width, par->height, par->pitch, par->numBuffers);
+        par->cls->mergeBuffers(par->dst, par->src, par->width, par->height, par->cls->C_pitch, par->numBuffers);
         if (par->cls->Info->Debug) printf("\t\tUnlocking mutex %d\n", par->nContext);
         pthread_mutex_unlock(&par->cls->mergeMutex[0][par->nContext]);
     }
@@ -1399,7 +1406,7 @@ void* merge_wrapper(void* arg)
     return(NULL);
 }
 
-int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, int tmp_m, int tmp_n, int Bpitch)
+int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, int tmp_m, int tmp_n, int Apitch, int Bpitch, int Cpitch)
 {
     A = a;
     B = b;
@@ -1408,11 +1415,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     Beta = beta;
     if (tmp_m != -1) Info->m = tmp_m;
     if (tmp_n != -1) Info->n = tmp_n;
+    A_pitch = Apitch != -1 ? Apitch : Info->Width;
     B_pitch = Bpitch != -1 ? Bpitch : Info->n;
+    C_pitch = Cpitch != -1 ? Cpitch : Info->n;
     
-    if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) || B_pitch & (vcpysize / sizeof(CALdouble) - 1))
+    if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
+	A_pitch & (vcpysize / sizeof(CALdouble) - 1) || B_pitch & (vcpysize / sizeof(CALdouble) - 1)|| C_pitch & (vcpysize / sizeof(CALdouble) - 1))
     {
-	printf("Input addresses not aligned correctly: A 0x%llX B 0x%llX C 0x%llX Pitch 0x%X\n", A, B, C, B_pitch);
+	printf("Input addresses not aligned correctly: A 0x%llX B 0x%llX C 0x%llX Pitch 0x%X 0x%X 0x%X\n", A, B, C, A_pitch, B_pitch, C_pitch);
 	return(1);
     }
     
@@ -1420,8 +1430,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->Verify)
     {
-	D = new CALdouble[Info->m * Info->n];
-	memcpy(D, C, Info->m * Info->n * sizeof(CALdouble));
+	D = new CALdouble[Info->m * C_pitch];
+	memcpy(D, C, Info->m * C_pitch * sizeof(CALdouble));
     }
         
     Info->System.Start();
@@ -1489,7 +1499,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Info->Debug) printf("Iteration k = %d, m = %d, n = %d (Context %d)\n", k, blockm, blockn, j);
 		
 		if (Info->VerboseTiming) Info->CounterDivide.Start();
-		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * Info->Width * Info->Height, Info->Width, Info->Height, Info->Width, aPartsNum);
+		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * A_pitch * Info->Height, Info->Width, Info->Height, A_pitch, aPartsNum);
 		if (Info->Debug) printf("\tDividing Buffer\n");
 		divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height, Info->Height, Info->Width, B_pitch, bPartsNum);
 	        if (Info->VerboseTiming) Info->CounterDivide.Stop();
@@ -1522,7 +1532,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		if (k == nb * mb || Info->MultiThread == CAL_FALSE)
 		{
-	    	    if (mergeBuffers(C + lastm * Info->Height + lastn * B_pitch * Info->Height, datas[oldj] + numInputs + numConstantBuffers, Info->Height, Info->Height, B_pitch, cPartsNum)) {printf("Error merging\n"); return(1);}
+	    	    if (mergeBuffers(C + lastm * Info->Height + lastn * C_pitch * Info->Height, datas[oldj] + numInputs + numConstantBuffers, Info->Height, Info->Height, C_pitch, cPartsNum)) {printf("Error merging\n"); return(1);}
 	    	    if (Info->MultiThread)
 	    	    {
 	    		pthread_mutex_unlock(&mergeMutex[0][oldj]);
@@ -1535,9 +1545,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    	}
 	    	else
 	    	{
-		    mParam[oldj].dst = C + ((size_t) lastm * (size_t) Info->Height + (size_t) lastn * (size_t) B_pitch * (size_t) Info->Height);
+		    mParam[oldj].dst = C + ((size_t) lastm * (size_t) Info->Height + (size_t) lastn * (size_t) C_pitch * (size_t) Info->Height);
 		    mParam[oldj].src = datas[oldj] + numInputs + numConstantBuffers;
-		    mParam[oldj].pitch = B_pitch;
 		    pthread_mutex_unlock(&mergeMutex[1][oldj]);
 		}
 
