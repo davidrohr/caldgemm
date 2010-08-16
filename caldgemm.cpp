@@ -222,15 +222,15 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
         CALuint mComponents = 2;
         if (i < aStop)
         {
-            /* A matrix sizes are shrunk by 2 in the width and 8 in the height */
-            tWidth = Info->Width / bPartsNum;
+            /* A matrix sizes are shrunk by 2 (double2) in the width and 8 (8 resources) in the height */
+            tWidth = Info->Width / 2;
             tHeight = Info->Height / aPartsNum;
             mem = 'g';
         }
         else if (i >= aStop && i < bStop)
         {
-            /* B matrix sizes are shrunk by 2 in the width and 2 in the height */
-            tWidth = Info->Height / bPartsNum;
+            /* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
+            tWidth = Info->Height / 2;
             tHeight = Info->Width / bPartsNum;
             mem = 'g';
         }
@@ -242,11 +242,10 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
         }
         else if (i >= fStop && i < cStop)
         {
-            /* C matrix sizes match A matrix sizes */
-            tWidth = Info->Height / bPartsNum;
+            tWidth = Info->Height / 2;
             tHeight = Info->Height / aPartsNum;
             mem = Info->DstMemory;
-            flag = static_cast<CALresallocflags>(flag | ((Info->DstCacheable == CAL_TRUE) ? CAL_RESALLOC_CACHEABLE : flag));
+            flag = static_cast<CALresallocflags>(flag | CAL_RESALLOC_CACHEABLE);
         }
         else
         {
@@ -257,9 +256,9 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     }
 
     // Setup the constants for the kernel
-    data[bStop].f_data[0] = 8.f / Info->Height;   
+    data[bStop].f_data[0] = (float) aPartsNum / Info->Height;  //Scale factor for normalized y pos, factor 8 for 8 resources
     data[bStop].f_data[1] = 2.f / Info->Width;
-    data[bStop].f_data[2] = 2.f / Info->Height;   
+    data[bStop].f_data[2] = 2.f / Info->Height;  //Scale factor for normalized x pos, factor 2 for double2
     data[bStop].f_data[3] = 0.f;
     data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));
     //////////////////////////////////////////////////////////////////////////
@@ -950,7 +949,7 @@ CALint caldgemm::AllocateResources(CALcontext* ctx, CALdevice* device, CALresour
         else if (i >= cStop && i < oStop)
         {
             mem = Info.DstMemory;
-            flag = static_cast<CALresallocflags>(flag |((Info.DstCacheable == CAL_TRUE) ? CAL_RESALLOC_CACHEABLE : flag));
+            flag = static_cast<CALresallocflags>(flag | CAL_RESALLOC_CACHEABLE);
         }
         else if (i >= iStop && i < cStop)
         {
@@ -1021,27 +1020,27 @@ int caldgemm::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CAL
     data.ComponentSize = CompSize;
     if (tWidth > 16 || tHeight > 16)
     {
-	data.CALMemory = CAL_TRUE;
-	if (Info->DstMemory == 'g' || i < aPartsNum + bPartsNum)
-	{
-	    CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocating of remote memory");
-	    CHKERR(calCtxGetMem(&data.mem, *ctx, data.res), "getting remote memory for context");
-	    CHKERR(calResMap(&data.v_data, &data.pitch, data.res, NULL), "mapping of remote memory");
-	    if (((size_t) data.v_data) & (vcpysize - 1))
-	    {
-		printf("Memory not aligned correctly\n");
-		return(1);
-	    }
-	}
+		data.CALMemory = CAL_TRUE;
+		if (Info->DstMemory == 'g' || i < aPartsNum + bPartsNum)
+		{
+			CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocating of remote memory");
+			CHKERR(calCtxGetMem(&data.mem, *ctx, data.res), "getting remote memory for context");
+			CHKERR(calResMap(&data.v_data, &data.pitch, data.res, NULL), "mapping of remote memory");
+			if (((size_t) data.v_data) & (vcpysize - 1))
+			{
+				printf("Memory not aligned correctly\n");
+				return(1);
+			}
+		}
     }
     else
     {
-	data.c_data = new CALchar[tWidth * DataSize * CompSize * tHeight];
-	data.CALMemory = CAL_FALSE;
+		data.c_data = new CALchar[tWidth * DataSize * CompSize * tHeight];
+		data.CALMemory = CAL_FALSE;
     }
     if (data.CALMemory != CAL_TRUE || Info->DstMemory == 'g' || i <= aPartsNum)
     {
-	memset((void*)data.c_data, 0, tWidth * DataSize * CompSize * tHeight);
+		memset((void*)data.c_data, 0, tWidth * DataSize * CompSize * tHeight);
     }
     return(0);
 }
@@ -1055,7 +1054,7 @@ CALint caldgemm::ParameterValidation(CALuint nInput, CALuint nOutput, SampleInfo
     CALuint single = (pitch * Info->Height * sizeof(CALfloat));
     CALuint srcbytes = 2 *(CALuint)single * nInput / mega;
     CALuint dstbytes = 2 *(CALuint)single * nOutput / mega;
-    mult += (Info->DstCacheable == CAL_TRUE) ? 1 : 0;
+    mult += 1;
     if (srcbytes >= attribs->uncachedRemoteRAM)
     {
         retval = 0;
@@ -1067,7 +1066,7 @@ CALint caldgemm::ParameterValidation(CALuint nInput, CALuint nOutput, SampleInfo
 
     if (Info->DstMemory == 'c')
     {
-        if (Info->DstCacheable == CAL_TRUE &&(mult * dstbytes) >= attribs->cachedRemoteRAM)
+        if (mult * dstbytes >= attribs->cachedRemoteRAM)
         {
             retval = 0;
         }
@@ -1078,7 +1077,7 @@ CALint caldgemm::ParameterValidation(CALuint nInput, CALuint nOutput, SampleInfo
     }
     else
     {
-        if (Info->DstCacheable == CAL_TRUE &&(mult * dstbytes) >= attribs->cachedRemoteRAM)
+        if (mult * dstbytes >= attribs->cachedRemoteRAM)
         {
             retval = 0;
         }

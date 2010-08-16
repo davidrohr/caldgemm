@@ -166,7 +166,6 @@ class caldgemm
 	CALuint    Height;		//height of subblock od A, width of subblock of B
 	CALuint    Iterations;
 	CALchar	   DstMemory;
-	CALboolean DstCacheable;
 	CALboolean VerboseTiming;
 	CALboolean Debug;
 	CALboolean MultiThread;
@@ -179,7 +178,7 @@ class caldgemm
     
     //CALDGEMM interface functions
     //Initiate an appropriate sampleinfo struct and call InitCALDGEMM for initialization
-    //Optimal parameters for big n,m are: DstMemory = 'c', DstCacheable = CAL_TRUE, Height = 2048, Width = 1024, MultiThread = CAL_TRUE, UseGPU = UseCPU = CAL_TRUE, GPURatio = 0.66
+    //Optimal parameters for big n,m are: DstMemory = 'c', Height = 2048, Width = 1024, MultiThread = CAL_TRUE, UseGPU = UseCPU = CAL_TRUE, GPURatio = 0.66
     //m and n can be defined in the RunCALDGEMM call
     //The Width (k in matrix multiply) is fixed and cannot be changed without reinitializing
     int InitCALDGEMM(SampleInfo* pInfo);

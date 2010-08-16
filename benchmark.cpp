@@ -134,10 +134,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-q        Supress Display Output\n" );
     fprintf(stderr, "\t-p        Print the program kernel\n" );
     fprintf(stderr, "\t-a        Print the disassembled kernel image\n" );
-    fprintf(stderr, "\t-im       Flag to use cacheable input memory*, default non-cacheable\n" );
-    fprintf(stderr, "\t-om       Flag to use cacheable output memory*, default cacheable\n" );
-    fprintf(stderr, "\t-ol <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n" );
-    fprintf(stderr, "\t-il <c|g> Specify the input location, c = CPU, g = GPU, default GPU\n" );
+    fprintf(stderr, "\t-o  <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n" );
     fprintf(stderr, "\t-w  <int> k for matrix multiply, default 1024\n" );
     fprintf(stderr, "\t-h  <int> block size for matrix multiply, default 1024\n" );
     fprintf(stderr, "\t-m  <int> m for matrix multiply, must be multiple of h, default 1024\n" );
@@ -165,7 +162,6 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->PrintIL = CAL_FALSE;
     Info->Disassemble = CAL_FALSE;
     Info->Quiet = CAL_FALSE;
-    Info->DstCacheable = CAL_TRUE;
     Info->Pin = -2;
     Info->MultiThread = CAL_FALSE;
     Info->DeviceNum = 0;
@@ -225,27 +221,19 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 fastinit = true;
                 break;
             case 'o':
-                switch(argv[x][2])
+                if (++x < argc)
                 {
-                    case 'm':
-                        Info->DstCacheable = CAL_TRUE;
-                        break;
-                    case 'l':
-                        if (++x < argc)
-                        {
-                            Info->DstMemory = argv[x][0];
-                            if (Info->DstMemory != 'c' && Info->DstMemory != 'g')
-                            {
-                                fprintf(stderr, "Invalid destination memory type\n" );
-                                return CAL_FALSE;
-                            }
-                        }
-                        else
-                        {
-                            return CAL_FALSE;
-                        }
-                        break;
-                };
+                    Info->DstMemory = argv[x][0];
+                    if (Info->DstMemory != 'c' && Info->DstMemory != 'g')
+                    {
+                        fprintf(stderr, "Invalid destination memory type\n" );
+                        return CAL_FALSE;
+                    }
+                }
+                else
+                {
+                    return CAL_FALSE;
+                }
                 break;
             case 'w':
                 if (++x < argc)

@@ -112,31 +112,38 @@ const char caldgemm::ILKernel[] =
 "mov r8, l0\n"
 "mov r9, l0\n"
 "mov r10, l0\n"
-"mul r0.xyz0, vWinCoord0.xyyx, cb0[0].zwxz\n"
-"mov r1.__zw, r0.zzzx\n"
-"mov r11.w, r0.y\n"
-"mov r11.x, l0\n"
+    /*data[bStop].f_data[0] = 8.f / Info->Height;   
+    data[bStop].f_data[1] = 2.f / Info->Width;
+    data[bStop].f_data[2] = 2.f / Info->Height;   
+    data[bStop].f_data[3] = 0.f;
+    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));*/
+
+	//Run: Width: Info->Height / bPartsNum , Heigh: Info->Height / aPartsNum
+"mul r0.xyz0, vWinCoord0.xyyx, cb0[0].zwxz\n"		//r0.x: normalized x pos, r0.y: 0, r0.z: normalized y pos, r0.w: 0
+"mov r1.__zw, r0.zzzx\n"							//r1.z: normalized y pos, r1.w: normalized x pos
+"mov r11.w, r0.y\n"									//r11.w: 0, run variable for k
+"mov r11.x, l0\n"									//r11.x: 0, run variable for loop
 "whileloop\n"
-"    ge r11._y__, r11.x, cb0[1].x\n"
+"    ge r11._y__, r11.x, cb0[1].x\n"				//cmp with width
 "    break_logicalnz r11.y\n"
-"    mov r0.___w, r11.w\n"
-"    add r0._y__, r0.w, cb0[0].y\n"
-"    add r1.x___, r0.y, cb0[0].y\n"
-"    add r1._y__, r1.x, cb0[0].y\n"
-"    add r11.___w, r1.y, cb0[0].y\n"
-"    sample_resource(8)_sampler(8) r21, r0.xwww\n"
-"    sample_resource(9)_sampler(9) r22, r0.xwww\n"
-"    sample_resource(8)_sampler(8) r23, r0.xyww\n"
-"    sample_resource(9)_sampler(9) r24, r0.xyww\n"
-"    sample_resource(8)_sampler(8) r25, r1.wxww\n"
+"    mov r0.___w, r11.w\n"							//r0:w normalized k pos
+"    add r0._y__, r0.w, cb0[0].y\n"					//r0:y normalized k pos + 1
+"    add r1.x___, r0.y, cb0[0].y\n"					//r1.x normalized k pos + 2
+"    add r1._y__, r1.x, cb0[0].y\n"					//r1.y normalized k pos + 3
+"    add r11.___w, r1.y, cb0[0].y\n"				//r11.w: normalized k pos + 4 steps (for next iteration in whileloop)
+"    sample_resource(8)_sampler(8) r21, r0.xwww\n"	//normalized x,k pos
+"    sample_resource(9)_sampler(9) r22, r0.xwww\n"  //normalized x,k pos
+"    sample_resource(8)_sampler(8) r23, r0.xyww\n"  //normalized x,k+1 pos
+"    sample_resource(9)_sampler(9) r24, r0.xyww\n"	//normalized x,k+1 pos
+"    sample_resource(8)_sampler(8) r25, r1.wxww\n"  //normalized  ,k+2 pos
 "    sample_resource(9)_sampler(9) r26, r1.wxww\n"
-"    sample_resource(8)_sampler(8) r27, r1.wyzz\n"
+"    sample_resource(8)_sampler(8) r27, r1.wyzz\n"	//normalized ,k+3 pos
 "    sample_resource(9)_sampler(9) r28, r1.wyzz\n"
-"    sample_resource(0)_sampler(0) r13, r0.wz\n"
-"    sample_resource(1)_sampler(1) r14, r0.wz\n"
-"    sample_resource(2)_sampler(2) r15, r0.wz\n"
-"    sample_resource(3)_sampler(3) r16, r0.wz\n"
-"    sample_resource(4)_sampler(4) r17, r0.wz\n"
+"    sample_resource(0)_sampler(0) r13, r0.wz\n"	//normalized k, y pos
+"    sample_resource(1)_sampler(1) r14, r0.wz\n"	//normalized k, y pos
+"    sample_resource(2)_sampler(2) r15, r0.wz\n"	//normalized k, y pos
+"    sample_resource(3)_sampler(3) r16, r0.wz\n"	//normalized k, y pos
+"    sample_resource(4)_sampler(4) r17, r0.wz\n"	//...
 "    sample_resource(5)_sampler(5) r18, r0.wz\n"
 "    sample_resource(6)_sampler(6) r19, r0.wz\n"
 "    sample_resource(7)_sampler(7) r20, r0.wz\n"
