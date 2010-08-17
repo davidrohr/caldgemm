@@ -162,7 +162,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->PrintIL = CAL_FALSE;
     Info->Disassemble = CAL_FALSE;
     Info->Quiet = CAL_FALSE;
-    Info->Pin = -2;
+    Info->Pin = -3;
     Info->MultiThread = CAL_FALSE;
     Info->DeviceNum = 0;
     Info->Width = 1024;
