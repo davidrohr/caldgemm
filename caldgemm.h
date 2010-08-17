@@ -289,12 +289,9 @@ class caldgemm
 	caldgemm* cls;
 	CALdouble* dst;
 	Data* src;
-	CALint width;
-	CALint height;
-	CALint numBuffers;
 	int nContext;
 	CALboolean terminate;
-	pthread_t thr;
+	pthread_mutex_t mergeMutex[2];
     };
     
     struct cblasParameters
@@ -315,8 +312,6 @@ class caldgemm
     CALresource* resourceHandlers[ctxcount];
     CALmodule modules[ctxcount];
     CALevent events[ctxcount];
-    
-    pthread_mutex_t mergeMutex[2][ctxcount];
 
     static const char ILKernel[];
 

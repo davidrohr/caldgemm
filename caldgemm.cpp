@@ -100,6 +100,7 @@ jurisdiction and venue of these courts.
 #endif
 
 #include <syscall.h>
+#include <errno.h>
 
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
 #define WAITFOREVENT(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
@@ -1323,14 +1324,12 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	{
 	    for (int i = 0;i < ctxcount;i++)
 	    {
-		for (int j = 0;j < 2;j++) pthread_mutex_init(&mergeMutex[j][i], NULL);
+		for (int j = 0;j < 2;j++) pthread_mutex_init(&mParam[i].mergeMutex[j], NULL);
 		mParam[i].cls = this;
-		mParam[i].width = Info->Height;
-		mParam[i].height = Info->Height;
-		mParam[i].numBuffers = cPartsNum;
 		mParam[i].nContext = i;
 		mParam[i].terminate = CAL_FALSE;
-		pthread_create(&mParam[i].thr, NULL, merge_wrapper, &mParam[i]);
+		pthread_t thr;
+		pthread_create(&thr, NULL, merge_wrapper, &mParam[i]);
 	    }
 	}
     }
@@ -1341,8 +1340,8 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     pthread_t thr;
     pthread_create(&thr, NULL, cblas_wrapper, &cParam);
     
-    //unsigned long nodemask = 0xffffff;
-    //syscall(SYS_set_mempolicy, 3, &nodemask, sizeof(nodemask) * 8);
+    unsigned long nodemask = 0xffffff;
+    syscall(SYS_set_mempolicy, 3, &nodemask, sizeof(nodemask) * 8);
 
     return(0);
 }
@@ -1385,6 +1384,7 @@ void* cblas_wrapper(void* arg)
         if (Info->Debug) printf("\t\tUnlocking cblasmutex\n");
         pthread_mutex_unlock(&par->cls->cParam.cblasMutex[0]);
     }
+    pthread_mutex_lock(&par->cls->cParam.cblasMutex[1]);
     pthread_exit(NULL);
     return(NULL);
 }
@@ -1393,14 +1393,15 @@ void* merge_wrapper(void* arg)
 {
     caldgemm::mergeParameters* par = (caldgemm::mergeParameters*) arg;
     
-    pthread_mutex_lock(&par->cls->mergeMutex[1][par->nContext]);
-    while (pthread_mutex_lock(&par->cls->mergeMutex[1][par->nContext]) == 0 && par->terminate == CAL_FALSE)
+    pthread_mutex_lock(&par->mergeMutex[1]);
+    while (pthread_mutex_lock(&par->mergeMutex[1]) == 0 && par->terminate == CAL_FALSE)
     {
 	if (par->cls->Info->Debug) printf("\t\tSlave thread starting merge process\n");
-        par->cls->mergeBuffers(par->dst, par->src, par->width, par->height, par->cls->C_pitch, par->numBuffers);
+        par->cls->mergeBuffers(par->dst, par->src, par->cls->Info->Height, par->cls->Info->Height, par->cls->C_pitch, par->cls->cPartsNum);
         if (par->cls->Info->Debug) printf("\t\tUnlocking mutex %d\n", par->nContext);
-        pthread_mutex_unlock(&par->cls->mergeMutex[0][par->nContext]);
+        pthread_mutex_unlock(&par->mergeMutex[0]);
     }
+    pthread_mutex_lock(&par->mergeMutex[1]);
     pthread_exit(NULL);
     return(NULL);
 }
@@ -1514,7 +1515,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     		if (Info->VerboseTiming) Info->CounterCopyTo.Stop();
     	        calCtxFlush(ctxs[j]);
     	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);
-    	        if (Info->MultiThread) pthread_mutex_lock(&mergeMutex[0][j]);
+    	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
     		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / bPartsNum , Info->Height / aPartsNum, Info, &events[j])) {printf("Error running program\n"); return 1;}
     	        if (Info->VerboseTiming) Info->CounterCopyFrom.Start();
@@ -1534,11 +1535,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    	    if (mergeBuffers(C + lastm * Info->Height + lastn * C_pitch * Info->Height, datas[oldj] + numInputs + numConstantBuffers, Info->Height, Info->Height, C_pitch, cPartsNum)) {printf("Error merging\n"); return(1);}
 	    	    if (Info->MultiThread)
 	    	    {
-	    		pthread_mutex_unlock(&mergeMutex[0][oldj]);
+	    		pthread_mutex_unlock(&mParam[oldj].mergeMutex[0]);
 	    		for (int l = 1;l < ctxcount;l++)
 	    		{
-	    		    pthread_mutex_lock(&mergeMutex[0][(oldj + l) % ctxcount]);
-	    		    pthread_mutex_unlock(&mergeMutex[0][(oldj + l) % ctxcount]);
+	    		    pthread_mutex_lock(&mParam[(oldj + l) % ctxcount].mergeMutex[0]);
+	    		    pthread_mutex_unlock(&mParam[(oldj + l) % ctxcount].mergeMutex[0]);
 	    		}
 	    	    }
 	    	}
@@ -1546,7 +1547,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    	{
 		    mParam[oldj].dst = C + ((size_t) lastm * (size_t) Info->Height + (size_t) lastn * (size_t) C_pitch * (size_t) Info->Height);
 		    mParam[oldj].src = datas[oldj] + numInputs + numConstantBuffers;
-		    pthread_mutex_unlock(&mergeMutex[1][oldj]);
+		    pthread_mutex_unlock(&mParam[oldj].mergeMutex[1]);
 		}
 
 	        if (Info->VerboseTiming) Info->CounterMerge.Stop();
@@ -1582,18 +1583,26 @@ int caldgemm::ExitCALDGEMM()
 	if (Info->MultiThread)
 	{
 	    mParam[i].terminate = CAL_TRUE;
-	    pthread_mutex_unlock(&mergeMutex[1][i]);
+	    pthread_mutex_unlock(&mParam[i].mergeMutex[1]);
 	}
     }
     cParam.terminate = CAL_TRUE;
     pthread_mutex_unlock(&cParam.cblasMutex[1]);
     
-    //Fixme: must wait for threads to terminate
-    /*for (int j = 0;j < 2;j++)
+    for (int i = 0;i < ctxcount;i++)
     {
-	pthread_mutex_destroy(&mergeMutex[j][i]);
+	while (pthread_mutex_trylock(&mParam[i].mergeMutex[1]) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeMutex[1]);
+	pthread_mutex_unlock(&mParam[i].mergeMutex[1]);
+    }
+    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
+    pthread_mutex_unlock(&cParam.cblasMutex[1]);
+    
+    //Fixme: must wait for threads to terminate
+    for (int j = 0;j < 2;j++)
+    {
+	for (int i = 0;i < ctxcount;i++) pthread_mutex_destroy(&mParam[i].mergeMutex[j]);
 	pthread_mutex_destroy(&cParam.cblasMutex[j]);
-    }*/
+    }
 
     // Close the device
     if (device)
