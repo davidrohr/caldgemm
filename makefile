@@ -14,3 +14,6 @@ caldgemm.o:	caldgemm.cpp caldgemm.h
 
 benchmark.o:	benchmark.cpp caldgemm.h
 		g++ -c $< $(CXXOPTS) $(INCLUDE)
+		
+clean:		
+		rm -f caldgemm.o benchmark.o dgemm_bench
