@@ -137,6 +137,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-o  <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n" );
     fprintf(stderr, "\t-w  <int> k for matrix multiply, default 1024\n" );
     fprintf(stderr, "\t-h  <int> block size for matrix multiply, default 1024\n" );
+    fprintf(stderr, "\t-l        Automatically select height for good performance\n" );
     fprintf(stderr, "\t-m  <int> m for matrix multiply, must be multiple of h, default 1024\n" );
     fprintf(stderr, "\t-n  <int> n for matrix multiply, must be multiple of h, default 1024\n" );
     fprintf(stderr, "\t-v        Verbose Symchronous Timing for Single Kernels / Transfers\n" );
@@ -150,6 +151,8 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-f        Fast Init (Empty Matrices)\n" );
     fprintf(stderr, "\t-t  <int> Pin to a CPU core (-100 for no pinning, -x to use cpu 0 to x - 1)\n" );
     fprintf(stderr, "\t-j  <dbl> GPU to CPU ratio\n" );
+    fprintf(stderr, "\t-s        Dynamic CPU GPU scheduling\n" );
+    
     fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
             " of cacheable memory is smaller than the requested memory\n"
             " size. Cacheable memory is machine dependent, so use with\n"
@@ -167,6 +170,8 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->DeviceNum = 0;
     Info->Width = 1024;
     Info->Height = 2048;
+    Info->AutoHeight = CAL_FALSE;
+    Info->DynamicSched = CAL_FALSE;
     Info->VerboseTiming = CAL_FALSE;
     Info->Debug = CAL_FALSE;
     Info->m = Info->n = 4096;
@@ -198,8 +203,6 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 return CAL_FALSE;
             case 'e':
                 Info->Verify = CAL_TRUE;
-                Info->Width = Info->Height = 256;
-                Info->m = Info->n = 512;
                 Info->Iterations = 1;
                 break;
             case 'p':
@@ -213,6 +216,12 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case 'c':
 		Info->UseCPU = CAL_TRUE;
+                break;
+            case 'l':
+		Info->AutoHeight = CAL_TRUE;
+                break;
+            case 's':
+		Info->DynamicSched = CAL_TRUE;
                 break;
             case 'g':
                 Info->UseGPU = CAL_TRUE;
@@ -422,7 +431,7 @@ int main(CALint argc, CALchar** argv)
     
     do
     {
-	if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.n, Info.Width, Info.n, Info.n))
+	if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n))
 	{
 	    printf("Error running CALDGEMM\n");
 	    return(1);

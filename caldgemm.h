@@ -164,6 +164,7 @@ class caldgemm
 	CALuint    DeviceNum;
 	CALuint    Width;		//k for matrix multiply
 	CALuint    Height;		//height of subblock od A, width of subblock of B
+	CALboolean AutoHeight;		//Automatically adjust height
 	CALuint    Iterations;
 	CALchar	   DstMemory;
 	CALboolean VerboseTiming;
@@ -172,6 +173,7 @@ class caldgemm
 	CALboolean UseGPU;
 	CALboolean UseCPU;
 	CALdouble  GPURatio;
+	CALboolean DynamicSched;
 	CALuint    m, n;		//height of A, width of B, must be multiple of height
 	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer;
     } SampleInfo;
@@ -183,7 +185,7 @@ class caldgemm
     //The Width (k in matrix multiply) is fixed and cannot be changed without reinitializing
     int InitCALDGEMM(SampleInfo* pInfo);
     int ExitCALDGEMM();
-    int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, int m = -1, int n = -1, int Apitch = -1, int Bpitch = -1, int Cpitch = -1);
+    int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, int m = -1, int k = -1, int n = -1, int Apitch = -1, int Bpitch = -1, int Cpitch = -1, CBLAS_ORDER = CblasRowMajor);
     void ResetTimers();
 
     private:
@@ -241,7 +243,8 @@ class caldgemm
     CALint Initialize (CALdevice *device, CALcontext *ctx, CALuint deviceNum);
     CALint SetupKernel(const CALchar* ILKernel, CALmodule* module, CALcontext* ctx, CALboolean disassemble = CAL_FALSE);
     CALint RunProgram(CALcontext* ctx, CALmodule* module, CALuint Width, CALuint Height, SampleInfo* Info, CALevent* event);
-    CALint Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles, CALboolean waitForUser = CAL_FALSE);
+    CALint CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles);
+    CALint Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles);
     CALformat getFormat(CALuint formatSize, CALuint dataSize, CALboolean isInt = CAL_FALSE);
     CALuint AnalyzeResults(Data* data);
     CALint SetupData(CALmodule* module, CALresource* &_Res, Data* &data, CALdevice* device, CALcontext* ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers);
@@ -280,7 +283,6 @@ class caldgemm
     SampleFeatures Features;
 
     CALvoid divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers);
-    CALvoid matmultCPU(CALdouble* a, CALdouble* b, CALdouble* c, CALdouble alpha, CALdouble beta, CALint m, CALint k, CALint n);
     bool isDoubleEqual(CALdouble a, CALdouble b);
     int mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers);
     
@@ -298,6 +300,9 @@ class caldgemm
     {
 	caldgemm* cls;
 	CALint cblas_size;
+	CALint dynamic_run;	//Do an extra dynic cblas run?, works also as m for the dynamic run, set negative value to omit doing the border run
+	CALint dynamic_size;	//n for dynamic run
+	CALboolean borders_done;
 	CALboolean terminate;
 	pthread_mutex_t cblasMutex[2];
     };
