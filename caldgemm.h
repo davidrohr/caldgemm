@@ -158,7 +158,6 @@ class caldgemm
     {
 	CALint     Pin;
 	CALboolean Verify;
-	CALboolean PrintIL;
 	CALboolean Disassemble;
 	CALboolean Quiet;
 	CALuint    DeviceNum;
@@ -174,6 +173,7 @@ class caldgemm
 	CALboolean UseCPU;
 	CALdouble  GPURatio;
 	CALboolean DynamicSched;
+	CALboolean MemPolicy;
 	CALuint    m, n;		//height of A, width of B, must be multiple of height
 	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer;
     } SampleInfo;
@@ -242,24 +242,23 @@ class caldgemm
 
     CALint Initialize (CALdevice *device, CALcontext *ctx, CALuint deviceNum);
     CALint SetupKernel(const CALchar* ILKernel, CALmodule* module, CALcontext* ctx, CALboolean disassemble = CAL_FALSE);
-    CALint RunProgram(CALcontext* ctx, CALmodule* module, CALuint Width, CALuint Height, SampleInfo* Info, CALevent* event);
+    CALint RunProgram(CALcontext* ctx, CALmodule* module, CALuint Width, CALuint Height, CALevent* event);
     CALint CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles);
     CALint Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles);
     CALformat getFormat(CALuint formatSize, CALuint dataSize, CALboolean isInt = CAL_FALSE);
     CALuint AnalyzeResults(Data* data);
     CALint SetupData(CALmodule* module, CALresource* &_Res, Data* &data, CALdevice* device, CALcontext* ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers);
-    CALvoid PrintKernel(const CALchar* string, const CALchar* name);
     CALint CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALevent* event);
     CALint CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event);
     CALint BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data);
-    CALint AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, const SampleInfo& Info);
+    CALint AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data);
     int AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i);
-    CALint ParameterValidation(CALuint nInput, CALuint nOutput, SampleInfo* Info, CALdeviceattribs* attribs);
+    CALint ParameterValidation(CALuint nInput, CALuint nOutput, CALdeviceattribs* attribs);
     CALvoid SupportedCALVersion(CALVersion *calVersion);
     CALint QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList);
     CALint QueryCALVersion(CALVersion required, const CALchar *comparison);
     CALint ValidateCALRuntime();
-    CALvoid displayMatrixTiming(SampleInfo* info, const CALchar* name);
+    CALvoid displayMatrixTiming(const CALchar* name);
     void copyFrom(CALchar* ptr, Data& data, CALuint pitch);
     void copyTo(CALchar* ptr, Data& data, CALuint pitch);
     void print_submatrices(double* M, int width, int height, int pitch, int subx, int suby, int stridex, int stridey);
@@ -267,7 +266,6 @@ class caldgemm
     CALdouble* A;
     CALdouble* B;
     CALdouble* C;
-    CALdouble* D;
     
     CALdouble Alpha, Beta;
     
@@ -321,4 +319,11 @@ class caldgemm
     static const char ILKernel[];
 
     cpu_set_t oldcpumask;
+    cpu_set_t gpumask;
+    
+    //For Verfify only
+    CALdouble* D;
+
+    //For Timing only
+    bool CPUOnlyRun;
 };

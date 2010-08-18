@@ -91,37 +91,11 @@ jurisdiction and venue of these courts.
 
 #include "caldgemm.h"
 #include <sys/mman.h>
+#include <common.h>
 
 double *AA = NULL, *BB = NULL, *CC = NULL;
 bool benchmark = false;
 bool fastinit = false;
-
-/*static void *huge_malloc(size_t size){
-  int shmid;
-  void *address;
-
-#ifndef SHM_HUGETLB
-#define SHM_HUGETLB 04000
-#endif
-
-  if ((shmid =shmget(IPC_PRIVATE,
-		     (size + HUGE_PAGESIZE) & ~(HUGE_PAGESIZE - 1),
-		     SHM_HUGETLB | IPC_CREAT |0600)) < 0) {
-    printf( "Memory allocation failed(shmget).\n");
-    exit(1);
-  }
-
-  address = shmat(shmid, NULL, SHM_RND);
-
-  if ((int) address == -1){
-    printf( "Memory allocation failed(shmat).\n");
-    exit(1);
-  }
-
-  shmctl(shmid, IPC_RMID, 0);
-
-  return address;
-}*/
 
 CALvoid Usage(const CALchar* name)
 {
@@ -132,7 +106,6 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-?        Display this help information\n" );
     fprintf(stderr, "\t-e        Verify Computational Correctness\n" );
     fprintf(stderr, "\t-q        Supress Display Output\n" );
-    fprintf(stderr, "\t-p        Print the program kernel\n" );
     fprintf(stderr, "\t-a        Print the disassembled kernel image\n" );
     fprintf(stderr, "\t-o  <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n" );
     fprintf(stderr, "\t-w  <int> k for matrix multiply, default 1024\n" );
@@ -152,6 +125,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-t  <int> Pin to a CPU core (-100 for no pinning, -x to use cpu 0 to x - 1)\n" );
     fprintf(stderr, "\t-j  <dbl> GPU to CPU ratio\n" );
     fprintf(stderr, "\t-s        Dynamic CPU GPU scheduling\n" );
+    fprintf(stderr, "\t-p        Interleaving Memory Policy\n" );
     
     fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
             " of cacheable memory is smaller than the requested memory\n"
@@ -162,7 +136,7 @@ CALvoid Usage(const CALchar* name)
 CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo* Info)
 {
     Info->Verify = CAL_FALSE;
-    Info->PrintIL = CAL_FALSE;
+    Info->MemPolicy = CAL_FALSE;
     Info->Disassemble = CAL_FALSE;
     Info->Quiet = CAL_FALSE;
     Info->Pin = -3;
@@ -206,7 +180,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 Info->Iterations = 1;
                 break;
             case 'p':
-                Info->PrintIL = CAL_TRUE;
+                Info->MemPolicy = CAL_TRUE;
                 break;
             case 'b':
 		benchmark = true;
@@ -414,7 +388,7 @@ int main(CALint argc, CALchar** argv)
         CALuint tmpiter = Info.Iterations;
         CALuint tmpm = Info.m, tmpn = Info.n;
         Info.Quiet = CAL_TRUE;
-        Info.Iterations = 1;
+        Info.Iterations = 2;
         if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
         if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
         if (dgemm.RunCALDGEMM(AA, BB, CC, 0.0, 1.0))

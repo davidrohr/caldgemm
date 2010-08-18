@@ -112,38 +112,43 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
 #define WAITFOREVENT(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
-CALvoid caldgemm::displayMatrixTiming(SampleInfo* info, const CALchar* name)
+CALvoid caldgemm::displayMatrixTiming(const CALchar* name)
 {
-    if (!info->Quiet)
+    if (!Info->Quiet)
     {
-	CALdouble gflops_CPU = (CALdouble)1e-09 * info->m * info->n * (2 * info->Width + 2) * (CALdouble)info->Iterations/info->System.GetElapsedTime();
+        CALdouble gflops_CPU = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Info->System.GetElapsedTime();
         printf("Program: %s Sizes - A: %dx%d B: %dx%d C:%dx%d System Time %2.3lf System Gflops %2.3lf\n", name, 
-                info->m, info->Width, info->Width, 
-                info->n, info->m, info->n, info->System.GetElapsedTime(), gflops_CPU);
-        if (info->UseCPU == CAL_TRUE && info->UseGPU == CAL_TRUE)
+                Info->m, Info->Width, Info->Width, 
+                Info->n, Info->m, Info->n, Info->System.GetElapsedTime(), gflops_CPU);
+        if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
         {
     	    double flopsc, flopsg;
-    	    if (info->m >= info->n / 2)
+    	    if (CPUOnlyRun)
     	    {
-    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * info->n + (info->n % info->Height) * (info->m - cParam.cblas_size)) * (2 * info->Width + 2) * info->Iterations / info->CPUTimer.GetElapsedTime();
-    		flopsg = (double) 1e-09 * ((Info->m - cParam.cblas_size) * (info->n - info->n % info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * info->Width + 2) * info->Iterations / info->GPUTimer.GetElapsedTime();
+    		flopsc = (double) 1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * Info->Iterations / Info->CPUTimer.GetElapsedTime();
+    		flopsg = 0.0;
+    	    }
+    	    else if (Info->m >= Info->n / 2)
+    	    {
+    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->n + (Info->n % Info->Height) * (Info->m - cParam.cblas_size)) * (2 * Info->Width + 2) * Info->Iterations / Info->CPUTimer.GetElapsedTime();
+    		flopsg = (double) 1e-09 * ((Info->m - cParam.cblas_size) * (Info->n - Info->n % Info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * Info->Width + 2) * Info->Iterations / Info->GPUTimer.GetElapsedTime();
     	    }
     	    else
     	    {
-    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * info->m + (info->m % info->Height) * (info->n - cParam.cblas_size)) * (2 * info->Width + 2) * info->Iterations / info->CPUTimer.GetElapsedTime();
-    		flopsg = (double) 1e-09 * ((Info->n - cParam.cblas_size) * (info->m - info->m % info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * info->Width + 2) * info->Iterations / info->GPUTimer.GetElapsedTime();
+    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->m + (Info->m % Info->Height) * (Info->n - cParam.cblas_size)) * (2 * Info->Width + 2) * Info->Iterations / Info->CPUTimer.GetElapsedTime();
+    		flopsg = (double) 1e-09 * ((Info->n - cParam.cblas_size) * (Info->m - Info->m % Info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * Info->Width + 2) * Info->Iterations / Info->GPUTimer.GetElapsedTime();
     	    }
-    	    printf("GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)\n", info->GPUTimer.GetElapsedTime(), flopsg, info->CPUTimer.GetElapsedTime(), flopsc);
+    	    printf("GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)\n", Info->GPUTimer.GetElapsedTime(), flopsg, Info->CPUTimer.GetElapsedTime(), flopsc);
         }
 	if (Info->VerboseTiming)
 	{
-	    CALdouble gflops = (CALdouble)1e-09 * info->m * info->n * (2 * info->Width + 2) * (CALdouble)info->Iterations / info->Kernel.GetElapsedTime();
-	    CALdouble copyto = (CALdouble) 1e-09 * (info->m * (1 + (double) (info->n > info->Height)) + info->n * (info->m / info->Height)) * info->Width * sizeof(CALdouble) * (CALdouble)info->Iterations/info->CounterCopyTo.GetElapsedTime();
-    	    CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * info->m * info->n * sizeof(CALdouble) * (CALdouble)info->Iterations/info->CounterCopyFrom.GetElapsedTime()) : 0;
-    	    CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * info->m * info->n * sizeof(CALdouble) * (CALdouble)info->Iterations/info->CounterMerge.GetElapsedTime());
-    	    CALdouble copyDivide = (CALdouble) 1e-09 * (info->m * (1 + (double) (info->n > info->Height)) + info->n * (info->m / info->Height)) * info->Width * sizeof(CALdouble) * (CALdouble)info->Iterations/info->CounterDivide.GetElapsedTime();
+	    CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble)Info->Iterations / Info->Kernel.GetElapsedTime();
+	    CALdouble copyto = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterCopyTo.GetElapsedTime();
+    	    CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterCopyFrom.GetElapsedTime()) : 0;
+    	    CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterMerge.GetElapsedTime());
+    	    CALdouble copyDivide = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterDivide.GetElapsedTime();
     	    printf("Times:  Kernel                    Divide                  Merge                   Copy To                 Copy From\n");
-    	    printf("        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", info->Kernel.GetElapsedTime(), gflops, info->CounterDivide.GetElapsedTime(), copyDivide, info->CounterMerge.GetElapsedTime(), copyMerge, info->CounterCopyTo.GetElapsedTime(), copyto, info->CounterCopyFrom.GetElapsedTime(), copyfrom);
+    	    printf("        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Info->Kernel.GetElapsedTime(), gflops, Info->CounterDivide.GetElapsedTime(), copyDivide, Info->CounterMerge.GetElapsedTime(), copyMerge, Info->CounterCopyTo.GetElapsedTime(), copyto, Info->CounterCopyFrom.GetElapsedTime(), copyfrom);
     	}
     }
 }
@@ -173,7 +178,7 @@ CALuint caldgemm::AnalyzeResults(Data* data)
     CALuint wrong = 0;
     CALuint total = 0;
 
-    displayMatrixTiming(Info, "caldgemm");
+    displayMatrixTiming("caldgemm");
     if (Info->Verify) {
         printf("Verifying results can take a long time on large matrices.\n");
         CPerfCounter Timer;
@@ -188,6 +193,7 @@ CALuint caldgemm::AnalyzeResults(Data* data)
             {
                 if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
                 {
+            	    if (wrong == 0) printf("Error found at %d, %d: Expected: %le, Found: %le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j]);
                     ++wrong;
                 }
                 ++total;
@@ -273,7 +279,7 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     //
     //  setup the program's inputs and outputs
     //
-    if (!AllocateResources(ctx, device, _Res, bStop, fStop, cStop, data, *Info)) {
+    if (!AllocateResources(ctx, device, _Res, bStop, fStop, cStop, data)) {
         fprintf(stderr, "There was an error in allocating resources and binding them to memory\n");
         return 0;
     }
@@ -586,7 +592,7 @@ CALint caldgemm::SetupKernel(const CALchar* ILKernel, CALmodule* module, CALcont
     return 1;
 }
 
-CALint caldgemm::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, CALuint Height, SampleInfo* Info, CALevent* event)
+CALint caldgemm::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, CALuint Height, CALevent* event)
 {
     CALfunc func;
     CALresult r = CAL_RESULT_ERROR;
@@ -762,13 +768,6 @@ CALformat caldgemm::getFormat(CALuint formatSize, CALuint dataSize, CALboolean i
     return format;
 }
 
-
-void caldgemm::PrintKernel(const CALchar* string, const CALchar* name)
-{
-    fprintf(stderr, "Kernel: %s\n", name);
-    fprintf(stderr, "%s\n", string);
-}
-
 void caldgemm::copyFrom(CALchar* ptr, Data& data, CALuint pitch)
 {
     // Fast path that just does a memcpy of the whole data set
@@ -929,7 +928,7 @@ CALint caldgemm::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, 
     return 1;
 }
 
-CALint caldgemm::AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, const SampleInfo& Info)
+CALint caldgemm::AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data)
 {
     CALresult r = CAL_RESULT_ERROR;
     //////////////////////////////////////////////////////////////////////////
@@ -949,7 +948,7 @@ CALint caldgemm::AllocateResources(CALcontext* ctx, CALdevice* device, CALresour
         }
         else if (i >= cStop && i < oStop)
         {
-            mem = Info.DstMemory;
+            mem = Info->DstMemory;
             flag = static_cast<CALresallocflags>(flag | CAL_RESALLOC_CACHEABLE);
         }
         else if (i >= iStop && i < cStop)
@@ -984,7 +983,7 @@ CALint caldgemm::AllocateResources(CALcontext* ctx, CALdevice* device, CALresour
             fprintf(stderr, "Error string is %s\n",calGetErrorString());
             return 0;
         }
-        if (Info.DstMemory == 'c' && i >= cStop)
+        if (Info->DstMemory == 'c' && i >= cStop)
         {
     	    data[i].mem = data[i].dstMem;
     	    data[i].res = _Res[i];
@@ -1046,7 +1045,7 @@ int caldgemm::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CAL
     return(0);
 }
 
-CALint caldgemm::ParameterValidation(CALuint nInput, CALuint nOutput, SampleInfo* Info, CALdeviceattribs* attribs)
+CALint caldgemm::ParameterValidation(CALuint nInput, CALuint nOutput, CALdeviceattribs* attribs)
 {
     CALint retval = 1;
     CALuint mult = 0;
@@ -1229,22 +1228,21 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 
     if (Info->Pin != -100)
     {
-        cpu_set_t mask;
-        CPU_ZERO(&mask);
+        CPU_ZERO(&gpumask);
         if (Info->Pin < 0)
         {
-            for (int i = 0;i < -Info->Pin;i++) CPU_SET(i, &mask);
+            for (int i = 0;i < -Info->Pin;i++) CPU_SET(i, &gpumask);
         }
         else
         {
-            CPU_SET(Info->Pin, &mask);
+            CPU_SET(Info->Pin, &gpumask);
         }
-        printf("Setting affinitiy to restrict on CPU %d\n", Info->Pin);
-        if (0 != sched_setaffinity(0, sizeof(mask), &mask))
-        {
-            printf("Error setting CPU affinity\n");
-            return(1);
-        }
+	if (Info->Debug) printf("Setting affinitiy to restrict on CPU %d\n", Info->Pin);
+	if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
+	{
+    	    printf("Error setting CPU affinity\n");
+    	    return(1);
+    	}
     }
 
     if(!ValidateCALRuntime())
@@ -1285,7 +1283,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 
     // Verify that there is space on the graphics card to run the kernel
     // with the given parameters
-    if (!ParameterValidation(numInputs, numOutputs, Info, &attribs))
+    if (!ParameterValidation(numInputs, numOutputs, &attribs))
     {
         printf("There is not enough memory on the card to run the sample\n"
                "with the given command line options. Please try again.\n");
@@ -1299,11 +1297,6 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	return 1;
     }
 
-    if (Info->PrintIL == CAL_TRUE)
-    {
-        PrintKernel(ILKernel, "Simple Matrix Multiplication");
-    }
-    
     for (int i = 0;i < ctxcount;i++)
     {
 	if (!SetupKernel(ILKernel, &modules[i], &ctxs[i], (CALboolean) (Info->Disassemble && i == 0)))
@@ -1336,8 +1329,13 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     pthread_t thr;
     pthread_create(&thr, NULL, cblas_wrapper, &cParam);
     
-    unsigned long nodemask = 0xffffff;
-    //syscall(SYS_set_mempolicy, 3, &nodemask, sizeof(nodemask) * 8);
+    if (Info->MemPolicy)
+    {
+	unsigned long nodemask = 0xffffff;
+	syscall(SYS_set_mempolicy, 3, &nodemask, sizeof(nodemask) * 8);
+    }
+
+    if (Info->Pin != -100) sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
     return(0);
 }
@@ -1364,7 +1362,11 @@ void* cblas_wrapper(void* arg)
 
 	par->cls->Info->CPUTimer.Start();
 	int old_goto_threads = get_num_procs();
-	goto_set_num_threads(old_goto_threads - (Info->Pin < 0 ? -Info->Pin : 1));
+	if (Info->Pin != -100)
+	{
+	    goto_set_num_threads(old_goto_threads - (Info->Pin < 0 ? -Info->Pin : 1));
+	    caldgemm_goto_reserve_cpus(Info->Pin < 0 ? -Info->Pin : 1);
+	}
 	if (Info->m >= Info->n / 2)	//favor splitting m because of consecutive memory
 	{
 	    if (par->dynamic_run == 0)
@@ -1394,6 +1396,7 @@ void* cblas_wrapper(void* arg)
 		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * B_pitch, C_pitch);
 	}
 	goto_set_num_threads(old_goto_threads);
+	caldgemm_goto_reserve_cpus(0);
 	par->cls->Info->CPUTimer.Stop();
 
         if (Info->Debug) printf("\t\tUnlocking cblasmutex\n");
@@ -1407,6 +1410,8 @@ void* cblas_wrapper(void* arg)
 void* merge_wrapper(void* arg)
 {
     caldgemm::mergeParameters* par = (caldgemm::mergeParameters*) arg;
+    
+    if (par->cls->Info->Pin != -100) sched_setaffinity(0, sizeof(par->cls->gpumask), &par->cls->gpumask);
     
     pthread_mutex_lock(&par->mergeMutex[1]);
     while (pthread_mutex_lock(&par->mergeMutex[1]) == 0 && par->terminate == CAL_FALSE)
@@ -1423,10 +1428,10 @@ void* merge_wrapper(void* arg)
 
 int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, int tmp_m, int tmp_k, int tmp_n, int Apitch, int Bpitch, int Cpitch, CBLAS_ORDER order)
 {
-    if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0) return(0);		//Do Nothing
-    
+    bool forceCPU = false;
     bool forceReinit = false;
     int old_k = Info->Width;
+    int old_height = Info->Height;
     
     A = a;
     B = b;
@@ -1444,6 +1449,17 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     B_pitch = Bpitch != -1 ? Bpitch : Info->n;
     C_pitch = Cpitch != -1 ? Cpitch : Info->n;
     
+    if (Info->Debug) printf("Starting DGEMM Run m=%d k=%d n=%d Alpha=%lf Beta=%lf\n", Info->m, Info->Width, Info->n, Alpha, Beta);
+    if (Info->Verify)
+    {
+	D = new CALdouble[Info->m * C_pitch];
+	memcpy(D, C, Info->m * C_pitch * sizeof(CALdouble));
+    }
+
+    Info->System.Start();
+    
+    if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0) goto RunCALDGEMM_end;		//Do Nothing
+    
     if (order == CblasColMajor)
     {
 	double* tmpd;
@@ -1453,17 +1469,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	tmpi = A_pitch; A_pitch = B_pitch; B_pitch = tmpi;
     }
     
-    if (Info->Debug) printf("Starting DGEMM Run m=%d k=%d n=%d Alpha=%lf Beta=%lf\n", Info->m, Info->Width, Info->n, Alpha, Beta);
-    if (Info->Verify)
-    {
-	D = new CALdouble[Info->m * C_pitch];
-	memcpy(D, C, Info->m * C_pitch * sizeof(CALdouble));
-    }
-
     //Check if the GPU can/shall process the required dgemm task
-    bool forceCPU = false;
     
-    if (Info->Width % 256 || Info->Width < 256) forceCPU = true;
+    if (Info->Iterations > 1);
+    else if (Info->Width % 256 || Info->Width < 256) forceCPU = true;
     else if (Info->m < 1024 || Info->n < 1024) forceCPU = true;
     else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
     else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
@@ -1473,17 +1482,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	forceCPU = true;
     }
     
-    if (forceCPU)
-    {
-	if (Info->Debug) printf("Running CPU only DGEMM\n");
-	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
-	Info->Width = old_k;
-	return(0);
-    }
-    
     if (Info->AutoHeight)
     {
-	int old_height = Info->Height;
 	if (Info->m < 2048 || Info->n < 2048 || Info->m * Info->n < 9 * 1024 * 1024)
         {
     	    Info->Height = 1024;
@@ -1492,18 +1492,38 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 	    Info->Height = 2048;
 	}
-	if (Info->Height != old_height) forceReinit = true;
+	if (Info->Height != old_height)
+	{
+	    if (Info->Debug) printf("Height changed from %d to %d\n", old_height, Info->Height);
+	    forceReinit = true;
+	}
     }
+
+    if (forceCPU || Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 23 * 1024 * 1024 * 1024))
+    {
+	if (Info->Debug) printf("Running CPU only DGEMM\n");
+	Info->CPUTimer.Start();
+	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
+	Info->CPUTimer.Stop();
+	CPUOnlyRun = true;
+	Info->Width = old_k;
+	Info->Height = old_height;
+	goto RunCALDGEMM_end;
+    }
+    CPUOnlyRun = false;
+    
+    if (Info->Pin != -100) sched_setaffinity(0, sizeof(gpumask), &gpumask);
     
     if (forceReinit)
     {
 	if (Info->Debug) printf("Reinit for changed width / height\n");
-        CleanupData(&ctxs[0], resourceHandlers[0], datas[0], numInputs + numOutputs + numConstantBuffers);
-	SetupData(&modules[0], resourceHandlers[0], datas[0], &device, &ctxs[0], numInputs, numOutputs, numConstantBuffers);
+	for (int i = 0;i < ctxcount;i++)
+	{
+    	    CleanupData(&ctxs[i], resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers);
+	    SetupData(&modules[i], resourceHandlers[i], datas[i], &device, &ctxs[i], numInputs, numOutputs, numConstantBuffers);
+	}
     }
         
-    Info->System.Start();
-    
     for (int i = 0;i < ctxcount;i++)
     {
 	datas[i][aPartsNum + bPartsNum].d_data[3] = alpha;
@@ -1540,11 +1560,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
 	}
     }
-    else if (Info->UseCPU)
-    {
-	usen = usem = 0;
-	cParam.cblas_size = (Info->m >= Info->n / 2) ? Info->m : Info->n;
-    }
     else
     {
 	if (Info->n % Info->Height || Info->m % Info->Height)
@@ -1560,10 +1575,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     Info->GPUTimer.Start();
 
-    int oldj;
-    int j = 0;
     for (CALuint i = 0; i < Info->Iterations; ++i)
     {
+	int oldj;
+	int j = 0;
+	
 	int mb = usem / Info->Height;
 	int nb = usen / Info->Height;
 	int blockm, blockn, lastm, lastn;
@@ -1618,7 +1634,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);
     	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
-    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / bPartsNum , Info->Height / aPartsNum, Info, &events[j])) {printf("Error running program\n"); return 1;}
+    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / bPartsNum , Info->Height / aPartsNum, &events[j])) {printf("Error running program\n"); return 1;}
     	        if (Info->VerboseTiming) Info->CounterCopyFrom.Start();
     	        if (Info->DstMemory == 'g' && Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
     		if (CopyDataFromGPU(&ctxs[j], resourceHandlers[j] + numInputs + numConstantBuffers, datas[j] + numInputs + numConstantBuffers, numOutputs, &events[j])) {printf("Error copying from GPU\n"); return(1);}
@@ -1636,7 +1652,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     			    cParam.dynamic_size /= cParam.dynamic_run;
     			    cParam.dynamic_run *= Info->Height;
     			    cParam.borders_done = CAL_TRUE;
-    			    if (Info->Debug) printf("Scheduling Additional CPU DGEMM Run over %dx%d blocks\n", cParam.dynamic_run, cParam.dynamic_size);
+    			    if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %dx%d blocks\n", cParam.dynamic_run, cParam.dynamic_size);
     			    pthread_mutex_unlock(&cParam.cblasMutex[1]);
     			}
     			else
@@ -1679,9 +1695,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
     }
     Info->GPUTimer.Stop();
+    
+    if (Info->Pin != -100) sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
     if (Info->UseCPU) pthread_mutex_lock(&cParam.cblasMutex[0]);
 
+RunCALDGEMM_end:
     Info->System.Stop();
 
     if (Info->Debug) printf("DGEMM Run Complete\n");
@@ -1745,8 +1764,6 @@ int caldgemm::ExitCALDGEMM()
         fprintf(stderr, "There was an error during cal shutdown.\n");
         fprintf(stderr, "Error string is %s\n", calGetErrorString());
     }
-
-    sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
     return(0);
 }
