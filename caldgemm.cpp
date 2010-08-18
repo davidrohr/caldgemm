@@ -101,6 +101,10 @@ jurisdiction and venue of these courts.
 
 #include <syscall.h>
 #include <errno.h>
+extern "C" {
+#include <common.h>
+}
+#include <math.h>
 
 template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
 template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
@@ -284,7 +288,6 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
 }
 
 #define _mm_store_pd_use _mm_stream_pd
-#define CALDGEMM_USE_VEC_MEMCPY
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH
 
 CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers)
@@ -297,9 +300,6 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
     {
         CALint bank = y % numBuffers;
         CALint nextbank = (y + 1) % numBuffers;
-#ifndef CALDGEMM_USE_VEC_MEMCPY
-        memcpy(dst[bank].d_data + position[bank], src + (y * pitch), dst[bank].DataSize * width);
-#else
         double* daddr = dst[bank].d_data + position[bank];
         double* saddr = src + (y * pitch);
         int count = dst[bank].DataSize * width;
@@ -316,16 +316,12 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
     	    saddr += 8;
     	    daddr += 8;
         }
-#endif
         
         position[bank] += width;
     }
 
     delete[] position;
 }
-
-#undef _mm_store_pd_use
-#define _mm_store_pd_use _mm_store_pd
 
 int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers)
 {
@@ -347,30 +343,49 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     for (CALint y=0; y < height; y++)
     {
         CALint bank = y % numBuffers;
-#ifndef CALDGEMM_USE_VEC_MEMCPY
-        memcpy(dst + (y * pitch), src[bank].d_data + position[bank], src[bank].DataSize * width);
-#else
+
         double* daddr = dst + (y * pitch);
         double* saddr = src[bank].d_data + position[bank];
         CALint nextbank = (y + 1) % numBuffers;
         int count = src[bank].DataSize * width;
         
-        __m128d beta = _mm_set1_pd(Beta);
-        
-        for (int i = 0;i < count;i += 64)
+        if (__fpclassify(Beta) == FP_ZERO)
         {
+    	    for (int i = 0;i < count;i += 64)
+    	    {
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    	    _mm_prefetch(saddr + 100, _MM_HINT_NTA);
-    	    _mm_prefetch(daddr + 100, _MM_HINT_T0);
+    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
 #endif
-    	    _mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
-    	    _mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
-    	    _mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-    	    _mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
-    	    saddr += 8;
-    	    daddr += 8;
+    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    	        _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 2));
+    		_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 4));
+    	        _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 6));
+    		saddr += 8;
+    	        daddr += 8;
+    	    }
         }
+        else
+        {
+        
+#undef _mm_store_pd_use
+#define _mm_store_pd_use _mm_store_pd
+        
+    	    __m128d beta = _mm_set1_pd(Beta);
+    	    for (int i = 0;i < count;i += 64)
+    	    {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+    	        _mm_prefetch(daddr + 100, _MM_HINT_T0);
 #endif
+    		_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
+    	        _mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
+    		_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
+    	        _mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
+    		saddr += 8;
+    	        daddr += 8;
+    	    }
+    	}
+    	
         position[bank] += width;
     }
 
@@ -1322,7 +1337,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     pthread_create(&thr, NULL, cblas_wrapper, &cParam);
     
     unsigned long nodemask = 0xffffff;
-    syscall(SYS_set_mempolicy, 3, &nodemask, sizeof(nodemask) * 8);
+    //syscall(SYS_set_mempolicy, 3, &nodemask, sizeof(nodemask) * 8);
 
     return(0);
 }
@@ -1348,6 +1363,8 @@ void* cblas_wrapper(void* arg)
 	if (Info->Debug) printf("\t\tSlave thread starting cblas (m: %d, n: %d, cblas_size: %d, dynamic: %d/%d)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size);
 
 	par->cls->Info->CPUTimer.Start();
+	int old_goto_threads = get_num_procs();
+	goto_set_num_threads(old_goto_threads - (Info->Pin < 0 ? -Info->Pin : 1));
 	if (Info->m >= Info->n / 2)	//favor splitting m because of consecutive memory
 	{
 	    if (par->dynamic_run == 0)
@@ -1376,6 +1393,7 @@ void* cblas_wrapper(void* arg)
 	    if (Info->m % Info->Height && par->borders_done == CAL_FALSE)
 		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * B_pitch, C_pitch);
 	}
+	goto_set_num_threads(old_goto_threads);
 	par->cls->Info->CPUTimer.Stop();
 
         if (Info->Debug) printf("\t\tUnlocking cblasmutex\n");
@@ -1447,6 +1465,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->Width % 256 || Info->Width < 256) forceCPU = true;
     else if (Info->m < 1024 || Info->n < 1024) forceCPU = true;
+    else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
     else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
 	A_pitch & (vcpysize / sizeof(CALdouble) - 1) || B_pitch & (vcpysize / sizeof(CALdouble) - 1)|| C_pitch & (vcpysize / sizeof(CALdouble) - 1))
     {
