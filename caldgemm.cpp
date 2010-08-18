@@ -106,6 +106,11 @@ extern "C" {
 }
 #include <math.h>
 
+#define MPOL_DEFAULT 0
+#define MPOL_PREFERRED 1
+#define MPOL_BIND 2
+#define MPOL_INTERLEAVE 3
+
 template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
 template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 
@@ -1225,7 +1230,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     Info = pInfo;
 
     sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);
-
+    
     if (Info->Pin != -100)
     {
         CPU_ZERO(&gpumask);
@@ -1332,7 +1337,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     if (Info->MemPolicy)
     {
 	unsigned long nodemask = 0xffffff;
-	syscall(SYS_set_mempolicy, 3, &nodemask, sizeof(nodemask) * 8);
+	syscall(SYS_set_mempolicy, MPOL_INTERLEAVE, &nodemask, sizeof(nodemask) * 8);
     }
 
     if (Info->Pin != -100) sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
