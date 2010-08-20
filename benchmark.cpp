@@ -96,6 +96,8 @@ jurisdiction and venue of these courts.
 double *AA = NULL, *BB = NULL, *CC = NULL;
 bool benchmark = false;
 bool fastinit = false;
+bool loadmatrix = false;
+char* matrixfile;
 
 CALvoid Usage(const CALchar* name)
 {
@@ -126,6 +128,8 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-j  <dbl> GPU to CPU ratio\n" );
     fprintf(stderr, "\t-s        Dynamic CPU GPU scheduling\n" );
     fprintf(stderr, "\t-p        Interleaving Memory Policy\n" );
+    fprintf(stderr, "\t-u        Dump Test Matrix\n" );
+    fprintf(stderr, "\t-x <file> Load Matrix\n" );
     
     fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
             " of cacheable memory is smaller than the requested memory\n"
@@ -152,7 +156,8 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->Iterations = 1;
     Info->DstMemory = 'g';
     Info->UseCPU = Info->UseGPU = CAL_FALSE;
-    Info->GPURatio = 0.64;
+    Info->GPURatio = -1;
+    Info->DumpMatrix = CAL_FALSE;
     Info->System.Reset();
     Info->Kernel.Reset();
     Info->CounterDivide.Reset();
@@ -184,6 +189,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case 'b':
 		benchmark = true;
+                break;
+            case 'u':
+		Info->DumpMatrix = CAL_TRUE;
                 break;
             case 'a':
                 Info->Disassemble = CAL_TRUE;
@@ -258,6 +266,17 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                     return CAL_FALSE;
                 }
                 break;
+            case 'x':
+                if (++x < argc)
+                {
+        	    loadmatrix = true;
+        	    matrixfile = argv[x];
+        	}
+        	else
+        	{
+        	    return(CAL_FALSE);
+        	}
+        	break;
             case 'v':
         	Info->VerboseTiming = CAL_TRUE;
         	break;
@@ -376,42 +395,91 @@ int main(CALint argc, CALchar** argv)
 	return(1);
     }
 
-    if (SetupUserData(Info))
+    if (loadmatrix)
     {
-	return(1);
-    }
-
-    //Initial run to negate cache effects
-    if (Info.Debug == CAL_FALSE)
-    {
-	CALboolean tmpquiet = Info.Quiet;
-        CALuint tmpiter = Info.Iterations;
-        CALuint tmpm = Info.m, tmpn = Info.n;
-        Info.Quiet = CAL_TRUE;
-        Info.Iterations = 2;
-        if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
-        if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
-        if (dgemm.RunCALDGEMM(AA, BB, CC, 0.0, 1.0))
-        {
-	    printf("Error running CALDGEMM\n");
+	FILE* fp;
+	double* a, b, c;
+	double alpha, beta;
+	int tmp_m, tmp_k, tmp_n;
+	int Apitch, Bpitch, Cpitch;
+	
+	if ((fp = fopen(matrixfile, "rb")) == NULL)
+	{
+	    printf("Error opening matrix dump\n");
 	    return(1);
 	}
-	Info.m = tmpm;
-	Info.n = tmpn;
-	Info.Quiet = tmpquiet;
-        Info.Iterations = tmpiter;
-    }
-    dgemm.ResetTimers();
-    
-    do
-    {
-	if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n))
+	fread(&a, sizeof(a), 1, fp);
+	fread(&b, sizeof(b), 1, fp);
+	fread(&c, sizeof(c), 1, fp);
+	fread(&alpha, sizeof(alpha), 1, fp);
+	fread(&beta, sizeof(beta), 1, fp);
+	fread(&tmp_m, sizeof(tmp_m), 1, fp);
+	fread(&tmp_k, sizeof(tmp_k), 1, fp);
+	fread(&tmp_n, sizeof(tmp_n), 1, fp);
+	fread(&Apitch, sizeof(Apitch), 1, fp);
+	fread(&Bpitch, sizeof(Bpitch), 1, fp);
+	fread(&Cpitch, sizeof(Cpitch), 1, fp);
+	
+	Apitch = 1536;
+	
+	AA = new CALdouble[(size_t) tmp_m * (size_t) Apitch];
+	BB = new CALdouble[(size_t) tmp_k * (size_t) Bpitch];
+	CC = new CALdouble[(size_t) tmp_m * (size_t) Cpitch];
+	
+	for (int i = 0;i < tmp_m;i++)
 	{
-	    printf("Error running CALDGEMM\n");
+	    fread(AA + i * Apitch, tmp_k, sizeof(double), fp);
+	}
+	for (int i = 0;i < tmp_k;i++)
+	{
+	    fread(BB + i * Bpitch, tmp_n, sizeof(double), fp);
+	}
+	fclose(fp);
+	memset(CC, 0, (size_t) tmp_m * (size_t) Cpitch * sizeof(double));
+	
+	printf("matrix loaded: m=%d k=%d n=%d lda=%d ldb=%d ldc=%d alpha=%2.4lf beta=%2.4lf\n", tmp_m, tmp_k, tmp_n, Apitch, Bpitch, Cpitch, alpha, beta);
+	
+	dgemm.RunCALDGEMM(AA, BB, CC, alpha, beta, tmp_m, tmp_k, tmp_n, Apitch, Bpitch, Cpitch);
+    }
+    else
+    {
+	if (SetupUserData(Info))
+	{
 	    return(1);
+	}
+
+	//Initial run to negate cache effects
+        if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE)
+        {
+	    CALboolean tmpquiet = Info.Quiet;
+    	    CALuint tmpiter = Info.Iterations;
+    	    CALuint tmpm = Info.m, tmpn = Info.n;
+    	    Info.Quiet = CAL_TRUE;
+    	    Info.Iterations = 2;
+    	    if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
+    	    if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
+    	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.0, 1.0))
+    	    {
+	        printf("Error running CALDGEMM\n");
+		return(1);
+	    }
+	    Info.m = tmpm;
+	    Info.n = tmpn;
+	    Info.Quiet = tmpquiet;
+    	Info.Iterations = tmpiter;
 	}
 	dgemm.ResetTimers();
-    } while (benchmark && (Info.n += Info.Height) < 70000 && (Info.m += Info.Height) < 70000 && SetupUserData(Info) == 0);
+    
+	do
+        {
+	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n))
+	    {
+		printf("Error running CALDGEMM\n");
+		return(1);
+	    }
+	    dgemm.ResetTimers();
+	} while (benchmark && (Info.n += Info.Height) < 70000 && (Info.m += Info.Height) < 70000 && SetupUserData(Info) == 0);
+    }
     
     dgemm.ExitCALDGEMM();
 

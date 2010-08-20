@@ -174,6 +174,7 @@ class caldgemm
 	CALdouble  GPURatio;
 	CALboolean DynamicSched;
 	CALboolean MemPolicy;
+	CALboolean DumpMatrix;
 	CALuint    m, n;		//height of A, width of B, must be multiple of height
 	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer;
     } SampleInfo;
@@ -185,7 +186,7 @@ class caldgemm
     //The Width (k in matrix multiply) is fixed and cannot be changed without reinitializing
     int InitCALDGEMM(SampleInfo* pInfo);
     int ExitCALDGEMM();
-    int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, int m = -1, int k = -1, int n = -1, int Apitch = -1, int Bpitch = -1, int Cpitch = -1, CBLAS_ORDER = CblasRowMajor);
+    int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, int m = -1, int k = -1, int n = -1, int Apitch = -1, int Bpitch = -1, int Cpitch = -1, CBLAS_ORDER order = CblasRowMajor, CBLAS_TRANSPOSE TransA = CblasNoTrans, CBLAS_TRANSPOSE TransB = CblasNoTrans);
     void ResetTimers();
 
     private:
@@ -262,6 +263,7 @@ class caldgemm
     void copyFrom(CALchar* ptr, Data& data, CALuint pitch);
     void copyTo(CALchar* ptr, Data& data, CALuint pitch);
     void print_submatrices(double* M, int width, int height, int pitch, int subx, int suby, int stridex, int stridey);
+    int DumpMatrix(double* A, double* B, double* C, double alpha, double beta, int m, int k, int n, int Apitch, int Bpitch, int Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB);
 
     CALdouble* A;
     CALdouble* B;

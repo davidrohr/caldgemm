@@ -163,11 +163,11 @@ void caldgemm::print_submatrices(double* M, int width, int height, int pitch, in
     printf("Matrix %d x %d, Subblocks %d x %d, Strides: %d / %d\n", width, height, subx, suby, stridex, stridey);
     for (int j = 0;j < height;j += stridey)
     {
-	for (int jj = j;jj < j + suby;jj++)
+	for (int jj = j;jj < j + suby && jj < height;jj++)
 	{
 	    for (int i = 0;i < width;i += stridex)
 	    {
-		for (int ii = i;ii < i + subx;ii++)
+		for (int ii = i;ii < i + subx && ii < width;ii++)
 		{
 		    printf("%+07.3lf\t", M[jj * pitch + ii]);
 		}
@@ -204,12 +204,6 @@ CALuint caldgemm::AnalyzeResults(Data* data)
                 ++total;
             }
         }
-        if (wrong || Info->Debug)
-        {
-    	    print_submatrices(C, Info->n, Info->m, Info->n, 2, 2, Info->Height, Info->Height);
-    	    print_submatrices(D, Info->n, Info->m, Info->n, 2, 2, Info->Height, Info->Height);
-        }
-        
         if (wrong)
         {
             printf("%d out of %d elements were incorrect\n", wrong, total);
@@ -218,6 +212,12 @@ CALuint caldgemm::AnalyzeResults(Data* data)
         {
             printf("Passed!\n");
         }
+        if (wrong || Info->Debug)
+        {
+    	    print_submatrices(C, Info->n, Info->m, Info->n, 2, 2, Info->Height, Info->Height);
+    	    print_submatrices(D, Info->n, Info->m, Info->n, 2, 2, Info->Height, Info->Height);
+        }
+        
     }
 
     return !wrong;
@@ -1363,7 +1363,7 @@ void* cblas_wrapper(void* arg)
 	const int A_pitch = par->cls->A_pitch;
 	const int B_pitch = par->cls->B_pitch;
 	const int C_pitch = par->cls->C_pitch;
-	if (Info->Debug) printf("\t\tSlave thread starting cblas (m: %d, n: %d, cblas_size: %d, dynamic: %d/%d)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size);
+	if (!Info->Quiet) printf("\t\tSlave thread starting cblas (m: %d, n: %d, cblas_size: %d, dynamic: %d/%d)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size);
 
 	par->cls->Info->CPUTimer.Start();
 	int old_goto_threads = get_num_procs();
@@ -1431,12 +1431,54 @@ void* merge_wrapper(void* arg)
     return(NULL);
 }
 
-int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, int tmp_m, int tmp_k, int tmp_n, int Apitch, int Bpitch, int Cpitch, CBLAS_ORDER order)
+int caldgemm::DumpMatrix(double* a, double* b, double* c, double alpha, double beta, int tmp_m, int tmp_k, int tmp_n, int Apitch, int Bpitch, int Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB)
 {
+    int i = 0;
+    char filename[256];
+    FILE* fp = NULL;
+    do
+    {
+	if (fp) fclose(fp);
+	sprintf(filename, "dump%d.out", i++);
+    } while ((fp = fopen(filename, "r")) != NULL && i < 100);
+    if (i == 100)
+    {
+	if (fp) fclose(fp);
+	return(1);
+    }
+    fp = fopen(filename, "w+b");
+    fwrite(&a, sizeof(a), 1, fp);
+    fwrite(&b, sizeof(b), 1, fp);
+    fwrite(&c, sizeof(c), 1, fp);
+    fwrite(&alpha, sizeof(alpha), 1, fp);
+    fwrite(&beta, sizeof(beta), 1, fp);
+    fwrite(&tmp_m, sizeof(tmp_m), 1, fp);
+    fwrite(&tmp_k, sizeof(tmp_k), 1, fp);
+    fwrite(&tmp_n, sizeof(tmp_n), 1, fp);
+    fwrite(&Apitch, sizeof(Apitch), 1, fp);
+    fwrite(&Bpitch, sizeof(Bpitch), 1, fp);
+    fwrite(&Cpitch, sizeof(Cpitch), 1, fp);
+    for (i = 0;i < tmp_m;i++)
+    {
+	fwrite(a + i * Apitch, sizeof(double), tmp_k, fp);
+    }
+    for (i = 0;i < tmp_k;i++)
+    {
+	fwrite(b + i * Bpitch, sizeof(double), tmp_n, fp);
+    }
+    fclose(fp);
+    return(0);
+}
+
+int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, int tmp_m, int tmp_k, int tmp_n, int Apitch, int Bpitch, int Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB)
+{
+    if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0) return(0);		//Do Nothing
+    
     bool forceCPU = false;
     bool forceReinit = false;
     int old_k = Info->Width;
     int old_height = Info->Height;
+    double GPURatio;
     
     A = a;
     B = b;
@@ -1454,30 +1496,39 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     B_pitch = Bpitch != -1 ? Bpitch : Info->n;
     C_pitch = Cpitch != -1 ? Cpitch : Info->n;
     
+    ResetTimers();
+    
     if (Info->Debug) printf("Starting DGEMM Run m=%d k=%d n=%d Alpha=%lf Beta=%lf\n", Info->m, Info->Width, Info->n, Alpha, Beta);
     if (Info->Verify)
     {
-	D = new CALdouble[Info->m * C_pitch];
+	D = new CALdouble[(size_t) Info->m * (size_t) C_pitch];
+	if (D == NULL)
+	{
+	    printf("Memory allocation error\n");
+	    return(1);
+	}
 	memcpy(D, C, Info->m * C_pitch * sizeof(CALdouble));
     }
 
     Info->System.Start();
     
-    if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0) goto RunCALDGEMM_end;		//Do Nothing
-    
     if (order == CblasColMajor)
     {
 	double* tmpd;
 	int tmpi;
+	CBLAS_TRANSPOSE tmpt;
 	tmpd = A; A = B; B = tmpd;
 	tmpi = Info->m; Info->m = Info->n; Info->n = tmpi;
 	tmpi = A_pitch; A_pitch = B_pitch; B_pitch = tmpi;
+	tmpt = TransA;TransA = TransB;TransB = tmpt;
     }
     
-    //Check if the GPU can/shall process the required dgemm task
+    if (Info->DumpMatrix) DumpMatrix(A, B, C, Alpha, Beta, Info->m, Info->Width, Info->n, A_pitch, B_pitch, C_pitch, CblasRowMajor, TransA, TransB);
     
+    //Check if the GPU can/shall process the required dgemm task
     if (Info->Iterations > 1);
     else if (Info->Width % 256 || Info->Width < 256) forceCPU = true;
+    else if (TransA == CblasTrans || TransB == CblasTrans) forceCPU = true;
     else if (Info->m < 1024 || Info->n < 1024) forceCPU = true;
     else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
     else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
@@ -1504,11 +1555,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
     }
 
-    if (forceCPU || Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 23 * 1024 * 1024 * 1024))
+    if (forceCPU || Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024))
     {
 	if (Info->Debug) printf("Running CPU only DGEMM\n");
 	Info->CPUTimer.Start();
-	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
+	cblas_dgemm(CblasRowMajor, TransA, TransB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 	Info->CPUTimer.Stop();
 	CPUOnlyRun = true;
 	Info->Width = old_k;
@@ -1535,6 +1586,31 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (CopyDataToGPU(&ctxs[i], resourceHandlers[i] + numInputs, datas[i] + numInputs, numConstantBuffers, CAL_TRUE, &events[i])) return(1);
     }
     
+    if (Info->GPURatio < 0)
+    {
+	/* //Optimal ratio found using seperated runs
+	if ((long long int) Info->m * (long long int) Info->n > (long long int) 600000000) GPURatio = 0.66;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 150000000) GPURatio = 0.63;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 50000000) GPURatio = 0.60;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 20000000) GPURatio = 0.55;
+	else GPURatio = 0.5;*/
+	//Optimal ratio found using combined runs
+	if ((long long int) Info->m * (long long int) Info->n > (long long int) 2000000000) GPURatio = 0.66;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 1000000000) GPURatio = 0.65;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 350000000) GPURatio = 0.64;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 200000000) GPURatio = 0.63;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 50000000) GPURatio = 0.60;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 25000000) GPURatio = 0.55;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 15000000) GPURatio = 0.50;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 10000000) GPURatio = 0.40;
+	else GPURatio = 0.30;
+	if (Info->Debug) printf("GPURatio automatically set to %1.2lf\n", GPURatio);
+    }
+    else
+    {
+	GPURatio = Info->GPURatio;
+    }
+    
     int usem, usen; //m and n for gpu, rest done by cblas
     cParam.dynamic_run = 0;
     cParam.borders_done = CAL_FALSE;
@@ -1542,7 +1618,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     {
 	if (Info->m >= Info->n / 2)
 	{
-	    usem = (int) (Info->GPURatio * (float) Info->m + (Info->Height - 1));
+	    usem = (int) (GPURatio * (float) Info->m + (Info->Height - 1));
 	    usem -= usem % Info->Height;
 	    cParam.cblas_size = Info->m - usem;
 	    usen = Info->n;
@@ -1551,7 +1627,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
         else
         {
-	    usen = (int) (Info->GPURatio * (float) Info->n + (Info->Height - 1));
+	    usen = (int) (GPURatio * (float) Info->n + (Info->Height - 1));
 	    usen -= usen % Info->Height;
 	    cParam.cblas_size = Info->n - usen;
 	    usem = Info->m;
@@ -1561,8 +1637,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (cParam.cblas_size == 0 && Info->DynamicSched == CAL_TRUE)
 	{
 	    cParam.dynamic_run = Info->Height;
-	    cParam.dynamic_size = mymin((int) (Info->m >= Info->n / 2 ? Info->m : Info->n), (int) ((0.95f - Info->GPURatio) * (float) Info->m * Info->n / Info->Height));
+	    cParam.dynamic_size = mymin((int) (Info->m >= Info->n / 2 ? Info->m : Info->n), (int) ((1.0f - GPURatio) * (float) Info->m * Info->n / Info->Height));
 	    cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
+	    if (!Info->Quiet) printf("Scheduling initial dynamic run over %dx%d blocks\n", cParam.dynamic_run, cParam.dynamic_size);
 	}
     }
     else
@@ -1646,15 +1723,16 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	        if (Info->VerboseTiming) Info->CounterCopyFrom.Stop();
     		calCtxFlush(ctxs[j]);
     		
-    		if (Info->UseCPU && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * Info->GPURatio * nb * mb)
+    		if (Info->UseCPU && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * GPURatio * nb * mb)
     		{
     		    if (pthread_mutex_trylock(&cParam.cblasMutex[0]) == 0)
     		    {
-    			cParam.dynamic_size = (((int) ((1.0f - Info->GPURatio) * (float) (nb * mb - k - 1)))) * Info->Height;
+    			cParam.dynamic_size = (((int) ((1.0f - GPURatio) * (float) (nb * mb - k - 1)))) * Info->Height;
     			if (cParam.dynamic_size > Info->Height)
     			{
     			    cParam.dynamic_run = 1 + cParam.dynamic_size / (Info->m >= Info->n / 2 ? Info->n : Info->m);
     			    cParam.dynamic_size /= cParam.dynamic_run;
+    			    cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
     			    cParam.dynamic_run *= Info->Height;
     			    cParam.borders_done = CAL_TRUE;
     			    if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %dx%d blocks\n", cParam.dynamic_run, cParam.dynamic_size);
