@@ -449,6 +449,7 @@ int main(CALint argc, CALchar** argv)
 	}
 
 	//Initial run to negate cache effects
+#ifndef TESTMODE
         if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE)
         {
 	    CALboolean tmpquiet = Info.Quiet;
@@ -468,11 +469,16 @@ int main(CALint argc, CALchar** argv)
 	    Info.Quiet = tmpquiet;
     	Info.Iterations = tmpiter;
 	}
+#endif
 	dgemm.ResetTimers();
     
 	do
         {
+#ifdef TESTMODE
+	    if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n))
+#else
 	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n))
+#endif
 	    {
 		printf("Error running CALDGEMM\n");
 		return(1);

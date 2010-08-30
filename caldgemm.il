@@ -89,20 +89,124 @@ jurisdiction and venue of these courts.
 
 ============================================================ */
 
-const char caldgemm::ILKernel[] =
+#if defined(CALDGEMM_TRANSPOSED_A)
+#define CALDGEMM_INPUT_A_1 "0"
+#define CALDGEMM_INPUT_A_2 "1"
+#define CALDGEMM_INPUT_B_1 "2"
+#define CALDGEMM_INPUT_B_2 "3"
+#elif defined(CALDGEMM_44)
+#define CALDGEMM_INPUT_A_1 "0"
+#define CALDGEMM_INPUT_A_2 "1"
+#define CALDGEMM_INPUT_A_3 "2"
+#define CALDGEMM_INPUT_A_4 "3"
+#define CALDGEMM_INPUT_B_1 "4"
+#define CALDGEMM_INPUT_B_2 "5"
+#else
+#define CALDGEMM_INPUT_A_1 "0"
+#define CALDGEMM_INPUT_A_2 "1"
+#define CALDGEMM_INPUT_A_3 "2"
+#define CALDGEMM_INPUT_A_4 "3"
+#define CALDGEMM_INPUT_A_5 "4"
+#define CALDGEMM_INPUT_A_6 "5"
+#define CALDGEMM_INPUT_A_7 "6"
+#define CALDGEMM_INPUT_A_8 "7"
+#define CALDGEMM_INPUT_B_1 "8"
+#define CALDGEMM_INPUT_B_2 "9"
+#endif
+
+#define mstr(a) #a
+#define mxstr(a) mstr(a)
+
+#define MMUL22(o1_12, a1_1, a1_2, b1_1, b1_2, b2_1, b2_2) \
+"    dmad r12.xy, " mxstr(a1_2) ", " mxstr(b2_1) ", " mxstr(o1_12.xy) "\n" \
+"    dmad r12.zw, " mxstr(a1_2) ", " mxstr(b2_2) ", " mxstr(o1_12.zw) "\n" \
+"    dmad " mxstr(o1_12.zw) ", " mxstr(a1_1) ", " mxstr(b1_2) ", r12.zw\n" \
+"    dmad " mxstr(o1_12.xy) ", " mxstr(a1_1) ", " mxstr(b1_1) ", r12.xy\n"
+
+#define MMUL82(o1_12, o2_12, o3_12, o4_12, o5_12, o6_12, o7_12, o8_12, a1_1, a1_2, a2_1, a2_2, a3_1, a3_2, a4_1, a4_2, a5_1, a5_2, a6_1, a6_2, a7_1, a7_2, a8_1, a8_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o1_12, a1_1, a1_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o2_12, a2_1, a2_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o3_12, a3_1, a3_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o4_12, a4_1, a4_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o5_12, a5_1, a5_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o6_12, a6_1, a6_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o7_12, a7_1, a7_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o8_12, a8_1, a8_2, b1_1, b1_2, b2_1, b2_2)
+
+#define MMUL44(o1_12, o2_12, o3_12, o4_12, o5_12, o6_12, o7_12, o8_12, a1_1, a1_2, a2_1, a2_2, a3_1, a3_2, a4_1, a4_2, b1_1, b1_2, b2_1, b2_2, b3_1, b3_2, b4_1, b4_2) \
+MMUL22(o1_12, a1_1, a1_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o2_12, a2_1, a2_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o3_12, a3_1, a3_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o4_12, a4_1, a4_2, b1_1, b1_2, b2_1, b2_2) \
+MMUL22(o5_12, a1_1, a1_2, b3_1, b3_2, b4_1, b4_2) \
+MMUL22(o6_12, a2_1, a2_2, b3_1, b3_2, b4_1, b4_2) \
+MMUL22(o7_12, a3_1, a3_2, b3_1, b3_2, b4_1, b4_2) \
+MMUL22(o8_12, a4_1, a4_2, b3_1, b3_2, b4_1, b4_2)
+
+#ifdef CALDGEMM_TRANSPOSED_B
+#define MMUL82_N(o1, o2, o3, o4, o5, o6, o7, o8, a1, a2, a3, a4, a5, a6, a7, a8, b1, b2) \
+MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1.xy, a1.zw, a2.xy, a2.zw, a3.xy, a3.zw, a4.xy, a4.zw, a5.xy, a5.zw, a6.xy, a6.zw, a7.xy, a7.zw, a8.xy, a8.zw, b1.xy, b2.xy, b1.zw, b2.zw)
+#define MMUL82_T(o1, o2, o3, o4, o5, o6, o7, o8, a1_12, a1_34, a1_56, a1_78, a2_12, a2_34, a2_56, a2_78, b1, b2) \
+MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1_12.xy, a2_12.xy, a1_12.zw, a2_12.zw, a1_34.xy, a2_34.xy, a1_34.zw, a2_34.zw, a1_56.xy, a2_56.xy, a1_56.zw, a2_56.zw, a1_78.xy, a2_78.xy, a1_78.zw, a2_78.zw, b1.xy, b2.xy, b1.zw, b2.zw)
+#else
+#define MMUL82_N(o1, o2, o3, o4, o5, o6, o7, o8, a1, a2, a3, a4, a5, a6, a7, a8, b1, b2) \
+MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1.xy, a1.zw, a2.xy, a2.zw, a3.xy, a3.zw, a4.xy, a4.zw, a5.xy, a5.zw, a6.xy, a6.zw, a7.xy, a7.zw, a8.xy, a8.zw, b1.xy, b1.zw, b2.xy, b2.zw)
+#define MMUL82_T(o1, o2, o3, o4, o5, o6, o7, o8, a1_12, a1_34, a1_56, a1_78, a2_12, a2_34, a2_56, a2_78, b1, b2) \
+MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1_12.xy, a2_12.xy, a1_12.zw, a2_12.zw, a1_34.xy, a2_34.xy, a1_34.zw, a2_34.zw, a1_56.xy, a2_56.xy, a1_56.zw, a2_56.zw, a1_78.xy, a2_78.xy, a1_78.zw, a2_78.zw, b1.xy, b1.zw, b2.xy, b2.zw)
+#endif
+
+#ifdef CALDGEMM_44
+#define SAMPLE_A_N(a1, a2, a3, a4, a5, a6, a7, a8, pos) \
+"    sample_resource("CALDGEMM_INPUT_A_1")_sampler("CALDGEMM_INPUT_A_1") " mxstr(a1) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
+"    sample_resource("CALDGEMM_INPUT_A_2")_sampler("CALDGEMM_INPUT_A_2") " mxstr(a2) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
+"    sample_resource("CALDGEMM_INPUT_A_3")_sampler("CALDGEMM_INPUT_A_3") " mxstr(a3) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
+"    sample_resource("CALDGEMM_INPUT_A_4")_sampler("CALDGEMM_INPUT_A_4") " mxstr(a4) ", " mxstr(pos) "\n" /* ... */
+
+#define SAMPLE_A_T(a1_12, a1_34, a1_56, a1_78, a2_12, a2_34, a2_56, a2_78, pos12, pos34, pos56, pos78) \
+"    sample_resource("CALDGEMM_INPUT_A_1")_sampler("CALDGEMM_INPUT_A_1") " mxstr(a1_12) ", " mxstr(pos12) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_2")_sampler("CALDGEMM_INPUT_A_2") " mxstr(a2_12) ", " mxstr(pos12) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_1")_sampler("CALDGEMM_INPUT_A_1") " mxstr(a1_34) ", " mxstr(pos34) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_2")_sampler("CALDGEMM_INPUT_A_2") " mxstr(a2_34) ", " mxstr(pos34) "\n"
+#else
+#define SAMPLE_A_N(a1, a2, a3, a4, a5, a6, a7, a8, pos) \
+"    sample_resource("CALDGEMM_INPUT_A_1")_sampler("CALDGEMM_INPUT_A_1") " mxstr(a1) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
+"    sample_resource("CALDGEMM_INPUT_A_2")_sampler("CALDGEMM_INPUT_A_2") " mxstr(a2) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
+"    sample_resource("CALDGEMM_INPUT_A_3")_sampler("CALDGEMM_INPUT_A_3") " mxstr(a3) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
+"    sample_resource("CALDGEMM_INPUT_A_4")_sampler("CALDGEMM_INPUT_A_4") " mxstr(a4) ", " mxstr(pos) "\n" /* ... */ \
+"    sample_resource("CALDGEMM_INPUT_A_5")_sampler("CALDGEMM_INPUT_A_5") " mxstr(a5) ", " mxstr(pos) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_6")_sampler("CALDGEMM_INPUT_A_6") " mxstr(a6) ", " mxstr(pos) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_7")_sampler("CALDGEMM_INPUT_A_7") " mxstr(a7) ", " mxstr(pos) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_8")_sampler("CALDGEMM_INPUT_A_8") " mxstr(a8) ", " mxstr(pos) "\n"
+
+#define SAMPLE_A_T(a1_12, a1_34, a1_56, a1_78, a2_12, a2_34, a2_56, a2_78, pos12, pos34, pos56, pos78) \
+"    sample_resource("CALDGEMM_INPUT_A_1")_sampler("CALDGEMM_INPUT_A_1") " mxstr(a1_12) ", " mxstr(pos12) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_2")_sampler("CALDGEMM_INPUT_A_2") " mxstr(a2_12) ", " mxstr(pos12) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_1")_sampler("CALDGEMM_INPUT_A_1") " mxstr(a1_34) ", " mxstr(pos34) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_2")_sampler("CALDGEMM_INPUT_A_2") " mxstr(a2_34) ", " mxstr(pos34) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_1")_sampler("CALDGEMM_INPUT_A_1") " mxstr(a1_56) ", " mxstr(pos56) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_2")_sampler("CALDGEMM_INPUT_A_2") " mxstr(a2_56) ", " mxstr(pos56) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_1")_sampler("CALDGEMM_INPUT_A_1") " mxstr(a1_78) ", " mxstr(pos78) "\n" \
+"    sample_resource("CALDGEMM_INPUT_A_2")_sampler("CALDGEMM_INPUT_A_2") " mxstr(a2_78) ", " mxstr(pos78) "\n"
+#endif
+
+const char *caldgemm::ILKernelName =
 "il_ps_2_0\n"
-"dcl_cb cb0[2]\n"
+"dcl_cb cb0[4]\n"
 "dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"
 "dcl_resource_id(0)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(1)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(2)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(3)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+#if !defined(CALDGEMM_TRANSPOSED_A)
 "dcl_resource_id(4)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(5)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+#if !defined(CALDGEMM_44)
 "dcl_resource_id(6)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(7)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(8)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(9)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+#endif
+#endif
 "dcl_literal l0, 0x00000000, 0x00000000, 0x00000000, 0x00000000\n"
 "mov r3, l0\n"
 "mov r4, l0\n"
@@ -112,15 +216,29 @@ const char caldgemm::ILKernel[] =
 "mov r8, l0\n"
 "mov r9, l0\n"
 "mov r10, l0\n"
-    /*data[bStop].f_data[0] = 8.f / Info->Height;   
-    data[bStop].f_data[1] = 2.f / Info->Width;
-    data[bStop].f_data[2] = 2.f / Info->Height;   
-    data[bStop].f_data[3] = 0.f;
-    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));*/
 
-	//Run: Width: Info->Height / bPartsNum , Heigh: Info->Height / aPartsNum
+    /*data[bStop].f_data[0] = (float) cPartsNum / Info->Height;  //Scale factor for normalized y pos, factor 8 for 8 resources
+    data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
+    data[bStop].f_data[2] = 2.f / Info->Height;  //Scale factor for normalized x pos, factor 2 for double2
+			    * 2.4 for CALDGEMM_44
+    data[bStop].f_data[3] = 0.f;
+    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));
+    data[bStop].f_data[5] = (float) aPartsNum / Info->Height;  //For transposed matrix more finer y resolution is needed
+    data[bStop].f_data[8] = 0.5f - 0.5f / (float) (cPartsNum / aPartsNum);*/
+                            
+	//Run: Width: Info->Height / 2;4 , Heigh: Info->Height / 8;4     (82;44 tiling)
 "mul r0.xyz0, vWinCoord0.xyyx, cb0[0].zwxz\n"		//r0.x: normalized x pos, r0.y: 0, r0.z: normalized y pos, r0.w: 0
+#ifdef CALDGEMM_TRANSPOSED_A
+"sub r0.z, vWinCoord0.y, cb0[2].x\n"
+"mul r0.z, r0.z, cb0[0].x\n"
+"add r2.x, r0.z, cb0[1].y\n"
+"add r2.y, r2.x, cb0[1].y\n"
+"add r2.z, r2.y, cb0[1].y\n"
+#endif
 "mov r1.__zw, r0.zzzx\n"							//r1.z: normalized y pos, r1.w: normalized x pos
+#ifdef CALDGEMM_44
+"add r1.w, r0.x, cb0[0].y\n" //FIXME
+#endif
 "mov r11.w, r0.y\n"									//r11.w: 0, run variable for k
 "mov r11.x, l0\n"									//r11.x: 0, run variable for loop
 "whileloop\n"
@@ -128,179 +246,61 @@ const char caldgemm::ILKernel[] =
 "    break_logicalnz r11.y\n"
 "    mov r0.___w, r11.w\n"							//r0:w normalized k pos
 "    add r0._y__, r0.w, cb0[0].y\n"					//r0:y normalized k pos + 1
+#ifdef CALDGEMM_44
+"    mov r1.xy__, r0.wyyy\n"
+#else
 "    add r1.x___, r0.y, cb0[0].y\n"					//r1.x normalized k pos + 2
 "    add r1._y__, r1.x, cb0[0].y\n"					//r1.y normalized k pos + 3
+#endif
 "    add r11.___w, r1.y, cb0[0].y\n"				//r11.w: normalized k pos + 4 steps (for next iteration in whileloop)
-"    sample_resource(8)_sampler(8) r21, r0.xwww\n"	//normalized x,k pos
-"    sample_resource(9)_sampler(9) r22, r0.xwww\n"  //normalized x,k pos
-"    sample_resource(8)_sampler(8) r23, r0.xyww\n"  //normalized x,k+1 pos
-"    sample_resource(9)_sampler(9) r24, r0.xyww\n"	//normalized x,k+1 pos
-"    sample_resource(8)_sampler(8) r25, r1.wxww\n"  //normalized  ,k+2 pos
-"    sample_resource(9)_sampler(9) r26, r1.wxww\n"
-"    sample_resource(8)_sampler(8) r27, r1.wyzz\n"	//normalized ,k+3 pos
-"    sample_resource(9)_sampler(9) r28, r1.wyzz\n"
-"    sample_resource(0)_sampler(0) r13, r0.wz\n"	//normalized k, y pos
-"    sample_resource(1)_sampler(1) r14, r0.wz\n"	//normalized k, y pos
-"    sample_resource(2)_sampler(2) r15, r0.wz\n"	//normalized k, y pos
-"    sample_resource(3)_sampler(3) r16, r0.wz\n"	//normalized k, y pos
-"    sample_resource(4)_sampler(4) r17, r0.wz\n"	//...
-"    sample_resource(5)_sampler(5) r18, r0.wz\n"
-"    sample_resource(6)_sampler(6) r19, r0.wz\n"
-"    sample_resource(7)_sampler(7) r20, r0.wz\n"
-"    dmad r12.xy, r13.zw, r22.xy, r3.xy\n"
-"    dmad r12.zw, r13.zw, r22.zw, r3.zw\n"
-"    dmad r3.zw, r13.xy, r21.zw, r12.zw\n"
-"    dmad r3.xy, r13.xy, r21.xy, r12.xy\n"
-"    dmad r12.xy, r14.zw, r22.xy, r4.xy\n"
-"    dmad r12.zw, r14.zw, r22.zw, r4.zw\n"
-"    dmad r4.zw, r14.xy, r21.zw, r12.zw\n"
-"    dmad r4.xy, r14.xy, r21.xy, r12.xy\n"
-"    dmad r12.xy, r15.zw, r22.xy, r5.xy\n"
-"    dmad r12.zw, r15.zw, r22.zw, r5.zw\n"
-"    dmad r5.zw, r15.xy, r21.zw, r12.zw\n"
-"    dmad r5.xy, r15.xy, r21.xy, r12.xy\n"
-"    dmad r12.xy, r16.zw, r22.xy, r6.xy\n"
-"    dmad r12.zw, r16.zw, r22.zw, r6.zw\n"
-"    dmad r6.zw, r16.xy, r21.zw, r12.zw\n"
-"    dmad r6.xy, r16.xy, r21.xy, r12.xy\n"
-"    dmad r12.xy, r17.zw, r22.xy, r7.xy\n"
-"    dmad r12.zw, r17.zw, r22.zw, r7.zw\n"
-"    dmad r7.zw, r17.xy, r21.zw, r12.zw\n"
-"    dmad r7.xy, r17.xy, r21.xy, r12.xy\n"
-"    dmad r12.xy, r18.zw, r22.xy, r8.xy\n"
-"    dmad r12.zw, r18.zw, r22.zw, r8.zw\n"
-"    dmad r8.zw, r18.xy, r21.zw, r12.zw\n"
-"    dmad r8.xy, r18.xy, r21.xy, r12.xy\n"
-"    dmad r12.xy, r19.zw, r22.xy, r9.xy\n"
-"    dmad r12.zw, r19.zw, r22.zw, r9.zw\n"
-"    dmad r9.zw, r19.xy, r21.zw, r12.zw\n"
-"    dmad r9.xy, r19.xy, r21.xy, r12.xy\n"
-"    dmad r12.xy, r20.zw, r22.xy, r10.xy\n"
-"    dmad r12.zw, r20.zw, r22.zw, r10.zw\n"
-"    dmad r10.zw, r20.xy, r21.zw, r12.zw\n"
-"    dmad r10.xy, r20.xy, r21.xy, r12.xy\n"
-"    sample_resource(0)_sampler(0) r13, r0.yz\n"
-"    sample_resource(1)_sampler(1) r14, r0.yz\n"
-"    sample_resource(2)_sampler(2) r15, r0.yz\n"
-"    sample_resource(3)_sampler(3) r16, r0.yz\n"
-"    sample_resource(4)_sampler(4) r17, r0.yz\n"
-"    sample_resource(5)_sampler(5) r18, r0.yz\n"
-"    sample_resource(6)_sampler(6) r19, r0.yz\n"
-"    sample_resource(7)_sampler(7) r20, r0.yz\n"
-"    dmad r12.xy, r13.zw, r24.xy, r3.xy\n"
-"    dmad r12.zw, r13.zw, r24.zw, r3.zw\n"
-"    dmad r3.zw, r13.xy, r23.zw, r12.zw\n"
-"    dmad r3.xy, r13.xy, r23.xy, r12.xy\n"
-"    dmad r12.xy, r14.zw, r24.xy, r4.xy\n"
-"    dmad r12.zw, r14.zw, r24.zw, r4.zw\n"
-"    dmad r4.zw, r14.xy, r23.zw, r12.zw\n"
-"    dmad r4.xy, r14.xy, r23.xy, r12.xy\n"
-"    dmad r12.xy, r15.zw, r24.xy, r5.xy\n"
-"    dmad r12.zw, r15.zw, r24.zw, r5.zw\n"
-"    dmad r5.zw, r15.xy, r23.zw, r12.zw\n"
-"    dmad r5.xy, r15.xy, r23.xy, r12.xy\n"
-"    dmad r12.xy, r16.zw, r24.xy, r6.xy\n"
-"    dmad r12.zw, r16.zw, r24.zw, r6.zw\n"
-"    dmad r6.zw, r16.xy, r23.zw, r12.zw\n"
-"    dmad r6.xy, r16.xy, r23.xy, r12.xy\n"
-"    dmad r12.xy, r17.zw, r24.xy, r7.xy\n"
-"    dmad r12.zw, r17.zw, r24.zw, r7.zw\n"
-"    dmad r7.zw, r17.xy, r23.zw, r12.zw\n"
-"    dmad r7.xy, r17.xy, r23.xy, r12.xy\n"
-"    dmad r12.xy, r18.zw, r24.xy, r8.xy\n"
-"    dmad r12.zw, r18.zw, r24.zw, r8.zw\n"
-"    dmad r8.zw, r18.xy, r23.zw, r12.zw\n"
-"    dmad r8.xy, r18.xy, r23.xy, r12.xy\n"
-"    dmad r12.xy, r19.zw, r24.xy, r9.xy\n"
-"    dmad r12.zw, r19.zw, r24.zw, r9.zw\n"
-"    dmad r9.zw, r19.xy, r23.zw, r12.zw\n"
-"    dmad r9.xy, r19.xy, r23.xy, r12.xy\n"
-"    dmad r12.xy, r20.zw, r24.xy, r10.xy\n"
-"    dmad r12.zw, r20.zw, r24.zw, r10.zw\n"
-"    dmad r10.zw, r20.xy, r23.zw, r12.zw\n"
-"    dmad r10.xy, r20.xy, r23.xy, r12.xy\n"
-"    sample_resource(0)_sampler(0) r13, r1.xz\n"
-"    sample_resource(1)_sampler(1) r14, r1.xz\n"
-"    sample_resource(2)_sampler(2) r15, r1.xz\n"
-"    sample_resource(3)_sampler(3) r16, r1.xz\n"
-"    sample_resource(4)_sampler(4) r17, r1.xz\n"
-"    sample_resource(5)_sampler(5) r18, r1.xz\n"
-"    sample_resource(6)_sampler(6) r19, r1.xz\n"
-"    sample_resource(7)_sampler(7) r20, r1.xz\n"
-"    dmad r12.xy, r13.zw, r26.xy, r3.xy\n"
-"    dmad r12.zw, r13.zw, r26.zw, r3.zw\n"
-"    dmad r3.zw, r13.xy, r25.zw, r12.zw\n"
-"    dmad r3.xy, r13.xy, r25.xy, r12.xy\n"
-"    dmad r12.xy, r14.zw, r26.xy, r4.xy\n"
-"    dmad r12.zw, r14.zw, r26.zw, r4.zw\n"
-"    dmad r4.zw, r14.xy, r25.zw, r12.zw\n"
-"    dmad r4.xy, r14.xy, r25.xy, r12.xy\n"
-"    dmad r12.xy, r15.zw, r26.xy, r5.xy\n"
-"    dmad r12.zw, r15.zw, r26.zw, r5.zw\n"
-"    dmad r5.zw, r15.xy, r25.zw, r12.zw\n"
-"    dmad r5.xy, r15.xy, r25.xy, r12.xy\n"
-"    dmad r12.xy, r16.zw, r26.xy, r6.xy\n"
-"    dmad r12.zw, r16.zw, r26.zw, r6.zw\n"
-"    dmad r6.zw, r16.xy, r25.zw, r12.zw\n"
-"    dmad r6.xy, r16.xy, r25.xy, r12.xy\n"
-"    dmad r12.xy, r17.zw, r26.xy, r7.xy\n"
-"    dmad r12.zw, r17.zw, r26.zw, r7.zw\n"
-"    dmad r7.zw, r17.xy, r25.zw, r12.zw\n"
-"    dmad r7.xy, r17.xy, r25.xy, r12.xy\n"
-"    dmad r12.xy, r18.zw, r26.xy, r8.xy\n"
-"    dmad r12.zw, r18.zw, r26.zw, r8.zw\n"
-"    dmad r8.zw, r18.xy, r25.zw, r12.zw\n"
-"    dmad r8.xy, r18.xy, r25.xy, r12.xy\n"
-"    dmad r12.xy, r19.zw, r26.xy, r9.xy\n"
-"    dmad r12.zw, r19.zw, r26.zw, r9.zw\n"
-"    dmad r9.zw, r19.xy, r25.zw, r12.zw\n"
-"    dmad r9.xy, r19.xy, r25.xy, r12.xy\n"
-"    dmad r12.xy, r20.zw, r26.xy, r10.xy\n"
-"    dmad r12.zw, r20.zw, r26.zw, r10.zw\n"
-"    dmad r10.zw, r20.xy, r25.zw, r12.zw\n"
-"    dmad r10.xy, r20.xy, r25.xy, r12.xy\n"
-"    sample_resource(0)_sampler(0) r13, r1.yz\n"
-"    sample_resource(1)_sampler(1) r14, r1.yz\n"
-"    sample_resource(2)_sampler(2) r15, r1.yz\n"
-"    sample_resource(3)_sampler(3) r16, r1.yz\n"
-"    sample_resource(4)_sampler(4) r17, r1.yz\n"
-"    sample_resource(5)_sampler(5) r18, r1.yz\n"
-"    sample_resource(6)_sampler(6) r19, r1.yz\n"
-"    sample_resource(7)_sampler(7) r20, r1.yz\n"
-"    dmad r12.xy, r13.zw, r28.xy, r3.xy\n"
-"    dmad r12.zw, r13.zw, r28.zw, r3.zw\n"
-"    dmad r3.zw, r13.xy, r27.zw, r12.zw\n"
-"    dmad r3.xy, r13.xy, r27.xy, r12.xy\n"
-"    dmad r12.xy, r14.zw, r28.xy, r4.xy\n"
-"    dmad r12.zw, r14.zw, r28.zw, r4.zw\n"
-"    dmad r4.zw, r14.xy, r27.zw, r12.zw\n"
-"    dmad r4.xy, r14.xy, r27.xy, r12.xy\n"
-"    dmad r12.xy, r15.zw, r28.xy, r5.xy\n"
-"    dmad r12.zw, r15.zw, r28.zw, r5.zw\n"
-"    dmad r5.zw, r15.xy, r27.zw, r12.zw\n"
-"    dmad r5.xy, r15.xy, r27.xy, r12.xy\n"
-"    dmad r12.xy, r16.zw, r28.xy, r6.xy\n"
-"    dmad r12.zw, r16.zw, r28.zw, r6.zw\n"
-"    dmad r6.zw, r16.xy, r27.zw, r12.zw\n"
-"    dmad r6.xy, r16.xy, r27.xy, r12.xy\n"
-"    dmad r12.xy, r17.zw, r28.xy, r7.xy\n"
-"    dmad r12.zw, r17.zw, r28.zw, r7.zw\n"
-"    dmad r7.zw, r17.xy, r27.zw, r12.zw\n"
-"    dmad r7.xy, r17.xy, r27.xy, r12.xy\n"
-"    dmad r12.xy, r18.zw, r28.xy, r8.xy\n"
-"    dmad r12.zw, r18.zw, r28.zw, r8.zw\n"
-"    dmad r8.zw, r18.xy, r27.zw, r12.zw\n"
-"    dmad r8.xy, r18.xy, r27.xy, r12.xy\n"
-"    dmad r12.xy, r19.zw, r28.xy, r9.xy\n"
-"    dmad r12.zw, r19.zw, r28.zw, r9.zw\n"
-"    dmad r9.zw, r19.xy, r27.zw, r12.zw\n"
-"    dmad r9.xy, r19.xy, r27.xy, r12.xy\n"
-"    dmad r12.xy, r20.zw, r28.xy, r10.xy\n"
-"    dmad r12.zw, r20.zw, r28.zw, r10.zw\n"
-"    dmad r10.zw, r20.xy, r27.zw, r12.zw\n"
-"    dmad r10.xy, r20.xy, r27.xy, r12.xy\n"
+
+#ifdef CALDGEMM_TRANSPOSED_B
+"    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") r21, r0.wx\n"
+"    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") r22, r0.wx\n"
+"    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") r23, r0.yx\n"
+"    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") r24, r0.yx\n"
+"    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") r25, r1.xw\n"
+"    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") r26, r1.xw\n"
+"    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") r27, r1.yw\n"
+"    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") r28, r1.yw\n"
+#else
+"    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") r21, r0.xw\n"	//normalized x,k pos
+"    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") r22, r0.xw\n"  //normalized x,k pos
+"    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") r23, r0.xy\n"  //normalized x,k+1 pos
+"    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") r24, r0.xy\n"	//normalized x,k+1 pos
+"    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") r25, r1.wx\n"  //normalized  ,k+2 pos
+"    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") r26, r1.wx\n"
+"    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") r27, r1.wy\n"	//normalized ,k+3 pos
+"    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") r28, r1.wy\n"
+#endif //CALDGEMM_TRANSPOSED_B
+
+#ifdef CALDGEMM_TRANSPOSED_A
+"    mov r2.w, r0.w\n"
+SAMPLE_A_T(r13, r14, r15, r16, r17, r18, r19, r20, r0.zw, r2.xw, r2.yw, r2.zw)		//y,k ;  y+1,k ; y+2,k ; y+3,k
+MMUL82_T(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22)
+"    mov r2.w, r0.y\n"
+SAMPLE_A_T(r13, r14, r15, r16, r17, r18, r19, r20, r0.zy, r2.xw, r2.yw, r2.zw)		//y,k+1 ;  ;  ;
+MMUL82_T(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, r23, r24)
+"    mov r2.w, r1.x\n"
+SAMPLE_A_T(r13, r14, r15, r16, r17, r18, r19, r20, r1.zx, r2.xw, r2.yw, r2.zw)		//y,k+2 ;  ;  ;
+MMUL82_T(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, r25, r26)
+"    mov r2.w, r1.y\n"
+SAMPLE_A_T(r13, r14, r15, r16, r17, r18, r19, r20, r1.zy, r2.xw, r2.yw, r2.zw)		//y,k+3 ;  ;  ;
+MMUL82_T(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, r27, r28)
+#else
+SAMPLE_A_N(r13, r14, r15, r16, r17, r18, r19, r20, r0.wz)	//normalized k, normalized y
+MMUL82_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22)
+SAMPLE_A_N(r13, r14, r15, r16, r17, r18, r19, r20, r0.yz)	//normalized k+1, normalized y
+MMUL82_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, r23, r24)
+SAMPLE_A_N(r13, r14, r15, r16, r17, r18, r19, r20, r1.xz)	//normalized k+2, normalized y
+MMUL82_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, r25, r26)
+SAMPLE_A_N(r13, r14, r15, r16, r17, r18, r19, r20, r1.yz)	//normalized k+3, normalized y
+MMUL82_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, r27, r28)
+#endif
+
 "    add r11.x___, r11.x, r11.1\n"
 "endloop\n"
+#ifndef CALDGEMM_USE_MEMEXPORT
 "dcl_output_generic o0\n"
 "dcl_output_generic o1\n"
 "dcl_output_generic o2\n"
@@ -309,6 +309,7 @@ const char caldgemm::ILKernel[] =
 "dcl_output_generic o5\n"
 "dcl_output_generic o6\n"
 "dcl_output_generic o7\n"
+#endif
 "dmul r3.xy, r3.xy, cb0[1].zw\n"
 "dmul r3.zw, r3.zw, cb0[1].zw\n"
 "dmul r4.xy, r4.xy, cb0[1].zw\n"
@@ -325,6 +326,19 @@ const char caldgemm::ILKernel[] =
 "dmul r9.zw, r9.zw, cb0[1].zw\n"
 "dmul r10.xy, r10.xy, cb0[1].zw\n"
 "dmul r10.zw, r10.zw, cb0[1].zw\n"
+#ifdef TESTMODE
+
+#endif
+#ifdef CALDGEMM_USE_MEMEXPORT
+"mov g[0], r3\n"//Dummy code for performance test, address incorrect
+"mov g[1], r4\n"
+"mov g[2], r5\n"
+"mov g[3], r6\n"
+"mov g[4], r7\n"
+"mov g[5], r8\n"
+"mov g[6], r9\n"
+"mov g[7], r10\n"
+#else
 "mov o0, r3\n"
 "mov o1, r4\n"
 "mov o2, r5\n"
@@ -333,4 +347,39 @@ const char caldgemm::ILKernel[] =
 "mov o5, r8\n"
 "mov o6, r9\n"
 "mov o7, r10\n"
+#endif
 "end\n";
+
+#undef SAMPLE_A_N
+#undef SAMPLE_A_T
+#undef MMUL_22
+#undef MMUL_82
+#undef MMUL_82_N
+#undef MMUL_82_T
+
+#ifdef CALDGEMM_44
+#undef CALDGEMM_INPUT_A_1
+#undef CALDGEMM_INPUT_A_2
+#undef CALDGEMM_INPUT_A_3
+#undef CALDGEMM_INPUT_A_4
+#undef CALDGEMM_INPUT_B_1
+#undef CALDGEMM_INPUT_B_2
+#undef CALDGEMM_INPUT_B_3
+#undef CALDGEMM_INPUT_B_4
+#elif defined(CALDGEMM_TRANSPOSED_A)
+#undef CALDGEMM_INPUT_A_1
+#undef CALDGEMM_INPUT_A_2
+#undef CALDGEMM_INPUT_B_1
+#undef CALDGEMM_INPUT_B_2
+#else
+#undef CALDGEMM_INPUT_A_1
+#undef CALDGEMM_INPUT_A_2
+#undef CALDGEMM_INPUT_A_3
+#undef CALDGEMM_INPUT_A_4
+#undef CALDGEMM_INPUT_A_5
+#undef CALDGEMM_INPUT_A_6
+#undef CALDGEMM_INPUT_A_7
+#undef CALDGEMM_INPUT_A_8
+#undef CALDGEMM_INPUT_B_1
+#undef CALDGEMM_INPUT_B_2
+#endif

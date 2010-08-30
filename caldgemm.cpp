@@ -89,8 +89,24 @@ jurisdiction and venue of these courts.
 
 ============================================================ */
 
+//#define CALDGEMM_TRANSPOSED_A
+//#define CALDGEMM_44
+//#define CALDGEMM_TRANSPOSED_B
+
 #include "caldgemm.h"
+
+#define ILKernelName ILKernel
 #include "caldgemm.il"
+#undef ILKernelName
+
+#define ILKernelName ILKernelTransA
+#include "caldgemm.il"
+#undef ILKernelName
+
+#define ILKernelName ILKernelTransB
+#include "caldgemm.il"
+#undef ILKernelName
+
 #ifdef ATI_OS_WIN
 #include <windows.h>
 #endif
@@ -189,7 +205,17 @@ CALuint caldgemm::AnalyzeResults(Data* data)
         CPerfCounter Timer;
         Timer.Reset();
         Timer.Start();
-	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
+#ifdef CALDGEMM_TRANSPOSED_A
+	CBLAS_TRANSPOSE trA = CblasTrans;
+#else
+	CBLAS_TRANSPOSE trA = CblasNoTrans;
+#endif
+#ifdef CALDGEMM_TRANSPOSED_B
+	CBLAS_TRANSPOSE trB = CblasTrans;
+#else
+	CBLAS_TRANSPOSE trB = CblasNoTrans;
+#endif
+	cblas_dgemm(CblasRowMajor, trA, trB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
         Timer.Stop();
         printf("CPU Time: %lf Gflops: %lf\n", Timer.GetElapsedTime(), (CALdouble)1e-09 * 2 * Info->m * Info->n * Info->Width / Timer.GetElapsedTime());
         for (CALuint i=0; i < Info->m; i++)
@@ -198,7 +224,7 @@ CALuint caldgemm::AnalyzeResults(Data* data)
             {
                 if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
                 {
-            	    if (wrong == 0) printf("Error found at %d, %d: Expected: %le, Found: %le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j]);
+            	    if (wrong < 1) printf("Error found at %d, %d: Expected: %le, Found: %le, Diff: %le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
                     ++wrong;
                 }
                 ++total;
@@ -255,16 +281,16 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
         }
         else if (i >= bStop && i < fStop)
         {
-            tWidth = 2;
+            tWidth = 4;
             tHeight = 1;
             flag = static_cast<CALresallocflags>(0);
         }
         else if (i >= fStop && i < cStop)
         {
             tWidth = Info->Height / 2;
-            tHeight = Info->Height / aPartsNum;
+            tHeight = Info->Height / cPartsNum;
             mem = Info->DstMemory;
-            flag = static_cast<CALresallocflags>(flag | CAL_RESALLOC_CACHEABLE);
+            flag = (CALresallocflags) (flag | CAL_RESALLOC_CACHEABLE);
         }
         else
         {
@@ -275,11 +301,16 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     }
 
     // Setup the constants for the kernel
-    data[bStop].f_data[0] = (float) aPartsNum / Info->Height;  //Scale factor for normalized y pos, factor 8 for 8 resources
-    data[bStop].f_data[1] = 2.f / Info->Width;
+    data[bStop].f_data[0] = (float) cPartsNum / Info->Height;  //Scale factor for normalized y pos, factor 8 for 8 resources
+    data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
     data[bStop].f_data[2] = 2.f / Info->Height;  //Scale factor for normalized x pos, factor 2 for double2
+#ifdef CALDGEMM_44
+    data[bStop].f_data[2] *= 2.f;
+#endif
     data[bStop].f_data[3] = 0.f;
     data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));
+    data[bStop].f_data[5] = (float) aPartsNum / Info->Height;  //For transposed matrix more finer y resolution is needed
+    data[bStop].f_data[8] = 0.5f - 0.5f / (float) (cPartsNum / aPartsNum);
     //////////////////////////////////////////////////////////////////////////
     //
     //  setup the program's inputs and outputs
@@ -386,7 +417,7 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     	    {
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
     		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-    	        _mm_prefetch(daddr + 100, _MM_HINT_T0);
+    	        _m_prefetchw(daddr + 100);
 #endif
     		_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
     	        _mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
@@ -556,6 +587,7 @@ CALint caldgemm::SetupKernel(const CALchar* ILKernel, CALmodule* module, CALcont
     if (calclCompile(&obj, CAL_LANGUAGE_IL, ILKernel, attribs.target) != CAL_RESULT_OK)
     {
         fprintf(stderr, "There was an error compiling the program.\n");
+        fprintf(stderr, "Kernel: %s\n", ILKernel);
         fprintf(stderr, "Error string is %s\n", calclGetErrorString());
         return 0;
     }
@@ -903,7 +935,11 @@ CALint caldgemm::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, 
         }
         else if (i >= cStop && i < oStop)
         {
+#ifdef CALDGEMM_USE_MEMEXPORT
+	    sprintf(buffer, "g[]", i - cStop);
+#else
             sprintf(buffer,"o%d", i - cStop);
+#endif
         }
         else if (i >= iStop && i < cStop)
         {
@@ -965,6 +1001,9 @@ CALint caldgemm::AllocateResources(CALcontext* ctx, CALdevice* device, CALresour
             fprintf(stderr, "Error: Path that should be unreachable is reached\n");
             return 0;
         }
+#ifdef CALDGEMM_USE_MEMEXPORT
+	flag = (CALresallocflags) (flag | CAL_RESALLOC_GLOBAL_BUFFER);
+#endif
         switch(mem)
         {
             case 'g':
@@ -1104,8 +1143,7 @@ CALvoid caldgemm::SupportedCALVersion(CALVersion *calVersion)
 	calVersion->major = 1;
 	calVersion->minor = 3;
 	calVersion->imp = 185;
-	printf("Supported CAL Runtime Version: %d.%d.%d\n", 
-			calVersion->major, calVersion->minor, calVersion->imp);
+	if (Info->Debug) printf("Supported CAL Runtime Version: %d.%d.%d\n", calVersion->major, calVersion->minor, calVersion->imp);
 }
 
 CALint caldgemm::QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList)
@@ -1156,7 +1194,7 @@ CALint caldgemm::QueryCALVersion(CALVersion required, const CALchar* comparison)
 {
 	CALVersion available;
 	calGetVersion(&available.major, &available.minor, &available.imp);
-	printf("Found CAL Runtime Version: %d.%d.%d\n", available.major, available.minor, available.imp);
+	if (Info->Debug) printf("Found CAL Runtime Version: %d.%d.%d\n", available.major, available.minor, available.imp);
 
 	if( strcmp(comparison,">") == 0 )
 	{
@@ -1294,7 +1332,6 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
                "with the given command line options. Please try again.\n");
         return 1;
     }
-
     Features.DoublePrecision = CAL_TRUE;
     if(QueryDeviceCaps(Info->DeviceNum, &Features) != CAL_TRUE)
     {
@@ -1716,7 +1753,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);
     	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
-    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / bPartsNum , Info->Height / aPartsNum, &events[j])) {printf("Error running program\n"); return 1;}
+#ifdef CALDGEMM_44
+    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 4 , Info->Height / 4, &events[j])) {printf("Error running program\n"); return 1;}
+#else
+    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 2 , Info->Height / 8, &events[j])) {printf("Error running program\n"); return 1;}
+#endif
     	        if (Info->VerboseTiming) Info->CounterCopyFrom.Start();
     	        if (Info->DstMemory == 'g' && Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
     		if (CopyDataFromGPU(&ctxs[j], resourceHandlers[j] + numInputs + numConstantBuffers, datas[j] + numInputs + numConstantBuffers, numOutputs, &events[j])) {printf("Error copying from GPU\n"); return(1);}
@@ -1787,6 +1828,10 @@ RunCALDGEMM_end:
     Info->System.Stop();
 
     if (Info->Debug) printf("DGEMM Run Complete\n");
+    
+#ifdef TESTMODE
+    //print_submatrices(C, 16, 16, Info->n, 1, 1, 1, 1);
+#endif
     
     if( Info->Quiet == CAL_FALSE && !AnalyzeResults(datas[0]) )
     {

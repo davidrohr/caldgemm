@@ -95,6 +95,10 @@ jurisdiction and venue of these courts.
 //      calcl.h contains declarations for CAL compiler libarary functions
 //
 
+//#define CALDGEMM_USE_MEMEXPORT
+
+//#define TESTMODE
+
 #include "cal.h"
 #include "calcl.h"
 
@@ -273,9 +277,23 @@ class caldgemm
     
     int A_pitch, B_pitch, C_pitch;
 
-    static const CALuint aPartsNum = 8;
+#ifdef CALDGEMM_44
+    static const CALuint aPartsNum = 4;
     static const CALuint bPartsNum = 2;
+#else
+#ifdef CALDGEMM_TRANSPOSED_A
+    static const CALuint aPartsNum = 2;
+#else
+    static const CALuint aPartsNum = 8;
+#endif
+    static const CALuint bPartsNum = 2;
+#endif
+
+#ifdef CALDGEMM_USE_MEMEXPORT
+    static const CALuint cPartsNum = 1;
+#else
     static const CALuint cPartsNum = 8;
+#endif
     static const int ctxcount = 3;
     static const int vcpysize = 16;
     
@@ -318,7 +336,9 @@ class caldgemm
     CALmodule modules[ctxcount];
     CALevent events[ctxcount];
 
-    static const char ILKernel[];
+    static const char *ILKernel;
+    static const char *ILKernelTransA;
+    static const char *ILKernelTransB;
 
     cpu_set_t oldcpumask;
     cpu_set_t gpumask;
