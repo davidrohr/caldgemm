@@ -160,12 +160,6 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->UseCPU = Info->UseGPU = CAL_FALSE;
     Info->GPURatio = -1;
     Info->DumpMatrix = CAL_FALSE;
-    Info->System.Reset();
-    Info->Kernel.Reset();
-    Info->CounterDivide.Reset();
-    Info->CounterMerge.Reset();
-    Info->CounterCopyTo.Reset();
-    Info->CounterCopyFrom.Reset();
 
     printf("Use -? for help\n");
 

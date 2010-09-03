@@ -121,7 +121,7 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
 #define WAITFOREVENT(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
-CALvoid caldgemm::SampleInfo::SampleInfo()
+caldgemm::SampleInfo::SampleInfo()
 {
     Pin = -3;
     Verify = CAL_TRUE;
@@ -151,39 +151,39 @@ CALvoid caldgemm::displayMatrixTiming(const CALchar* name)
 {
     if (!Info->Quiet)
     {
-        CALdouble gflops_CPU = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Info->System.GetElapsedTime();
+        CALdouble gflops_CPU = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Timers.System.GetElapsedTime();
         printf("Program: %s Sizes - A: %dx%d B: %dx%d C:%dx%d System Time %2.3lf System Gflops %2.3lf\n", name, 
                 Info->m, Info->Width, Info->Width, 
-                Info->n, Info->m, Info->n, Info->System.GetElapsedTime(), gflops_CPU);
+                Info->n, Info->m, Info->n, Timers.System.GetElapsedTime(), gflops_CPU);
         if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
         {
     	    double flopsc, flopsg;
     	    if (CPUOnlyRun)
     	    {
-    		flopsc = (double) 1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * Info->Iterations / Info->CPUTimer.GetElapsedTime();
+    		flopsc = (double) 1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
     		flopsg = 0.0;
     	    }
     	    else if (Info->m >= Info->n / 2)
     	    {
-    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->n + (Info->n % Info->Height) * (Info->m - cParam.cblas_size)) * (2 * Info->Width + 2) * Info->Iterations / Info->CPUTimer.GetElapsedTime();
-    		flopsg = (double) 1e-09 * ((Info->m - cParam.cblas_size) * (Info->n - Info->n % Info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * Info->Width + 2) * Info->Iterations / Info->GPUTimer.GetElapsedTime();
+    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->n + (Info->n % Info->Height) * (Info->m - cParam.cblas_size)) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
+    		flopsg = (double) 1e-09 * ((Info->m - cParam.cblas_size) * (Info->n - Info->n % Info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * Info->Width + 2) * Info->Iterations / Timers.GPUTimer.GetElapsedTime();
     	    }
     	    else
     	    {
-    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->m + (Info->m % Info->Height) * (Info->n - cParam.cblas_size)) * (2 * Info->Width + 2) * Info->Iterations / Info->CPUTimer.GetElapsedTime();
-    		flopsg = (double) 1e-09 * ((Info->n - cParam.cblas_size) * (Info->m - Info->m % Info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * Info->Width + 2) * Info->Iterations / Info->GPUTimer.GetElapsedTime();
+    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->m + (Info->m % Info->Height) * (Info->n - cParam.cblas_size)) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
+    		flopsg = (double) 1e-09 * ((Info->n - cParam.cblas_size) * (Info->m - Info->m % Info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * Info->Width + 2) * Info->Iterations / Timers.GPUTimer.GetElapsedTime();
     	    }
-    	    printf("GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)\n", Info->GPUTimer.GetElapsedTime(), flopsg, Info->CPUTimer.GetElapsedTime(), flopsc);
+    	    printf("GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)\n", Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
         }
 	if (Info->VerboseTiming)
 	{
-	    CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble)Info->Iterations / Info->Kernel.GetElapsedTime();
-	    CALdouble copyto = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterCopyTo.GetElapsedTime();
-    	    CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterCopyFrom.GetElapsedTime()) : 0;
-    	    CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterMerge.GetElapsedTime());
-    	    CALdouble copyDivide = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterDivide.GetElapsedTime();
+	    CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble)Info->Iterations / Timers.Kernel.GetElapsedTime();
+	    CALdouble copyto = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterCopyTo.GetElapsedTime();
+    	    CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterCopyFrom.GetElapsedTime()) : 0;
+    	    CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterMerge.GetElapsedTime());
+    	    CALdouble copyDivide = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterDivide.GetElapsedTime();
     	    printf("Times:  Kernel                    Divide                  Merge                   Copy To                 Copy From\n");
-    	    printf("        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Info->Kernel.GetElapsedTime(), gflops, Info->CounterDivide.GetElapsedTime(), copyDivide, Info->CounterMerge.GetElapsedTime(), copyMerge, Info->CounterCopyTo.GetElapsedTime(), copyto, Info->CounterCopyFrom.GetElapsedTime(), copyfrom);
+    	    printf("        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
     	}
     }
 }
@@ -861,7 +861,7 @@ CALint caldgemm::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, C
     rect.height = Height;
 
     // Execute the program iterations number of times
-    if (Info->VerboseTiming) Info->Kernel.Start();
+    if (Info->VerboseTiming) Timers.Kernel.Start();
     r = calCtxRunProgram(event, *ctx, func, &rect);
     if (r != CAL_RESULT_OK)
     {
@@ -874,7 +874,7 @@ CALint caldgemm::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, C
     if (Info->VerboseTiming)
     {
 	WAITFOREVENT(*ctx, *event);
-	Info->Kernel.Stop();
+	Timers.Kernel.Stop();
     }
 
     return 1;
@@ -1615,7 +1615,7 @@ void* cblas_wrapper(void* arg)
 	const int C_pitch = par->cls->C_pitch;
 	if (!Info->Quiet) printf("\t\tSlave thread starting cblas (m: %d, n: %d, cblas_size: %d, dynamic: %d/%d)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size);
 
-	par->cls->Info->CPUTimer.Start();
+	par->cls->Timers.CPUTimer.Start();
 	int old_goto_threads = get_num_procs();
 	if (Info->Pin != -100)
 	{
@@ -1652,7 +1652,7 @@ void* cblas_wrapper(void* arg)
 	}
 	goto_set_num_threads(old_goto_threads);
 	caldgemm_goto_reserve_cpus(0);
-	par->cls->Info->CPUTimer.Stop();
+	par->cls->Timers.CPUTimer.Stop();
 
         if (Info->Debug) printf("\t\tUnlocking cblasmutex\n");
         pthread_mutex_unlock(&par->cls->cParam.cblasMutex[0]);
@@ -1760,7 +1760,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	memcpy(D, C, Info->m * C_pitch * sizeof(CALdouble));
     }
 
-    Info->System.Start();
+    Timers.System.Start();
     
     if (order == CblasColMajor)
     {
@@ -1810,9 +1810,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     if (forceCPU || Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024))
     {
 	if (Info->Debug) printf("Running CPU only DGEMM\n");
-	Info->CPUTimer.Start();
+	Timers.CPUTimer.Start();
 	cblas_dgemm(CblasRowMajor, TransA, TransB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
-	Info->CPUTimer.Stop();
+	Timers.CPUTimer.Stop();
 	CPUOnlyRun = true;
 	Info->Width = old_k;
 	Info->Height = old_height;
@@ -1907,7 +1907,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->UseCPU) pthread_mutex_unlock(&cParam.cblasMutex[1]);
 
-    Info->GPUTimer.Start();
+    Timers.GPUTimer.Start();
 
     for (CALuint i = 0; i < Info->Iterations; ++i)
     {
@@ -1949,13 +1949,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		blockn = k / nb;
 		if (Info->Debug) printf("Iteration k = %d, m = %d, n = %d (Context %d)\n", k, blockm, blockn, j);
 		
-		if (Info->VerboseTiming) Info->CounterDivide.Start();
+		if (Info->VerboseTiming) Timers.CounterDivide.Start();
 		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * A_pitch * Info->Height, Info->Width, Info->Height, A_pitch, aPartsNum);
 		if (Info->Debug) printf("\tDividing Buffer\n");
 		divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height, Info->Height, Info->Width, B_pitch, bPartsNum);
-	        if (Info->VerboseTiming) Info->CounterDivide.Stop();
+	        if (Info->VerboseTiming) Timers.CounterDivide.Stop();
     
-		if (Info->VerboseTiming) Info->CounterCopyTo.Start();
+		if (Info->VerboseTiming) Timers.CounterCopyTo.Start();
     	        if (blockm < ctxcount)
     	        {
     	    	    if (Info->Debug) printf("\tCopying part of A to GPU\n");
@@ -1963,7 +1963,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	    	}
     	    	if (Info->Debug) printf("\tCopying part of B to GPU\n");
     	        if (CopyDataToGPU(&ctxs[j], resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
-    		if (Info->VerboseTiming) Info->CounterCopyTo.Stop();
+    		if (Info->VerboseTiming) Timers.CounterCopyTo.Stop();
     	        calCtxFlush(ctxs[j]);
     	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);
     	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
@@ -1975,10 +1975,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 #else
     		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 2, Info->Height / 8, &events[j])) {printf("Error running program\n"); return 1;}
 #endif
-    	        if (Info->VerboseTiming) Info->CounterCopyFrom.Start();
+    	        if (Info->VerboseTiming) Timers.CounterCopyFrom.Start();
     	        if (Info->DstMemory == 'g' && Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
     		if (CopyDataFromGPU(&ctxs[j], resourceHandlers[j] + numInputs + numConstantBuffers, datas[j] + numInputs + numConstantBuffers, numOutputs, &events[j])) {printf("Error copying from GPU\n"); return(1);}
-    	        if (Info->VerboseTiming) Info->CounterCopyFrom.Stop();
+    	        if (Info->VerboseTiming) Timers.CounterCopyFrom.Stop();
     		calCtxFlush(ctxs[j]);
     		
     		if (Info->UseCPU && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * GPURatio * nb * mb)
@@ -2006,7 +2006,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	    if (k > 0)
     	    {
     		WAITFOREVENT(ctxs[oldj], events[oldj]);
-    		if (Info->VerboseTiming) Info->CounterMerge.Start();
+    		if (Info->VerboseTiming) Timers.CounterMerge.Start();
     		if (Info->Debug) printf("\tMerging buffer\n");
 
 		if (k == nb * mb || Info->MultiThread == CAL_FALSE)
@@ -2029,20 +2029,20 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		    pthread_mutex_unlock(&mParam[oldj].mergeMutex[1]);
 		}
 
-	        if (Info->VerboseTiming) Info->CounterMerge.Stop();
+	        if (Info->VerboseTiming) Timers.CounterMerge.Stop();
 	    }
 	    oldj = j;
     	    j = (j + 1) % ctxcount;
 	}
     }
-    Info->GPUTimer.Stop();
+    Timers.GPUTimer.Stop();
     
     if (Info->Pin != -100) sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
     if (Info->UseCPU) pthread_mutex_lock(&cParam.cblasMutex[0]);
 
 RunCALDGEMM_end:
-    Info->System.Stop();
+    Timers.System.Stop();
 
     if (Info->Debug) printf("DGEMM Run Complete\n");
     
@@ -2116,12 +2116,12 @@ int caldgemm::ExitCALDGEMM()
 void caldgemm::ResetTimers()
 {
     //Reset Timers
-    Info->System.Reset();
-    Info->Kernel.Reset();
-    Info->CounterDivide.Reset();
-    Info->CounterMerge.Reset();
-    Info->CounterCopyTo.Reset();
-    Info->CounterCopyFrom.Reset();
-    Info->CPUTimer.Reset();
-    Info->GPUTimer.Reset();
+    Timers.System.Reset();
+    Timers.Kernel.Reset();
+    Timers.CounterDivide.Reset();
+    Timers.CounterMerge.Reset();
+    Timers.CounterCopyTo.Reset();
+    Timers.CounterCopyFrom.Reset();
+    Timers.CPUTimer.Reset();
+    Timers.GPUTimer.Reset();
 }
