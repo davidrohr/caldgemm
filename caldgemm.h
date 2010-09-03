@@ -182,8 +182,11 @@ class caldgemm
     friend void* cblas_wrapper(void* arg);
 
     public:
-    typedef struct SampleInfoRec		//Run Parameters
+    class SampleInfo		//Run Parameters
     {
+	public:
+	SampleInfoRec();
+    
 	CALint     Pin;
 	CALboolean Verify;
 	CALboolean Disassemble;
@@ -205,8 +208,7 @@ class caldgemm
 	CALboolean MemPolicy;
 	CALboolean DumpMatrix;
 	CALuint    m, n;		//height of A, width of B, must be multiple of height
-	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer;
-    } SampleInfo;
+    };
     
     //CALDGEMM interface functions
     //Initiate an appropriate sampleinfo struct and call InitCALDGEMM for initialization
@@ -219,6 +221,9 @@ class caldgemm
     void ResetTimers();
 
     private:
+    
+    CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer;
+
     typedef struct DataRec
     {
 	union

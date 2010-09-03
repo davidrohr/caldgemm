@@ -121,6 +121,32 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
 #define WAITFOREVENT(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
+CALvoid caldgemm::SampleInfo::SampleInfo()
+{
+    Pin = -3;
+    Verify = CAL_TRUE;
+    Disassemble = CAL_FALSE;
+    PrintILKernel = CAL_FALSE;
+    Quiet = CAL_TRUE;
+    DeviceNum = 0;
+    Width = 1024;
+    Height = 2048;
+    AutoHeight = CAL_TRUE;
+    Iterations = 1;
+    DstMemory = 'c';
+    VerboseTiming = CAL_FALSE;
+    Debug = CAL_FALSE;
+    MultiThread = CAL_TRUE;
+    UseGPU = CAL_TRUE;
+    UseCPU = CAL_TRUE;
+    GPURatio = -1.0;
+    DynamicSched = CAL_TRUE;
+    MemPolicy = CAL_TRUE;
+    DumpMatrix = CAL_FALSE;
+    m = 0;
+    n = 0;
+}
+
 CALvoid caldgemm::displayMatrixTiming(const CALchar* name)
 {
     if (!Info->Quiet)
