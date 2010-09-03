@@ -95,9 +95,33 @@ jurisdiction and venue of these courts.
 //      calcl.h contains declarations for CAL compiler libarary functions
 //
 
-//#define CALDGEMM_USE_MEMEXPORT
-
+#define CALDGEMM_TRANSPOSED_A
+#define CALDGEMM_88
+#define CALDGEMM_44
+//#define CALDGEMM_TRANSPOSED_B
+#define CALDGEMM_USE_MEMEXPORT
 //#define TESTMODE
+
+#ifdef CALDGEMM_88
+#define CALDGEMM_44
+#define CALDGEMM_USE_MEMEXPORT
+#endif
+
+#ifdef CALDGEMM_44
+#ifdef CALDGEMM_TRANSPOSED_A
+#ifdef CALDGEMM_TRANSPOSED_B
+#undef CALDGEMM_TRANSPOSED_B
+#endif
+#else
+#define CALDGEMM_TRANSPOSED_B
+#endif
+#endif
+
+#if defined(CALDGEMM_88) | !defined(CALDGEMM_44)
+#define TILING_Y 8
+#else
+#define TILING_Y 4
+#endif
 
 #include "cal.h"
 #include "calcl.h"
@@ -163,6 +187,7 @@ class caldgemm
 	CALint     Pin;
 	CALboolean Verify;
 	CALboolean Disassemble;
+	CALboolean PrintILKernel;
 	CALboolean Quiet;
 	CALuint    DeviceNum;
 	CALuint    Width;		//k for matrix multiply
@@ -278,8 +303,13 @@ class caldgemm
     int A_pitch, B_pitch, C_pitch;
 
 #ifdef CALDGEMM_44
-    static const CALuint aPartsNum = 4;
+#if defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_88)
+    static const CALuint aPartsNum = 2;
     static const CALuint bPartsNum = 2;
+#else
+    static const CALuint aPartsNum = 4;
+    static const CALuint bPartsNum = 4;
+#endif
 #else
 #ifdef CALDGEMM_TRANSPOSED_A
     static const CALuint aPartsNum = 2;
@@ -337,8 +367,6 @@ class caldgemm
     CALevent events[ctxcount];
 
     static const char *ILKernel;
-    static const char *ILKernelTransA;
-    static const char *ILKernelTransB;
 
     cpu_set_t oldcpumask;
     cpu_set_t gpumask;

@@ -109,6 +109,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-e        Verify Computational Correctness\n" );
     fprintf(stderr, "\t-q        Supress Display Output\n" );
     fprintf(stderr, "\t-a        Print the disassembled kernel image\n" );
+    fprintf(stderr, "\t-i        Print IL Kernel used\n" );
     fprintf(stderr, "\t-o  <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n" );
     fprintf(stderr, "\t-w  <int> k for matrix multiply, default 1024\n" );
     fprintf(stderr, "\t-h  <int> block size for matrix multiply, default 1024\n" );
@@ -142,6 +143,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->Verify = CAL_FALSE;
     Info->MemPolicy = CAL_FALSE;
     Info->Disassemble = CAL_FALSE;
+    Info->PrintILKernel = CAL_FALSE;
     Info->Quiet = CAL_FALSE;
     Info->Pin = -3;
     Info->MultiThread = CAL_FALSE;
@@ -195,6 +197,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case 'a':
                 Info->Disassemble = CAL_TRUE;
+                break;
+            case 'i':
+                Info->PrintILKernel = CAL_TRUE;
                 break;
             case 'c':
 		Info->UseCPU = CAL_TRUE;
@@ -360,18 +365,26 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     {
 	for (long long int i = 0;i < (long long int) Info.m * (long long int) Info.n;i++)
         {
-	    CC[i] = (CALdouble) (i % 16);
+	    CC[i] = 0;//(CALdouble) (i % 16);
 	}
     
 	for (CALuint y = 0; y < Info.Width; y++)
         {
     	    for (CALuint x = 0; x < Info.m; x++)
     	    {
+#ifdef TESTMODE
+        	AA[x * Info.Width + y] = 1;
+#else
         	AA[x * Info.Width + y] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
+#endif
     	    }
     	    for (CALuint x = 0; x < Info.n; x++)
     	    {
+#ifdef TESTMODE
+        	BB[y * Info.n + x] = 1;
+#else
         	BB[y * Info.n + x] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
+#endif
     	    }
 	}
     }
@@ -467,7 +480,7 @@ int main(CALint argc, CALchar** argv)
 	    Info.m = tmpm;
 	    Info.n = tmpn;
 	    Info.Quiet = tmpquiet;
-    	Info.Iterations = tmpiter;
+	    Info.Iterations = tmpiter;
 	}
 #endif
 	dgemm.ResetTimers();

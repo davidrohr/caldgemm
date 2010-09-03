@@ -89,21 +89,9 @@ jurisdiction and venue of these courts.
 
 ============================================================ */
 
-//#define CALDGEMM_TRANSPOSED_A
-//#define CALDGEMM_44
-//#define CALDGEMM_TRANSPOSED_B
-
 #include "caldgemm.h"
 
 #define ILKernelName ILKernel
-#include "caldgemm.il"
-#undef ILKernelName
-
-#define ILKernelName ILKernelTransA
-#include "caldgemm.il"
-#undef ILKernelName
-
-#define ILKernelName ILKernelTransB
 #include "caldgemm.il"
 #undef ILKernelName
 
@@ -185,7 +173,7 @@ void caldgemm::print_submatrices(double* M, int width, int height, int pitch, in
 	    {
 		for (int ii = i;ii < i + subx && ii < width;ii++)
 		{
-		    printf("%+07.3lf\t", M[jj * pitch + ii]);
+		    printf("%+ 10.3lf\t", M[jj * pitch + ii]);
 		}
 	    }
 	    printf("\n");
@@ -267,28 +255,48 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
         CALuint mComponents = 2;
         if (i < aStop)
         {
+#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
+	    tWidth = Info->Width / 8;
+	    tHeight = Info->Height;
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+	    tWidth = Info->Width / 4;
+	    tHeight = Info->Height;
+#else
             /* A matrix sizes are shrunk by 2 (double2) in the width and 8 (8 resources) in the height */
             tWidth = Info->Width / 2;
             tHeight = Info->Height / aPartsNum;
+#endif
             mem = 'g';
         }
         else if (i >= aStop && i < bStop)
         {
+#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
+	    tWidth = Info->Height / 8;
+	    tHeight = Info->Width;
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+	    tWidth = Info->Height / 4;
+	    tHeight = Info->Width;
+#else
             /* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
             tWidth = Info->Height / 2;
             tHeight = Info->Width / bPartsNum;
+#endif
             mem = 'g';
         }
         else if (i >= bStop && i < fStop)
         {
-            tWidth = 4;
+            tWidth = 8;
             tHeight = 1;
             flag = static_cast<CALresallocflags>(0);
         }
         else if (i >= fStop && i < cStop)
         {
+#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
+	    tWidth = tHeight = Info->Height / 4;
+#else
             tWidth = Info->Height / 2;
             tHeight = Info->Height / cPartsNum;
+#endif
             mem = Info->DstMemory;
             flag = (CALresallocflags) (flag | CAL_RESALLOC_CACHEABLE);
         }
@@ -301,16 +309,74 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     }
 
     // Setup the constants for the kernel
-    data[bStop].f_data[0] = (float) cPartsNum / Info->Height;  //Scale factor for normalized y pos, factor 8 for 8 resources
+#ifdef CALDGEMM_44
+#ifdef CALDGEMM_88
+    data[bStop].f_data[0] = 8.f / Info->Height;  //Scale factor for normalized y pos
+    data[bStop].f_data[2] = 8.f / Info->Height;  //Scale factor for normalized x pos
+#else
+    data[bStop].f_data[0] = 4.f / Info->Height;  //Scale factor for normalized y pos
+    data[bStop].f_data[2] = 4.f / Info->Height;  //Scale factor for normalized x pos
+#endif
+#ifdef CALDGEMM_TRANSPOSED_A
+    data[bStop].f_data[1] = 1.f / Info->Width;  //Step in K direction
+    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width);				//Iterations of loop in IL Kernel
+#else
+    data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
+    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / 2);			//Iterations of loop in IL Kernel, factor 2 for double2
+#endif
+#else //CALDGEMM_44
+    data[bStop].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos, factor cPartsNum for resources
     data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
     data[bStop].f_data[2] = 2.f / Info->Height;  //Scale factor for normalized x pos, factor 2 for double2
-#ifdef CALDGEMM_44
-    data[bStop].f_data[2] *= 2.f;
-#endif
+    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));	//Iterations of loop in IL Kernel
+#endif //CALDGEMM_44
     data[bStop].f_data[3] = 0.f;
-    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));
     data[bStop].f_data[5] = (float) aPartsNum / Info->Height;  //For transposed matrix more finer y resolution is needed
-    data[bStop].f_data[8] = 0.5f - 0.5f / (float) (cPartsNum / aPartsNum);
+    data[bStop].f_data[8] = 0.5f - 0.5f / (float) (TILING_Y / aPartsNum);
+    
+    //Constants for Memexport
+#ifdef CALDGEMM_88
+    data[bStop].i_data[9] = TILING_Y * Info->Height / 2;		//2 for double2
+    data[bStop].i_data[10] = 4;						//x tiling in double2
+
+    data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;			//8 consecutive entries in x
+    data[bStop].i_data[13] = 1 + 0 * Info->Height / 2;
+    data[bStop].i_data[14] = 2 + 0 * Info->Height / 2;
+    data[bStop].i_data[15] = 3 + 0 * Info->Height / 2;
+
+    data[bStop].i_data[16] = 0 + 1 * Info->Height / 2;			//Next row
+    data[bStop].i_data[17] = 0 + 1 * Info->Height / 2;
+    data[bStop].i_data[18] = 0 + 1 * Info->Height / 2;
+    data[bStop].i_data[19] = 0 + 1 * Info->Height / 2;
+
+    data[bStop].i_data[20] = 0 + 2 * Info->Height / 2;			//Skip one row
+    data[bStop].i_data[21] = 0 + 2 * Info->Height / 2;
+    data[bStop].i_data[22] = 0 + 2 * Info->Height / 2;
+    data[bStop].i_data[23] = 0 + 2 * Info->Height / 2;
+#elif defined(CALDGEMM_44)
+    data[bStop].i_data[9] = TILING_Y * Info->Height / 2;		//2 for double2
+    data[bStop].i_data[10] = 2;						//x tiling in double2
+    data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;
+    data[bStop].i_data[13] = 1 + 0 * Info->Height / 2;
+    data[bStop].i_data[14] = 0 + 1 * Info->Height / 2;
+    data[bStop].i_data[15] = 1 + 1 * Info->Height / 2;
+    data[bStop].i_data[16] = 0 + 2 * Info->Height / 2;
+    data[bStop].i_data[17] = 1 + 2 * Info->Height / 2;
+    data[bStop].i_data[18] = 0 + 3 * Info->Height / 2;
+    data[bStop].i_data[19] = 1 + 3 * Info->Height / 2;
+#else
+    data[bStop].i_data[9] = TILING_Y * Info->Height / 2;		//2 for double2
+    data[bStop].i_data[10] = 1;						//x tiling in double2
+
+    data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;
+    data[bStop].i_data[13] = 0 + 1 * Info->Height / 2;
+    data[bStop].i_data[14] = 0 + 2 * Info->Height / 2;
+    data[bStop].i_data[15] = 0 + 3 * Info->Height / 2;
+    data[bStop].i_data[16] = 0 + 4 * Info->Height / 2;
+    data[bStop].i_data[17] = 0 + 5 * Info->Height / 2;
+    data[bStop].i_data[18] = 0 + 6 * Info->Height / 2;
+    data[bStop].i_data[19] = 0 + 7 * Info->Height / 2;
+#endif
     //////////////////////////////////////////////////////////////////////////
     //
     //  setup the program's inputs and outputs
@@ -334,14 +400,77 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
 
 CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers)
 {
+#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
+    double* daddr = dst[0].d_data;
+    double* daddr2 = dst[1].d_data;
+    double* daddr3 = dst[2].d_data;
+    double* daddr4 = dst[3].d_data;
+    for (CALint y=0; y < height; y++)
+    {
+        int count = dst[0].DataSize * width;
+        double* saddr = src + (y * pitch);
+        
+        for (int i = 0;i < count;i += 256)
+        {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    	    _mm_prefetch(saddr + 25, _MM_HINT_NTA);
+#endif
+    	    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    	    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
+    	    _mm_store_pd_use(daddr3, _mm_load_pd(saddr + 4));
+    	    _mm_store_pd_use(daddr4, _mm_load_pd(saddr + 6));
+    	    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 8));
+    	    _mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 10));
+    	    _mm_store_pd_use(daddr3 + 2, _mm_load_pd(saddr + 12));
+    	    _mm_store_pd_use(daddr4 + 2, _mm_load_pd(saddr + 14));
+    	    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 16));
+    	    _mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 18));
+    	    _mm_store_pd_use(daddr3 + 4, _mm_load_pd(saddr + 20));
+    	    _mm_store_pd_use(daddr4 + 4, _mm_load_pd(saddr + 22));
+    	    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 24));
+    	    _mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 26));
+    	    _mm_store_pd_use(daddr3 + 6, _mm_load_pd(saddr + 28));
+    	    _mm_store_pd_use(daddr4 + 6, _mm_load_pd(saddr + 30));
+    	    saddr += 32;
+    	    daddr += 8;
+    	    daddr2+= 8;
+    	    daddr3 += 8;
+    	    daddr4 += 8;
+        }
+    }
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+    double* daddr = dst[0].d_data;
+    double* daddr2 = dst[1].d_data;
+    for (CALint y=0; y < height; y++)
+    {
+        int count = dst[0].DataSize * width;
+        double* saddr = src + (y * pitch);
+        
+        for (int i = 0;i < count;i += 128)
+        {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    	    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
+#endif
+    	    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    	    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
+    	    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 4));
+    	    _mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 6));
+    	    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 8));
+    	    _mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 10));
+    	    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 12));
+    	    _mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 14));
+    	    saddr += 16;
+    	    daddr += 8;
+    	    daddr2+= 8;
+        }
+    }
+#else
     // Array to store the position from which data will be filled in the various output buffers.
     CALint* position = new CALint[numBuffers];
     memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
-
     for (CALint y=0; y < height; y++)
     {
         CALint bank = y % numBuffers;
-        CALint nextbank = (y + 1) % numBuffers;
         double* daddr = dst[bank].d_data + position[bank];
         double* saddr = src + (y * pitch);
         int count = dst[bank].DataSize * width;
@@ -361,8 +490,9 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
         
         position[bank] += width;
     }
-
     delete[] position;
+#endif
+
 }
 
 int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers)
@@ -384,15 +514,72 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 
     for (CALint y=0; y < height; y++)
     {
+#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
+	CALint bank = y % 4;
+	double* saddr2 = src[bank + 4].d_data + position[bank];
+#else
         CALint bank = y % numBuffers;
+#endif
 
         double* daddr = dst + (y * pitch);
         double* saddr = src[bank].d_data + position[bank];
-        CALint nextbank = (y + 1) % numBuffers;
         int count = src[bank].DataSize * width;
         
+#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
+
         if (__fpclassify(Beta) == FP_ZERO)
         {
+    	    for (int i = 0;i < count;i += 128)
+    	    {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    		_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+    		_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+#endif
+    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    		_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
+    	        _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
+    	        _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
+    		_mm_store_pd_use(daddr + 8, _mm_load_pd(saddr + 4));
+    		_mm_store_pd_use(daddr + 10, _mm_load_pd(saddr2 + 4));
+    	        _mm_store_pd_use(daddr + 12, _mm_load_pd(saddr + 6));
+    	        _mm_store_pd_use(daddr + 14, _mm_load_pd(saddr2 + 6));
+    		saddr += 8;
+    		saddr2 += 8;
+    	        daddr += 16;
+    	    }
+        }
+        else
+        {
+#undef _mm_store_pd_use
+#define _mm_store_pd_use _mm_store_pd
+    	    __m128d beta = _mm_set1_pd(Beta);
+    	    for (int i = 0;i < count;i += 128)
+    	    {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    		_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+    		_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+    	        _m_prefetchw(daddr + 100);
+#endif
+    		_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
+    		_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
+    	        _mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
+    	        _mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
+    		_mm_store_pd_use(daddr + 8, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 8))));
+    		_mm_store_pd_use(daddr + 10, _mm_add_pd(_mm_load_pd(saddr2 + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 10))));
+    	        _mm_store_pd_use(daddr + 12, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 12))));
+    	        _mm_store_pd_use(daddr + 14, _mm_add_pd(_mm_load_pd(saddr2 + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 14))));
+    		saddr += 8;
+    		saddr2 += 8;
+    	        daddr += 16;
+    	    }
+    	}
+    	    
+	position[bank] += width / 2;
+#else        
+        if (__fpclassify(Beta) == FP_ZERO)
+        {
+#undef _mm_store_pd_use
+#define _mm_store_pd_use _mm_stream_pd
     	    for (int i = 0;i < count;i += 64)
     	    {
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
@@ -408,10 +595,8 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
         }
         else
         {
-        
 #undef _mm_store_pd_use
 #define _mm_store_pd_use _mm_store_pd
-        
     	    __m128d beta = _mm_set1_pd(Beta);
     	    for (int i = 0;i < count;i += 64)
     	    {
@@ -429,6 +614,7 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     	}
     	
         position[bank] += width;
+#endif //CALDGEMM_44
     }
 
     if (Info->DstMemory == 'c')
@@ -584,6 +770,7 @@ CALint caldgemm::SetupKernel(const CALchar* ILKernel, CALmodule* module, CALcont
 
     // Compile IL kernel into object
     CALobject obj;
+    if (Info->PrintILKernel && ctx == ctxs) printf("Kernel:\n%s\n", ILKernel);
     if (calclCompile(&obj, CAL_LANGUAGE_IL, ILKernel, attribs.target) != CAL_RESULT_OK)
     {
         fprintf(stderr, "There was an error compiling the program.\n");
@@ -1062,7 +1249,7 @@ int caldgemm::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CAL
     data.Width = tWidth;
     data.Height = tHeight;
     data.ComponentSize = CompSize;
-    if (tWidth > 16 || tHeight > 16)
+    if (tHeight > 1)
     {
 		data.CALMemory = CAL_TRUE;
 		if (Info->DstMemory == 'g' || i < aPartsNum + bPartsNum)
@@ -1561,7 +1748,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
     
     if (Info->DumpMatrix) DumpMatrix(A, B, C, Alpha, Beta, Info->m, Info->Width, Info->n, A_pitch, B_pitch, C_pitch, CblasRowMajor, TransA, TransB);
-    
+
+#ifndef TESTMODE    
     //Check if the GPU can/shall process the required dgemm task
     if (Info->Iterations > 1);
     else if (Info->Width % 256 || Info->Width < 256) forceCPU = true;
@@ -1574,6 +1762,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	printf("Input addresses not aligned correctly: A 0x%llX B 0x%llX C 0x%llX Pitch 0x%X 0x%X 0x%X\n", A, B, C, A_pitch, B_pitch, C_pitch);
 	forceCPU = true;
     }
+#endif
     
     if (Info->AutoHeight)
     {
@@ -1753,10 +1942,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);
     	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
-#ifdef CALDGEMM_44
-    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 4 , Info->Height / 4, &events[j])) {printf("Error running program\n"); return 1;}
+#ifdef CALDGEMM_88
+    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 8, Info->Height / 8, &events[j])) {printf("Error running program\n"); return 1;}
+#elif defined(CALDGEMM_44)
+    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 4, Info->Height / 4, &events[j])) {printf("Error running program\n"); return 1;}
 #else
-    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 2 , Info->Height / 8, &events[j])) {printf("Error running program\n"); return 1;}
+    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 2, Info->Height / 8, &events[j])) {printf("Error running program\n"); return 1;}
 #endif
     	        if (Info->VerboseTiming) Info->CounterCopyFrom.Start();
     	        if (Info->DstMemory == 'g' && Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
@@ -1830,7 +2021,7 @@ RunCALDGEMM_end:
     if (Info->Debug) printf("DGEMM Run Complete\n");
     
 #ifdef TESTMODE
-    //print_submatrices(C, 16, 16, Info->n, 1, 1, 1, 1);
+    print_submatrices(C, 12, 24, Info->n, 1, 1, 1, 1);
 #endif
     
     if( Info->Quiet == CAL_FALSE && !AnalyzeResults(datas[0]) )
