@@ -1,0 +1,153 @@
+--- ./common.h	2010-01-20 20:58:34.000000000 +0100
++++ ../goto2/common.h	2010-08-18 14:55:20.000000000 +0200
+@@ -393,6 +393,7 @@
+ #endif
+ 
+ void goto_set_num_threads(int);
++void caldgemm_goto_reserve_cpus(int);
+ 
+ void gotoblas_affinity_init(void);
+ void gotoblas_affinity_quit(void);
+--- ./common_thread.h	2009-12-16 02:22:38.000000000 +0100
++++ ../goto2/common_thread.h	2010-08-18 15:45:36.000000000 +0200
+@@ -30,6 +30,7 @@
+ 
+ /* Global Parameter */
+ extern int blas_cpu_number;
++extern int caldgemm_reserve_cpus;
+ extern int blas_num_threads;
+ extern int blas_omp_linked;
+ 
+--- ./driver/others/blas_server.c	2010-02-05 16:46:32.000000000 +0100
++++ ../goto2/driver/others/blas_server.c	2010-08-18 16:29:28.000000000 +0200
+@@ -25,6 +25,10 @@
+ #include <sys/resource.h>
+ #endif
+ 
++//#define SMP_DEBUG
++
++#define MAX_CPUS 256
++
+ #ifdef SMP_SERVER
+ 
+ #undef MONITOR
+@@ -52,6 +56,8 @@
+ static unsigned long server_lock       = 0;
+ #endif
+ 
++extern int cpu_mapping[MAX_CPUS];
++
+ #define THREAD_STATUS_SLEEP		2
+ #define THREAD_STATUS_WAKEUP		4
+ 
+@@ -547,9 +553,9 @@
+       /* Node Mapping Mode */
+ 
+       if (queue -> mode & BLAS_NODE) {
+-
+ 	do {
+-	  while((thread_status[i].node != node || thread_status[i].queue) && (i < blas_num_threads - 1)) i ++;
++	  while((i < blas_num_threads - 1) && (thread_status[i].node != node || thread_status[i].queue || cpu_mapping[i + 1] < caldgemm_reserve_cpus) ) i ++;
++	  
+ 	  
+ 	  if (i < blas_num_threads - 1) break;
+ 
+@@ -561,19 +567,24 @@
+ 	  }
+ 
+ 	} while (1);
++#ifdef SMP_DEBUG
++	printf("Running on CPU with id %d\n", cpu_mapping[i + 1]);
++#endif
+ 
+       } else {
+-	while(thread_status[i].queue) {
++	while(thread_status[i].queue || i < caldgemm_reserve_cpus) {
++		if (i < caldgemm_reserve_cpus) printf("Ommiting thread %d\n", i);
+ 	  i ++;
+ 	  if (i >= blas_num_threads - 1) i = 0;
+ 	}
+       }
+ #else
+-      while(thread_status[i].queue) {
++      while(thread_status[i].queue || i < caldgemm_reserve_cpus) {
+ 	i ++;
+ 	if (i >= blas_num_threads - 1) i = 0;
+       }
+ #endif
++
+       
+       queue -> assigned = i;
+       WMB;
+@@ -741,6 +752,10 @@
+ 
+ }
+ 
++void caldgemm_goto_reserve_cpus(int num_cpus) {
++    caldgemm_reserve_cpus = num_cpus;
++};
++
+ /* Compatible function with pthread_create / join */
+ 
+ int gotoblas_pthread(int numthreads, void *function, void *args, int stride) {
+diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
+--- ./driver/others/init.c	2010-08-18 21:58:56.176744600 +0200
++++ ../goto2/driver/others/init.c	2010-08-18 16:29:18.000000000 +0200
+@@ -63,7 +63,7 @@
+ 
+ static cpu_set_t cpu_orig_mask[4];
+ 
+-static int  cpu_mapping[MAX_CPUS];
++int cpu_mapping[MAX_CPUS];
+ static int  node_mapping[MAX_CPUS * 4];
+ static int  cpu_sub_mapping[MAX_CPUS];
+ static int  disable_mapping;
+@@ -366,7 +366,7 @@
+     fprintf(stderr, "Node mask = %lx\n", lnodemask);
+ #endif
+     
+-    my_set_mempolicy(MPOL_INTERLEAVE, &lnodemask, sizeof(lnodemask) * 8);
++    //my_set_mempolicy(MPOL_INTERLEAVE, &lnodemask, sizeof(lnodemask) * 8);
+ 
+     numnodes = popcount(lnodemask);
+   }
+@@ -424,7 +424,7 @@
+ 
+   int cpu, id, mapping;
+ 
+-  cpu = 0;
++  cpu = common->final_num_procs - 1;
+   mapping = 0;
+ 
+   do {
+@@ -443,9 +443,9 @@
+       mapping ++;
+     }
+ 
+-    cpu ++;
++    cpu --;
+     
+-  } while ((mapping < numprocs) && (cpu < common -> final_num_procs));
++  } while ((mapping < numprocs) && (cpu >= 0));
+   
+   disable_mapping = 0;
+ 
+@@ -469,7 +469,7 @@
+ int get_num_nodes(void)  { return numnodes; }
+ int get_node_equal(void) { 
+ 
+-  return (((blas_cpu_number % numnodes) == 0) && node_equal);
++  return (((blas_cpu_number % numnodes) == 0) && node_equal && caldgemm_reserve_cpus == 0);
+   
+ }
+ 
+--- ./driver/others/memory.c	2010-01-28 20:15:42.000000000 +0100
++++ ../goto2/driver/others/memory.c	2010-08-18 14:56:30.000000000 +0200
+@@ -157,6 +157,7 @@
+ #endif
+ 
+ int blas_cpu_number  = 0;
++int caldgemm_reserve_cpus = 0;
+ int blas_num_threads = 0;
+ 
+ int  goto_get_num_procs  (void) {
