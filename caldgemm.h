@@ -309,6 +309,8 @@ class caldgemm
     CALdouble Alpha, Beta;
     
     int A_pitch, B_pitch, C_pitch;
+    CBLAS_TRANSPOSE TransposeA;
+    CBLAS_TRANSPOSE TransposeB;
 
 #ifdef CALDGEMM_44
 #if defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_88)
@@ -338,7 +340,7 @@ class caldgemm
     SampleInfo* Info;
     SampleFeatures Features;
 
-    CALvoid divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers);
+    CALvoid divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose);
     bool isDoubleEqual(CALdouble a, CALdouble b);
     int mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers);
     

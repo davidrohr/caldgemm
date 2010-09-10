@@ -97,6 +97,8 @@ double *AA = NULL, *BB = NULL, *CC = NULL;
 bool benchmark = false;
 bool fastinit = false;
 bool loadmatrix = false;
+bool transa = false;
+bool transb = false;
 char* matrixfile;
 
 CALvoid Usage(const CALchar* name)
@@ -130,6 +132,8 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-s        Dynamic CPU GPU scheduling\n" );
     fprintf(stderr, "\t-p        Interleaving Memory Policy\n" );
     fprintf(stderr, "\t-u        Dump Test Matrix\n" );
+    fprintf(stderr, "\t-1        Transpose A Matrix\n" );
+    fprintf(stderr, "\t-2        Transpose B Matrix\n" );
     fprintf(stderr, "\t-x <file> Load Matrix\n" );
     
     fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
@@ -191,6 +195,12 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case 'a':
                 Info->Disassemble = CAL_TRUE;
+                break;
+            case '1':
+		transa = true;
+                break;
+            case '2':
+		transb = true;
                 break;
             case 'i':
                 Info->PrintILKernel = CAL_TRUE;
@@ -367,7 +377,7 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     	    for (CALuint x = 0; x < Info.m; x++)
     	    {
 #ifdef TESTMODE
-        	AA[x * Info.Width + y] = 1;
+        	AA[x * Info.Width + y] = y;
 #else
         	AA[x * Info.Width + y] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
 #endif
@@ -466,7 +476,7 @@ int main(CALint argc, CALchar** argv)
     	    Info.Iterations = 2;
     	    if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
     	    if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
-    	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.0, 1.0))
+    	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.0, 1.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
     	    {
 	        printf("Error running CALDGEMM\n");
 		return(1);
@@ -482,9 +492,9 @@ int main(CALint argc, CALchar** argv)
 	do
         {
 #ifdef TESTMODE
-	    if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n))
+	    if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #else
-	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n))
+	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #endif
 	    {
 		printf("Error running CALDGEMM\n");

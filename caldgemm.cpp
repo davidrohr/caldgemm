@@ -219,17 +219,7 @@ CALuint caldgemm::AnalyzeResults(Data* data)
         CPerfCounter Timer;
         Timer.Reset();
         Timer.Start();
-#ifdef CALDGEMM_TRANSPOSED_A
-	CBLAS_TRANSPOSE trA = CblasTrans;
-#else
-	CBLAS_TRANSPOSE trA = CblasNoTrans;
-#endif
-#ifdef CALDGEMM_TRANSPOSED_B
-	CBLAS_TRANSPOSE trB = CblasTrans;
-#else
-	CBLAS_TRANSPOSE trB = CblasNoTrans;
-#endif
-	cblas_dgemm(CblasRowMajor, trA, trB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
+	cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
         Timer.Stop();
         printf("CPU Time: %lf Gflops: %lf\n", Timer.GetElapsedTime(), (CALdouble)1e-09 * 2 * Info->m * Info->n * Info->Width / Timer.GetElapsedTime());
         for (CALuint i=0; i < Info->m; i++)
@@ -424,7 +414,7 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
 #define _mm_store_pd_use _mm_stream_pd
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH
 
-CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers)
+CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose)
 {
 #if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
     double* daddr = dst[0].d_data;
@@ -492,31 +482,66 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
     }
 #else
     // Array to store the position from which data will be filled in the various output buffers.
-    CALint* position = new CALint[numBuffers];
-    memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
-    for (CALint y=0; y < height; y++)
+    if (transpose)
     {
-        CALint bank = y % numBuffers;
-        double* daddr = dst[bank].d_data + position[bank];
-        double* saddr = src + (y * pitch);
-        int count = dst[bank].DataSize * width;
+	for (CALint y=0; y < height; y += 2)
+	{
+    	    double* saddr = src + (y * pitch);
+    	    double* saddr2 = src + ((y + 1) * pitch);
+    	    int count = width;
         
-        for (int i = 0;i < count;i += 64)
-        {
+    	    for (int i = 0;i < count;i += 2)
+    	    {
+    		CALint bank = (i) % numBuffers;
+    		CALint bank2 = (i + 1) % numBuffers;
+    		double* daddr = dst[bank].d_data + (i / numBuffers) * width + y;
+    		double* daddr2 = dst[bank2].d_data + (i / numBuffers) * width + y;
+
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    	    _mm_prefetch(saddr + 100, _MM_HINT_NTA);
+    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+    		_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
 #endif
-    	    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    	    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 2));
-    	    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 4));
-    	    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 6));
-    	    saddr += 8;
-    	    daddr += 8;
-        }
-        
-        position[bank] += width;
+		__m128d x1, x2, x3, x4;
+		x1 = _mm_load_pd(saddr);
+		x2 = _mm_load_pd(saddr2);
+		x3 = _mm_unpacklo_pd(x1, x2);
+		x4 = _mm_unpackhi_pd(x1, x2);
+		
+    		_mm_store_pd_use(daddr, x3);
+    		_mm_store_pd_use(daddr2, x4);
+    		saddr += 2;
+    		saddr2 += 2;
+    	    }
+    	}
     }
-    delete[] position;
+    else
+    {
+	CALint* position = new CALint[numBuffers];
+        memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
+	for (CALint y=0; y < height; y++)
+	{
+    	    CALint bank = y % numBuffers;
+    	    double* daddr = dst[bank].d_data + position[bank];
+    	    double* saddr = src + (y * pitch);
+    	    int count = dst[bank].DataSize * width;
+        
+    	    for (int i = 0;i < count;i += 64)
+    	    {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+#endif
+    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    		_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 2));
+    		_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 4));
+    		_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 6));
+    		saddr += 8;
+    		daddr += 8;
+    	}
+        
+    	    position[bank] += width;
+	}
+	delete[] position;
+    }
 #endif
 
 }
@@ -1745,7 +1770,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     A_pitch = Apitch != -1 ? Apitch : Info->Width;
     B_pitch = Bpitch != -1 ? Bpitch : Info->n;
     C_pitch = Cpitch != -1 ? Cpitch : Info->n;
-    
+    TransposeA = TransA;
+    TransposeB = TransB;    
     ResetTimers();
     
     if (Info->Debug) printf("Starting DGEMM Run m=%d k=%d n=%d Alpha=%lf Beta=%lf\n", Info->m, Info->Width, Info->n, Alpha, Beta);
@@ -1779,7 +1805,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     //Check if the GPU can/shall process the required dgemm task
     if (Info->Iterations > 1);
     else if (Info->Width % 256 || Info->Width < 256) forceCPU = true;
-    else if (TransA == CblasTrans || TransB == CblasTrans) forceCPU = true;
     else if (Info->m < 1024 || Info->n < 1024) forceCPU = true;
     else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
     else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
@@ -1950,9 +1975,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Info->Debug) printf("Iteration k = %d, m = %d, n = %d (Context %d)\n", k, blockm, blockn, j);
 		
 		if (Info->VerboseTiming) Timers.CounterDivide.Start();
-		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * A_pitch * Info->Height, Info->Width, Info->Height, A_pitch, aPartsNum);
+		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * A_pitch * Info->Height, Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans);
 		if (Info->Debug) printf("\tDividing Buffer\n");
-		divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height, Info->Height, Info->Width, B_pitch, bPartsNum);
+		divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height, Info->Height, Info->Width, B_pitch, bPartsNum, TransposeB == CblasTrans);
 	        if (Info->VerboseTiming) Timers.CounterDivide.Stop();
     
 		if (Info->VerboseTiming) Timers.CounterCopyTo.Start();
