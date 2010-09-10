@@ -124,7 +124,7 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 caldgemm::SampleInfo::SampleInfo()
 {
     Pin = -3;
-    Verify = CAL_TRUE;
+    Verify = CAL_FALSE;
     Disassemble = CAL_FALSE;
     PrintILKernel = CAL_FALSE;
     Quiet = CAL_TRUE;
@@ -484,11 +484,11 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
     // Array to store the position from which data will be filled in the various output buffers.
     if (transpose)
     {
-	for (CALint y=0; y < height; y += 2)
+	for (CALint y=0; y < width; y += 2)
 	{
     	    double* saddr = src + (y * pitch);
     	    double* saddr2 = src + ((y + 1) * pitch);
-    	    int count = width;
+    	    int count = height;
         
     	    for (int i = 0;i < count;i += 2)
     	    {
@@ -1638,6 +1638,10 @@ void* cblas_wrapper(void* arg)
 	const int A_pitch = par->cls->A_pitch;
 	const int B_pitch = par->cls->B_pitch;
 	const int C_pitch = par->cls->C_pitch;
+	const int A_pitch_use = (par->cls->TransposeA == CblasTrans ? 1 : A_pitch);
+	const int B_pitch_use = (par->cls->TransposeB == CblasTrans ? B_pitch : 1);
+	const CBLAS_TRANSPOSE TransposeA = par->cls->TransposeA;
+	const CBLAS_TRANSPOSE TransposeB = par->cls->TransposeB;
 	if (!Info->Quiet) printf("\t\tSlave thread starting cblas (m: %d, n: %d, cblas_size: %d, dynamic: %d/%d)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size);
 
 	par->cls->Timers.CPUTimer.Start();
@@ -1651,29 +1655,29 @@ void* cblas_wrapper(void* arg)
 	{
 	    if (par->dynamic_run == 0)
 	    {
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, par->cblas_size, Info->n, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch, A_pitch, B, B_pitch, Beta, C + (Info->m - par->cblas_size) * C_pitch, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, Info->n, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - par->cblas_size) * C_pitch, C_pitch);
 	    }
 	    else
 	    {
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, par->dynamic_run, par->dynamic_size, Info->Width, Alpha, A + (Info->m - par->cblas_size - par->dynamic_run) * A_pitch, A_pitch, B + (Info->n - Info->n % Info->Height - par->dynamic_size), B_pitch, Beta, C + (Info->m - par->cblas_size - par->dynamic_run) * C_pitch + Info->n - Info->n % Info->Height - par->dynamic_size, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Info->Width, Alpha, A + (Info->m - par->cblas_size - par->dynamic_run) * A_pitch_use, A_pitch, B + (Info->n - Info->n % Info->Height - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (Info->m - par->cblas_size - par->dynamic_run) * C_pitch + Info->n - Info->n % Info->Height - par->dynamic_size, C_pitch);
 	    }
 	    
 	    if (Info->n % Info->Height && par->borders_done == CAL_FALSE)
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m - par->cblas_size, Info->n % Info->Height, Info->Width, Alpha, A, A_pitch, B + Info->n - Info->n % Info->Height, B_pitch, Beta, C + Info->n - Info->n % Info->Height, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m - par->cblas_size, Info->n % Info->Height, Info->Width, Alpha, A, A_pitch, B + (Info->n - Info->n % Info->Height) * B_pitch_use, B_pitch, Beta, C + Info->n - Info->n % Info->Height, C_pitch);
 	}
 	else
 	{
 	    if (par->dynamic_run == 0)
 	    {
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m, par->cblas_size, Info->Width, Alpha, A, A_pitch, B + Info->n - par->cblas_size, B_pitch, Beta, C + Info->n - par->cblas_size, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, par->cblas_size, Info->Width, Alpha, A, A_pitch, B + (Info->n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + Info->n - par->cblas_size, C_pitch);
 	    }
 	    else
 	    {
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, par->dynamic_size, par->dynamic_run, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height - par->dynamic_size) * A_pitch, A_pitch, B + (Info->n - par->cblas_size - par->dynamic_run), B_pitch, Beta, C + (Info->m - Info->m % Info->Height - par->dynamic_size) * C_pitch + Info->n - par->cblas_size - par->dynamic_run, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height - par->dynamic_size) * A_pitch_use, A_pitch, B + (Info->n - par->cblas_size - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (Info->m - Info->m % Info->Height - par->dynamic_size) * C_pitch + Info->n - par->cblas_size - par->dynamic_run, C_pitch);
 	    }
 	    
 	    if (Info->m % Info->Height && par->borders_done == CAL_FALSE)
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * B_pitch, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * B_pitch, C_pitch);
 	}
 	goto_set_num_threads(old_goto_threads);
 	caldgemm_goto_reserve_cpus(0);
@@ -1975,15 +1979,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Info->Debug) printf("Iteration k = %d, m = %d, n = %d (Context %d)\n", k, blockm, blockn, j);
 		
 		if (Info->VerboseTiming) Timers.CounterDivide.Start();
-		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * A_pitch * Info->Height, Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans);
+		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans);
 		if (Info->Debug) printf("\tDividing Buffer\n");
-		divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height, Info->Height, Info->Width, B_pitch, bPartsNum, TransposeB == CblasTrans);
+		divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, B_pitch, bPartsNum, TransposeB == CblasTrans);
 	        if (Info->VerboseTiming) Timers.CounterDivide.Stop();
-    
+
 		if (Info->VerboseTiming) Timers.CounterCopyTo.Start();
     	        if (blockm < ctxcount)
-    	        {
-    	    	    if (Info->Debug) printf("\tCopying part of A to GPU\n");
+	        {
+	    	    if (Info->Debug) printf("\tCopying part of A to GPU\n");
     	    	    if (CopyDataToGPU(&ctxs[j], resourceHandlers[j], datas[j], aPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
     	    	}
     	    	if (Info->Debug) printf("\tCopying part of B to GPU\n");
