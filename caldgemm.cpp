@@ -90,7 +90,11 @@ jurisdiction and venue of these courts.
 ============================================================ */
 
 #include "caldgemm.h"
+
+#define ILKernelName ILKernel
 #include "caldgemm.il"
+#undef ILKernelName
+
 #ifdef ATI_OS_WIN
 #include <windows.h>
 #endif
@@ -117,43 +121,69 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
 #define WAITFOREVENT(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
+caldgemm::SampleInfo::SampleInfo()
+{
+    Pin = -3;
+    Verify = CAL_FALSE;
+    Disassemble = CAL_FALSE;
+    PrintILKernel = CAL_FALSE;
+    Quiet = CAL_TRUE;
+    DeviceNum = 0;
+    Width = 1024;
+    Height = 2048;
+    AutoHeight = CAL_TRUE;
+    Iterations = 1;
+    DstMemory = 'c';
+    VerboseTiming = CAL_FALSE;
+    Debug = CAL_FALSE;
+    MultiThread = CAL_TRUE;
+    UseGPU = CAL_TRUE;
+    UseCPU = CAL_TRUE;
+    GPURatio = -1.0;
+    DynamicSched = CAL_TRUE;
+    MemPolicy = CAL_TRUE;
+    DumpMatrix = CAL_FALSE;
+    m = 0;
+    n = 0;
+}
+
 CALvoid caldgemm::displayMatrixTiming(const CALchar* name)
 {
     if (!Info->Quiet)
     {
-        CALdouble gflops_CPU = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Info->System.GetElapsedTime();
+        CALdouble gflops_CPU = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Timers.System.GetElapsedTime();
         printf("Program: %s Sizes - A: %dx%d B: %dx%d C:%dx%d System Time %2.3lf System Gflops %2.3lf\n", name, 
                 Info->m, Info->Width, Info->Width, 
-                Info->n, Info->m, Info->n, Info->System.GetElapsedTime(), gflops_CPU);
+                Info->n, Info->m, Info->n, Timers.System.GetElapsedTime(), gflops_CPU);
         if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
         {
     	    double flopsc, flopsg;
     	    if (CPUOnlyRun)
     	    {
-    		flopsc = (double) 1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * Info->Iterations / Info->CPUTimer.GetElapsedTime();
+    		flopsc = (double) 1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
     		flopsg = 0.0;
     	    }
     	    else if (Info->m >= Info->n / 2)
     	    {
-    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->n + (Info->n % Info->Height) * (Info->m - cParam.cblas_size)) * (2 * Info->Width + 2) * Info->Iterations / Info->CPUTimer.GetElapsedTime();
-    		flopsg = (double) 1e-09 * ((Info->m - cParam.cblas_size) * (Info->n - Info->n % Info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * Info->Width + 2) * Info->Iterations / Info->GPUTimer.GetElapsedTime();
+    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->n + (Info->n % Info->Height) * (Info->m - cParam.cblas_size)) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
+    		flopsg = (double) 1e-09 * ((Info->m - cParam.cblas_size) * (Info->n - Info->n % Info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * Info->Width + 2) * Info->Iterations / Timers.GPUTimer.GetElapsedTime();
     	    }
     	    else
     	    {
-    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->m + (Info->m % Info->Height) * (Info->n - cParam.cblas_size)) * (2 * Info->Width + 2) * Info->Iterations / Info->CPUTimer.GetElapsedTime();
-    		flopsg = (double) 1e-09 * ((Info->n - cParam.cblas_size) * (Info->m - Info->m % Info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * Info->Width + 2) * Info->Iterations / Info->GPUTimer.GetElapsedTime();
+    		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->m + (Info->m % Info->Height) * (Info->n - cParam.cblas_size)) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
+    		flopsg = (double) 1e-09 * ((Info->n - cParam.cblas_size) * (Info->m - Info->m % Info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * Info->Width + 2) * Info->Iterations / Timers.GPUTimer.GetElapsedTime();
     	    }
-    	    printf("GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)\n", Info->GPUTimer.GetElapsedTime(), flopsg, Info->CPUTimer.GetElapsedTime(), flopsc);
+    	    printf("GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)\n", Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
         }
 	if (Info->VerboseTiming)
 	{
-	    CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble)Info->Iterations / Info->Kernel.GetElapsedTime();
-	    CALdouble copyto = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterCopyTo.GetElapsedTime();
-    	    CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterCopyFrom.GetElapsedTime()) : 0;
-    	    CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterMerge.GetElapsedTime());
-    	    CALdouble copyDivide = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Info->CounterDivide.GetElapsedTime();
+	    CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble)Info->Iterations / Timers.Kernel.GetElapsedTime();
+	    CALdouble copyto = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterCopyTo.GetElapsedTime();
+    	    CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterCopyFrom.GetElapsedTime()) : 0;
+    	    CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterMerge.GetElapsedTime());
+    	    CALdouble copyDivide = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterDivide.GetElapsedTime();
     	    printf("Times:  Kernel                    Divide                  Merge                   Copy To                 Copy From\n");
-    	    printf("        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Info->Kernel.GetElapsedTime(), gflops, Info->CounterDivide.GetElapsedTime(), copyDivide, Info->CounterMerge.GetElapsedTime(), copyMerge, Info->CounterCopyTo.GetElapsedTime(), copyto, Info->CounterCopyFrom.GetElapsedTime(), copyfrom);
+    	    printf("        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
     	}
     }
 }
@@ -169,7 +199,7 @@ void caldgemm::print_submatrices(double* M, int width, int height, int pitch, in
 	    {
 		for (int ii = i;ii < i + subx && ii < width;ii++)
 		{
-		    printf("%+07.3lf\t", M[jj * pitch + ii]);
+		    printf("%+ 10.3lf\t", M[jj * pitch + ii]);
 		}
 	    }
 	    printf("\n");
@@ -189,7 +219,7 @@ CALuint caldgemm::AnalyzeResults(Data* data)
         CPerfCounter Timer;
         Timer.Reset();
         Timer.Start();
-	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
+	cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
         Timer.Stop();
         printf("CPU Time: %lf Gflops: %lf\n", Timer.GetElapsedTime(), (CALdouble)1e-09 * 2 * Info->m * Info->n * Info->Width / Timer.GetElapsedTime());
         for (CALuint i=0; i < Info->m; i++)
@@ -198,7 +228,7 @@ CALuint caldgemm::AnalyzeResults(Data* data)
             {
                 if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
                 {
-            	    if (wrong == 0) printf("Error found at %d, %d: Expected: %le, Found: %le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j]);
+            	    if (wrong < 1) printf("Error found at %d, %d: Expected: %le, Found: %le, Diff: %le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
                     ++wrong;
                 }
                 ++total;
@@ -241,30 +271,50 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
         CALuint mComponents = 2;
         if (i < aStop)
         {
+#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
+	    tWidth = Info->Width / 8;
+	    tHeight = Info->Height;
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+	    tWidth = Info->Width / 4;
+	    tHeight = Info->Height;
+#else
             /* A matrix sizes are shrunk by 2 (double2) in the width and 8 (8 resources) in the height */
             tWidth = Info->Width / 2;
             tHeight = Info->Height / aPartsNum;
+#endif
             mem = 'g';
         }
         else if (i >= aStop && i < bStop)
         {
+#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
+	    tWidth = Info->Height / 8;
+	    tHeight = Info->Width;
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+	    tWidth = Info->Height / 4;
+	    tHeight = Info->Width;
+#else
             /* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
             tWidth = Info->Height / 2;
             tHeight = Info->Width / bPartsNum;
+#endif
             mem = 'g';
         }
         else if (i >= bStop && i < fStop)
         {
-            tWidth = 2;
+            tWidth = 8;
             tHeight = 1;
             flag = static_cast<CALresallocflags>(0);
         }
         else if (i >= fStop && i < cStop)
         {
+#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
+	    tWidth = tHeight = Info->Height / 4;
+#else
             tWidth = Info->Height / 2;
-            tHeight = Info->Height / aPartsNum;
+            tHeight = Info->Height / cPartsNum;
+#endif
             mem = Info->DstMemory;
-            flag = static_cast<CALresallocflags>(flag | CAL_RESALLOC_CACHEABLE);
+            flag = (CALresallocflags) (flag | CAL_RESALLOC_CACHEABLE);
         }
         else
         {
@@ -275,11 +325,74 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     }
 
     // Setup the constants for the kernel
-    data[bStop].f_data[0] = (float) aPartsNum / Info->Height;  //Scale factor for normalized y pos, factor 8 for 8 resources
-    data[bStop].f_data[1] = 2.f / Info->Width;
+#ifdef CALDGEMM_44
+#ifdef CALDGEMM_88
+    data[bStop].f_data[0] = 8.f / Info->Height;  //Scale factor for normalized y pos
+    data[bStop].f_data[2] = 8.f / Info->Height;  //Scale factor for normalized x pos
+#else
+    data[bStop].f_data[0] = 4.f / Info->Height;  //Scale factor for normalized y pos
+    data[bStop].f_data[2] = 4.f / Info->Height;  //Scale factor for normalized x pos
+#endif
+#ifdef CALDGEMM_TRANSPOSED_A
+    data[bStop].f_data[1] = 1.f / Info->Width;  //Step in K direction
+    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width);				//Iterations of loop in IL Kernel
+#else
+    data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
+    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / 2);			//Iterations of loop in IL Kernel, factor 2 for double2
+#endif
+#else //CALDGEMM_44
+    data[bStop].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos, factor cPartsNum for resources
+    data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
     data[bStop].f_data[2] = 2.f / Info->Height;  //Scale factor for normalized x pos, factor 2 for double2
+    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));	//Iterations of loop in IL Kernel
+#endif //CALDGEMM_44
     data[bStop].f_data[3] = 0.f;
-    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));
+    data[bStop].f_data[5] = (float) aPartsNum / Info->Height;  //For transposed matrix more finer y resolution is needed
+    data[bStop].f_data[8] = 0.5f - 0.5f / (float) (TILING_Y / aPartsNum);
+    
+    //Constants for Memexport
+#ifdef CALDGEMM_88
+    data[bStop].i_data[9] = TILING_Y * Info->Height / 2;		//2 for double2
+    data[bStop].i_data[10] = 4;						//x tiling in double2
+
+    data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;			//8 consecutive entries in x
+    data[bStop].i_data[13] = 1 + 0 * Info->Height / 2;
+    data[bStop].i_data[14] = 2 + 0 * Info->Height / 2;
+    data[bStop].i_data[15] = 3 + 0 * Info->Height / 2;
+
+    data[bStop].i_data[16] = 0 + 1 * Info->Height / 2;			//Next row
+    data[bStop].i_data[17] = 0 + 1 * Info->Height / 2;
+    data[bStop].i_data[18] = 0 + 1 * Info->Height / 2;
+    data[bStop].i_data[19] = 0 + 1 * Info->Height / 2;
+
+    data[bStop].i_data[20] = 0 + 2 * Info->Height / 2;			//Skip one row
+    data[bStop].i_data[21] = 0 + 2 * Info->Height / 2;
+    data[bStop].i_data[22] = 0 + 2 * Info->Height / 2;
+    data[bStop].i_data[23] = 0 + 2 * Info->Height / 2;
+#elif defined(CALDGEMM_44)
+    data[bStop].i_data[9] = TILING_Y * Info->Height / 2;		//2 for double2
+    data[bStop].i_data[10] = 2;						//x tiling in double2
+    data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;
+    data[bStop].i_data[13] = 1 + 0 * Info->Height / 2;
+    data[bStop].i_data[14] = 0 + 1 * Info->Height / 2;
+    data[bStop].i_data[15] = 1 + 1 * Info->Height / 2;
+    data[bStop].i_data[16] = 0 + 2 * Info->Height / 2;
+    data[bStop].i_data[17] = 1 + 2 * Info->Height / 2;
+    data[bStop].i_data[18] = 0 + 3 * Info->Height / 2;
+    data[bStop].i_data[19] = 1 + 3 * Info->Height / 2;
+#else
+    data[bStop].i_data[9] = TILING_Y * Info->Height / 2;		//2 for double2
+    data[bStop].i_data[10] = 1;						//x tiling in double2
+
+    data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;
+    data[bStop].i_data[13] = 0 + 1 * Info->Height / 2;
+    data[bStop].i_data[14] = 0 + 2 * Info->Height / 2;
+    data[bStop].i_data[15] = 0 + 3 * Info->Height / 2;
+    data[bStop].i_data[16] = 0 + 4 * Info->Height / 2;
+    data[bStop].i_data[17] = 0 + 5 * Info->Height / 2;
+    data[bStop].i_data[18] = 0 + 6 * Info->Height / 2;
+    data[bStop].i_data[19] = 0 + 7 * Info->Height / 2;
+#endif
     //////////////////////////////////////////////////////////////////////////
     //
     //  setup the program's inputs and outputs
@@ -301,37 +414,136 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
 #define _mm_store_pd_use _mm_stream_pd
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH
 
-CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers)
+CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose)
 {
-    // Array to store the position from which data will be filled in the various output buffers.
-    CALint* position = new CALint[numBuffers];
-    memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
-
+#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
+    double* daddr = dst[0].d_data;
+    double* daddr2 = dst[1].d_data;
+    double* daddr3 = dst[2].d_data;
+    double* daddr4 = dst[3].d_data;
     for (CALint y=0; y < height; y++)
     {
-        CALint bank = y % numBuffers;
-        CALint nextbank = (y + 1) % numBuffers;
-        double* daddr = dst[bank].d_data + position[bank];
+        int count = dst[0].DataSize * width;
         double* saddr = src + (y * pitch);
-        int count = dst[bank].DataSize * width;
         
-        for (int i = 0;i < count;i += 64)
+        for (int i = 0;i < count;i += 256)
         {
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    	    _mm_prefetch(saddr + 100, _MM_HINT_NTA);
+    	    _mm_prefetch(saddr + 25, _MM_HINT_NTA);
 #endif
     	    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    	    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 2));
-    	    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 4));
-    	    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 6));
-    	    saddr += 8;
+    	    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
+    	    _mm_store_pd_use(daddr3, _mm_load_pd(saddr + 4));
+    	    _mm_store_pd_use(daddr4, _mm_load_pd(saddr + 6));
+    	    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 8));
+    	    _mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 10));
+    	    _mm_store_pd_use(daddr3 + 2, _mm_load_pd(saddr + 12));
+    	    _mm_store_pd_use(daddr4 + 2, _mm_load_pd(saddr + 14));
+    	    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 16));
+    	    _mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 18));
+    	    _mm_store_pd_use(daddr3 + 4, _mm_load_pd(saddr + 20));
+    	    _mm_store_pd_use(daddr4 + 4, _mm_load_pd(saddr + 22));
+    	    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 24));
+    	    _mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 26));
+    	    _mm_store_pd_use(daddr3 + 6, _mm_load_pd(saddr + 28));
+    	    _mm_store_pd_use(daddr4 + 6, _mm_load_pd(saddr + 30));
+    	    saddr += 32;
     	    daddr += 8;
+    	    daddr2+= 8;
+    	    daddr3 += 8;
+    	    daddr4 += 8;
         }
-        
-        position[bank] += width;
     }
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+    double* daddr = dst[0].d_data;
+    double* daddr2 = dst[1].d_data;
+    for (CALint y=0; y < height; y++)
+    {
+        int count = dst[0].DataSize * width;
+        double* saddr = src + (y * pitch);
+        
+        for (int i = 0;i < count;i += 128)
+        {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    	    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
+#endif
+    	    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    	    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
+    	    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 4));
+    	    _mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 6));
+    	    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 8));
+    	    _mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 10));
+    	    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 12));
+    	    _mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 14));
+    	    saddr += 16;
+    	    daddr += 8;
+    	    daddr2+= 8;
+        }
+    }
+#else
+    // Array to store the position from which data will be filled in the various output buffers.
+    if (transpose)
+    {
+	for (CALint y=0; y < width; y += 2)
+	{
+    	    double* saddr = src + (y * pitch);
+    	    double* saddr2 = src + ((y + 1) * pitch);
+    	    int count = height;
+        
+    	    for (int i = 0;i < count;i += 2)
+    	    {
+    		CALint bank = (i) % numBuffers;
+    		CALint bank2 = (i + 1) % numBuffers;
+    		double* daddr = dst[bank].d_data + (i / numBuffers) * width + y;
+    		double* daddr2 = dst[bank2].d_data + (i / numBuffers) * width + y;
 
-    delete[] position;
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+    		_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
+#endif
+		__m128d x1, x2, x3, x4;
+		x1 = _mm_load_pd(saddr);
+		x2 = _mm_load_pd(saddr2);
+		x3 = _mm_unpacklo_pd(x1, x2);
+		x4 = _mm_unpackhi_pd(x1, x2);
+		
+    		_mm_store_pd_use(daddr, x3);
+    		_mm_store_pd_use(daddr2, x4);
+    		saddr += 2;
+    		saddr2 += 2;
+    	    }
+    	}
+    }
+    else
+    {
+	CALint* position = new CALint[numBuffers];
+        memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
+	for (CALint y=0; y < height; y++)
+	{
+    	    CALint bank = y % numBuffers;
+    	    double* daddr = dst[bank].d_data + position[bank];
+    	    double* saddr = src + (y * pitch);
+    	    int count = dst[bank].DataSize * width;
+        
+    	    for (int i = 0;i < count;i += 64)
+    	    {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+#endif
+    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    		_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 2));
+    		_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 4));
+    		_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 6));
+    		saddr += 8;
+    		daddr += 8;
+    	}
+        
+    	    position[bank] += width;
+	}
+	delete[] position;
+    }
+#endif
+
 }
 
 int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers)
@@ -353,15 +565,72 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 
     for (CALint y=0; y < height; y++)
     {
+#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
+	CALint bank = y % 4;
+	double* saddr2 = src[bank + 4].d_data + position[bank];
+#else
         CALint bank = y % numBuffers;
+#endif
 
         double* daddr = dst + (y * pitch);
         double* saddr = src[bank].d_data + position[bank];
-        CALint nextbank = (y + 1) % numBuffers;
         int count = src[bank].DataSize * width;
         
+#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
+
         if (__fpclassify(Beta) == FP_ZERO)
         {
+    	    for (int i = 0;i < count;i += 128)
+    	    {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    		_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+    		_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+#endif
+    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    		_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
+    	        _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
+    	        _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
+    		_mm_store_pd_use(daddr + 8, _mm_load_pd(saddr + 4));
+    		_mm_store_pd_use(daddr + 10, _mm_load_pd(saddr2 + 4));
+    	        _mm_store_pd_use(daddr + 12, _mm_load_pd(saddr + 6));
+    	        _mm_store_pd_use(daddr + 14, _mm_load_pd(saddr2 + 6));
+    		saddr += 8;
+    		saddr2 += 8;
+    	        daddr += 16;
+    	    }
+        }
+        else
+        {
+#undef _mm_store_pd_use
+#define _mm_store_pd_use _mm_store_pd
+    	    __m128d beta = _mm_set1_pd(Beta);
+    	    for (int i = 0;i < count;i += 128)
+    	    {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    		_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+    		_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+    	        _m_prefetchw(daddr + 100);
+#endif
+    		_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
+    		_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
+    	        _mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
+    	        _mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
+    		_mm_store_pd_use(daddr + 8, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 8))));
+    		_mm_store_pd_use(daddr + 10, _mm_add_pd(_mm_load_pd(saddr2 + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 10))));
+    	        _mm_store_pd_use(daddr + 12, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 12))));
+    	        _mm_store_pd_use(daddr + 14, _mm_add_pd(_mm_load_pd(saddr2 + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 14))));
+    		saddr += 8;
+    		saddr2 += 8;
+    	        daddr += 16;
+    	    }
+    	}
+    	    
+	position[bank] += width / 2;
+#else        
+        if (__fpclassify(Beta) == FP_ZERO)
+        {
+#undef _mm_store_pd_use
+#define _mm_store_pd_use _mm_stream_pd
     	    for (int i = 0;i < count;i += 64)
     	    {
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
@@ -377,16 +646,14 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
         }
         else
         {
-        
 #undef _mm_store_pd_use
 #define _mm_store_pd_use _mm_store_pd
-        
     	    __m128d beta = _mm_set1_pd(Beta);
     	    for (int i = 0;i < count;i += 64)
     	    {
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
     		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-    	        _mm_prefetch(daddr + 100, _MM_HINT_T0);
+    	        _m_prefetchw(daddr + 100);
 #endif
     		_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
     	        _mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
@@ -398,6 +665,7 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     	}
     	
         position[bank] += width;
+#endif //CALDGEMM_44
     }
 
     if (Info->DstMemory == 'c')
@@ -553,9 +821,11 @@ CALint caldgemm::SetupKernel(const CALchar* ILKernel, CALmodule* module, CALcont
 
     // Compile IL kernel into object
     CALobject obj;
+    if (Info->PrintILKernel && ctx == ctxs) printf("Kernel:\n%s\n", ILKernel);
     if (calclCompile(&obj, CAL_LANGUAGE_IL, ILKernel, attribs.target) != CAL_RESULT_OK)
     {
         fprintf(stderr, "There was an error compiling the program.\n");
+        fprintf(stderr, "Kernel: %s\n", ILKernel);
         fprintf(stderr, "Error string is %s\n", calclGetErrorString());
         return 0;
     }
@@ -616,7 +886,7 @@ CALint caldgemm::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, C
     rect.height = Height;
 
     // Execute the program iterations number of times
-    if (Info->VerboseTiming) Info->Kernel.Start();
+    if (Info->VerboseTiming) Timers.Kernel.Start();
     r = calCtxRunProgram(event, *ctx, func, &rect);
     if (r != CAL_RESULT_OK)
     {
@@ -629,7 +899,7 @@ CALint caldgemm::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, C
     if (Info->VerboseTiming)
     {
 	WAITFOREVENT(*ctx, *event);
-	Info->Kernel.Stop();
+	Timers.Kernel.Stop();
     }
 
     return 1;
@@ -903,7 +1173,11 @@ CALint caldgemm::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, 
         }
         else if (i >= cStop && i < oStop)
         {
+#ifdef CALDGEMM_USE_MEMEXPORT
+	    sprintf(buffer, "g[]", i - cStop);
+#else
             sprintf(buffer,"o%d", i - cStop);
+#endif
         }
         else if (i >= iStop && i < cStop)
         {
@@ -965,6 +1239,9 @@ CALint caldgemm::AllocateResources(CALcontext* ctx, CALdevice* device, CALresour
             fprintf(stderr, "Error: Path that should be unreachable is reached\n");
             return 0;
         }
+#ifdef CALDGEMM_USE_MEMEXPORT
+	flag = (CALresallocflags) (flag | CAL_RESALLOC_GLOBAL_BUFFER);
+#endif
         switch(mem)
         {
             case 'g':
@@ -1023,7 +1300,7 @@ int caldgemm::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CAL
     data.Width = tWidth;
     data.Height = tHeight;
     data.ComponentSize = CompSize;
-    if (tWidth > 16 || tHeight > 16)
+    if (tHeight > 1)
     {
 		data.CALMemory = CAL_TRUE;
 		if (Info->DstMemory == 'g' || i < aPartsNum + bPartsNum)
@@ -1104,8 +1381,7 @@ CALvoid caldgemm::SupportedCALVersion(CALVersion *calVersion)
 	calVersion->major = 1;
 	calVersion->minor = 3;
 	calVersion->imp = 185;
-	printf("Supported CAL Runtime Version: %d.%d.%d\n", 
-			calVersion->major, calVersion->minor, calVersion->imp);
+	if (Info->Debug) printf("Supported CAL Runtime Version: %d.%d.%d\n", calVersion->major, calVersion->minor, calVersion->imp);
 }
 
 CALint caldgemm::QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList)
@@ -1156,7 +1432,7 @@ CALint caldgemm::QueryCALVersion(CALVersion required, const CALchar* comparison)
 {
 	CALVersion available;
 	calGetVersion(&available.major, &available.minor, &available.imp);
-	printf("Found CAL Runtime Version: %d.%d.%d\n", available.major, available.minor, available.imp);
+	if (Info->Debug) printf("Found CAL Runtime Version: %d.%d.%d\n", available.major, available.minor, available.imp);
 
 	if( strcmp(comparison,">") == 0 )
 	{
@@ -1294,7 +1570,6 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
                "with the given command line options. Please try again.\n");
         return 1;
     }
-
     Features.DoublePrecision = CAL_TRUE;
     if(QueryDeviceCaps(Info->DeviceNum, &Features) != CAL_TRUE)
     {
@@ -1363,9 +1638,13 @@ void* cblas_wrapper(void* arg)
 	const int A_pitch = par->cls->A_pitch;
 	const int B_pitch = par->cls->B_pitch;
 	const int C_pitch = par->cls->C_pitch;
+	const int A_pitch_use = (par->cls->TransposeA == CblasTrans ? 1 : A_pitch);
+	const int B_pitch_use = (par->cls->TransposeB == CblasTrans ? B_pitch : 1);
+	const CBLAS_TRANSPOSE TransposeA = par->cls->TransposeA;
+	const CBLAS_TRANSPOSE TransposeB = par->cls->TransposeB;
 	if (!Info->Quiet) printf("\t\tSlave thread starting cblas (m: %d, n: %d, cblas_size: %d, dynamic: %d/%d)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size);
 
-	par->cls->Info->CPUTimer.Start();
+	par->cls->Timers.CPUTimer.Start();
 	int old_goto_threads = get_num_procs();
 	if (Info->Pin != -100)
 	{
@@ -1376,33 +1655,33 @@ void* cblas_wrapper(void* arg)
 	{
 	    if (par->dynamic_run == 0)
 	    {
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, par->cblas_size, Info->n, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch, A_pitch, B, B_pitch, Beta, C + (Info->m - par->cblas_size) * C_pitch, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, Info->n, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - par->cblas_size) * C_pitch, C_pitch);
 	    }
 	    else
 	    {
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, par->dynamic_run, par->dynamic_size, Info->Width, Alpha, A + (Info->m - par->cblas_size - par->dynamic_run) * A_pitch, A_pitch, B + (Info->n - Info->n % Info->Height - par->dynamic_size), B_pitch, Beta, C + (Info->m - par->cblas_size - par->dynamic_run) * C_pitch + Info->n - Info->n % Info->Height - par->dynamic_size, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Info->Width, Alpha, A + (Info->m - par->cblas_size - par->dynamic_run) * A_pitch_use, A_pitch, B + (Info->n - Info->n % Info->Height - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (Info->m - par->cblas_size - par->dynamic_run) * C_pitch + Info->n - Info->n % Info->Height - par->dynamic_size, C_pitch);
 	    }
 	    
 	    if (Info->n % Info->Height && par->borders_done == CAL_FALSE)
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m - par->cblas_size, Info->n % Info->Height, Info->Width, Alpha, A, A_pitch, B + Info->n - Info->n % Info->Height, B_pitch, Beta, C + Info->n - Info->n % Info->Height, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m - par->cblas_size, Info->n % Info->Height, Info->Width, Alpha, A, A_pitch, B + (Info->n - Info->n % Info->Height) * B_pitch_use, B_pitch, Beta, C + Info->n - Info->n % Info->Height, C_pitch);
 	}
 	else
 	{
 	    if (par->dynamic_run == 0)
 	    {
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m, par->cblas_size, Info->Width, Alpha, A, A_pitch, B + Info->n - par->cblas_size, B_pitch, Beta, C + Info->n - par->cblas_size, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, par->cblas_size, Info->Width, Alpha, A, A_pitch, B + (Info->n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + Info->n - par->cblas_size, C_pitch);
 	    }
 	    else
 	    {
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, par->dynamic_size, par->dynamic_run, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height - par->dynamic_size) * A_pitch, A_pitch, B + (Info->n - par->cblas_size - par->dynamic_run), B_pitch, Beta, C + (Info->m - Info->m % Info->Height - par->dynamic_size) * C_pitch + Info->n - par->cblas_size - par->dynamic_run, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height - par->dynamic_size) * A_pitch_use, A_pitch, B + (Info->n - par->cblas_size - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (Info->m - Info->m % Info->Height - par->dynamic_size) * C_pitch + Info->n - par->cblas_size - par->dynamic_run, C_pitch);
 	    }
 	    
 	    if (Info->m % Info->Height && par->borders_done == CAL_FALSE)
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * B_pitch, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * B_pitch, C_pitch);
 	}
 	goto_set_num_threads(old_goto_threads);
 	caldgemm_goto_reserve_cpus(0);
-	par->cls->Info->CPUTimer.Stop();
+	par->cls->Timers.CPUTimer.Stop();
 
         if (Info->Debug) printf("\t\tUnlocking cblasmutex\n");
         pthread_mutex_unlock(&par->cls->cParam.cblasMutex[0]);
@@ -1495,7 +1774,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     A_pitch = Apitch != -1 ? Apitch : Info->Width;
     B_pitch = Bpitch != -1 ? Bpitch : Info->n;
     C_pitch = Cpitch != -1 ? Cpitch : Info->n;
-    
+    TransposeA = TransA;
+    TransposeB = TransB;    
     ResetTimers();
     
     if (Info->Debug) printf("Starting DGEMM Run m=%d k=%d n=%d Alpha=%lf Beta=%lf\n", Info->m, Info->Width, Info->n, Alpha, Beta);
@@ -1510,7 +1790,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	memcpy(D, C, Info->m * C_pitch * sizeof(CALdouble));
     }
 
-    Info->System.Start();
+    Timers.System.Start();
     
     if (order == CblasColMajor)
     {
@@ -1524,11 +1804,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
     
     if (Info->DumpMatrix) DumpMatrix(A, B, C, Alpha, Beta, Info->m, Info->Width, Info->n, A_pitch, B_pitch, C_pitch, CblasRowMajor, TransA, TransB);
-    
+
+#ifndef TESTMODE    
     //Check if the GPU can/shall process the required dgemm task
     if (Info->Iterations > 1);
     else if (Info->Width % 256 || Info->Width < 256) forceCPU = true;
-    else if (TransA == CblasTrans || TransB == CblasTrans) forceCPU = true;
     else if (Info->m < 1024 || Info->n < 1024) forceCPU = true;
     else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
     else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
@@ -1537,6 +1817,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	printf("Input addresses not aligned correctly: A 0x%llX B 0x%llX C 0x%llX Pitch 0x%X 0x%X 0x%X\n", A, B, C, A_pitch, B_pitch, C_pitch);
 	forceCPU = true;
     }
+#endif
     
     if (Info->AutoHeight)
     {
@@ -1558,9 +1839,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     if (forceCPU || Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024))
     {
 	if (Info->Debug) printf("Running CPU only DGEMM\n");
-	Info->CPUTimer.Start();
+	Timers.CPUTimer.Start();
 	cblas_dgemm(CblasRowMajor, TransA, TransB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
-	Info->CPUTimer.Stop();
+	Timers.CPUTimer.Stop();
 	CPUOnlyRun = true;
 	Info->Width = old_k;
 	Info->Height = old_height;
@@ -1655,7 +1936,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->UseCPU) pthread_mutex_unlock(&cParam.cblasMutex[1]);
 
-    Info->GPUTimer.Start();
+    Timers.GPUTimer.Start();
 
     for (CALuint i = 0; i < Info->Iterations; ++i)
     {
@@ -1697,30 +1978,36 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		blockn = k / nb;
 		if (Info->Debug) printf("Iteration k = %d, m = %d, n = %d (Context %d)\n", k, blockm, blockn, j);
 		
-		if (Info->VerboseTiming) Info->CounterDivide.Start();
-		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * A_pitch * Info->Height, Info->Width, Info->Height, A_pitch, aPartsNum);
+		if (Info->VerboseTiming) Timers.CounterDivide.Start();
+		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans);
 		if (Info->Debug) printf("\tDividing Buffer\n");
-		divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height, Info->Height, Info->Width, B_pitch, bPartsNum);
-	        if (Info->VerboseTiming) Info->CounterDivide.Stop();
-    
-		if (Info->VerboseTiming) Info->CounterCopyTo.Start();
+		divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, B_pitch, bPartsNum, TransposeB == CblasTrans);
+	        if (Info->VerboseTiming) Timers.CounterDivide.Stop();
+
+		if (Info->VerboseTiming) Timers.CounterCopyTo.Start();
     	        if (blockm < ctxcount)
-    	        {
-    	    	    if (Info->Debug) printf("\tCopying part of A to GPU\n");
+	        {
+	    	    if (Info->Debug) printf("\tCopying part of A to GPU\n");
     	    	    if (CopyDataToGPU(&ctxs[j], resourceHandlers[j], datas[j], aPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
     	    	}
     	    	if (Info->Debug) printf("\tCopying part of B to GPU\n");
     	        if (CopyDataToGPU(&ctxs[j], resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
-    		if (Info->VerboseTiming) Info->CounterCopyTo.Stop();
+    		if (Info->VerboseTiming) Timers.CounterCopyTo.Stop();
     	        calCtxFlush(ctxs[j]);
     	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);
     	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
-    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / bPartsNum , Info->Height / aPartsNum, &events[j])) {printf("Error running program\n"); return 1;}
-    	        if (Info->VerboseTiming) Info->CounterCopyFrom.Start();
+#ifdef CALDGEMM_88
+    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 8, Info->Height / 8, &events[j])) {printf("Error running program\n"); return 1;}
+#elif defined(CALDGEMM_44)
+    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 4, Info->Height / 4, &events[j])) {printf("Error running program\n"); return 1;}
+#else
+    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 2, Info->Height / 8, &events[j])) {printf("Error running program\n"); return 1;}
+#endif
+    	        if (Info->VerboseTiming) Timers.CounterCopyFrom.Start();
     	        if (Info->DstMemory == 'g' && Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
     		if (CopyDataFromGPU(&ctxs[j], resourceHandlers[j] + numInputs + numConstantBuffers, datas[j] + numInputs + numConstantBuffers, numOutputs, &events[j])) {printf("Error copying from GPU\n"); return(1);}
-    	        if (Info->VerboseTiming) Info->CounterCopyFrom.Stop();
+    	        if (Info->VerboseTiming) Timers.CounterCopyFrom.Stop();
     		calCtxFlush(ctxs[j]);
     		
     		if (Info->UseCPU && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * GPURatio * nb * mb)
@@ -1748,7 +2035,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	    if (k > 0)
     	    {
     		WAITFOREVENT(ctxs[oldj], events[oldj]);
-    		if (Info->VerboseTiming) Info->CounterMerge.Start();
+    		if (Info->VerboseTiming) Timers.CounterMerge.Start();
     		if (Info->Debug) printf("\tMerging buffer\n");
 
 		if (k == nb * mb || Info->MultiThread == CAL_FALSE)
@@ -1771,22 +2058,26 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		    pthread_mutex_unlock(&mParam[oldj].mergeMutex[1]);
 		}
 
-	        if (Info->VerboseTiming) Info->CounterMerge.Stop();
+	        if (Info->VerboseTiming) Timers.CounterMerge.Stop();
 	    }
 	    oldj = j;
     	    j = (j + 1) % ctxcount;
 	}
     }
-    Info->GPUTimer.Stop();
+    Timers.GPUTimer.Stop();
     
     if (Info->Pin != -100) sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
     if (Info->UseCPU) pthread_mutex_lock(&cParam.cblasMutex[0]);
 
 RunCALDGEMM_end:
-    Info->System.Stop();
+    Timers.System.Stop();
 
     if (Info->Debug) printf("DGEMM Run Complete\n");
+    
+#ifdef TESTMODE
+    print_submatrices(C, 12, 24, Info->n, 1, 1, 1, 1);
+#endif
     
     if( Info->Quiet == CAL_FALSE && !AnalyzeResults(datas[0]) )
     {
@@ -1854,12 +2145,12 @@ int caldgemm::ExitCALDGEMM()
 void caldgemm::ResetTimers()
 {
     //Reset Timers
-    Info->System.Reset();
-    Info->Kernel.Reset();
-    Info->CounterDivide.Reset();
-    Info->CounterMerge.Reset();
-    Info->CounterCopyTo.Reset();
-    Info->CounterCopyFrom.Reset();
-    Info->CPUTimer.Reset();
-    Info->GPUTimer.Reset();
+    Timers.System.Reset();
+    Timers.Kernel.Reset();
+    Timers.CounterDivide.Reset();
+    Timers.CounterMerge.Reset();
+    Timers.CounterCopyTo.Reset();
+    Timers.CounterCopyFrom.Reset();
+    Timers.CPUTimer.Reset();
+    Timers.GPUTimer.Reset();
 }

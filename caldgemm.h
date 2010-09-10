@@ -95,6 +95,34 @@ jurisdiction and venue of these courts.
 //      calcl.h contains declarations for CAL compiler libarary functions
 //
 
+//#define CALDGEMM_TRANSPOSED_A
+//#define CALDGEMM_88
+//#define CALDGEMM_44
+//#define CALDGEMM_TRANSPOSED_B
+//#define CALDGEMM_USE_MEMEXPORT
+//#define TESTMODE
+
+#ifdef CALDGEMM_88
+#define CALDGEMM_44
+#define CALDGEMM_USE_MEMEXPORT
+#endif
+
+#ifdef CALDGEMM_44
+#ifdef CALDGEMM_TRANSPOSED_A
+#ifdef CALDGEMM_TRANSPOSED_B
+#undef CALDGEMM_TRANSPOSED_B
+#endif
+#else
+#define CALDGEMM_TRANSPOSED_B
+#endif
+#endif
+
+#if defined(CALDGEMM_88) | !defined(CALDGEMM_44)
+#define TILING_Y 8
+#else
+#define TILING_Y 4
+#endif
+
 #include "cal.h"
 #include "calcl.h"
 
@@ -154,11 +182,15 @@ class caldgemm
     friend void* cblas_wrapper(void* arg);
 
     public:
-    typedef struct SampleInfoRec		//Run Parameters
+    class SampleInfo		//Run Parameters
     {
+	public:
+	SampleInfo();
+    
 	CALint     Pin;
 	CALboolean Verify;
 	CALboolean Disassemble;
+	CALboolean PrintILKernel;
 	CALboolean Quiet;
 	CALuint    DeviceNum;
 	CALuint    Width;		//k for matrix multiply
@@ -176,8 +208,7 @@ class caldgemm
 	CALboolean MemPolicy;
 	CALboolean DumpMatrix;
 	CALuint    m, n;		//height of A, width of B, must be multiple of height
-	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer;
-    } SampleInfo;
+    };
     
     //CALDGEMM interface functions
     //Initiate an appropriate sampleinfo struct and call InitCALDGEMM for initialization
@@ -190,6 +221,12 @@ class caldgemm
     void ResetTimers();
 
     private:
+    
+    struct TimerInfo
+    {
+	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer;
+    } Timers;
+
     typedef struct DataRec
     {
 	union
@@ -272,17 +309,38 @@ class caldgemm
     CALdouble Alpha, Beta;
     
     int A_pitch, B_pitch, C_pitch;
+    CBLAS_TRANSPOSE TransposeA;
+    CBLAS_TRANSPOSE TransposeB;
 
-    static const CALuint aPartsNum = 8;
+#ifdef CALDGEMM_44
+#if defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_88)
+    static const CALuint aPartsNum = 2;
     static const CALuint bPartsNum = 2;
+#else
+    static const CALuint aPartsNum = 4;
+    static const CALuint bPartsNum = 4;
+#endif
+#else
+#ifdef CALDGEMM_TRANSPOSED_A
+    static const CALuint aPartsNum = 2;
+#else
+    static const CALuint aPartsNum = 8;
+#endif
+    static const CALuint bPartsNum = 2;
+#endif
+
+#ifdef CALDGEMM_USE_MEMEXPORT
+    static const CALuint cPartsNum = 1;
+#else
     static const CALuint cPartsNum = 8;
+#endif
     static const int ctxcount = 3;
     static const int vcpysize = 16;
     
     SampleInfo* Info;
     SampleFeatures Features;
 
-    CALvoid divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers);
+    CALvoid divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose);
     bool isDoubleEqual(CALdouble a, CALdouble b);
     int mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers);
     
@@ -318,7 +376,7 @@ class caldgemm
     CALmodule modules[ctxcount];
     CALevent events[ctxcount];
 
-    static const char ILKernel[];
+    static const char *ILKernel;
 
     cpu_set_t oldcpumask;
     cpu_set_t gpumask;

@@ -97,6 +97,8 @@ double *AA = NULL, *BB = NULL, *CC = NULL;
 bool benchmark = false;
 bool fastinit = false;
 bool loadmatrix = false;
+bool transa = false;
+bool transb = false;
 char* matrixfile;
 
 CALvoid Usage(const CALchar* name)
@@ -109,6 +111,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-e        Verify Computational Correctness\n" );
     fprintf(stderr, "\t-q        Supress Display Output\n" );
     fprintf(stderr, "\t-a        Print the disassembled kernel image\n" );
+    fprintf(stderr, "\t-i        Print IL Kernel used\n" );
     fprintf(stderr, "\t-o  <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n" );
     fprintf(stderr, "\t-w  <int> k for matrix multiply, default 1024\n" );
     fprintf(stderr, "\t-h  <int> block size for matrix multiply, default 1024\n" );
@@ -129,6 +132,8 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-s        Dynamic CPU GPU scheduling\n" );
     fprintf(stderr, "\t-p        Interleaving Memory Policy\n" );
     fprintf(stderr, "\t-u        Dump Test Matrix\n" );
+    fprintf(stderr, "\t-1        Transpose A Matrix\n" );
+    fprintf(stderr, "\t-2        Transpose B Matrix\n" );
     fprintf(stderr, "\t-x <file> Load Matrix\n" );
     
     fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
@@ -142,6 +147,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->Verify = CAL_FALSE;
     Info->MemPolicy = CAL_FALSE;
     Info->Disassemble = CAL_FALSE;
+    Info->PrintILKernel = CAL_FALSE;
     Info->Quiet = CAL_FALSE;
     Info->Pin = -3;
     Info->MultiThread = CAL_FALSE;
@@ -158,12 +164,6 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->UseCPU = Info->UseGPU = CAL_FALSE;
     Info->GPURatio = -1;
     Info->DumpMatrix = CAL_FALSE;
-    Info->System.Reset();
-    Info->Kernel.Reset();
-    Info->CounterDivide.Reset();
-    Info->CounterMerge.Reset();
-    Info->CounterCopyTo.Reset();
-    Info->CounterCopyFrom.Reset();
 
     printf("Use -? for help\n");
 
@@ -195,6 +195,15 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case 'a':
                 Info->Disassemble = CAL_TRUE;
+                break;
+            case '1':
+		transa = true;
+                break;
+            case '2':
+		transb = true;
+                break;
+            case 'i':
+                Info->PrintILKernel = CAL_TRUE;
                 break;
             case 'c':
 		Info->UseCPU = CAL_TRUE;
@@ -360,18 +369,26 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     {
 	for (long long int i = 0;i < (long long int) Info.m * (long long int) Info.n;i++)
         {
-	    CC[i] = (CALdouble) (i % 16);
+	    CC[i] = 0;//(CALdouble) (i % 16);
 	}
     
 	for (CALuint y = 0; y < Info.Width; y++)
         {
     	    for (CALuint x = 0; x < Info.m; x++)
     	    {
+#ifdef TESTMODE
+        	AA[x * Info.Width + y] = y;
+#else
         	AA[x * Info.Width + y] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
+#endif
     	    }
     	    for (CALuint x = 0; x < Info.n; x++)
     	    {
+#ifdef TESTMODE
+        	BB[y * Info.n + x] = 1;
+#else
         	BB[y * Info.n + x] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
+#endif
     	    }
 	}
     }
@@ -447,8 +464,9 @@ int main(CALint argc, CALchar** argv)
 	{
 	    return(1);
 	}
-
+	
 	//Initial run to negate cache effects
+#ifndef TESTMODE
         if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE)
         {
 	    CALboolean tmpquiet = Info.Quiet;
@@ -458,7 +476,7 @@ int main(CALint argc, CALchar** argv)
     	    Info.Iterations = 2;
     	    if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
     	    if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
-    	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.0, 1.0))
+    	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.0, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
     	    {
 	        printf("Error running CALDGEMM\n");
 		return(1);
@@ -466,13 +484,18 @@ int main(CALint argc, CALchar** argv)
 	    Info.m = tmpm;
 	    Info.n = tmpn;
 	    Info.Quiet = tmpquiet;
-    	Info.Iterations = tmpiter;
+	    Info.Iterations = tmpiter;
 	}
+#endif
 	dgemm.ResetTimers();
     
 	do
         {
-	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n))
+#ifdef TESTMODE
+	    if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+#else
+	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+#endif
 	    {
 		printf("Error running CALDGEMM\n");
 		return(1);
@@ -488,6 +511,3 @@ int main(CALint argc, CALchar** argv)
     delete[] CC;
     return 0;
 }
-
-
-
