@@ -344,6 +344,7 @@ class caldgemm
 #endif
     static const int ctxcount = 3;
     static const int vcpysize = 16;
+    static const int kernel_count = 2;
     
     SampleInfo* Info;
     SampleFeatures Features;
@@ -381,10 +382,10 @@ class caldgemm
     CALdevice device;
     CALcontext ctxs[ctxcount];
     CALresource* resourceHandlers[ctxcount];
-    CALmodule modules[ctxcount];
+    CALmodule modules[ctxcount][kernel_count];
     CALevent events[ctxcount];
 
-    static const char *ILKernel;
+    static const char *ILKernel, *ILKernelBETA1;
 
     cpu_set_t oldcpumask;
     cpu_set_t gpumask;

@@ -490,11 +490,14 @@ MMUL_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, 
 "dcl_output_generic o6\n"
 "dcl_output_generic o7\n"
 #endif
+
+#ifndef CALDGEMM_BETA1
 MUL8(r3, r4, r5, r6, r7, r8, r9, r10, cb0[1].zw)
 #ifdef CALDGEMM_88
 MUL8(r29, r30, r31, r32, r33, r34, r35, r36, cb0[1].zw)
 MUL8(r37, r38, r39, r40, r41, r42, r43, r44, cb0[1].zw)
 MUL8(r45, r46, r47, r48, r49, r50, r51, r52, cb0[1].zw)
+#endif
 #endif
 
 #ifdef CALDGEMM_USE_MEMEXPORT

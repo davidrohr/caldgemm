@@ -94,6 +94,11 @@ jurisdiction and venue of these courts.
 #define ILKernelName ILKernel
 #include "caldgemm.il"
 #undef ILKernelName
+#define ILKernelName ILKernelBETA1
+#define CALDGEMM_BETA1
+#include "caldgemm.il"
+#undef CALDGEMM_BETA1
+#undef ILKernelName
 
 #ifdef ATI_OS_WIN
 #include <windows.h>
@@ -401,7 +406,9 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
         fprintf(stderr, "There was an error in allocating resources and binding them to memory\n");
         return 0;
     }
-    if (!BindIONames(ctx, module, bStop, fStop, cStop, data))
+    
+    for (int i = 0;i < kernel_count;i++)
+    if (!BindIONames(ctx, &module[i], bStop, fStop, cStop, data))
     {
         fprintf(stderr, "There was an error in binding the memory to I/O names.\n");
         return 0;
@@ -958,12 +965,16 @@ CALint caldgemm::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, 
     CleanupData(ctx, resourceHandler, data, numHandles);
 
     // Unload the module from the context
-    if (module)
+    
+    for (int i = 0;i < kernel_count;i++)
     {
-        if (calModuleUnload(*ctx, *module) != CAL_RESULT_OK )
-        {
-            fprintf(stderr, "Error string is %s\n", calGetErrorString());
-        }
+	if (module[i])
+	{
+    	    if (calModuleUnload(*ctx, module[i]) != CAL_RESULT_OK )
+    	    {
+        	fprintf(stderr, "Error string is %s\n", calGetErrorString());
+    	    }
+    	}
     }
 
     // Destroy the context
@@ -1579,15 +1590,17 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 
     for (int i = 0;i < ctxcount;i++)
     {
-	if (!SetupKernel(ILKernel, &modules[i], &ctxs[i], (CALboolean) (Info->Disassemble && i == 0)))
+	if (!SetupKernel(ILKernel, &modules[i][0], &ctxs[i], (CALboolean) (Info->Disassemble && i == 0)) ||
+	    !SetupKernel(ILKernelBETA1, &modules[i][1], &ctxs[i], (CALboolean) (Info->Disassemble && i == 0)))
 	{
 	    return 1;
 	}
+	
 
 	datas[i] = new Data[numInputs + numOutputs + numConstantBuffers];
 	resourceHandlers[i] = new CALresource[numInputs + numOutputs + numConstantBuffers];
 
-	if (!SetupData(&modules[i], resourceHandlers[i], datas[i], &device, &ctxs[i], numInputs, numOutputs, numConstantBuffers))
+	if (!SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctxs[i], numInputs, numOutputs, numConstantBuffers))
 	{
 	    return 1;
 	}
@@ -1778,6 +1791,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     TransposeB = TransB;    
     ResetTimers();
     
+    const int kernel_num = (Beta == (double) 1.0f);
+    
     if (Info->Debug) printf("Starting DGEMM Run m=%d k=%d n=%d Alpha=%lf Beta=%lf\n", Info->m, Info->Width, Info->n, Alpha, Beta);
     if (Info->Verify)
     {
@@ -1857,7 +1872,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	for (int i = 0;i < ctxcount;i++)
 	{
     	    CleanupData(&ctxs[i], resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers);
-	    SetupData(&modules[i], resourceHandlers[i], datas[i], &device, &ctxs[i], numInputs, numOutputs, numConstantBuffers);
+	    SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctxs[i], numInputs, numOutputs, numConstantBuffers);
 	}
     }
         
@@ -1997,7 +2012,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);
     	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
-    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
+    		if (!RunProgram(&ctxs[j], &modules[j][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
     	        if (Info->VerboseTiming) Timers.CounterCopyFrom.Start();
     	        if (Info->DstMemory == 'g' && Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
     		if (CopyDataFromGPU(&ctxs[j], resourceHandlers[j] + numInputs + numConstantBuffers, datas[j] + numInputs + numConstantBuffers, numOutputs, &events[j])) {printf("Error copying from GPU\n"); return(1);}
@@ -2085,7 +2100,7 @@ int caldgemm::ExitCALDGEMM()
 {
     for (int i = 0;i < ctxcount;i++)
     {
-	if (!Cleanup(&device, &ctxs[i], &modules[i], resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers))
+	if (!Cleanup(&device, &ctxs[i], modules[i], resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers))
 	{
 	    return 1;
 	}
