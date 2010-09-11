@@ -363,16 +363,6 @@ const char *caldgemm::ILKernelName =
 "mov r52, l0\n"
 #endif
 
-    /*data[bStop].f_data[0] = (float) cPartsNum / Info->Height;  //Scale factor for normalized y pos, factor 8 for 8 resources
-    data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
-    data[bStop].f_data[2] = 2.f / Info->Height;  //Scale factor for normalized x pos, factor 2 for double2
-			    * 2.4 for CALDGEMM_44
-    data[bStop].f_data[3] = 0.f;
-    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));
-    data[bStop].f_data[5] = (float) aPartsNum / Info->Height;  //For transposed matrix more finer y resolution is needed
-    data[bStop].f_data[8] = 0.5f - 0.5f / (float) (cPartsNum / aPartsNum);*/
-                            
-	//Run: Width: Info->Height / 2;4;8 , Heigh: Info->Height / 8;4;8     (82;44;88 tiling)
 "mul r0.xyz0, vWinCoord0.xyyx, cb0[0].zwxz\n"		//r0.x: normalized x pos, r0.y: 0, r0.z: normalized y pos, r0.w: 0
 #if defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_44)
 "sub r0.z, vWinCoord0.y, cb0[2].x\n"
@@ -394,14 +384,13 @@ const char *caldgemm::ILKernelName =
 #ifdef CALDGEMM_44
 "    add r11.___w, r0.w, cb0[0].y\n"
 #else
-"    add r0._y__, r0.w, cb0[0].y\n"					//r0:y normalized k pos + 1
+"    add r0._y__, r0.w, cb0[0].y\n"					//r0.y normalized k pos + 1
 "    add r1.x___, r0.y, cb0[0].y\n"					//r1.x normalized k pos + 2
 "    add r1._y__, r1.x, cb0[0].y\n"					//r1.y normalized k pos + 3
 "    add r11.___w, r1.y, cb0[0].y\n"				//r11.w: normalized k pos + 4 steps (for next iteration in whileloop)
 #endif
 
 #ifdef CALDGEMM_88
-
 #ifdef CALDGEMM_TRANSPOSED_A
 SAMPLE_A(r13, r14, r15, r16, r0.zw)
 SAMPLE_B(r21, r22, r23, r24, r0.xw)
@@ -419,7 +408,6 @@ MMUL44(r45, r46, r47, r48, r49, r50, r51, r52, r17.xy, r17.zw, r18.xy, r18.zw, r
 #endif
 
 #elif defined(CALDGEMM_44)
-
 #ifdef CALDGEMM_TRANSPOSED_A
 SAMPLE_A(r13, r14, r0.zw)
 SAMPLE_B(r15, r16, r0.xw)
@@ -431,7 +419,6 @@ MMUL44(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, 
 #endif
 
 #else
-
 #if defined(CALDGEMM_TRANSPOSED_B)
 "    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") r21, r0.wx\n"
 "    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") r22, r0.wx\n"
@@ -451,7 +438,6 @@ MMUL44(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, 
 "    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") r27, r1.wy\n"	//normalized ,k+3 pos
 "    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") r28, r1.wy\n"
 #endif //CALDGEMM_TRANSPOSED_B
-
 #if defined(CALDGEMM_TRANSPOSED_A)
 "    mov r2.w, r0.w\n"
 SAMPLE_A_T(r13, r14, r15, r16, r17, r18, r19, r20, r0.zw, r2.xw, r2.yw, r2.zw)		//y,k ;  y+1,k ; y+2,k ; y+3,k

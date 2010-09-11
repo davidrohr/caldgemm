@@ -108,12 +108,12 @@ jurisdiction and venue of these courts.
 #endif
 
 #ifdef CALDGEMM_44
-#ifdef CALDGEMM_TRANSPOSED_A
 #ifdef CALDGEMM_TRANSPOSED_B
-#undef CALDGEMM_TRANSPOSED_B
+#ifdef CALDGEMM_TRANSPOSED_A
+#undef CALDGEMM_TRANSPOSED_A
 #endif
 #else
-#define CALDGEMM_TRANSPOSED_B
+#define CALDGEMM_TRANSPOSED_A
 #endif
 #endif
 
@@ -328,14 +328,14 @@ class caldgemm
     static const CALuint aPartsNum = 4;
     static const CALuint bPartsNum = 4;
 #endif
-#else
+#else //CALDGEMM_44
 #ifdef CALDGEMM_TRANSPOSED_A
     static const CALuint aPartsNum = 2;
 #else
     static const CALuint aPartsNum = 8;
 #endif
     static const CALuint bPartsNum = 2;
-#endif
+#endif //CALDGEMM_44
 
 #ifdef CALDGEMM_USE_MEMEXPORT
     static const CALuint cPartsNum = 1;

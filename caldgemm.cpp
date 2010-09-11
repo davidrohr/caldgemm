@@ -295,12 +295,12 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
         else if (i >= aStop && i < bStop)
         {
 #if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
-	    tWidth = Info->Width / 8;
-	    tHeight = Info->Height;
+	    tWidth = Info->Height / 8;
+	    tHeight = Info->Width;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-	    tWidth = Info->Width / 4;
-	    tHeight = Info->Height;
-#elif defined (CALDGEMM_TRANSPOSED_A)
+	    tWidth = Info->Height / 4;
+	    tHeight = Info->Width;
+#elif defined (CALDGEMM_TRANSPOSED_B)
             /* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
             tWidth = Info->Width / 2;
             tHeight = Info->Height / bPartsNum;
@@ -358,7 +358,7 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));	//Iterations of loop in IL Kernel
 #endif //CALDGEMM_44
     data[bStop].f_data[3] = 0.f;
-    data[bStop].f_data[5] = (float) aPartsNum / Info->Height;  //For transposed matrix more finer y resolution is needed
+    data[bStop].f_data[5] = (float) aPartsNum / Info->Height;  //For transposed matrix finer y resolution is needed
     data[bStop].f_data[8] = 0.5f - 0.5f / (float) (TILING_Y / aPartsNum);
     
     //Constants for Memexport
@@ -468,29 +468,61 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
         }
     }
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-    double* daddr = dst[0].d_data;
-    double* daddr2 = dst[1].d_data;
-    for (CALint y=0; y < height; y++)
+    if (transpose)
     {
-        int count = dst[0].DataSize * width;
-        double* saddr = src + (y * pitch);
+	for (CALint y=0; y < width; y += 2)
+	{
+    	    double* saddr = src + (y * pitch);
+    	    double* saddr2 = src + ((y + 1) * pitch);
         
-        for (int i = 0;i < count;i += 128)
-        {
+    	    for (int i = 0;i < height;i += 2)
+    	    {
+    		CALint bank = (y / 2) % 2;
+    		double* daddr = dst[bank].d_data + (i * width / 2 + ((y / 2) & 0xFFFFFFFE));
+    		double* daddr2 = dst[bank].d_data + ((i + 1) * width / 2 + ((y / 2) & 0xFFFFFFFE));
+
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    	    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
+    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+    		_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
 #endif
-    	    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    	    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
-    	    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 4));
-    	    _mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 6));
-    	    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 8));
-    	    _mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 10));
-    	    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 12));
-    	    _mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 14));
-    	    saddr += 16;
-    	    daddr += 8;
-    	    daddr2+= 8;
+		__m128d x1, x2, x3, x4;
+		x1 = _mm_load_pd(saddr);
+		x2 = _mm_load_pd(saddr2);
+		x3 = _mm_unpacklo_pd(x1, x2);
+		x4 = _mm_unpackhi_pd(x1, x2);
+    		_mm_store_pd_use(daddr, x3);
+    		_mm_store_pd_use(daddr2, x4);
+    		saddr += 2;
+    		saddr2 += 2;
+    	    }
+    	}
+    }
+    else
+    {
+	double* daddr = dst[0].d_data;
+	double* daddr2 = dst[1].d_data;
+	for (CALint y=0; y < height; y++)
+	{
+	    int count = dst[0].DataSize * width;
+    	    double* saddr = src + (y * pitch);
+        
+    	    for (int i = 0;i < count;i += 128)
+    	    {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    		_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+#endif
+    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    		_mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
+    		_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 4));
+    		_mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 6));
+    		_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 8));
+    		_mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 10));
+    		_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 12));
+    		_mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 14));
+    		saddr += 16;
+    		daddr += 8;
+    		daddr2+= 8;
+    	    }
         }
     }
 #else
@@ -501,9 +533,8 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
 	{
     	    double* saddr = src + (y * pitch);
     	    double* saddr2 = src + ((y + 1) * pitch);
-    	    int count = height;
         
-    	    for (int i = 0;i < count;i += 2)
+    	    for (int i = 0;i < height;i += 2)
     	    {
     		CALint bank = (i) % numBuffers;
     		CALint bank2 = (i + 1) % numBuffers;
@@ -1797,7 +1828,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     TransposeB = TransB;    
     ResetTimers();
     
-    const int kernel_num = (Alpha == (double) 1.0f);
+    //Check for double == 1.0 is unsafe and causes compiler warning
+    const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
+    const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
     if (kernel_num && Info->Debug) printf("Using Kernel for ALPHA = 1\n");
     
     if (Info->Debug) printf("Starting DGEMM Run m=%d k=%d n=%d Alpha=%lf Beta=%lf\n", Info->m, Info->Width, Info->n, Alpha, Beta);
@@ -2001,12 +2034,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Info->Debug) printf("Iteration k = %d, m = %d, n = %d (Context %d)\n", k, blockm, blockn, j);
 		
 		if (Info->VerboseTiming) Timers.CounterDivide.Start();
+		if (Info->Debug) printf("\tDividing Buffer A\n");
 #ifdef CALDGEMM_TRANSPOSED_A
 		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans);
 #else
 		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans);
 #endif
-		if (Info->Debug) printf("\tDividing Buffer\n");
+		if (Info->Debug) printf("\tDividing Buffer B\n");
 #ifdef CALDGEMM_TRANSPOSED_B
 		divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
 #else
