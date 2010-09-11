@@ -277,13 +277,16 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
         if (i < aStop)
         {
 #if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
-	    tWidth = Info->Width / 8;
-	    tHeight = Info->Height;
+	    tWidth = Info->Height / 8;
+	    tHeight = Info->Width;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-	    tWidth = Info->Width / 4;
-	    tHeight = Info->Height;
-#else
+	    tWidth = Info->Height / 4;
+	    tHeight = Info->Width;
+#elif defined(CALDGEMM_TRANSPOSED_A)
             /* A matrix sizes are shrunk by 2 (double2) in the width and 8 (8 resources) in the height */
+            tWidth = Info->Height / 2;
+            tHeight = Info->Width / aPartsNum;
+#else
             tWidth = Info->Width / 2;
             tHeight = Info->Height / aPartsNum;
 #endif
@@ -292,13 +295,16 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
         else if (i >= aStop && i < bStop)
         {
 #if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
-	    tWidth = Info->Height / 8;
-	    tHeight = Info->Width;
+	    tWidth = Info->Width / 8;
+	    tHeight = Info->Height;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-	    tWidth = Info->Height / 4;
-	    tHeight = Info->Width;
-#else
+	    tWidth = Info->Width / 4;
+	    tHeight = Info->Height;
+#elif defined (CALDGEMM_TRANSPOSED_A)
             /* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
+            tWidth = Info->Width / 2;
+            tHeight = Info->Height / bPartsNum;
+#else
             tWidth = Info->Height / 2;
             tHeight = Info->Width / bPartsNum;
 #endif
@@ -1994,9 +2000,17 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Info->Debug) printf("Iteration k = %d, m = %d, n = %d (Context %d)\n", k, blockm, blockn, j);
 		
 		if (Info->VerboseTiming) Timers.CounterDivide.Start();
+#ifdef CALDGEMM_TRANSPOSED_A
+		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans);
+#else
 		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans);
+#endif
 		if (Info->Debug) printf("\tDividing Buffer\n");
+#ifdef CALDGEMM_TRANSPOSED_B
+		divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
+#else
 		divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, B_pitch, bPartsNum, TransposeB == CblasTrans);
+#endif
 	        if (Info->VerboseTiming) Timers.CounterDivide.Stop();
 
 		if (Info->VerboseTiming) Timers.CounterCopyTo.Start();
