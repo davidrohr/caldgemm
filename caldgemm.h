@@ -96,7 +96,7 @@ jurisdiction and venue of these courts.
 //
 
 //#define CALDGEMM_TRANSPOSED_A
-//#define CALDGEMM_88
+#define CALDGEMM_88
 //#define CALDGEMM_44
 //#define CALDGEMM_TRANSPOSED_B
 //#define CALDGEMM_USE_MEMEXPORT

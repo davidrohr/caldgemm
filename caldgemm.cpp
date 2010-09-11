@@ -429,45 +429,6 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
 
 CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose)
 {
-#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
-    double* daddr = dst[0].d_data;
-    double* daddr2 = dst[1].d_data;
-    double* daddr3 = dst[2].d_data;
-    double* daddr4 = dst[3].d_data;
-    for (CALint y=0; y < height; y++)
-    {
-        int count = dst[0].DataSize * width;
-        double* saddr = src + (y * pitch);
-        
-        for (int i = 0;i < count;i += 256)
-        {
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    	    _mm_prefetch(saddr + 25, _MM_HINT_NTA);
-#endif
-    	    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    	    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
-    	    _mm_store_pd_use(daddr3, _mm_load_pd(saddr + 4));
-    	    _mm_store_pd_use(daddr4, _mm_load_pd(saddr + 6));
-    	    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 8));
-    	    _mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 10));
-    	    _mm_store_pd_use(daddr3 + 2, _mm_load_pd(saddr + 12));
-    	    _mm_store_pd_use(daddr4 + 2, _mm_load_pd(saddr + 14));
-    	    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 16));
-    	    _mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 18));
-    	    _mm_store_pd_use(daddr3 + 4, _mm_load_pd(saddr + 20));
-    	    _mm_store_pd_use(daddr4 + 4, _mm_load_pd(saddr + 22));
-    	    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 24));
-    	    _mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 26));
-    	    _mm_store_pd_use(daddr3 + 6, _mm_load_pd(saddr + 28));
-    	    _mm_store_pd_use(daddr4 + 6, _mm_load_pd(saddr + 30));
-    	    saddr += 32;
-    	    daddr += 8;
-    	    daddr2+= 8;
-    	    daddr3 += 8;
-    	    daddr4 += 8;
-        }
-    }
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
     if (transpose)
     {
 	for (CALint y=0; y < width; y += 2)
@@ -477,9 +438,20 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
         
     	    for (int i = 0;i < height;i += 2)
     	    {
+#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
+    		CALint bank = (y / 2) % 4;
+    		double* daddr = dst[bank].d_data + (i * width / 4 + ((y / 4) & 0xFFFFFFFE));
+    		double* daddr2 = dst[bank].d_data + ((i + 1) * width / 4 + ((y / 4) & 0xFFFFFFFE));
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
     		CALint bank = (y / 2) % 2;
     		double* daddr = dst[bank].d_data + (i * width / 2 + ((y / 2) & 0xFFFFFFFE));
     		double* daddr2 = dst[bank].d_data + ((i + 1) * width / 2 + ((y / 2) & 0xFFFFFFFE));
+#else
+    		CALint bank = (i) % numBuffers;
+    		CALint bank2 = (i + 1) % numBuffers;
+    		double* daddr = dst[bank].d_data + (i / numBuffers) * width + y;
+    		double* daddr2 = dst[bank2].d_data + (i / numBuffers) * width + y;
+#endif
 
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
     		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
@@ -499,6 +471,45 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
     }
     else
     {
+#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
+	double* daddr = dst[0].d_data;
+	double* daddr2 = dst[1].d_data;
+	double* daddr3 = dst[2].d_data;
+	double* daddr4 = dst[3].d_data;
+	for (CALint y=0; y < height; y++)
+	{
+	    int count = dst[0].DataSize * width;
+	    double* saddr = src + (y * pitch);
+        
+	    for (int i = 0;i < count;i += 256)
+	    {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    		_mm_prefetch(saddr + 25, _MM_HINT_NTA);
+#endif
+    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    		_mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
+    		_mm_store_pd_use(daddr3, _mm_load_pd(saddr + 4));
+    		_mm_store_pd_use(daddr4, _mm_load_pd(saddr + 6));
+    		_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 8));
+    		_mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 10));
+    		_mm_store_pd_use(daddr3 + 2, _mm_load_pd(saddr + 12));
+    		_mm_store_pd_use(daddr4 + 2, _mm_load_pd(saddr + 14));
+    		_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 16));
+    		_mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 18));
+    		_mm_store_pd_use(daddr3 + 4, _mm_load_pd(saddr + 20));
+    		_mm_store_pd_use(daddr4 + 4, _mm_load_pd(saddr + 22));
+    		_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 24));
+    		_mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 26));
+    		_mm_store_pd_use(daddr3 + 6, _mm_load_pd(saddr + 28));
+    		_mm_store_pd_use(daddr4 + 6, _mm_load_pd(saddr + 30));
+    		saddr += 32;
+    		daddr += 8;
+    		daddr2+= 8;
+    		daddr3 += 8;
+    		daddr4 += 8;
+    	    }
+        }
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
 	double* daddr = dst[0].d_data;
 	double* daddr2 = dst[1].d_data;
 	for (CALint y=0; y < height; y++)
@@ -524,42 +535,8 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
     		daddr2+= 8;
     	    }
         }
-    }
 #else
-    // Array to store the position from which data will be filled in the various output buffers.
-    if (transpose)
-    {
-	for (CALint y=0; y < width; y += 2)
-	{
-    	    double* saddr = src + (y * pitch);
-    	    double* saddr2 = src + ((y + 1) * pitch);
-        
-    	    for (int i = 0;i < height;i += 2)
-    	    {
-    		CALint bank = (i) % numBuffers;
-    		CALint bank2 = (i + 1) % numBuffers;
-    		double* daddr = dst[bank].d_data + (i / numBuffers) * width + y;
-    		double* daddr2 = dst[bank2].d_data + (i / numBuffers) * width + y;
-
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-    		_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
-#endif
-		__m128d x1, x2, x3, x4;
-		x1 = _mm_load_pd(saddr);
-		x2 = _mm_load_pd(saddr2);
-		x3 = _mm_unpacklo_pd(x1, x2);
-		x4 = _mm_unpackhi_pd(x1, x2);
-		
-    		_mm_store_pd_use(daddr, x3);
-    		_mm_store_pd_use(daddr2, x4);
-    		saddr += 2;
-    		saddr2 += 2;
-    	    }
-    	}
-    }
-    else
-    {
+	// Array to store the position from which data will be filled in the various output buffers.
 	CALint* position = new CALint[numBuffers];
         memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
 	for (CALint y=0; y < height; y++)
@@ -585,9 +562,8 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
     	    position[bank] += width;
 	}
 	delete[] position;
-    }
 #endif
-
+    }
 }
 
 int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers)
