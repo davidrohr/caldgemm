@@ -95,9 +95,9 @@ jurisdiction and venue of these courts.
 //      calcl.h contains declarations for CAL compiler libarary functions
 //
 
-//#define CALDGEMM_TRANSPOSED_A
+#define CALDGEMM_TRANSPOSED_A
 //#define CALDGEMM_88
-//#define CALDGEMM_44
+#define CALDGEMM_44
 //#define CALDGEMM_TRANSPOSED_B
 //#define CALDGEMM_USE_MEMEXPORT
 //#define TESTMODE
