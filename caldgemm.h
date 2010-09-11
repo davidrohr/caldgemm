@@ -123,6 +123,14 @@ jurisdiction and venue of these courts.
 #define TILING_Y 4
 #endif
 
+#if defined(CALDGEMM_88)
+#define TILING_X 8
+#elif defined(CALDGEMM_44)
+#define TILING_X 4
+#else
+#define TILING_X 2
+#endif
+
 #include "cal.h"
 #include "calcl.h"
 

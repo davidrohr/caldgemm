@@ -1997,13 +1997,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);
     	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
-#ifdef CALDGEMM_88
-    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 8, Info->Height / 8, &events[j])) {printf("Error running program\n"); return 1;}
-#elif defined(CALDGEMM_44)
-    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 4, Info->Height / 4, &events[j])) {printf("Error running program\n"); return 1;}
-#else
-    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / 2, Info->Height / 8, &events[j])) {printf("Error running program\n"); return 1;}
-#endif
+    		if (!RunProgram(&ctxs[j], &modules[j], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
     	        if (Info->VerboseTiming) Timers.CounterCopyFrom.Start();
     	        if (Info->DstMemory == 'g' && Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
     		if (CopyDataFromGPU(&ctxs[j], resourceHandlers[j] + numInputs + numConstantBuffers, datas[j] + numInputs + numConstantBuffers, numOutputs, &events[j])) {printf("Error copying from GPU\n"); return(1);}
