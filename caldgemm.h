@@ -385,7 +385,7 @@ class caldgemm
     CALmodule modules[ctxcount][kernel_count];
     CALevent events[ctxcount];
 
-    static const char *ILKernel, *ILKernelBETA1;
+    static const char *ILKernel, *ILKernelALPHA1;
 
     cpu_set_t oldcpumask;
     cpu_set_t gpumask;

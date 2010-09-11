@@ -94,10 +94,10 @@ jurisdiction and venue of these courts.
 #define ILKernelName ILKernel
 #include "caldgemm.il"
 #undef ILKernelName
-#define ILKernelName ILKernelBETA1
-#define CALDGEMM_BETA1
+#define ILKernelName ILKernelALPHA1
+#define CALDGEMM_ALPHA1
 #include "caldgemm.il"
-#undef CALDGEMM_BETA1
+#undef CALDGEMM_ALPHA1
 #undef ILKernelName
 
 #ifdef ATI_OS_WIN
@@ -1597,7 +1597,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     for (int i = 0;i < ctxcount;i++)
     {
 	if (!SetupKernel(ILKernel, &modules[i][0], &ctxs[i], (CALboolean) (Info->Disassemble && i == 0)) ||
-	    !SetupKernel(ILKernelBETA1, &modules[i][1], &ctxs[i], (CALboolean) (Info->Disassemble && i == 0)))
+	    !SetupKernel(ILKernelALPHA1, &modules[i][1], &ctxs[i], (CALboolean) (Info->Disassemble && i == 0)))
 	{
 	    return 1;
 	}
@@ -1797,7 +1797,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     TransposeB = TransB;    
     ResetTimers();
     
-    const int kernel_num = (Beta == (double) 1.0f);
+    const int kernel_num = (Alpha == (double) 1.0f);
+    if (kernel_num && Info->Debug) printf("Using Kernel for ALPHA = 1\n");
     
     if (Info->Debug) printf("Starting DGEMM Run m=%d k=%d n=%d Alpha=%lf Beta=%lf\n", Info->m, Info->Width, Info->n, Alpha, Beta);
     if (Info->Verify)
