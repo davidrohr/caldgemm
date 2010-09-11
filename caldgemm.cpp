@@ -396,12 +396,12 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     data[bStop].i_data[10] = 1;						//x tiling in double2
 
     data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;
-    data[bStop].i_data[13] = 0 + 1 * Info->Height / 2;
-    data[bStop].i_data[14] = 0 + 2 * Info->Height / 2;
-    data[bStop].i_data[15] = 0 + 3 * Info->Height / 2;
-    data[bStop].i_data[16] = 0 + 4 * Info->Height / 2;
-    data[bStop].i_data[17] = 0 + 5 * Info->Height / 2;
-    data[bStop].i_data[18] = 0 + 6 * Info->Height / 2;
+    data[bStop].i_data[13] = 0 + 4 * Info->Height / 2;
+    data[bStop].i_data[14] = 0 + 1 * Info->Height / 2;
+    data[bStop].i_data[15] = 0 + 5 * Info->Height / 2;
+    data[bStop].i_data[16] = 0 + 2 * Info->Height / 2;
+    data[bStop].i_data[17] = 0 + 6 * Info->Height / 2;
+    data[bStop].i_data[18] = 0 + 3 * Info->Height / 2;
     data[bStop].i_data[19] = 0 + 7 * Info->Height / 2;
 #endif
     //////////////////////////////////////////////////////////////////////////

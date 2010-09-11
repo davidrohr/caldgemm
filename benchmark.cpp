@@ -377,7 +377,7 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     	    for (CALuint x = 0; x < Info.m; x++)
     	    {
 #ifdef TESTMODE
-        	AA[x * Info.Width + y] = 1;
+        	AA[x * Info.Width + y] = x;
 #else
         	AA[x * Info.Width + y] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
 #endif
