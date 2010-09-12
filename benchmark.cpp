@@ -204,7 +204,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
             case '2':
 		transb = true;
                 break;
-            case '3':
+            case '9':
 		Info->TabularTiming = CAL_TRUE;
                 break;
             case 'i':
