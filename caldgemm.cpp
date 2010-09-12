@@ -436,6 +436,67 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
 {
     if (transpose)
     {
+#if !defined(CALDGEMM_44) | !defined(CALDGEMM_TRANSPOSED_A)
+	if (numBuffers <= 4)
+	{
+	    for (CALint y = 0;y < width;y += 4)
+	    {
+    		double* saddr = src + (y * pitch);
+    		double* saddr2 = src + ((y + 1) * pitch);
+    		double* saddr3 = src + ((y + 2) * pitch);
+    		double* saddr4 = src + ((y + 3) * pitch);
+
+		double* daddr = dst[0].d_data + y;
+		double* daddr2 = dst[1 % numBuffers].d_data + (1 / numBuffers) * width + y;
+		double* daddr3 = dst[2 % numBuffers].d_data + (2 / numBuffers) * width + y;
+		double* daddr4 = dst[3 % numBuffers].d_data + (3 / numBuffers) * width + y;
+		
+		const int dpitch = 4 / numBuffers * width;
+		
+		for (int i = 0;i < height;i += 4)
+		{
+		    __m128d x1, x2, x3, x4, x5, x6, x7, x8, x9, x10;
+		    x1 = _mm_load_pd(saddr);
+		    x3 = _mm_load_pd(saddr + 2);
+		    x2 = _mm_load_pd(saddr2);
+		    x4 = _mm_load_pd(saddr2 + 2);
+		    x5 = _mm_load_pd(saddr3);
+		    x7 = _mm_load_pd(saddr3 + 2);
+		    x6 = _mm_load_pd(saddr4);
+		    x8 = _mm_load_pd(saddr4 + 2);
+		    
+		    x9 = _mm_unpacklo_pd(x1, x2);
+		    x10 = _mm_unpackhi_pd(x1, x2);
+		    x1 = _mm_unpacklo_pd(x3, x4);
+		    x2 = _mm_unpackhi_pd(x3, x4);
+		    x3 = _mm_unpacklo_pd(x5, x6);
+		    x4 = _mm_unpackhi_pd(x5, x6);
+		    x5 = _mm_unpacklo_pd(x7, x8);
+		    x6 = _mm_unpackhi_pd(x7, x8);
+		    
+		    _mm_store_pd_use(daddr, x9);
+		    _mm_store_pd_use(daddr2, x10);
+		    _mm_store_pd_use(daddr + 2, x3);
+		    _mm_store_pd_use(daddr2 + 2, x4);
+		    _mm_store_pd_use(daddr3, x1);
+		    _mm_store_pd_use(daddr4, x2);
+		    _mm_store_pd_use(daddr3 + 2, x5);
+		    _mm_store_pd_use(daddr4 + 2, x6);
+		    
+		    saddr += 4;
+		    saddr2 += 4;
+		    saddr3 += 4;
+		    saddr4 += 4;
+		    
+		    daddr += dpitch;
+		    daddr2 += dpitch;
+		    daddr3 += dpitch;
+		    daddr4 += dpitch;
+		}
+	    }
+	}
+	else
+#endif
 	for (CALint y=0; y < width; y += 2)
 	{
     	    double* saddr = src + (y * pitch);
