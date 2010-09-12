@@ -2066,7 +2066,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     		    }
     		}
     	    }
-    	    if (k > 0)
+    	    if (ctxcount == 1) oldj = j;
+    	    if ((ctxcount > 1) ? (k > 0) : (k < nb * mb))
     	    {
     		WAITFOREVENT(ctxs[oldj], events[oldj]);
     		if (Info->VerboseTiming) Timers.CounterMerge.Start();
