@@ -341,6 +341,10 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 
 int SetupUserData(caldgemm::SampleInfo &Info)
 {
+    timespec randtime;
+    clock_gettime(CLOCK_REALTIME, &randtime);
+    srand((int) randtime.tv_nsec);
+    
     if (AA) delete[] AA;
     if (BB) delete[] BB;
     if (CC) delete[] CC;
@@ -369,7 +373,11 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     {
 	for (long long int i = 0;i < (long long int) Info.m * (long long int) Info.n;i++)
         {
-	    CC[i] = 0;//(CALdouble) (i % 16);
+#ifdef TESTMODE
+	    CC[i] = 0;
+#else
+	    CC[i] = (CALdouble) (i % 16);
+#endif
 	}
     
 	for (CALuint y = 0; y < Info.Width; y++)
