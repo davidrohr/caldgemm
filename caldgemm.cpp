@@ -920,6 +920,7 @@ CALint caldgemm::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, C
     {
 	WAITFOREVENT(*ctx, *event);
 	Timers.Kernel.Stop();
+	if (Info->Debug) printf("\tTotal Kernel Time: %2.4lf\n", Timers.Kernel.GetElapsedTime());
     }
 
     return 1;
@@ -1180,7 +1181,7 @@ CALint caldgemm::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, C
             return 1;
         }
     }
-    if (Info->VerboseTiming) WAITFOREVENT(*ctx, *event);
+    if (Info->VerboseTiming && constants == CAL_FALSE) WAITFOREVENT(*ctx, *event);
     return 0;
 }
 
@@ -1891,12 +1892,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctxs[i], numInputs, numOutputs, numConstantBuffers);
 	}
     }
-        
+
+    if (Info->Debug) printf("Initiliazing GPU Constant Buffers...");
     for (int i = 0;i < ctxcount;i++)
     {
+	if (Info->Debug) printf("%d", i);
 	datas[i][aPartsNum + bPartsNum].d_data[3] = alpha;
 	if (CopyDataToGPU(&ctxs[i], resourceHandlers[i] + numInputs, datas[i] + numInputs, numConstantBuffers, CAL_TRUE, &events[i])) return(1);
     }
+    if (Info->Debug) printf("   Done\n");
     
     if (Info->GPURatio < 0)
     {
