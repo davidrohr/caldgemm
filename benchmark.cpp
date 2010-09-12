@@ -134,6 +134,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-u        Dump Test Matrix\n" );
     fprintf(stderr, "\t-1        Transpose A Matrix\n" );
     fprintf(stderr, "\t-2        Transpose B Matrix\n" );
+    fprintf(stderr, "\t-9        Output a table with timing information\n" );
     fprintf(stderr, "\t-x <file> Load Matrix\n" );
     
     fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
@@ -157,6 +158,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->AutoHeight = CAL_FALSE;
     Info->DynamicSched = CAL_FALSE;
     Info->VerboseTiming = CAL_FALSE;
+    Info->TabularTiming = CAL_FALSE;
     Info->Debug = CAL_FALSE;
     Info->m = Info->n = 4096;
     Info->Iterations = 1;
@@ -201,6 +203,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case '2':
 		transb = true;
+                break;
+            case '3':
+		Info->TabularTiming = CAL_TRUE;
                 break;
             case 'i':
                 Info->PrintILKernel = CAL_TRUE;

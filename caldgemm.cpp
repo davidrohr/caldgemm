@@ -140,6 +140,7 @@ caldgemm::SampleInfo::SampleInfo()
     Iterations = 1;
     DstMemory = 'c';
     VerboseTiming = CAL_FALSE;
+    TabularTiming = CAL_FALSE;
     Debug = CAL_FALSE;
     MultiThread = CAL_TRUE;
     UseGPU = CAL_TRUE;
@@ -189,6 +190,10 @@ CALvoid caldgemm::displayMatrixTiming(const CALchar* name)
     	    CALdouble copyDivide = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterDivide.GetElapsedTime();
     	    printf("Times:  Kernel                    Divide                  Merge                   Copy To                 Copy From\n");
     	    printf("        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
+    	    if (Info->TabularTiming)
+    	    {
+    		printf("TIMES:\tw\t%d\th\t%d\tkernel\t%2.4lf\tdivide\t%2.4lf\tmerge\t%2.4lf\tcopyto\t%2.4lf\tcopyfr\t%2.4lf\n", Info->Width, Info->Height, gflops, copyDivide, copyMerge, copyto, copyfrom);
+    	    }
     	}
     }
 }

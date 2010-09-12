@@ -202,6 +202,7 @@ class caldgemm
 	CALuint    Iterations;
 	CALchar	   DstMemory;
 	CALboolean VerboseTiming;
+	CALboolean TabularTiming;
 	CALboolean Debug;
 	CALboolean MultiThread;
 	CALboolean UseGPU;
