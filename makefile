@@ -9,10 +9,10 @@ all:		dgemm_bench
 dgemm_bench:	caldgemm.o benchmark.o
 		g++ -o $@ $^ $(LIBS)
 
-caldgemm.o:	caldgemm.cpp caldgemm.h caldgemm.il
+caldgemm.o:	caldgemm.cpp caldgemm.h caldgemm_config.h caldgemm.il
 		g++ -c $< $(CXXOPTS) $(INCLUDE)
 
-benchmark.o:	benchmark.cpp caldgemm.h
+benchmark.o:	benchmark.cpp caldgemm.h caldgemm_config.h
 		g++ -c $< $(CXXOPTS) $(INCLUDE)
 
 caldgemm.so: caldgemm.o
