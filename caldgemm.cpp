@@ -436,6 +436,67 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
 {
     if (transpose)
     {
+#if 0 && defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+	for (CALint y = 0;y < width;y += 4)
+	{
+    	    double* saddr = src + (y * pitch);
+    	    double* saddr2 = src + ((y + 1) * pitch);
+    	    double* saddr3 = src + ((y + 2) * pitch);
+    	    double* saddr4 = src + ((y + 3) * pitch);
+
+	    double* daddr = dst[0].d_data + y / 2;
+	    double* daddr2 = dst[1].d_data + y / 2;
+	
+	    const int dpitchline = width / 2;
+	    const int dpitch = 2 * width; //in fact width / 2 * 4 (four lines of half length)
+	
+	    for (int i = 0;i < height;i += 4)
+	    {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+		//Prefetching disabled as it currently has a negative performance impact
+    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+    		_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
+    		_mm_prefetch(saddr3 + 100, _MM_HINT_NTA);
+    		_mm_prefetch(saddr4 + 100, _MM_HINT_NTA);
+#endif
+	        __m128d x1, x2, x3, x4, x5, x6, x7, x8, x9, x10;
+	        x1 = _mm_load_pd(saddr);
+		x3 = _mm_load_pd(saddr + 2);
+		x2 = _mm_load_pd(saddr2);
+		x4 = _mm_load_pd(saddr2 + 2);
+		x5 = _mm_load_pd(saddr3);
+		x7 = _mm_load_pd(saddr3 + 2);
+		x6 = _mm_load_pd(saddr4);
+		x8 = _mm_load_pd(saddr4 + 2);
+		
+		x9 = _mm_unpacklo_pd(x1, x2);
+		x10 = _mm_unpackhi_pd(x1, x2);
+		x1 = _mm_unpacklo_pd(x3, x4);
+		x2 = _mm_unpackhi_pd(x3, x4);
+		x3 = _mm_unpacklo_pd(x5, x6);
+		x4 = _mm_unpackhi_pd(x5, x6);
+		x5 = _mm_unpacklo_pd(x7, x8);
+		x6 = _mm_unpackhi_pd(x7, x8);
+		
+		_mm_store_pd_use(daddr, x9);
+		_mm_store_pd_use(daddr + dpitchline, x10);
+		_mm_store_pd_use(daddr2, x3);
+		_mm_store_pd_use(daddr2 + dpitchline, x4);
+		_mm_store_pd_use(daddr + dpitchline * 2, x1);
+		_mm_store_pd_use(daddr + dpitchline * 3, x2);
+		_mm_store_pd_use(daddr2 + dpitchline * 2, x5);
+		_mm_store_pd_use(daddr2 + dpitchline * 3, x6);
+		
+		saddr += 4;
+		saddr2 += 4;
+		saddr3 += 4;
+		saddr4 += 4;
+		
+		daddr += dpitch;
+		daddr2 += dpitch;
+	    }
+	}
+#else
 #if !defined(CALDGEMM_44) | !defined(CALDGEMM_TRANSPOSED_A)
 	if (numBuffers <= 4)
 	{
@@ -456,11 +517,11 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
 		for (int i = 0;i < height;i += 4)
 		{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-		//Prefetching disabled as it currently has a negative performance impact
-    		/*_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-    		_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
-    		_mm_prefetch(saddr3 + 100, _MM_HINT_NTA);
-    		_mm_prefetch(saddr4 + 100, _MM_HINT_NTA);*/
+		    //Prefetching disabled as it currently has a negative performance impact
+    		    /*_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+    		    _mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
+    		    _mm_prefetch(saddr3 + 100, _MM_HINT_NTA);
+    		    _mm_prefetch(saddr4 + 100, _MM_HINT_NTA);*/
 #endif
 		    __m128d x1, x2, x3, x4, x5, x6, x7, x8, x9, x10;
 		    x1 = _mm_load_pd(saddr);
@@ -541,6 +602,7 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
     		saddr2 += 2;
     	    }
     	}
+#endif
     }
     else
     {
