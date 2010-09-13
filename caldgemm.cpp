@@ -455,6 +455,13 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
 		
 		for (int i = 0;i < height;i += 4)
 		{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+		//Prefetching disabled as it currently has a negative performance impact
+    		/*_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+    		_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
+    		_mm_prefetch(saddr3 + 100, _MM_HINT_NTA);
+    		_mm_prefetch(saddr4 + 100, _MM_HINT_NTA);*/
+#endif
 		    __m128d x1, x2, x3, x4, x5, x6, x7, x8, x9, x10;
 		    x1 = _mm_load_pd(saddr);
 		    x3 = _mm_load_pd(saddr + 2);
