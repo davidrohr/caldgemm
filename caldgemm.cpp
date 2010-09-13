@@ -1977,7 +1977,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 20000000) GPURatio = 0.55;
 	else GPURatio = 0.5;*/
 	//Optimal ratio found using combined runs
-	if ((long long int) Info->m * (long long int) Info->n > (long long int) 2000000000) GPURatio = 0.66;
+	if ((long long int) Info->m * (long long int) Info->n > (long long int) 3000000000) GPURatio = 0.69;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 2000000000) GPURatio = 0.66;
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 1000000000) GPURatio = 0.65;
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 350000000) GPURatio = 0.64;
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 200000000) GPURatio = 0.63;
@@ -2000,7 +2001,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     {
 	if (Info->m >= Info->n / 2)
 	{
-	    usem = (int) (GPURatio * (float) Info->m + (Info->Height - 1));
+	    usem = (int) (GPURatio * (float) (Info->m - Info->m % Info->Height) + (Info->Height - 1));
 	    usem -= usem % Info->Height;
 	    cParam.cblas_size = Info->m - usem;
 	    usen = Info->n;
@@ -2009,7 +2010,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
         else
         {
-	    usen = (int) (GPURatio * (float) Info->n + (Info->Height - 1));
+	    usen = (int) (GPURatio * (float) (Info->n - Info->n % Info->Height) + (Info->Height - 1));
 	    usen -= usen % Info->Height;
 	    cParam.cblas_size = Info->n - usen;
 	    usem = Info->m;
