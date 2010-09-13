@@ -99,6 +99,7 @@ bool fastinit = false;
 bool loadmatrix = false;
 bool transa = false;
 bool transb = false;
+bool initialrun = true;
 char* matrixfile;
 
 CALvoid Usage(const CALchar* name)
@@ -134,6 +135,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-u        Dump Test Matrix\n" );
     fprintf(stderr, "\t-1        Transpose A Matrix\n" );
     fprintf(stderr, "\t-2        Transpose B Matrix\n" );
+    fprintf(stderr, "\t-8        No initial run to negate cache effects\n" );
     fprintf(stderr, "\t-9        Output a table with timing information\n" );
     fprintf(stderr, "\t-x <file> Load Matrix\n" );
     
@@ -206,6 +208,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case '9':
 		Info->TabularTiming = CAL_TRUE;
+                break;
+            case '8':
+		initialrun = false;
                 break;
             case 'i':
                 Info->PrintILKernel = CAL_TRUE;
@@ -480,7 +485,7 @@ int main(CALint argc, CALchar** argv)
 	
 	//Initial run to negate cache effects
 #ifndef TESTMODE
-        if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE)
+        if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE && initialrun)
         {
 	    CALboolean tmpquiet = Info.Quiet;
     	    CALuint tmpiter = Info.Iterations;
