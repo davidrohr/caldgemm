@@ -100,7 +100,10 @@ bool loadmatrix = false;
 bool transa = false;
 bool transb = false;
 bool initialrun = true;
+bool verifylarge = false;
 char* matrixfile;
+
+long seedused;
 
 CALvoid Usage(const CALchar* name)
 {
@@ -135,6 +138,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-u        Dump Test Matrix\n" );
     fprintf(stderr, "\t-1        Transpose A Matrix\n" );
     fprintf(stderr, "\t-2        Transpose B Matrix\n" );
+    fprintf(stderr, "\t-7        Verify Large Matrices\n" );
     fprintf(stderr, "\t-8        No initial run to negate cache effects\n" );
     fprintf(stderr, "\t-9        Output a table with timing information\n" );
     fprintf(stderr, "\t-x <file> Load Matrix\n" );
@@ -211,6 +215,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case '8':
 		initialrun = false;
+                break;
+            case '7':
+		verifylarge = true;
                 break;
             case 'i':
                 Info->PrintILKernel = CAL_TRUE;
@@ -353,7 +360,7 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 {
     timespec randtime;
     clock_gettime(CLOCK_REALTIME, &randtime);
-    srand((int) randtime.tv_nsec);
+    srand((int) (seedused = randtime.tv_nsec));
     
     if (AA) delete[] AA;
     if (BB) delete[] BB;
@@ -412,6 +419,16 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     }
     if (Info.Debug) printf("User Data Initialized\n");
     return(0);
+}
+
+bool isDoubleEqual(CALdouble a, CALdouble b)
+{
+    CALdouble epsilon = 1e-6;
+    
+    if(fabs(b) <1e-13)
+	return (fabs(a-b) < epsilon);
+    else
+	return (fabs((a-b)/b) < epsilon);
 }
 
 int main(CALint argc, CALchar** argv)
@@ -520,6 +537,28 @@ int main(CALint argc, CALchar** argv)
 	    }
 	    dgemm.ResetTimers();
 	} while (benchmark && (Info.n += Info.Height) < 70000 && (Info.m += Info.Height) < 70000 && SetupUserData(Info) == 0);
+    }
+    
+    if (verifylarge)
+    {
+	printf("Running verification for large matrices\n");
+	srand((int) seedused);
+	Info.UseGPU = CAL_FALSE;
+	Info.UseCPU = CAL_TRUE;
+	Info.Verify = CAL_FALSE;
+	Info.Quiet = CAL_TRUE;
+	dgemm.RunCALDGEMM(AA, BB, CC, -0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
+	int verifyok = 1;
+	for (long long int i = 0;i < (long long int) Info.m * (long long int) Info.n;i++)
+        {
+	    if (!isDoubleEqual(CC[i] * 1.0, (CALdouble) (i % 16)))
+	    {
+		printf("Verification failed\n");
+		verifyok = 0;
+		break;
+	    }
+	}
+	if (verifyok) printf("Verification succeeded\n");
     }
     
     dgemm.ExitCALDGEMM();
