@@ -365,7 +365,6 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     if (AA) delete[] AA;
     if (BB) delete[] BB;
     if (CC) delete[] CC;
-    
     AA = new CALdouble[(size_t) Info.m * (size_t) Info.Width];
     BB = new CALdouble[(size_t) Info.Width * (size_t) Info.n];
     CC = new CALdouble[(size_t) Info.m * (size_t) Info.n];
@@ -553,7 +552,7 @@ int main(CALint argc, CALchar** argv)
         {
 	    if (!isDoubleEqual(CC[i] * 1.0, (CALdouble) (i % 16)))
 	    {
-		printf("Verification failed\n");
+		printf("Verification failed at i = %lld, m = %lld, n = %lld\n", i, i % Info.n, i / Info.n);
 		verifyok = 0;
 		break;
 	    }
