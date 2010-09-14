@@ -354,12 +354,12 @@ const char *caldgemm::ILKernelName =
 #endif
 "whileloop\n"
 #ifndef CALDGEMM_44
-"    ge r13._y__, r11.x, cb0[1].x\n"				//cmp with width
+"    ge r0.y, r11.x, cb0[1].x\n"				//cmp with width
 #else
-"    ge r13._y__, r0.w, cb0[1].1\n"				//cmp with width
+"    ge r0.y, r0.w, cb0[1].1\n"				//cmp with width
 #endif
 
-"    break_logicalnz r13.y\n"
+"    break_logicalnz r0.y\n"
 
 #ifndef CALDGEMM_44
 "    mov r0.___w, r11.w\n"							//r0:w normalized k pos
