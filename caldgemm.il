@@ -349,16 +349,20 @@ const char *caldgemm::ILKernelName =
 #endif
 #ifndef CALDGEMM_44
 "mov r1.__zw, r0.zzzx\n"							//r1.z: normalized y pos, r1.w: normalized x pos
-#endif
 "mov r11.w, r0.y\n"									//r11.w: 0, run variable for k
 "mov r11.x, l0\n"									//r11.x: 0, run variable for loop
+#endif
 "whileloop\n"
-"    ge r11._y__, r11.x, cb0[1].x\n"				//cmp with width
-"    break_logicalnz r11.y\n"
-"    mov r0.___w, r11.w\n"							//r0:w normalized k pos
-#ifdef CALDGEMM_44
-"    add r11.___w, r0.w, cb0[0].y\n"
+#ifndef CALDGEMM_44
+"    ge r13._y__, r11.x, cb0[1].x\n"				//cmp with width
 #else
+"    ge r13._y__, r0.w, cb0[1].1\n"				//cmp with width
+#endif
+
+"    break_logicalnz r13.y\n"
+
+#ifndef CALDGEMM_44
+"    mov r0.___w, r11.w\n"							//r0:w normalized k pos
 "    add r0._y__, r0.w, cb0[0].y\n"					//r0.y normalized k pos + 1
 "    add r1.x___, r0.y, cb0[0].y\n"					//r1.x normalized k pos + 2
 "    add r1._y__, r1.x, cb0[0].y\n"					//r1.y normalized k pos + 3
@@ -430,7 +434,11 @@ MMUL_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, 
 
 #endif //CALDGEMM_44
 
+#ifdef CALDGEMM_44
+"    add r0.w, r0.w, cb0[0].y\n"
+#else
 "    add r11.x___, r11.x, r11.1\n"
+#endif
 "endloop\n"
 #ifndef CALDGEMM_USE_MEMEXPORT
 "dcl_output_generic o0\n"
