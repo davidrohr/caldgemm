@@ -100,6 +100,10 @@ jurisdiction and venue of these courts.
 #ifdef CALDGEMM_88
 #define CALDGEMM_44
 #define CALDGEMM_USE_MEMEXPORT
+#define CALDGEMM_TRANSPOSED_A
+#ifdef CALDGEMM_TRANSPOSED_B
+#undef CALDGEMM_TRANSPOSED_B
+#endif
 #endif
 
 #ifdef CALDGEMM_44

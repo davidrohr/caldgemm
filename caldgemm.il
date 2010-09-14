@@ -223,7 +223,6 @@ MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1_12.xy, a2_12.xy, a1_12.zw, a2_12.zw, a
 
 #ifdef CALDGEMM_88
 
-#ifdef CALDGEMM_TRANSPOSED_A
 #define SAMPLE_A(a1, a2, a3, a4, pos) \
 "    sample_resource("CALDGEMM_INPUT_A_1")_sampler("CALDGEMM_INPUT_A_1") " mxstr(a1) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
 "    sample_resource("CALDGEMM_INPUT_A_2")_sampler("CALDGEMM_INPUT_A_2") " mxstr(a2) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
@@ -235,29 +234,6 @@ MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1_12.xy, a2_12.xy, a1_12.zw, a2_12.zw, a
 "    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") " mxstr(b2) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
 "    sample_resource("CALDGEMM_INPUT_B_3")_sampler("CALDGEMM_INPUT_B_3") " mxstr(b3) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
 "    sample_resource("CALDGEMM_INPUT_B_4")_sampler("CALDGEMM_INPUT_B_4") " mxstr(b4) ", " mxstr(pos) "\n" /* normalized k, y pos */
-
-#else
-
-#define SAMPLE_A(a1, a2, a3, a4, a5, a6, a7, a8, pos) \
-"    sample_resource("CALDGEMM_INPUT_A_1")_sampler("CALDGEMM_INPUT_A_1") " mxstr(a1) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
-"    sample_resource("CALDGEMM_INPUT_A_2")_sampler("CALDGEMM_INPUT_A_2") " mxstr(a2) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
-"    sample_resource("CALDGEMM_INPUT_A_3")_sampler("CALDGEMM_INPUT_A_3") " mxstr(a3) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
-"    sample_resource("CALDGEMM_INPUT_A_4")_sampler("CALDGEMM_INPUT_A_4") " mxstr(a4) ", " mxstr(pos) "\n" /* ... */ \
-"    sample_resource("CALDGEMM_INPUT_A_5")_sampler("CALDGEMM_INPUT_A_5") " mxstr(a5) ", " mxstr(pos) "\n" \
-"    sample_resource("CALDGEMM_INPUT_A_6")_sampler("CALDGEMM_INPUT_A_6") " mxstr(a6) ", " mxstr(pos) "\n" \
-"    sample_resource("CALDGEMM_INPUT_A_7")_sampler("CALDGEMM_INPUT_A_7") " mxstr(a7) ", " mxstr(pos) "\n" \
-"    sample_resource("CALDGEMM_INPUT_A_8")_sampler("CALDGEMM_INPUT_A_8") " mxstr(a8) ", " mxstr(pos) "\n"
-
-#define SAMPLE_B(b1, b2, b3, b4, b5, b6, b7, b8, pos) \
-"    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") " mxstr(b1) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
-"    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") " mxstr(b2) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
-"    sample_resource("CALDGEMM_INPUT_B_3")_sampler("CALDGEMM_INPUT_B_3") " mxstr(b3) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
-"    sample_resource("CALDGEMM_INPUT_B_4")_sampler("CALDGEMM_INPUT_B_4") " mxstr(b4) ", " mxstr(pos) "\n" /* ... */ \
-"    sample_resource("CALDGEMM_INPUT_B_5")_sampler("CALDGEMM_INPUT_B_5") " mxstr(b5) ", " mxstr(pos) "\n" \
-"    sample_resource("CALDGEMM_INPUT_B_6")_sampler("CALDGEMM_INPUT_B_6") " mxstr(b6) ", " mxstr(pos) "\n" \
-"    sample_resource("CALDGEMM_INPUT_B_7")_sampler("CALDGEMM_INPUT_B_7") " mxstr(b7) ", " mxstr(pos) "\n" \
-"    sample_resource("CALDGEMM_INPUT_B_8")_sampler("CALDGEMM_INPUT_B_8") " mxstr(b8) ", " mxstr(pos) "\n"
-#endif //CALDGEMM_TRANSPOSED_A
 
 #elif defined(CALDGEMM_44) //CALDGEMM_88
 
@@ -391,21 +367,12 @@ const char *caldgemm::ILKernelName =
 #endif
 
 #ifdef CALDGEMM_88
-#ifdef CALDGEMM_TRANSPOSED_A
 SAMPLE_A(r13, r14, r15, r16, r0.zw)
 SAMPLE_B(r21, r22, r23, r24, r0.xw)
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r21.xy, r21.zw, r22.xy, r22.zw)
 MMUL441(r29, r30, r31, r32, r33, r34, r35, r36, r15.xy, r15.zw, r16.xy, r16.zw, r21.xy, r21.zw, r22.xy, r22.zw)
 MMUL441(r37, r38, r39, r40, r41, r42, r43, r44, r13.xy, r13.zw, r14.xy, r14.zw, r23.xy, r23.zw, r24.xy, r24.zw)
 MMUL441(r45, r46, r47, r48, r49, r50, r51, r52, r15.xy, r15.zw, r16.xy, r16.zw, r23.xy, r23.zw, r24.xy, r24.zw)
-#else
-SAMPLE_A(r13, r14, r15, r16, r17, r18, r19, r20, r0.wz)
-SAMPLE_B(r21, r22, r23, r24, r17, r18, r19, r20, r0.wx)
-MMUL44(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, r15.zw, r16.xy, r16.zw, r21.xy, r21.zw, r22.xy, r22.zw, r23.xy, r23.zw, r24.xy, r24.zw)
-MMUL44(r29, r30, r31, r32, r33, r34, r35, r36, r17.xy, r17.zw, r18.xy, r18.zw, r19.xy, r19.zw, r20.xy, r20.zw, r21.xy, r21.zw, r22.xy, r22.zw, r23.xy, r23.zw, r24.xy, r24.zw)
-MMUL44(r37, r38, r39, r40, r41, r42, r43, r44, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, r15.zw, r16.xy, r16.zw, r25.xy, r25.zw, r26.xy, r26.zw, r27.xy, r27.zw, r28.xy, r28.zw)
-MMUL44(r45, r46, r47, r48, r49, r50, r51, r52, r17.xy, r17.zw, r18.xy, r18.zw, r19.xy, r19.zw, r20.xy, r20.zw, r25.xy, r25.zw, r26.xy, r26.zw, r27.xy, r27.zw, r28.xy, r28.zw)
-#endif
 
 #elif defined(CALDGEMM_44)
 #ifdef CALDGEMM_TRANSPOSED_A
