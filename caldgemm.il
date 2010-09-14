@@ -347,9 +347,8 @@ const char *caldgemm::ILKernelName =
 "add r2.y, r2.x, cb0[1].y\n"
 "add r2.z, r2.y, cb0[1].y\n"
 #endif
+#ifndef CALDGEMM_44
 "mov r1.__zw, r0.zzzx\n"							//r1.z: normalized y pos, r1.w: normalized x pos
-#ifdef CALDGEMM_44
-"add r1.w, r0.x, cb0[0].y\n"
 #endif
 "mov r11.w, r0.y\n"									//r11.w: 0, run variable for k
 "mov r11.x, l0\n"									//r11.x: 0, run variable for loop
