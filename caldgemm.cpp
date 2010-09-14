@@ -135,7 +135,7 @@ caldgemm::SampleInfo::SampleInfo()
     Quiet = CAL_TRUE;
     DeviceNum = 0;
     Width = 1024;
-    Height = 2048;
+    Height = 4096;
     AutoHeight = CAL_TRUE;
     Iterations = 1;
     DstMemory = 'c';
@@ -841,8 +841,6 @@ bool caldgemm::isDoubleEqual(CALdouble a, CALdouble b)
     else
        return (fabs((a-b)/b) < epsilon);
 }
-
-
 
 CPerfCounter::CPerfCounter() : _clocks(0.0E0), _start(0.0E0)
 {
@@ -1996,9 +1994,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
         {
     	    Info->Height = 1024;
 	}
-        else
+        else if (Info->m < 4096 || Info->n < 4096 || Info->m * Info->n < 8 * 1024 * 1024)
 	{
 	    Info->Height = 2048;
+	}
+	else
+	{
+	    Info->Height = 4096;
 	}
 	if (Info->Height != old_height)
 	{
