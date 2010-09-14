@@ -1399,8 +1399,12 @@ CALint caldgemm::AllocateResources(CALcontext* ctx, CALdevice* device, CALresour
             fprintf(stderr, "Error: Path that should be unreachable is reached\n");
             return 0;
         }
+        
 #ifdef CALDGEMM_USE_MEMEXPORT
-	flag = (CALresallocflags) (flag | CAL_RESALLOC_GLOBAL_BUFFER);
+	if (i >= cStop)
+	{
+	    flag = (CALresallocflags) (flag | CAL_RESALLOC_GLOBAL_BUFFER);
+	}
 #endif
         switch(mem)
         {
