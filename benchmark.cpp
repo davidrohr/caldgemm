@@ -160,7 +160,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->MultiThread = CAL_FALSE;
     Info->DeviceNum = 0;
     Info->Width = 1024;
-    Info->Height = 2048;
+    Info->Height = 4096;
     Info->AutoHeight = CAL_FALSE;
     Info->DynamicSched = CAL_FALSE;
     Info->VerboseTiming = CAL_FALSE;

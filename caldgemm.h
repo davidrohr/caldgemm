@@ -116,6 +116,10 @@ jurisdiction and venue of these courts.
 #endif
 #endif
 
+#if defined(CALDGEMM_DIAGONAL_TEXTURE) & (!defined(CALDGEMM_44) | defined(CALDGEMM_88) | !defined(CALDGEMM_TRANSPOSED_A))
+#undef CALDGEMM_DIAGONAL_TEXTURE
+#endif
+
 #if defined(CALDGEMM_88) | !defined(CALDGEMM_44)
 #define TILING_Y 8
 #else
@@ -131,6 +135,7 @@ jurisdiction and venue of these courts.
 #endif
 
 #include "cal.h"
+#include "cal_ext.h"
 #include "calcl.h"
 
 #include <emmintrin.h>

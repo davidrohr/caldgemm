@@ -284,25 +284,32 @@ MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1_12.xy, a2_12.xy, a1_12.zw, a2_12.zw, a
 
 #endif //CALDGEMM_44
 
+#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#define UNNORM_TYPE ",unnorm"
+#else
+#define UNNORM_TYPE
+#endif
+
 const char *caldgemm::ILKernelName =
 "il_ps_2_0\n"
 "dcl_cb cb0[4]\n"
 "dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"
-"dcl_resource_id(0)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
-"dcl_resource_id(1)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
-"dcl_resource_id(2)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
-"dcl_resource_id(3)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+"dcl_resource_id(0)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+"dcl_resource_id(1)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+"dcl_resource_id(2)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+"dcl_resource_id(3)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 #if !defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_88)
-"dcl_resource_id(4)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
-"dcl_resource_id(5)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
-"dcl_resource_id(6)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
-"dcl_resource_id(7)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+"dcl_resource_id(4)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+"dcl_resource_id(5)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+"dcl_resource_id(6)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+"dcl_resource_id(7)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 #if !defined(CALDGEMM_44)
 "dcl_resource_id(8)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(9)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 #endif
 #endif
 "dcl_literal l0, 0x00000000, 0x00000000, 0x00000000, 0x00000000\n"
+"dcl_literal l1, 0.0, 1.0, -0.5, 0.0\n"
 "mov r3, l0\n"
 "mov r4, l0\n"
 "mov r5, l0\n"
@@ -339,7 +346,13 @@ const char *caldgemm::ILKernelName =
 "mov r52, l0\n"
 #endif
 
+#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+"mov r0.xy__, vWinCoord0.xy00\n"
+"mov r0.w, l1.z\n"
+#else
 "mul r0.xyz0, vWinCoord0.xyyx, cb0[0].zwxz\n"		//r0.x: normalized x pos, r0.y: 0, r0.z: normalized y pos, r0.w: 0
+#endif
+
 #if defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_44)
 "sub r0.z, vWinCoord0.y, cb0[2].x\n"
 "mul r0.z, r0.z, cb0[0].x\n"
@@ -355,11 +368,18 @@ const char *caldgemm::ILKernelName =
 "whileloop\n"
 #ifndef CALDGEMM_44
 "    ge r0.y, r11.x, cb0[1].x\n"				//cmp with width
+#elif defined(CALDGEMM_TRANSPOSED_A)
+"    add r0.w, r0.w, l1.y\n"
+"    ge r0.z, r0.w, cb0[1].x\n"				//cmp with width
 #else
 "    ge r0.y, r0.w, cb0[1].1\n"				//cmp with width
 #endif
 
+#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+"    break_logicalnz r0.z\n"
+#else
 "    break_logicalnz r0.y\n"
+#endif
 
 #ifndef CALDGEMM_44
 "    mov r0.___w, r11.w\n"							//r0:w normalized k pos
@@ -370,7 +390,7 @@ const char *caldgemm::ILKernelName =
 #endif
 
 #ifdef CALDGEMM_88
-SAMPLE_A(r13, r14, r15, r16, r0.zw)
+SAMPLE_A(r13, r14, r15, r16, r0.yw)
 SAMPLE_B(r21, r22, r23, r24, r0.xw)
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r21.xy, r21.zw, r22.xy, r22.zw)
 MMUL441(r29, r30, r31, r32, r33, r34, r35, r36, r15.xy, r15.zw, r16.xy, r16.zw, r21.xy, r21.zw, r22.xy, r22.zw)
@@ -379,7 +399,7 @@ MMUL441(r45, r46, r47, r48, r49, r50, r51, r52, r15.xy, r15.zw, r16.xy, r16.zw, 
 
 #elif defined(CALDGEMM_44)
 #ifdef CALDGEMM_TRANSPOSED_A
-SAMPLE_A(r13, r14, r0.zw)
+SAMPLE_A(r13, r14, r0.yw)
 SAMPLE_B(r15, r16, r0.xw)
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, r15.zw, r16.xy, r16.zw)
 #else
@@ -435,7 +455,17 @@ MMUL_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, 
 #endif //CALDGEMM_44
 
 #ifdef CALDGEMM_44
+#ifndef CALDGEMM_TRANSPOSED_A
 "    add r0.w, r0.w, cb0[0].y\n"
+#endif
+#ifdef CALDGEMM_DIAGONAL_TEXTURE
+"    add r0.x, r0.x, cb0[2].w\n"
+"    add r0.z, r0.z, cb0[2].w\n"
+"    flr r13.x, r0.x\n"
+"    flr r13.z, r0.z\n"
+"    sub r0.x, r0.x, r13.x\n"
+"    sub r0.z, r0.z, r13.z\n"
+#endif
 #else
 "    add r11.x___, r11.x, r11.1\n"
 #endif
@@ -541,6 +571,7 @@ MUL8(r45, r46, r47, r48, r49, r50, r51, r52, cb0[1].zw)
 #undef MMUL_82
 #undef MMUL_N
 #undef MMUL_T
+#undef UNNORM_TYPE
 
 #ifdef CALDGEMM_44
 #undef CALDGEMM_INPUT_A_1

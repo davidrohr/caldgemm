@@ -347,6 +347,9 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
 #else
     data[bStop].f_data[0] = 4.f / Info->Height;  //Scale factor for normalized y pos
     data[bStop].f_data[2] = 4.f / Info->Height;  //Scale factor for normalized x pos
+#ifdef CALDGEMM_DIAGONAL_TEXTURE
+    data[bStop].f_data[11] = 8.f / Info->Height;  //Offset for diagonal texture read
+#endif
 #endif
 #ifdef CALDGEMM_TRANSPOSED_A
     data[bStop].f_data[1] = 1.f / Info->Width;  //Step in K direction
@@ -435,7 +438,7 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
 {
     if (transpose)
     {
-#if 0 && defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#if 0 && defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_DIAGONAL_TEXTURE)
 	for (CALint y = 0;y < width;y += 4)
 	{
     	    double* saddr = src + (y * pitch);
@@ -577,8 +580,13 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
     		double* daddr2 = dst[bank].d_data + ((i + 1) * width / 4 + ((y / 4) & 0xFFFFFFFE));
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
     		CALint bank = (y / 2) % 2;
+#ifdef CALDGEMM_DIAGONAL_TEXTURE
+    		double* daddr = dst[bank].d_data + i * width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (width / 2);
+    		double* daddr2 = dst[bank].d_data + (i + 1) * width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (width / 2);
+#else
     		double* daddr = dst[bank].d_data + (i * width / 2 + ((y / 2) & 0xFFFFFFFE));
     		double* daddr2 = dst[bank].d_data + ((i + 1) * width / 2 + ((y / 2) & 0xFFFFFFFE));
+#endif
 #else
     		CALint bank = (i) % numBuffers;
     		CALint bank2 = (i + 1) % numBuffers;
@@ -1317,6 +1325,29 @@ CALint caldgemm::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, C
     return 0;
 }
 
+/*typedef enum calSamplerParameterEnum {
+    CAL_SAMPLER_PARAM_FETCH4 = 0,
+    CAL_SAMPLER_PARAM_DEFAULT = 0,
+    CAL_SAMPLER_PARAM_MIN_FILTER,
+    CAL_SAMPLER_PARAM_MAG_FILTER,
+    CAL_SAMPLER_PARAM_WRAP_S,
+    CAL_SAMPLER_PARAM_WRAP_T,
+    CAL_SAMPLER_PARAM_WRAP_R,
+    CAL_SAMPLER_PARAM_BORDER_COLOR,
+    CAL_SAMPLER_PARAM_LAST
+} CALsamplerParameter;
+
+typedef enum calSamplerParamWrapMode {
+    CAL_SAMPLER_WRAP_REPEAT,
+    CAL_SAMPLER_WRAP_MIRRORED_REPEAT,
+    CAL_SAMPLER_WRAP_CLAMP_TO_EDGE,
+    CAL_SAMPLER_WRAP_MIRROR_CLAMP_TO_EDGE_EXT,
+    CAL_SAMPLER_WRAP_CLAMP,
+    CAL_SAMPLER_WRAP_MIRROR_CLAMP_EXT,
+    CAL_SAMPLER_WRAP_CLAMP_TO_BORDER,
+    CAL_SAMPLER_WRAP_MIRROR_CLAMP_TO_BORDER_EXT
+} CALsamplerParamWrapMode;*/
+
 CALint caldgemm::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data)
 {
     CALname progName = 0;
@@ -1360,6 +1391,20 @@ CALint caldgemm::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, 
             fprintf(stderr, "Error string is %s\n",calGetErrorString());
             return 0;
         }
+
+/*	CALresult CALAPIENTRY (*calCtxSetSamplerParams) (CALcontext ctx, CALname name, CALsamplerParameter param, CALvoid* vals);
+	r = calExtGetProc((CALextproc*) &calCtxSetSamplerParams, (CALextid) CAL_EXT_SAMPLER, "calCtxSetSamplerParams");
+	if (r != CAL_RESULT_OK) printf("Error getting sampler extension\n");
+	else
+	{
+    	    CALsamplerParamWrapMode wrapMode = CAL_SAMPLER_WRAP_REPEAT;
+    	    r = calCtxSetSamplerParams(*ctx, progName, CAL_SAMPLER_PARAM_WRAP_S, &wrapMode);
+    	    if (r != CAL_RESULT_OK) printf("Error setting wrapping mode\n");
+    	    r = calCtxSetSamplerParams(*ctx, progName, CAL_SAMPLER_PARAM_WRAP_T, &wrapMode);
+    	    if (r != CAL_RESULT_OK) printf("Error setting wrapping mode\n");
+    	    r = calCtxSetSamplerParams(*ctx, progName, CAL_SAMPLER_PARAM_WRAP_R, &wrapMode);
+    	    if (r != CAL_RESULT_OK) printf("Error setting wrapping mode\n");
+    	}*/
     }
     return 1;
 }
