@@ -101,6 +101,7 @@ bool transa = false;
 bool transb = false;
 bool initialrun = true;
 bool verifylarge = false;
+bool quietbench = false;
 char* matrixfile;
 
 long seedused;
@@ -138,6 +139,8 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-u        Dump Test Matrix\n" );
     fprintf(stderr, "\t-1        Transpose A Matrix\n" );
     fprintf(stderr, "\t-2        Transpose B Matrix\n" );
+    fprintf(stderr, "\t-5        Quiet Benchmark mode (different from quiet caldgemm mode)\n" );
+    fprintf(stderr, "\t-6  <int> Set m/n to value * height\n" );
     fprintf(stderr, "\t-7        Verify Large Matrices\n" );
     fprintf(stderr, "\t-8        No initial run to negate cache effects\n" );
     fprintf(stderr, "\t-9        Output a table with timing information\n" );
@@ -173,7 +176,6 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->GPURatio = -1;
     Info->DumpMatrix = CAL_FALSE;
 
-    printf("Use -? for help\n");
 
     for (CALuint x = 1; x < argc; ++x)
     {
@@ -218,6 +220,12 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case '7':
 		verifylarge = true;
+                break;
+            case '6':
+		printf("Set m and n to %lld\n", Info->m = Info->n = Info->Height * atoi(argv[++x]));
+                break;
+            case '5':
+		quietbench = true;
                 break;
             case 'i':
                 Info->PrintILKernel = CAL_TRUE;
@@ -351,6 +359,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
         };
     }
     
+    if (!quietbench) printf("Use -? for help\n");
     if (Info->UseCPU == CAL_FALSE && Info->UseGPU == CAL_FALSE) Info->UseGPU = CAL_TRUE;
     
     return CAL_TRUE;
@@ -494,18 +503,18 @@ int main(CALint argc, CALchar** argv)
     }
     else
     {
-	printf("Initializing Data... ");
+	if (!quietbench) printf("Initializing Data... ");
 	if (SetupUserData(Info))
 	{
 	    return(1);
 	}
-	printf("Done\n");
+	if (!quietbench) printf("Done\n");
 	
 	//Initial run to negate cache effects
 #ifndef TESTMODE
         if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE && initialrun)
         {
-    	    printf("Doing initial run... ");
+    	    if (!quietbench) printf("Doing initial run... ");
 	    CALboolean tmpquiet = Info.Quiet;
     	    CALuint tmpiter = Info.Iterations;
     	    CALuint tmpm = Info.m, tmpn = Info.n;
@@ -522,12 +531,12 @@ int main(CALint argc, CALchar** argv)
 	    Info.n = tmpn;
 	    Info.Quiet = tmpquiet;
 	    Info.Iterations = tmpiter;
-	    printf("Done\n");
+	    if (!quietbench) printf("Done\n");
 	}
 #endif
 	dgemm.ResetTimers();
     
-	printf("Running Benchmark\n");
+	if (!quietbench) printf("Running Benchmark\n");
 	do
         {
 #ifdef TESTMODE
