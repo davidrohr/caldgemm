@@ -494,15 +494,18 @@ int main(CALint argc, CALchar** argv)
     }
     else
     {
+	printf("Initializing Data... ");
 	if (SetupUserData(Info))
 	{
 	    return(1);
 	}
+	printf("Done\n");
 	
 	//Initial run to negate cache effects
 #ifndef TESTMODE
         if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE && initialrun)
         {
+    	    printf("Doing initial run... ");
 	    CALboolean tmpquiet = Info.Quiet;
     	    CALuint tmpiter = Info.Iterations;
     	    CALuint tmpm = Info.m, tmpn = Info.n;
@@ -519,10 +522,12 @@ int main(CALint argc, CALchar** argv)
 	    Info.n = tmpn;
 	    Info.Quiet = tmpquiet;
 	    Info.Iterations = tmpiter;
+	    printf("Done\n");
 	}
 #endif
 	dgemm.ResetTimers();
     
+	printf("Running Benchmark\n");
 	do
         {
 #ifdef TESTMODE
