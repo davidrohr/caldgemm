@@ -141,6 +141,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-2        Transpose B Matrix\n" );
     fprintf(stderr, "\t-5        Quiet Benchmark mode (different from quiet caldgemm mode)\n" );
     fprintf(stderr, "\t-6  <int> Set m/n to value * height\n" );
+    fprintf(stderr, "\t-4  <int> Set m/n to the closest multiple of height to value\n" );
     fprintf(stderr, "\t-7        Verify Large Matrices\n" );
     fprintf(stderr, "\t-8        No initial run to negate cache effects\n" );
     fprintf(stderr, "\t-9        Output a table with timing information\n" );
@@ -223,6 +224,11 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case '6':
 		printf("Set m and n to %lld\n", Info->m = Info->n = Info->Height * atoi(argv[++x]));
+                break;
+            case '4':
+        	Info->m = atoi(argv[++x]);
+        	Info->m -= Info->m % Info->Height;
+		printf("Set m and n to %lld\n", Info->n = Info->m);
                 break;
             case '5':
 		quietbench = true;
