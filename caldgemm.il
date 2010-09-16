@@ -8,13 +8,12 @@ without the prior written permission of FIAS.
 
 Authors:
 David Rohr (drohr@jwdt.org)
-Mathias Bach (bach@compeng.uni-frankfurt.de)
-Mathias Kretz (kretz@compeng.uni-frankfurt.de)
+Matthias Bach (bach@compeng.uni-frankfurt.de)
+Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 
 ============================================================ */
 
 #if defined(CALDGEMM_88)
-#ifdef CALDGEMM_TRANSPOSED_A
 #define CALDGEMM_INPUT_A_1 "0"
 #define CALDGEMM_INPUT_A_2 "1"
 #define CALDGEMM_INPUT_A_3 "2"
@@ -23,24 +22,13 @@ Mathias Kretz (kretz@compeng.uni-frankfurt.de)
 #define CALDGEMM_INPUT_B_2 "5"
 #define CALDGEMM_INPUT_B_3 "6"
 #define CALDGEMM_INPUT_B_4 "7"
-#else
+#elif defined(CALDGEMM_84)
 #define CALDGEMM_INPUT_A_1 "0"
 #define CALDGEMM_INPUT_A_2 "1"
-#define CALDGEMM_INPUT_A_3 "2"
-#define CALDGEMM_INPUT_A_4 "3"
-#define CALDGEMM_INPUT_A_5 "4"
-#define CALDGEMM_INPUT_A_6 "5"
-#define CALDGEMM_INPUT_A_7 "6"
-#define CALDGEMM_INPUT_A_8 "7"
-#define CALDGEMM_INPUT_B_1 "8"
-#define CALDGEMM_INPUT_B_2 "9"
-#define CALDGEMM_INPUT_B_3 "10"
-#define CALDGEMM_INPUT_B_4 "11"
-#define CALDGEMM_INPUT_B_5 "12"
-#define CALDGEMM_INPUT_B_6 "13"
-#define CALDGEMM_INPUT_B_7 "14"
-#define CALDGEMM_INPUT_B_8 "15"
-#endif
+#define CALDGEMM_INPUT_B_1 "2"
+#define CALDGEMM_INPUT_B_2 "3"
+#define CALDGEMM_INPUT_B_3 "4"
+#define CALDGEMM_INPUT_B_4 "5"
 #elif defined(CALDGEMM_TRANSPOSED_A)
 #define CALDGEMM_INPUT_A_1 "0"
 #define CALDGEMM_INPUT_A_2 "1"
@@ -159,6 +147,18 @@ MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1_12.xy, a2_12.xy, a1_12.zw, a2_12.zw, a
 "    sample_resource("CALDGEMM_INPUT_B_3")_sampler("CALDGEMM_INPUT_B_3") " mxstr(b3) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
 "    sample_resource("CALDGEMM_INPUT_B_4")_sampler("CALDGEMM_INPUT_B_4") " mxstr(b4) ", " mxstr(pos) "\n" /* normalized k, y pos */
 
+#elif defined(CALDGEMM_84) //CALDGEMM_88
+
+#define SAMPLE_A(a1, a2, pos) \
+"    sample_resource("CALDGEMM_INPUT_A_1")_sampler("CALDGEMM_INPUT_A_1") " mxstr(a1) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
+"    sample_resource("CALDGEMM_INPUT_A_2")_sampler("CALDGEMM_INPUT_A_2") " mxstr(a2) ", " mxstr(pos) "\n" /* normalized k, y pos */
+
+#define SAMPLE_B(b1, b2, b3, b4, pos) \
+"    sample_resource("CALDGEMM_INPUT_B_1")_sampler("CALDGEMM_INPUT_B_1") " mxstr(b1) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
+"    sample_resource("CALDGEMM_INPUT_B_2")_sampler("CALDGEMM_INPUT_B_2") " mxstr(b2) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
+"    sample_resource("CALDGEMM_INPUT_B_3")_sampler("CALDGEMM_INPUT_B_3") " mxstr(b3) ", " mxstr(pos) "\n" /* normalized k, y pos */ \
+"    sample_resource("CALDGEMM_INPUT_B_4")_sampler("CALDGEMM_INPUT_B_4") " mxstr(b4) ", " mxstr(pos) "\n" /* normalized k, y pos */
+
 #elif defined(CALDGEMM_44) //CALDGEMM_88
 
 #ifdef CALDGEMM_TRANSPOSED_A
@@ -222,14 +222,16 @@ const char *caldgemm::ILKernelName =
 "dcl_resource_id(1)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(2)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(3)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
-#if !defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_88)
+#if !defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_84)
 "dcl_resource_id(4)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(5)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+#if !defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_88)
 "dcl_resource_id(6)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(7)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 #if !defined(CALDGEMM_44)
 "dcl_resource_id(8)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(9)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+#endif
 #endif
 #endif
 "dcl_literal l0, 0x00000000, 0x00000000, 0x00000000, 0x00000000\n"
@@ -243,6 +245,15 @@ const char *caldgemm::ILKernelName =
 "mov r9, l0\n"
 "mov r10, l0\n"
 
+#ifdef CALDGEMM_84
+"mov r37, l0\n"
+"mov r38, l0\n"
+"mov r39, l0\n"
+"mov r40, l0\n"
+"mov r41, l0\n"
+"mov r42, l0\n"
+"mov r43, l0\n"
+"mov r44, l0\n"
 #ifdef CALDGEMM_88
 "mov r29, l0\n"
 "mov r30, l0\n"
@@ -252,14 +263,6 @@ const char *caldgemm::ILKernelName =
 "mov r34, l0\n"
 "mov r35, l0\n"
 "mov r36, l0\n"
-"mov r37, l0\n"
-"mov r38, l0\n"
-"mov r39, l0\n"
-"mov r40, l0\n"
-"mov r41, l0\n"
-"mov r42, l0\n"
-"mov r43, l0\n"
-"mov r44, l0\n"
 "mov r45, l0\n"
 "mov r46, l0\n"
 "mov r47, l0\n"
@@ -268,6 +271,7 @@ const char *caldgemm::ILKernelName =
 "mov r50, l0\n"
 "mov r51, l0\n"
 "mov r52, l0\n"
+#endif
 #endif
 
 #if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
@@ -320,6 +324,12 @@ MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r21.xy,
 MMUL441(r29, r30, r31, r32, r33, r34, r35, r36, r15.xy, r15.zw, r16.xy, r16.zw, r21.xy, r21.zw, r22.xy, r22.zw)
 MMUL441(r37, r38, r39, r40, r41, r42, r43, r44, r13.xy, r13.zw, r14.xy, r14.zw, r23.xy, r23.zw, r24.xy, r24.zw)
 MMUL441(r45, r46, r47, r48, r49, r50, r51, r52, r15.xy, r15.zw, r16.xy, r16.zw, r23.xy, r23.zw, r24.xy, r24.zw)
+
+#elif defined(CALDGEMM_84)
+SAMPLE_A(r13, r14, r0.yw)
+SAMPLE_B(r21, r22, r23, r24, r0.xw)
+MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r21.xy, r21.zw, r22.xy, r22.zw)
+MMUL441(r37, r38, r39, r40, r41, r42, r43, r44, r13.xy, r13.zw, r14.xy, r14.zw, r23.xy, r23.zw, r24.xy, r24.zw)
 
 #elif defined(CALDGEMM_44)
 #ifdef CALDGEMM_TRANSPOSED_A
@@ -407,10 +417,12 @@ MMUL_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, 
 
 #ifndef CALDGEMM_ALPHA1
 MUL8(r3, r4, r5, r6, r7, r8, r9, r10, cb0[1].zw)
+#ifdef CALDGEMM_84
+MUL8(r37, r38, r39, r40, r41, r42, r43, r44, cb0[1].zw)
 #ifdef CALDGEMM_88
 MUL8(r29, r30, r31, r32, r33, r34, r35, r36, cb0[1].zw)
-MUL8(r37, r38, r39, r40, r41, r42, r43, r44, cb0[1].zw)
 MUL8(r45, r46, r47, r48, r49, r50, r51, r52, cb0[1].zw)
+#endif
 #endif
 #endif
 
@@ -420,7 +432,7 @@ MUL8(r45, r46, r47, r48, r49, r50, r51, r52, cb0[1].zw)
 "imul r1.x, r1.x, cb0[2].z\n"
 "imad r0, r1.yyyy, cb0[2].yyyy, r1.xxxx\n"
 "iadd r1, r0, cb0[3]\n"
-#ifdef CALDGEMM_88
+#ifdef CALDGEMM_84
 "iadd r2, r1, cb0[4]\n"
 "mov g[r1.x], r3\n"
 "mov g[r1.y], r7\n"
@@ -440,6 +452,7 @@ MUL8(r45, r46, r47, r48, r49, r50, r51, r52, cb0[1].zw)
 "mov g[r2.y], r10\n"
 "mov g[r2.z], r40\n"
 "mov g[r2.w], r44\n"
+#ifdef CALDGEMM_88
 "iadd r1, r1, cb0[5]\n"
 "iadd r2, r2, cb0[5]\n"
 "mov g[r1.x], r29\n"
@@ -460,6 +473,7 @@ MUL8(r45, r46, r47, r48, r49, r50, r51, r52, cb0[1].zw)
 "mov g[r2.y], r36\n"
 "mov g[r2.z], r48\n"
 "mov g[r2.w], r52\n"
+#endif //CALDGEMM_88
 #else
 "iadd r2, r0, cb0[4]\n"
 "mov g[r1.x], r3\n"

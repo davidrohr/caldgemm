@@ -1,5 +1,93 @@
 /* ============================================================
 
+Copyright (c) 2007 Advanced Micro Devices, Inc.  All rights reserved.
+
+Redistribution and use of this material is permitted under the following
+conditions:
+
+Redistributions must retain the above copyright notice and all terms of this
+license.
+
+In no event shall anyone redistributing or accessing or using this material
+commence or participate in any arbitration or legal action relating to this
+material against Advanced Micro Devices, Inc. or any copyright holders or
+contributors. The foregoing shall survive any expiration or termination of
+this license or any agreement or access or use related to this material.
+
+ANY BREACH OF ANY TERM OF THIS LICENSE SHALL RESULT IN THE IMMEDIATE REVOCATION
+OF ALL RIGHTS TO REDISTRIBUTE, ACCESS OR USE THIS MATERIAL.
+
+THIS MATERIAL IS PROVIDED BY ADVANCED MICRO DEVICES, INC. AND ANY COPYRIGHT
+HOLDERS AND CONTRIBUTORS "AS IS" IN ITS CURRENT CONDITION AND WITHOUT ANY
+REPRESENTATIONS, GUARANTEE, OR WARRANTY OF ANY KIND OR IN ANY WAY RELATED TO
+SUPPORT, INDEMNITY, ERROR FREE OR UNINTERRUPTED OPERATION, OR THAT IT IS FREE
+FROM DEFECTS OR VIRUSES.  ALL OBLIGATIONS ARE HEREBY DISCLAIMED - WHETHER
+EXPRESS, IMPLIED, OR STATUTORY - INCLUDING, BUT NOT LIMITED TO, ANY IMPLIED
+WARRANTIES OF TITLE, MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+ACCURACY, COMPLETENESS, OPERABILITY, QUALITY OF SERVICE, OR NON-INFRINGEMENT.
+IN NO EVENT SHALL ADVANCED MICRO DEVICES, INC. OR ANY COPYRIGHT HOLDERS OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, PUNITIVE,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, REVENUE, DATA, OR PROFITS; OR
+BUSINESS INTERRUPTION) HOWEVER CAUSED OR BASED ON ANY THEORY OF LIABILITY
+ARISING IN ANY WAY RELATED TO THIS MATERIAL, EVEN IF ADVISED OF THE POSSIBILITY
+OF SUCH DAMAGE. THE ENTIRE AND AGGREGATE LIABILITY OF ADVANCED MICRO DEVICES,
+INC. AND ANY COPYRIGHT HOLDERS AND CONTRIBUTORS SHALL NOT EXCEED TEN DOLLARS
+(US $10.00). ANYONE REDISTRIBUTING OR ACCESSING OR USING THIS MATERIAL ACCEPTS
+THIS ALLOCATION OF RISK AND AGREES TO RELEASE ADVANCED MICRO DEVICES, INC. AND
+ANY COPYRIGHT HOLDERS AND CONTRIBUTORS FROM ANY AND ALL LIABILITIES,
+OBLIGATIONS, CLAIMS, OR DEMANDS IN EXCESS OF TEN DOLLARS (US $10.00). THE
+FOREGOING ARE ESSENTIAL TERMS OF THIS LICENSE AND, IF ANY OF THESE TERMS ARE
+CONSTRUED AS UNENFORCEABLE, FAIL IN ESSENTIAL PURPOSE, OR BECOME VOID OR
+DETRIMENTAL TO ADVANCED MICRO DEVICES, INC. OR ANY COPYRIGHT HOLDERS OR
+CONTRIBUTORS FOR ANY REASON, THEN ALL RIGHTS TO REDISTRIBUTE, ACCESS OR USE
+THIS MATERIAL SHALL TERMINATE IMMEDIATELY. MOREOVER, THE FOREGOING SHALL
+SURVIVE ANY EXPIRATION OR TERMINATION OF THIS LICENSE OR ANY AGREEMENT OR
+ACCESS OR USE RELATED TO THIS MATERIAL.
+
+NOTICE IS HEREBY PROVIDED, AND BY REDISTRIBUTING OR ACCESSING OR USING THIS
+MATERIAL SUCH NOTICE IS ACKNOWLEDGED, THAT THIS MATERIAL MAY BE SUBJECT TO
+RESTRICTIONS UNDER THE LAWS AND REGULATIONS OF THE UNITED STATES OR OTHER
+COUNTRIES, WHICH INCLUDE BUT ARE NOT LIMITED TO, U.S. EXPORT CONTROL LAWS SUCH
+AS THE EXPORT ADMINISTRATION REGULATIONS AND NATIONAL SECURITY CONTROLS AS
+DEFINED THEREUNDER, AS WELL AS STATE DEPARTMENT CONTROLS UNDER THE U.S.
+MUNITIONS LIST. THIS MATERIAL MAY NOT BE USED, RELEASED, TRANSFERRED, IMPORTED,
+EXPORTED AND/OR RE-EXPORTED IN ANY MANNER PROHIBITED UNDER ANY APPLICABLE LAWS,
+INCLUDING U.S. EXPORT CONTROL LAWS REGARDING SPECIFICALLY DESIGNATED PERSONS,
+COUNTRIES AND NATIONALS OF COUNTRIES SUBJECT TO NATIONAL SECURITY CONTROLS.
+MOREOVER, THE FOREGOING SHALL SURVIVE ANY EXPIRATION OR TERMINATION OF ANY
+LICENSE OR AGREEMENT OR ACCESS OR USE RELATED TO THIS MATERIAL.
+
+NOTICE REGARDING THE U.S. GOVERNMENT AND DOD AGENCIES: This material is
+provided with "RESTRICTED RIGHTS" and/or "LIMITED RIGHTS" as applicable to
+computer software and technical data, respectively. Use, duplication,
+distribution or disclosure by the U.S. Government and/or DOD agencies is
+subject to the full extent of restrictions in all applicable regulations,
+including those found at FAR52.227 and DFARS252.227 et seq. and any successor
+regulations thereof. Use of this material by the U.S. Government and/or DOD
+agencies is acknowledgment of the proprietary rights of any copyright holders
+and contributors, including those of Advanced Micro Devices, Inc., as well as
+the provisions of FAR52.227-14 through 23 regarding privately developed and/or
+commercial computer software.
+
+This license forms the entire agreement regarding the subject matter hereof and
+supersedes all proposals and prior discussions and writings between the parties
+with respect thereto. This license does not affect any ownership, rights, title,
+or interest in, or relating to, this material. No terms of this license can be
+modified or waived, and no breach of this license can be excused, unless done
+so in a writing signed by all affected parties. Each term of this license is
+separately enforceable. If any term of this license is determined to be or
+becomes unenforceable or illegal, such term shall be reformed to the minimum
+extent necessary in order for this license to remain in effect in accordance
+with its terms as modified by such reformation. This license shall be governed
+by and construed in accordance with the laws of the State of Texas without
+regard to rules on conflicts of law of any state or jurisdiction or the United
+Nations Convention on the International Sale of Goods. All disputes arising out
+of this license shall be subject to the jurisdiction of the federal and state
+courts in Austin, Texas, and all defenses are hereby waived concerning personal
+jurisdiction and venue of these courts.
+ 
+
 The source code is property of the Frankfurt Institute for Advanced Studies (FIAS).
 None of the material may be copied, reproduced, distributed, republished, downloaded,
 displayed, posted or transmitted in any form or by any means, including, but not
@@ -8,8 +96,8 @@ without the prior written permission of FIAS.
 
 Authors:
 David Rohr (drohr@jwdt.org)
-Mathias Bach (bach@compeng.uni-frankfurt.de)
-Mathias Kretz (kretz@compeng.uni-frankfurt.de)
+Matthias Bach (bach@compeng.uni-frankfurt.de)
+Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 
 ============================================================ */
 
@@ -222,7 +310,7 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
         }
         else if (i >= aStop && i < bStop)
         {
-#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
+#if defined(CALDGEMM_84) & defined(CALDGEMM_TRANSPOSED_A)
 	    tWidth = Info->Height / 8;
 	    tHeight = Info->Width;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
@@ -264,17 +352,9 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     }
 
     // Setup the constants for the kernel
+    data[bStop].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos
+    data[bStop].f_data[2] = (float) TILING_X / Info->Height;  //Scale factor for normalized x pos
 #ifdef CALDGEMM_44
-#ifdef CALDGEMM_88
-    data[bStop].f_data[0] = 8.f / Info->Height;  //Scale factor for normalized y pos
-    data[bStop].f_data[2] = 8.f / Info->Height;  //Scale factor for normalized x pos
-#else
-    data[bStop].f_data[0] = 4.f / Info->Height;  //Scale factor for normalized y pos
-    data[bStop].f_data[2] = 4.f / Info->Height;  //Scale factor for normalized x pos
-#ifdef CALDGEMM_DIAGONAL_TEXTURE
-    data[bStop].f_data[11] = 8.f / Info->Height;  //Offset for diagonal texture read
-#endif
-#endif
 #ifdef CALDGEMM_TRANSPOSED_A
     data[bStop].f_data[1] = 1.f / Info->Width;  //Step in K direction
     data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width);				//Iterations of loop in IL Kernel
@@ -283,9 +363,7 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / 2);			//Iterations of loop in IL Kernel, factor 2 for double2
 #endif
 #else //CALDGEMM_44
-    data[bStop].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos, factor cPartsNum for resources
     data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
-    data[bStop].f_data[2] = 2.f / Info->Height;  //Scale factor for normalized x pos, factor 2 for double2
     data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));	//Iterations of loop in IL Kernel
 #endif //CALDGEMM_44
     data[bStop].f_data[3] = 0.f;
@@ -293,10 +371,9 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     data[bStop].f_data[8] = 0.5f - 0.5f / (float) (TILING_Y / aPartsNum);
     
     //Constants for Memexport
-#ifdef CALDGEMM_88
     data[bStop].i_data[9] = TILING_Y * Info->Height / 2;		//2 for double2
-    data[bStop].i_data[10] = 4;						//x tiling in double2
-
+    data[bStop].i_data[10] = TILING_X / 2;				//x tiling in double2
+#if defined(CALDGEMM_84)
     data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;			//8 consecutive entries in x
     data[bStop].i_data[13] = 1 + 0 * Info->Height / 2;
     data[bStop].i_data[14] = 2 + 0 * Info->Height / 2;
@@ -312,8 +389,6 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     data[bStop].i_data[22] = 0 + 2 * Info->Height / 2;
     data[bStop].i_data[23] = 0 + 2 * Info->Height / 2;
 #elif defined(CALDGEMM_44)
-    data[bStop].i_data[9] = TILING_Y * Info->Height / 2;		//2 for double2
-    data[bStop].i_data[10] = 2;						//x tiling in double2
     data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;
     data[bStop].i_data[13] = 1 + 0 * Info->Height / 2;
     data[bStop].i_data[14] = 0 + 1 * Info->Height / 2;
@@ -323,9 +398,6 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     data[bStop].i_data[18] = 0 + 3 * Info->Height / 2;
     data[bStop].i_data[19] = 1 + 3 * Info->Height / 2;
 #else
-    data[bStop].i_data[9] = TILING_Y * Info->Height / 2;		//2 for double2
-    data[bStop].i_data[10] = 1;						//x tiling in double2
-
     data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;
     data[bStop].i_data[13] = 0 + 4 * Info->Height / 2;
     data[bStop].i_data[14] = 0 + 1 * Info->Height / 2;
@@ -335,6 +407,10 @@ CALint caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data,
     data[bStop].i_data[18] = 0 + 3 * Info->Height / 2;
     data[bStop].i_data[19] = 0 + 7 * Info->Height / 2;
 #endif
+#ifdef CALDGEMM_DIAGONAL_TEXTURE
+    data[bStop].f_data[11] = 8.f / Info->Height;  //Offset for diagonal texture read
+#endif
+
     //////////////////////////////////////////////////////////////////////////
     //
     //  setup the program's inputs and outputs
@@ -362,67 +438,6 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
 {
     if (transpose)
     {
-#if 0 && defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_DIAGONAL_TEXTURE)
-	for (CALint y = 0;y < width;y += 4)
-	{
-    	    double* saddr = src + (y * pitch);
-    	    double* saddr2 = src + ((y + 1) * pitch);
-    	    double* saddr3 = src + ((y + 2) * pitch);
-    	    double* saddr4 = src + ((y + 3) * pitch);
-
-	    double* daddr = dst[0].d_data + y / 2;
-	    double* daddr2 = dst[1].d_data + y / 2;
-	
-	    const int dpitchline = width / 2;
-	    const int dpitch = 2 * width; //in fact width / 2 * 4 (four lines of half length)
-	
-	    for (int i = 0;i < height;i += 4)
-	    {
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-		//Prefetching disabled as it currently has a negative performance impact
-    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-    		_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
-    		_mm_prefetch(saddr3 + 100, _MM_HINT_NTA);
-    		_mm_prefetch(saddr4 + 100, _MM_HINT_NTA);
-#endif
-	        __m128d x1, x2, x3, x4, x5, x6, x7, x8, x9, x10;
-	        x1 = _mm_load_pd(saddr);
-		x3 = _mm_load_pd(saddr + 2);
-		x2 = _mm_load_pd(saddr2);
-		x4 = _mm_load_pd(saddr2 + 2);
-		x5 = _mm_load_pd(saddr3);
-		x7 = _mm_load_pd(saddr3 + 2);
-		x6 = _mm_load_pd(saddr4);
-		x8 = _mm_load_pd(saddr4 + 2);
-		
-		x9 = _mm_unpacklo_pd(x1, x2);
-		x10 = _mm_unpackhi_pd(x1, x2);
-		x1 = _mm_unpacklo_pd(x3, x4);
-		x2 = _mm_unpackhi_pd(x3, x4);
-		x3 = _mm_unpacklo_pd(x5, x6);
-		x4 = _mm_unpackhi_pd(x5, x6);
-		x5 = _mm_unpacklo_pd(x7, x8);
-		x6 = _mm_unpackhi_pd(x7, x8);
-		
-		_mm_store_pd_use(daddr, x9);
-		_mm_store_pd_use(daddr + dpitchline, x10);
-		_mm_store_pd_use(daddr2, x3);
-		_mm_store_pd_use(daddr2 + dpitchline, x4);
-		_mm_store_pd_use(daddr + dpitchline * 2, x1);
-		_mm_store_pd_use(daddr + dpitchline * 3, x2);
-		_mm_store_pd_use(daddr2 + dpitchline * 2, x5);
-		_mm_store_pd_use(daddr2 + dpitchline * 3, x6);
-		
-		saddr += 4;
-		saddr2 += 4;
-		saddr3 += 4;
-		saddr4 += 4;
-		
-		daddr += dpitch;
-		daddr2 += dpitch;
-	    }
-	}
-#else
 #if !defined(CALDGEMM_44) | !defined(CALDGEMM_TRANSPOSED_A)
 	if (numBuffers <= 4)
 	{
@@ -498,20 +513,18 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
         
     	    for (int i = 0;i < height;i += 2)
     	    {
-#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
-    		CALint bank = (y / 2) % 4;
-    		double* daddr = dst[bank].d_data + (i * width / 4 + ((y / 4) & 0xFFFFFFFE));
-    		double* daddr2 = dst[bank].d_data + ((i + 1) * width / 4 + ((y / 4) & 0xFFFFFFFE));
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-    		CALint bank = (y / 2) % 2;
+#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+		//Col Interleaved Storage, Numbuffers is either 2 or 4, might be optimized in 2 branches
+    		CALint bank = (y / 2) % numBuffers;
 #ifdef CALDGEMM_DIAGONAL_TEXTURE
     		double* daddr = dst[bank].d_data + i * width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (width / 2);
     		double* daddr2 = dst[bank].d_data + (i + 1) * width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (width / 2);
 #else
-    		double* daddr = dst[bank].d_data + (i * width / 2 + ((y / 2) & 0xFFFFFFFE));
-    		double* daddr2 = dst[bank].d_data + ((i + 1) * width / 2 + ((y / 2) & 0xFFFFFFFE));
+    		double* daddr = dst[bank].d_data + (i * width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
+    		double* daddr2 = dst[bank].d_data + ((i + 1) * width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
 #endif
 #else
+		//Standard Storage
     		CALint bank = (i) % numBuffers;
     		CALint bank2 = (i + 1) % numBuffers;
     		double* daddr = dst[bank].d_data + (i / numBuffers) * width + y;
@@ -533,72 +546,77 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
     		saddr2 += 2;
     	    }
     	}
-#endif
     }
     else
     {
-#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
-	double* daddr = dst[0].d_data;
-	double* daddr2 = dst[1].d_data;
-	double* daddr3 = dst[2].d_data;
-	double* daddr4 = dst[3].d_data;
-	for (CALint y=0; y < height; y++)
+#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+	//Col Interleaved Storage for transposed a with 4x4, 8x4 and 8x8 tiling
+	if (numBuffers == 4)
 	{
-	    int count = dst[0].DataSize * width;
-	    double* saddr = src + (y * pitch);
-        
-	    for (int i = 0;i < count;i += 256)
+	    double* daddr = dst[0].d_data;
+	    double* daddr2 = dst[1].d_data;
+	    double* daddr3 = dst[2].d_data;
+	    double* daddr4 = dst[3].d_data;
+	    for (CALint y=0; y < height; y++)
 	    {
+		int count = dst[0].DataSize * width;
+	        double* saddr = src + (y * pitch);
+        
+	        for (int i = 0;i < count;i += 256)
+		{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		_mm_prefetch(saddr + 25, _MM_HINT_NTA);
+    		    _mm_prefetch(saddr + 25, _MM_HINT_NTA);
 #endif
-    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    		_mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
-    		_mm_store_pd_use(daddr3, _mm_load_pd(saddr + 4));
-    		_mm_store_pd_use(daddr4, _mm_load_pd(saddr + 6));
-    		_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 8));
-    		_mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 10));
-    		_mm_store_pd_use(daddr3 + 2, _mm_load_pd(saddr + 12));
-    		_mm_store_pd_use(daddr4 + 2, _mm_load_pd(saddr + 14));
-    		_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 16));
-    		_mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 18));
-    		_mm_store_pd_use(daddr3 + 4, _mm_load_pd(saddr + 20));
-    		_mm_store_pd_use(daddr4 + 4, _mm_load_pd(saddr + 22));
-    		_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 24));
-    		_mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 26));
-    		_mm_store_pd_use(daddr3 + 6, _mm_load_pd(saddr + 28));
-    		_mm_store_pd_use(daddr4 + 6, _mm_load_pd(saddr + 30));
-    		saddr += 32;
-    		daddr += 8;
-    		daddr2+= 8;
-    		daddr3 += 8;
-    		daddr4 += 8;
+    		    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    		    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
+    		    _mm_store_pd_use(daddr3, _mm_load_pd(saddr + 4));
+    		    _mm_store_pd_use(daddr4, _mm_load_pd(saddr + 6));
+    		    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 8));
+    		    _mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 10));
+    		    _mm_store_pd_use(daddr3 + 2, _mm_load_pd(saddr + 12));
+    		    _mm_store_pd_use(daddr4 + 2, _mm_load_pd(saddr + 14));
+    		    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 16));
+    		    _mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 18));
+    		    _mm_store_pd_use(daddr3 + 4, _mm_load_pd(saddr + 20));
+    		    _mm_store_pd_use(daddr4 + 4, _mm_load_pd(saddr + 22));
+    		    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 24));
+    		    _mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 26));
+    		    _mm_store_pd_use(daddr3 + 6, _mm_load_pd(saddr + 28));
+    		    _mm_store_pd_use(daddr4 + 6, _mm_load_pd(saddr + 30));
+    		    saddr += 32;
+    		    daddr += 8;
+    		    daddr2+= 8;
+    		    daddr3 += 8;
+    		    daddr4 += 8;
+    		}
     	    }
         }
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-	double* daddr = dst[0].d_data;
-	double* daddr2 = dst[1].d_data;
-	for (CALint y=0; y < height; y++)
-	{
-	    int count = dst[0].DataSize * width;
-    	    double* saddr = src + (y * pitch);
+        else
+        {
+	    double* daddr = dst[0].d_data;
+	    double* daddr2 = dst[1].d_data;
+	    for (CALint y=0; y < height; y++)
+	    {
+		int count = dst[0].DataSize * width;
+    	        double* saddr = src + (y * pitch);
         
-    	    for (int i = 0;i < count;i += 128)
-    	    {
+    		for (int i = 0;i < count;i += 128)
+    	        {
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
 #endif
-    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    		_mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
-    		_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 4));
-    		_mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 6));
-    		_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 8));
-    		_mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 10));
-    		_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 12));
-    		_mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 14));
-    		saddr += 16;
-    		daddr += 8;
-    		daddr2+= 8;
+    		    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    		    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
+    		    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 4));
+    		    _mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 6));
+    		    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 8));
+    		    _mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 10));
+    		    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 12));
+    		    _mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 14));
+    		    saddr += 16;
+    		    daddr += 8;
+    		    daddr2+= 8;
+    		}
     	    }
         }
 #else

@@ -8,13 +8,14 @@ without the prior written permission of FIAS.
 
 Authors:
 David Rohr (drohr@jwdt.org)
-Mathias Bach (bach@compeng.uni-frankfurt.de)
-Mathias Kretz (kretz@compeng.uni-frankfurt.de)
+Matthias Bach (bach@compeng.uni-frankfurt.de)
+Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 
 ============================================================ */
 
 #define CALDGEMM_TRANSPOSED_A
 //#define CALDGEMM_88
+//#define CALDGEMM_84
 #define CALDGEMM_44
 //#define CALDGEMM_TRANSPOSED_B
 //#define CALDGEMM_USE_MEMEXPORT
