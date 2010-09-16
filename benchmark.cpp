@@ -86,7 +86,6 @@ Nations Convention on the International Sale of Goods. All disputes arising out
 of this license shall be subject to the jurisdiction of the federal and state
 courts in Austin, Texas, and all defenses are hereby waived concerning personal
 jurisdiction and venue of these courts.
- 
 
 All modifications to the original source code are property of the Frankfurt Institute for Advanced Studies (FIAS).
 None of the material may be copied, reproduced, distributed, republished, downloaded,
@@ -114,6 +113,8 @@ bool transb = false;
 bool initialrun = true;
 bool verifylarge = false;
 bool quietbench = false;
+bool alphaone = false;
+
 char* matrixfile;
 
 long seedused;
@@ -148,6 +149,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-u        Dump Test Matrix\n" );
     fprintf(stderr, "\t-1        Transpose A Matrix\n" );
     fprintf(stderr, "\t-2        Transpose B Matrix\n" );
+    fprintf(stderr, "\t-3        Set alpha parameter to 1.0 to test optimized kernel\n" );
     fprintf(stderr, "\t-5        Quiet Benchmark mode (different from quiet caldgemm mode)\n" );
     fprintf(stderr, "\t-6  <int> Set m/n to value * height\n" );
     fprintf(stderr, "\t-4  <int> Set m/n to the closest multiple of height to value\n" );
@@ -241,6 +243,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case '5':
 		quietbench = true;
+                break;
+            case '3':
+		alphaone = true;
                 break;
             case 'i':
                 Info->PrintILKernel = CAL_TRUE;
@@ -557,7 +562,7 @@ int main(CALint argc, CALchar** argv)
 #ifdef TESTMODE
 	    if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #else
-	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #endif
 	    {
 		printf("Error running CALDGEMM\n");
