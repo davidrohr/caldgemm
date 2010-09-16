@@ -88,7 +88,7 @@ courts in Austin, Texas, and all defenses are hereby waived concerning personal
 jurisdiction and venue of these courts.
  
 
-The source code is property of the Frankfurt Institute for Advanced Studies (FIAS).
+All modifications to the original source code are property of the Frankfurt Institute for Advanced Studies (FIAS).
 None of the material may be copied, reproduced, distributed, republished, downloaded,
 displayed, posted or transmitted in any form or by any means, including, but not
 limited to, electronic, mechanical, photocopying, recording, or otherwise,
@@ -120,10 +120,7 @@ long seedused;
 
 CALvoid Usage(const CALchar* name)
 {
-    fprintf(stderr,"Usage: %s [-h|-e|-v|-p|-t|-a]"
-            " [-oc <1|2|4>] [-ic <1|2|4>] [-ol <c|g>] [-il <c|g>]"
-            " [-w <integer>] [-h <integer>] [-d <deviceNum>]"
-            " [-r <Iteration Count>]\n\n", name);
+    fprintf(stderr,"Usage: %s", name);
     fprintf(stderr, "\t-?        Display this help information\n" );
     fprintf(stderr, "\t-e        Verify Computational Correctness\n" );
     fprintf(stderr, "\t-q        Supress Display Output\n" );
@@ -195,7 +192,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
         switch(argv[x][1])
         {
             default:
-				Usage(argv[0]);
+		Usage(argv[0]);
                 return CAL_FALSE;
             case 'q':
                 Info->Quiet = CAL_TRUE;
