@@ -42,6 +42,10 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 #undef CALDGEMM_DIAGONAL_TEXTURE
 #endif
 
+#if defined(CALDGEMM_DUAL_ENTRY) & (!defined(CALDGEMM_44) | defined(CALDGEMM_84) | !defined(CALDGEMM_TRANSPOSED_A))
+#undef CALDGEMM_DUAL_ENTRY
+#endif
+
 #if defined(CALDGEMM_88) | !defined(CALDGEMM_44)
 #define TILING_Y 8
 #else
