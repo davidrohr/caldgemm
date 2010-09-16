@@ -20,5 +20,6 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 //#define CALDGEMM_TRANSPOSED_B
 //#define CALDGEMM_USE_MEMEXPORT
 //#define CALDGEMM_DIAGONAL_TEXTURE
+#define CALDGEMM_DUAL_ENTRY
 //#define TESTMODE
 

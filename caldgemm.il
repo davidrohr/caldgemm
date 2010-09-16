@@ -235,7 +235,7 @@ const char *calutil::ILKernelName =
 #endif
 #endif
 "dcl_literal l0, 0x00000000, 0x00000000, 0x00000000, 0x00000000\n"
-"dcl_literal l1, 0.0, 1.0, -0.5, 0.0\n"
+"dcl_literal l1, 0.0, 1.0, -0.5, 2.0\n"
 "mov r3, l0\n"
 "mov r4, l0\n"
 "mov r5, l0\n"
@@ -297,14 +297,19 @@ const char *calutil::ILKernelName =
 #ifndef CALDGEMM_44
 "    ge r0.y, r11.x, cb0[1].x\n"				//cmp with width
 #elif defined(CALDGEMM_TRANSPOSED_A)
+#ifdef CALDGEMM_DUAL_ENTRY
+"    add r0.z, r0.w, l1.y\n"
+"    add r0.w, r0.w, l1.w\n"
+#else
 "    add r0.w, r0.w, l1.y\n"
-"    ge r0.z, r0.w, cb0[1].x\n"				//cmp with width
+#endif
+"    ge r13.z, r0.w, cb0[1].x\n"				//cmp with width
 #else
 "    ge r0.y, r0.w, cb0[1].1\n"				//cmp with width
 #endif
 
 #if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-"    break_logicalnz r0.z\n"
+"    break_logicalnz r13.z\n"
 #else
 "    break_logicalnz r0.y\n"
 #endif
@@ -333,6 +338,11 @@ MMUL441(r37, r38, r39, r40, r41, r42, r43, r44, r13.xy, r13.zw, r14.xy, r14.zw, 
 
 #elif defined(CALDGEMM_44)
 #ifdef CALDGEMM_TRANSPOSED_A
+#ifdef CALDGEMM_DUAL_ENTRY
+SAMPLE_A(r13, r14, r0.yz)
+SAMPLE_B(r15, r16, r0.xz)
+MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, r15.zw, r16.xy, r16.zw)
+#endif
 SAMPLE_A(r13, r14, r0.yw)
 SAMPLE_B(r15, r16, r0.xw)
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, r15.zw, r16.xy, r16.zw)
@@ -415,7 +425,7 @@ MMUL_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, 
 "dcl_output_generic o7\n"
 #endif
 
-#ifndef CALDGEMM_ALPHA1
+#if !defined(CALDGEMM_ALPHA1) | (defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)) //For some reason the multiplication makes the compiler create a faster kernel
 MUL8(r3, r4, r5, r6, r7, r8, r9, r10, cb0[1].zw)
 #ifdef CALDGEMM_84
 MUL8(r37, r38, r39, r40, r41, r42, r43, r44, cb0[1].zw)
