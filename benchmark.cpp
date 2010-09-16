@@ -523,18 +523,30 @@ int main(CALint argc, CALchar** argv)
     }
     else
     {
-	if (!quietbench) printf("Initializing Data... ");
+	if (!quietbench)
+	{
+	    fprintf(stdout, "Initializing Data... ");
+	    fflush(stdout);
+	}
 	if (SetupUserData(Info))
 	{
 	    return(1);
 	}
-	if (!quietbench) printf("Done\n");
+	if (!quietbench)
+	{
+	    fprintf(stdout, "Done\n");
+	    fflush(stdout);
+	}
 	
 	//Initial run to negate cache effects
 #ifndef TESTMODE
         if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE && initialrun)
         {
-    	    if (!quietbench) printf("Doing initial run... ");
+    	    if (!quietbench)
+    	    {
+    		fprintf(stdout, "Doing initial run... ");
+    		fflush(stdout);
+    	    }
 	    CALboolean tmpquiet = Info.Quiet;
     	    CALuint tmpiter = Info.Iterations;
     	    CALuint tmpm = Info.m, tmpn = Info.n;
@@ -551,12 +563,20 @@ int main(CALint argc, CALchar** argv)
 	    Info.n = tmpn;
 	    Info.Quiet = tmpquiet;
 	    Info.Iterations = tmpiter;
-	    if (!quietbench) printf("Done\n");
+	    if (!quietbench)
+	    {
+		fprintf(stdout, "Done\n");
+		fflush(stdout);
+	    }
 	}
 #endif
 	dgemm.ResetTimers();
     
-	if (!quietbench) printf("Running Benchmark\n");
+	if (!quietbench)
+	{
+	    fprintf(stdout, "Running Benchmark\n");
+	    fflush(stdout);
+	}
 	do
         {
 #ifdef TESTMODE
