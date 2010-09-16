@@ -134,7 +134,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
         }
 	if (Info->VerboseTiming)
 	{
-	    CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble)Info->Iterations / Timers.Kernel.GetElapsedTime();
+	    CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width) * (CALdouble)Info->Iterations / Timers.Kernel.GetElapsedTime();
 	    CALdouble copyto = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterCopyTo.GetElapsedTime();
     	    CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterCopyFrom.GetElapsedTime()) : 0;
     	    CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterMerge.GetElapsedTime());
