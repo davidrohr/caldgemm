@@ -208,7 +208,7 @@ MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1_12.xy, a2_12.xy, a1_12.zw, a2_12.zw, a
 
 #endif //CALDGEMM_44
 
-#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#if defined(CALDGEMM_44)
 #define UNNORM_TYPE ",unnorm"
 #else
 #define UNNORM_TYPE
@@ -274,7 +274,7 @@ const char *calutil::ILKernelName =
 #endif
 #endif
 
-#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#if defined(CALDGEMM_44)
 "mov r0.xy__, vWinCoord0.xy00\n"
 "mov r0.w, l1.z\n"
 #else
@@ -296,7 +296,7 @@ const char *calutil::ILKernelName =
 "whileloop\n"
 #ifndef CALDGEMM_44
 "    ge r0.y, r11.x, cb0[1].x\n"				//cmp with width
-#elif defined(CALDGEMM_TRANSPOSED_A)
+#else
 #ifdef CALDGEMM_DUAL_ENTRY
 "    add r0.z, r0.w, l1.y\n"
 "    add r0.w, r0.w, l1.w\n"
@@ -304,11 +304,9 @@ const char *calutil::ILKernelName =
 "    add r0.w, r0.w, l1.y\n"
 #endif
 "    ge r13.z, r0.w, cb0[1].x\n"				//cmp with width
-#else
-"    ge r0.y, r0.w, cb0[1].1\n"				//cmp with width
 #endif
 
-#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#if defined(CALDGEMM_44)
 "    break_logicalnz r13.z\n"
 #else
 "    break_logicalnz r0.y\n"
@@ -347,7 +345,7 @@ SAMPLE_A(r13, r14, r0.yw)
 SAMPLE_B(r15, r16, r0.xw)
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, r15.zw, r16.xy, r16.zw)
 #else
-SAMPLE_A(r13, r14, r15, r16, r0.wz)
+SAMPLE_A(r13, r14, r15, r16, r0.wy)
 SAMPLE_B(r21, r22, r23, r24, r0.wx)
 MMUL44(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, r15.zw, r16.xy, r16.zw, r21.xy, r21.zw, r22.xy, r22.zw, r23.xy, r23.zw, r24.xy, r24.zw)
 #endif
@@ -399,9 +397,6 @@ MMUL_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, 
 #endif //CALDGEMM_44
 
 #ifdef CALDGEMM_44
-#ifndef CALDGEMM_TRANSPOSED_A
-"    add r0.w, r0.w, cb0[0].y\n"
-#endif
 #ifdef CALDGEMM_DIAGONAL_TEXTURE
 "    add r0.x, r0.x, cb0[2].w\n"
 "    add r0.z, r0.z, cb0[2].w\n"
