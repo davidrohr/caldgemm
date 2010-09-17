@@ -333,7 +333,7 @@ protected:
     {
         caldgemm* cls;
         size_t cblas_size;
-        size_t dynamic_run;     //Do an extra dynic cblas run?, works also as m for the dynamic run, set negative value to omit doing the border run
+        size_t dynamic_run;     //Do an extra dynamic cblas run?, works also as m for the dynamic run
 	size_t dynamic_size;    //n for dynamic run
         CALboolean borders_done;
         CALboolean terminate;
