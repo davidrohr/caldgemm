@@ -1,3 +1,14 @@
+# The source code is property of the Frankfurt Institute for Advanced Studies (FIAS).
+# None of the material may be copied, reproduced, distributed, republished, downloaded,
+# displayed, posted or transmitted in any form or by any means, including, but not
+# limited to, electronic, mechanical, photocopying, recording, or otherwise,
+# without the prior written permission of FIAS.
+# 
+# Authors:
+# David Rohr (drohr@jwdt.org)
+# Matthias Bach (bach@compeng.uni-frankfurt.de)
+# Matthias Kretz (kretz@compeng.uni-frankfurt.de)
+
 CXX		= g++
 CXXOPTS		= -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope -O3 -march=barcelona -ftree-vectorize -msse3 -fkeep-inline-functions -fweb -frename-registers -minline-all-stringops -funit-at-a-time -mfpmath=sse -ftracer -finline-limit=1200 -fpeel-loops
 LIBS		= -lpthread -ldl -L/usr/X11R6/lib -laticalrt -laticalcl -lgfortran ../GotoBLAS2/libgoto2.a
