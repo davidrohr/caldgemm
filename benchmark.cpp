@@ -171,11 +171,11 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->Disassemble = CAL_FALSE;
     Info->PrintILKernel = CAL_FALSE;
     Info->Quiet = CAL_FALSE;
-    Info->Pin = -3;
+    //Info->Pin = -3;
     Info->MultiThread = CAL_FALSE;
-    Info->DeviceNum = 0;
-    Info->Width = 1024;
-    Info->Height = 4096;
+    //Info->DeviceNum = 0;
+    //Info->Width = 1024;
+    //Info->Height = 4096;
     Info->AutoHeight = CAL_FALSE;
     Info->DynamicSched = CAL_FALSE;
     Info->VerboseTiming = CAL_FALSE;
@@ -183,9 +183,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->Debug = CAL_FALSE;
     Info->m = Info->n = 4096;
     Info->Iterations = 1;
-    Info->DstMemory = 'g';
+    //Info->DstMemory = 'g';
     Info->UseCPU = Info->UseGPU = CAL_FALSE;
-    Info->GPURatio = -1;
+    //Info->GPURatio = -1;
     Info->DumpMatrix = CAL_FALSE;
 
 
