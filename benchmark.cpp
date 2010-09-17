@@ -385,6 +385,21 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     return CAL_TRUE;
 }
 
+void SetupUserDataC(caldgemm::SampleInfo &Info)
+{
+    if (fastinit)
+	memset(CC, 0, (size_t) Info.m * (size_t) Info.n * sizeof(double));
+    else
+	for (long long int i = 0;i < (long long int) Info.m * (long long int) Info.n;i++)
+        {
+#ifdef TESTMODE
+	    CC[i] = 0;
+#else
+	    CC[i] = (CALdouble) (i % 16);
+#endif
+	}
+}
+
 int SetupUserData(caldgemm::SampleInfo &Info)
 {
     timespec randtime;
@@ -412,19 +427,9 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     {
 	memset(AA, 0, (size_t) Info.m * (size_t) Info.Width * sizeof(double));
 	memset(BB, 0, (size_t) Info.Width * (size_t) Info.n * sizeof(double));
-	memset(CC, 0, (size_t) Info.m * (size_t) Info.n * sizeof(double));
     }
     else
     {
-	for (long long int i = 0;i < (long long int) Info.m * (long long int) Info.n;i++)
-        {
-#ifdef TESTMODE
-	    CC[i] = 0;
-#else
-	    CC[i] = (CALdouble) (i % 16);
-#endif
-	}
-    
 	for (CALuint y = 0; y < Info.Width; y++)
         {
     	    for (CALuint x = 0; x < Info.m; x++)
@@ -554,7 +559,7 @@ int main(CALint argc, CALchar** argv)
     	    Info.Iterations = 2;
     	    if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
     	    if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
-    	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.0, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+    	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
     	    {
 	        printf("Error running CALDGEMM\n");
 		return(1);
@@ -570,6 +575,12 @@ int main(CALint argc, CALchar** argv)
 	    }
 	}
 #endif
+    	if (!quietbench)
+    	{
+    	    fprintf(stdout, "Initializing Matrix C\n");
+    	    fflush(stdout);
+    	}
+	SetupUserDataC(Info);
 	dgemm.ResetTimers();
     
 	if (!quietbench)
