@@ -44,7 +44,7 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 
 calutil::SampleInfo::SampleInfo()
 {
-    Pin = -3;
+    Pin = -4;
     Verify = CAL_FALSE;
     Disassemble = CAL_FALSE;
     PrintILKernel = CAL_FALSE;
@@ -828,8 +828,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 20000000) GPURatio = 0.55;
 	else GPURatio = 0.5;*/
 	//Optimal ratio found using combined runs
-	if ((long long int) Info->m * (long long int) Info->n > (long long int) 3000000000) GPURatio = 0.69;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 2000000000) GPURatio = 0.66;
+	if ((long long int) Info->m * (long long int) Info->n > (long long int) 4000000000) GPURatio = 0.75;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 3000000000) GPURatio = 0.73;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 2000000000) GPURatio = 0.70;
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 1000000000) GPURatio = 0.65;
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 350000000) GPURatio = 0.64;
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 200000000) GPURatio = 0.63;
