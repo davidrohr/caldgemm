@@ -65,6 +65,7 @@ calutil::SampleInfo::SampleInfo()
     DynamicSched = CAL_TRUE;
     MemPolicy = CAL_TRUE;
     DumpMatrix = CAL_FALSE;
+    DivideToGPU = CAL_FALSE;
     m = 0;
     n = 0;
 }

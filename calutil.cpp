@@ -268,7 +268,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
             fprintf(stderr, "Error: Path that should be unreachable is reached\n");
             return 0;
         }
-        AllocateMemory(data[i], device, ctx, tWidth, tHeight, mComponents, sizeof(CALdouble), flag, i);
+        if (AllocateMemory(data[i], device, ctx, tWidth, tHeight, mComponents, sizeof(CALdouble), flag, i)) return(1);
     }
 
     // Setup the constants for the kernel
@@ -1004,27 +1004,27 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
     data.ComponentSize = CompSize;
     if (tHeight > 1)
     {
-		data.CALMemory = CAL_TRUE;
-		if (Info->DstMemory == 'g' || i < aPartsNum + bPartsNum)
+	data.CALMemory = CAL_TRUE;
+	if (Info->DstMemory == 'g' || i < aPartsNum + bPartsNum)
+	{
+		CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocating of remote memory");
+		CHKERR(calCtxGetMem(&data.mem, *ctx, data.res), "getting remote memory for context");
+		CHKERR(calResMap(&data.v_data, &data.pitch, data.res, NULL), "mapping of remote memory");
+		if (((size_t) data.v_data) & (vcpysize - 1))
 		{
-			CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocating of remote memory");
-			CHKERR(calCtxGetMem(&data.mem, *ctx, data.res), "getting remote memory for context");
-			CHKERR(calResMap(&data.v_data, &data.pitch, data.res, NULL), "mapping of remote memory");
-			if (((size_t) data.v_data) & (vcpysize - 1))
-			{
-				printf("Memory not aligned correctly\n");
-				return(1);
-			}
+			printf("Memory not aligned correctly\n");
+			return(1);
 		}
+	}
     }
     else
     {
-		data.c_data = new CALchar[tWidth * DataSize * CompSize * tHeight];
-		data.CALMemory = CAL_FALSE;
+	data.c_data = new CALchar[tWidth * DataSize * CompSize * tHeight];
+	data.CALMemory = CAL_FALSE;
     }
-    if (data.CALMemory != CAL_TRUE || Info->DstMemory == 'g' || i <= aPartsNum)
+    if (Info->Debug && (data.CALMemory != CAL_TRUE || Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum))
     {
-		memset((void*)data.c_data, 0, tWidth * DataSize * CompSize * tHeight);
+	memset((void*)data.c_data, 0, tWidth * DataSize * CompSize * tHeight);
     }
     return(0);
 }

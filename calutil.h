@@ -191,6 +191,7 @@ class calutil
 	CALboolean DynamicSched;
 	CALboolean MemPolicy;
 	CALboolean DumpMatrix;
+	CALboolean DivideToGPU;
 	size_t     m, n;		//height of A, width of B, must be multiple of height
     };
 
