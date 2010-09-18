@@ -93,8 +93,19 @@ void calutil::print_submatrices(double* M, size_t width, size_t height, size_t p
 #define _mm_store_pd_use _mm_stream_pd
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH
 
-CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose)
+int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose)
 {
+    if (Info->DivideToGPU)
+    for (CALuint i = 0;i < numBuffers;i++)
+    {
+        CHKERR(calResMap(&dst[i].v_data, &dst[i].pitch, dst[i].res, 0), "mapping input buffer for buffer division");
+	if (((size_t) dst[i].v_data) & (vcpysize - 1))
+	{
+	    printf("Invalid alignment\n");
+	    return(1);
+	}
+    }
+    
     if (transpose)
     {
 #if !defined(CALDGEMM_44) | !defined(CALDGEMM_TRANSPOSED_A)
@@ -307,6 +318,13 @@ CALvoid caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint h
 	delete[] position;
 #endif
     }
+
+    if (Info->DivideToGPU)
+    for (CALuint i = 0;i < numBuffers;i++)
+    {
+        CHKERR(calResUnmap(dst[i].res), "unmapping input buffer for buffer division");
+    }
+    return(0);
 }
 
 int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers)
@@ -936,9 +954,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Info->VerboseTiming) Timers.CounterDivide.Start();
 		if (Info->Debug) printf("\tDividing Buffer A\n");
 #ifdef CALDGEMM_TRANSPOSED_A
-		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans);
+		if (blockm < ctxcount) if (divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
 #else
-		if (blockm < ctxcount) divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans);
+		if (blockm < ctxcount) if (divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
 #endif
 		if (Info->Debug) printf("\tDividing Buffer B\n");
 #ifdef CALDGEMM_TRANSPOSED_B
@@ -949,13 +967,16 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	        if (Info->VerboseTiming) Timers.CounterDivide.Stop();
 
 		if (Info->VerboseTiming) Timers.CounterCopyTo.Start();
-    	        if (blockm < ctxcount)
-	        {
-	    	    if (Info->Debug) printf("\tCopying part of A to GPU\n");
-    	    	    if (CopyDataToGPU(&ctxs[j], resourceHandlers[j], datas[j], aPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+		if (Info->DivideToGPU == CAL_FALSE)
+		{
+    	    	    if (blockm < ctxcount)
+	    	    {
+	    		if (Info->Debug) printf("\tCopying part of A to GPU\n");
+    	    		if (CopyDataToGPU(&ctxs[j], resourceHandlers[j], datas[j], aPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+    	    	    }
+    	    	    if (Info->Debug) printf("\tCopying part of B to GPU\n");
+    	    	    if (CopyDataToGPU(&ctxs[j], resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
     	    	}
-    	    	if (Info->Debug) printf("\tCopying part of B to GPU\n");
-    	        if (CopyDataToGPU(&ctxs[j], resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
     		if (Info->VerboseTiming) Timers.CounterCopyTo.Stop();
     	        calCtxFlush(ctxs[j]);
     	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);

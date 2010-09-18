@@ -51,7 +51,7 @@ class caldgemm : public calutil
 
     private:
     
-    CALvoid divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose);
+    int divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose);
     int mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers);
     
     struct mergeParameters
