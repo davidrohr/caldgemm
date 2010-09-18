@@ -735,6 +735,7 @@ CALint calutil::CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, Data* data, 
     CALuint pitch;
     CALresult r;
     CALchar* ptr;
+    WAITFOREVENT(*ctx, *event);
     for (CALuint i = 0; i < num; ++i)
     {
 	if (data[i].CALMemory)
@@ -817,7 +818,7 @@ CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CA
             return 1;
         }
     }
-    if (Info->VerboseTiming && constants == CAL_FALSE) WAITFOREVENT(*ctx, *event);
+    if (constants == CAL_FALSE) WAITFOREVENT(*ctx, *event);
     return 0;
 }
 
