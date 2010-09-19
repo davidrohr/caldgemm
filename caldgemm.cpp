@@ -833,13 +833,17 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->AutoHeight)
     {
-	if (Info->m < 2048 || Info->n < 2048 || Info->m * Info->n < 9 * 1024 * 1024)
+	if (Info->m < 2048 || Info->n < 2048 || Info->m * Info->n < 30 * 1024 * 1024)
         {
     	    Info->Height = 1024;
 	}
-        else if (Info->m < 4096 || Info->n < 4096 || Info->m * Info->n < 8 * 1024 * 1024)
+        else if (Info->m < 3072 || Info->n < 3072 || Info->m * Info->n < 100 * 1024 * 1024)
 	{
 	    Info->Height = 2048;
+	}
+        else if (Info->m < 4096 || Info->n < 4096 || Info->m * Info->n < 400 * 1024 * 1024)
+	{
+	    Info->Height = 3072;
 	}
 	else
 	{
@@ -923,7 +927,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     {
 	if (Info->m >= Info->n / 2)
 	{
-	    usem = (int) (GPURatio * (float) (Info->m) + (Info->Height - 1));
+	    usem = (int) (GPURatio * (float) ((Info->m) + ((Info->n - Info->n % Info->Height) * Info->m / Info->n)) + (2 * Info->Height / 3));
 	    if (usem > Info->m) usem = Info->m;
 	    usem -= usem % Info->Height;
 	    cParam.cblas_size = Info->m - usem;
@@ -933,7 +937,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
         else
         {
-	    usen = (int) (GPURatio * (float) (Info->n) + (Info->Height - 1));
+	    usen = (int) (GPURatio * (float) ((Info->n) + ((Info->m - Info->m % Info->Height) * Info->n / Info->m)) + (2 * Info->Height / 3));
 	    if (usen > Info->n) usen = Info->n;
 	    usen -= usen % Info->Height;
 	    cParam.cblas_size = Info->n - usen;
@@ -1010,9 +1014,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		    size_t newk = k + 1;
 		    if (cParam.dynamic_run)
 			if (Info->m >= Info->n / 2)
-			    while (newk / nb * Info->Height >= usem - cParam.dynamic_run && (newk % nb) * Info->Height >= usen - cParam.dynamic_size) newk++;
+			    while (newk < nb * mb && newk / nb * Info->Height >= usem - cParam.dynamic_run && (newk % nb) * Info->Height >= usen - cParam.dynamic_size) newk++;
 			else
-			    while ((newk % nb) * Info->Height >= usen - cParam.dynamic_run && newk / nb * Info->Height >= usem - cParam.dynamic_size) newk++;
+			    while (newk < nb * mb && (newk % nb) * Info->Height >= usen - cParam.dynamic_run && newk / nb * Info->Height >= usem - cParam.dynamic_size) newk++;
 		    if (newk < nb * mb) DGEMM_prepare(newk, (j + 1) % ctxcount, usem, usen);
 		}
 
@@ -1029,7 +1033,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     		{
     		    if (pthread_mutex_trylock(&cParam.cblasMutex[0]) == 0)
     		    {
-    			cParam.dynamic_size = (((int) ((1.0f - GPURatio) * (float) (nb * mb - k - 1)))) * Info->Height;
+    			cParam.dynamic_size = ((1.0f - 0.95f * GPURatio) * (float) (nb * mb - k - 1) + 0.5) * Info->Height;
+    			if (cParam.dynamic_size > (nb * mb - k - 1) * Info->Height) cParam.dynamic_size = (nb * mb - k - 1) * Info->Height;
     			if (cParam.dynamic_size > Info->Height)
     			{
     			    cParam.dynamic_run = 1 + cParam.dynamic_size / (Info->m >= Info->n / 2 ? Info->n : Info->m);
@@ -1132,10 +1137,10 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
 #else
 	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
 #endif
-	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
     }
     if (blockn == 0 || nb > bbuffers)
     {
+	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_B
 	divideBuffer(datas[nb > bbuffers ? j : blockm] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
 #else
