@@ -830,7 +830,7 @@ CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CA
 	printf("\t\tCopyToGPU: Time until command issued: %2.4lf\n", ATime.GetElapsedTime());
 	ATime.Start();
     }
-    if (Info->VerboseTiming) WAITFOREVENT(*ctx, *event);
+    if (Info->VerboseTiming && constants == CAL_FALSE) WAITFOREVENT(*ctx, *event);
 
     if (Info->AsyncTiming && constants == CAL_FALSE)
     {
