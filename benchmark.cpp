@@ -630,6 +630,7 @@ int main(CALint argc, CALchar** argv)
 	Info.Verify = CAL_FALSE;
 	Info.Quiet = CAL_TRUE;
 	dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : -0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
+	printf("CPU DGEMM Comparison run complete, comparing results\n");
 	int verifyok = 1;
 	for (long long int i = 0;i < (long long int) Info.m * (long long int) Info.n;i++)
         {

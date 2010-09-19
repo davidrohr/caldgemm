@@ -291,12 +291,12 @@ protected:
     CBLAS_TRANSPOSE TransposeB;
 
 #ifdef CALDGEMM_44
-#if defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_88)
+#if !defined(CALDGEMM_88)
     static const CALuint aPartsNum = 2;
 #else
     static const CALuint aPartsNum = 4;
 #endif
-#if defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_84)
+#if !defined(CALDGEMM_84)
     static const CALuint bPartsNum = 2;
 #else
     static const CALuint bPartsNum = 4;

@@ -98,6 +98,8 @@ void calutil::print_submatrices(double* M, size_t width, size_t height, size_t p
 
 int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose)
 {
+    if (Info->Debug) printf("\t\tw: %d, h: %d, pitch: %d\n", width, height, pitch);
+
     if (Info->DivideToGPU)
     for (CALuint i = 0;i < numBuffers;i++)
     {
@@ -222,7 +224,30 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     }
     else
     {
-#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
+	//Row / Col Interleaved Storage with 2 rows stored in one col
+	for (CALint y = 0;y < height / 2;y++)
+	{
+	    double* daddr = dst[y % 2].d_data + y / 2 * width * 2;
+	    double* saddr = src + 2 * y * pitch;
+	    double* saddr2 = src + (2 * y + 1) * pitch;
+	    for (int i = 0;i < width;i += 4)
+	    {
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+    		_mm_prefetch(saddr + 60, _MM_HINT_NTA);
+    		_mm_prefetch(saddr2 + 60, _MM_HINT_NTA);
+#endif
+    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+    		_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
+    		_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
+    		_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
+    		daddr += 8;
+    		saddr += 4;
+    		saddr2 += 4;
+	    }
+	}
+
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
 	//Col Interleaved Storage for transposed A with 4x4, 8x4 and 8x8 tiling
 	if (numBuffers == 4)
 	{

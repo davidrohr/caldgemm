@@ -218,6 +218,9 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
 	    tWidth = Info->Height / 4;
 	    tHeight = Info->Width;
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
+	    tHeight = Info->Height / 4;
+	    tWidth = Info->Width;
 #elif defined(CALDGEMM_TRANSPOSED_A)
             /* A matrix sizes are shrunk by 2 (double2) in the width and 8 (8 resources) in the height */
             tWidth = Info->Height / 2;
@@ -236,6 +239,9 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
 	    tWidth = Info->Height / 4;
 	    tHeight = Info->Width;
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
+	    tHeight = Info->Height / 4;
+	    tWidth = Info->Width;
 #elif defined (CALDGEMM_TRANSPOSED_B)
             /* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
             tWidth = Info->Width / 2;
@@ -275,13 +281,8 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     data[bStop].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos
     data[bStop].f_data[2] = (float) TILING_X / Info->Height;  //Scale factor for normalized x pos
 #ifdef CALDGEMM_44
-#ifdef CALDGEMM_TRANSPOSED_A
     data[bStop].f_data[1] = 1.f / Info->Width;  //Step in K direction
     data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width);				//Iterations of loop in IL Kernel
-#else
-    data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
-    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / 2);			//Iterations of loop in IL Kernel, factor 2 for double2
-#endif
 #else //CALDGEMM_44
     data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
     data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));	//Iterations of loop in IL Kernel
