@@ -656,7 +656,21 @@ void* merge_wrapper(void* arg)
 {
     caldgemm::mergeParameters* par = (caldgemm::mergeParameters*) arg;
     
-    if (par->cls->Info->Pin != -100) sched_setaffinity(0, sizeof(par->cls->gpumask), &par->cls->gpumask);
+    
+    if (par->cls->Info->Pin != -100)
+    {
+	if (-par->cls->Info->Pin == par->cls->ctxcount + 1)
+	{
+	    cpu_set_t merge_mask;
+	    CPU_ZERO(&merge_mask);
+	    CPU_SET(par->nContext + 1, &merge_mask);
+	    sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
+	}
+	else
+	{
+	    sched_setaffinity(0, sizeof(cpu_set_t), &par->cls->gpumask);
+	}
+    }
     
     pthread_mutex_lock(&par->mergeMutex[1]);
     while (pthread_mutex_lock(&par->mergeMutex[1]) == 0 && par->terminate == CAL_FALSE)
@@ -819,7 +833,20 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
     CPUOnlyRun = false;
     
-    if (Info->Pin != -100) sched_setaffinity(0, sizeof(gpumask), &gpumask);
+    if (Info->Pin != -100)
+    {
+	if (-Info->Pin == ctxcount + 1)
+	{
+	    cpu_set_t divide_mask;
+	    CPU_ZERO(&divide_mask);
+	    CPU_SET(0, &divide_mask);
+	    sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
+	}
+	else
+	{
+	    sched_setaffinity(0, sizeof(cpu_set_t), &gpumask);
+	}
+    }
     
     if (forceReinit)
     {
