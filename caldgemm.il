@@ -341,9 +341,9 @@ SAMPLE_A(r13, r14, r0.yz)
 SAMPLE_B(r15, r16, r0.xz)
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, r15.zw, r16.xy, r16.zw)
 #endif
-SAMPLE_A(r13, r14, r0.yw)
-SAMPLE_B(r15, r16, r0.xw)
-MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, r15.zw, r16.xy, r16.zw)
+SAMPLE_A(r17, r18, r0.yw)
+SAMPLE_B(r19, r20, r0.xw)
+MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r17.xy, r17.zw, r18.xy, r18.zw, r19.xy, r19.zw, r20.xy, r20.zw)
 #else
 SAMPLE_A(r13, r14, r15, r16, r0.wy)
 SAMPLE_B(r21, r22, r23, r24, r0.wx)

@@ -223,7 +223,7 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     else
     {
 #if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-	//Col Interleaved Storage for transposed a with 4x4, 8x4 and 8x8 tiling
+	//Col Interleaved Storage for transposed A with 4x4, 8x4 and 8x8 tiling
 	if (numBuffers == 4)
 	{
 	    double* daddr = dst[0].d_data;
