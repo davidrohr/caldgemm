@@ -41,6 +41,7 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
 #define WAITFOREVENT(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
+#define WAITFOREVENTR(ctx, event, retval) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(retval);} } while (r == CAL_RESULT_PENDING);}
 
 calutil::SampleInfo::SampleInfo()
 {
@@ -351,12 +352,14 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 #if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
 	CALint bank = y % 4;
 	double* saddr2 = src[bank + 4].d_data + position[bank];
+	double* paddr2 = src[(y + 1) % 4 + 4].d_data + position[(y + 1) % 4];
 #else
         CALint bank = y % numBuffers;
 #endif
 
         double* daddr = dst + (y * pitch);
         double* saddr = src[bank].d_data + position[bank];
+        double* paddr = src[(y + 1) % 4].d_data + position[(y + 1) % 4];
         int count = src[bank].DataSize * width;
         
 #if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
@@ -390,9 +393,10 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     	    for (int i = 0;i < count;i += 128)
     	    {
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		_mm_prefetch(saddr + 50, _MM_HINT_NTA);
-    		_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-    	        _m_prefetchw(daddr + 100);
+//    		_mm_prefetch(paddr, _MM_HINT_NTA);
+//    		_mm_prefetch(paddr2, _MM_HINT_NTA);
+//    	        _m_prefetchw(daddr + 256);
+//    	        _mm_prefetch(daddr + 128, _MM_HINT_T0);
 #endif
     		_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
     		_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
@@ -404,6 +408,8 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     	        _mm_store_pd_use(daddr + 14, _mm_add_pd(_mm_load_pd(saddr2 + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 14))));
     		saddr += 8;
     		saddr2 += 8;
+/*    		paddr += 8;
+    		paddr2 += 8;*/
     	        daddr += 16;
     	    }
     	}
@@ -655,7 +661,6 @@ void* cblas_wrapper(void* arg)
 void* merge_wrapper(void* arg)
 {
     caldgemm::mergeParameters* par = (caldgemm::mergeParameters*) arg;
-    
     
     if (par->cls->Info->Pin != -100)
     {
@@ -997,10 +1002,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	        WAITFOREVENT(ctxs[j], events[j]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
     		if (!RunProgram(&ctxs[j], &modules[j][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
-    	        if (Info->VerboseTiming) Timers.CounterCopyFrom.Start();
-    	        if (Info->DstMemory == 'g' && Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
-    		if (CopyDataFromGPU(&ctxs[j], resourceHandlers[j] + numInputs + numConstantBuffers, datas[j] + numInputs + numConstantBuffers, numOutputs, &events[j])) {printf("Error copying from GPU\n"); return(1);}
-    	        if (Info->VerboseTiming) Timers.CounterCopyFrom.Stop();
     		calCtxFlush(ctxs[j]);
     		
     		if (Info->UseCPU && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * GPURatio * nb * mb)
@@ -1034,6 +1035,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	    if ((ctxcount > 1) ? (k > 0) : (k < nb * mb))
     	    {
     		WAITFOREVENT(ctxs[oldj], events[oldj]);
+    		if (Info->DstMemory == 'g')
+    		{
+    	    	    if (Info->VerboseTiming) Timers.CounterCopyFrom.Start();
+    	    	    if (Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
+    		    if (CopyDataFromGPU(&ctxs[oldj], resourceHandlers[oldj] + numInputs + numConstantBuffers, datas[oldj] + numInputs + numConstantBuffers, numOutputs, &events[oldj])) {printf("Error copying from GPU\n"); return(1);}
+    	    	    if (Info->VerboseTiming) Timers.CounterCopyFrom.Stop();
+    		    WAITFOREVENT(ctxs[oldj], events[oldj]);
+    	    	}
     		if (Info->VerboseTiming) Timers.CounterMerge.Start();
     		if (Info->Debug) printf("\tMerging buffer\n");
 
@@ -1094,13 +1103,16 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
     const size_t blockn = k / nb;
 
     if (Info->VerboseTiming) Timers.CounterDivide.Start();
-    if (Info->Debug) printf("\tDividing Buffer A (k = %lld)\n", k);
+    if (blockm < ctxcount) 
+    {
+	if (Info->Debug) printf("\tDividing Buffer A (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_A
-    if (blockm < ctxcount) if (divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
+	if (divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
 #else
-    if (blockm < ctxcount) if (divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
+	if (divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
 #endif
-    if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
+	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
+    }
 #ifdef CALDGEMM_TRANSPOSED_B
     divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
 #else
