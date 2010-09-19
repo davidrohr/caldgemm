@@ -429,7 +429,7 @@ static void __logger(const CALchar *msg)
     fprintf(stderr, msg);
 }
 
-CALint calutil::Initialize(CALdevice *device, CALcontext *ctxs, CALuint deviceNum )
+CALint calutil::Initialize(CALdevice *device, CALcontext *ctx, CALuint deviceNum )
 {
     if (calInit() != CAL_RESULT_OK )
     {
@@ -447,16 +447,12 @@ CALint calutil::Initialize(CALdevice *device, CALcontext *ctxs, CALuint deviceNu
     }
 
     // Create a CAL context
-    for (int i = 0;i < ctxcount;i++)
+    if (calCtxCreate(&ctx_main, *device) != CAL_RESULT_OK )
     {
-	if (calCtxCreate(&ctxs[i], *device) != CAL_RESULT_OK )
-	{
-	    fprintf(stderr, "There was an error creatint the context.\n");
-	    fprintf(stderr, "Error string is %s\n", calGetErrorString());
-	    return 0;
-	}
+        fprintf(stderr, "There was an error creatint the context.\n");
+	fprintf(stderr, "Error string is %s\n", calGetErrorString());
+	return 0;
     }
-
     return 1;
 }
 
@@ -478,7 +474,7 @@ CALint calutil::SetupKernel(const CALchar* ILKernel, CALmodule* module, CALconte
     
     // Compile IL kernel into object
     CALobject obj;
-    if (Info->PrintILKernel && ctx == ctxs) printf("Kernel:\n%s\n", ILKernel);
+    if (Info->PrintILKernel && module == modules[0]) printf("Kernel:\n%s\n", ILKernel);
     if (calclCompile(&obj, CAL_LANGUAGE_IL, ILKernel, attribs.target) != CAL_RESULT_OK)
     {
         fprintf(stderr, "There was an error compiling the program.\n");
@@ -567,7 +563,7 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
 {
     if (data)
     {
-        for (CALuint i = 0; i < numHandles; ++i)
+        for (CALuint i = 0; i < numHandles;++i)
         {
             if (data[i].c_data)
             {
@@ -623,18 +619,10 @@ CALint calutil::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, C
 	{
     	    if (calModuleUnload(*ctx, module[i]) != CAL_RESULT_OK )
     	    {
+    		printf("Error unloading module\n");
         	fprintf(stderr, "Error string is %s\n", calGetErrorString());
     	    }
     	}
-    }
-
-    // Destroy the context
-    if (ctx )
-    {
-        if (calCtxDestroy(*ctx) != CAL_RESULT_OK )
-        {
-            fprintf(stderr, "Error string is %s\n", calGetErrorString());
-        }
     }
 
     delete[] resourceHandler;

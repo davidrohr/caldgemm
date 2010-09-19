@@ -325,7 +325,7 @@ protected:
     Data* datas[ctxcount];
     CALuint numInputs, numOutputs, numConstantBuffers;
     CALdevice device;
-    CALcontext ctxs[ctxcount];
+    CALcontext ctx_main;
     CALresource* resourceHandlers[ctxcount];
     CALmodule modules[ctxcount][kernel_count];
     CALevent events[ctxcount];

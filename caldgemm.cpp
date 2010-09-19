@@ -539,7 +539,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     device = 0;
 
     if (Info->Debug) printf("Initializing CAL\n");
-    if (!Initialize(&device, ctxs, Info->DeviceNum))
+    if (!Initialize(&device, &ctx_main, Info->DeviceNum))
     {
         return 1;
     }
@@ -569,8 +569,8 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 
     for (int i = 0;i < ctxcount;i++)
     {
-	if (!SetupKernel(ILKernel, &modules[i][0], &ctxs[i], (CALboolean) (Info->Disassemble && i == 0)) ||
-	    !SetupKernel(ILKernelALPHA1, &modules[i][1], &ctxs[i], (CALboolean) (Info->Disassemble && i == 0)))
+	if (!SetupKernel(ILKernel, &modules[i][0], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)) ||
+	    !SetupKernel(ILKernelALPHA1, &modules[i][1], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)))
 	{
 	    return 1;
 	}
@@ -579,7 +579,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	datas[i] = new Data[numInputs + numOutputs + numConstantBuffers];
 	resourceHandlers[i] = new CALresource[numInputs + numOutputs + numConstantBuffers];
 
-	if (!SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctxs[i], numInputs, numOutputs, numConstantBuffers))
+	if (!SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctx_main, numInputs, numOutputs, numConstantBuffers))
 	{
 	    return 1;
 	}
@@ -883,8 +883,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (Info->Debug) printf("Reinit for changed width / height\n");
 	for (int i = 0;i < ctxcount;i++)
 	{
-    	    CleanupData(&ctxs[i], resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers);
-	    SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctxs[i], numInputs, numOutputs, numConstantBuffers);
+    	    CleanupData(&ctx_main, resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers);
+	    SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctx_main, numInputs, numOutputs, numConstantBuffers);
 	}
     }
 
@@ -893,7 +893,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     {
 	if (Info->Debug) printf("%d", i);
 	datas[i][aPartsNum + bPartsNum].d_data[3] = alpha;
-	if (CopyDataToGPU(&ctxs[i], resourceHandlers[i] + numInputs, datas[i] + numInputs, numConstantBuffers, CAL_TRUE, &events[i])) return(1);
+	if (CopyDataToGPU(&ctx_main, resourceHandlers[i] + numInputs, datas[i] + numInputs, numConstantBuffers, CAL_TRUE, &events[i])) return(1);
     }
     if (Info->Debug) printf("   Done\n");
     
@@ -1024,10 +1024,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);
     	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
-    	        WAITFOREVENT(ctxs[j], events[j]);
+    	        WAITFOREVENT(ctx_main, events[j]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
-    		if (!RunProgram(&ctxs[j], &modules[j][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
-    		calCtxFlush(ctxs[j]);
+    		if (!RunProgram(&ctx_main, &modules[j][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
+    		calCtxFlush(ctx_main);
     		
     		if (Info->UseCPU && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * GPURatio * nb * mb)
     		{
@@ -1059,14 +1059,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	    }
     	    if ((ctxcount > 1) ? (k > 0) : (k < nb * mb))
     	    {
-    		WAITFOREVENT(ctxs[oldj], events[oldj]);
+    		WAITFOREVENT(ctx_main, events[oldj]);
     		if (Info->DstMemory == 'g')
     		{
     	    	    if (Info->VerboseTiming) Timers.CounterCopyFrom.Start();
     	    	    if (Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
-    		    if (CopyDataFromGPU(&ctxs[oldj], resourceHandlers[oldj] + numInputs + numConstantBuffers, datas[oldj] + numInputs + numConstantBuffers, numOutputs, &events[oldj])) {printf("Error copying from GPU\n"); return(1);}
+    		    if (CopyDataFromGPU(&ctx_main, resourceHandlers[oldj] + numInputs + numConstantBuffers, datas[oldj] + numInputs + numConstantBuffers, numOutputs, &events[oldj])) {printf("Error copying from GPU\n"); return(1);}
     	    	    if (Info->VerboseTiming) Timers.CounterCopyFrom.Stop();
-    		    WAITFOREVENT(ctxs[oldj], events[oldj]);
+    		    WAITFOREVENT(ctx_main, events[oldj]);
     	    	}
     		if (Info->VerboseTiming) Timers.CounterMerge.Start();
     		if (Info->Debug) printf("\tMerging buffer\n");
@@ -1151,23 +1151,23 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
 	if (blockm < ctxcount)
 	{
 	    if (Info->Debug) printf("\tCopying part of A and B to GPU (k = %lld)\n", k);
-    	    if (CopyDataToGPU(&ctxs[j], resourceHandlers[j], datas[j], aPartsNum + bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+    	    if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[j], aPartsNum + bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
     	}
     	else
     	{
     	    if (Info->Debug) printf("\tCopying part of B to GPU (k = %lld)\n", k);
-    	    if (CopyDataToGPU(&ctxs[j], resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+    	    if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
     	}
     }
     if (Info->VerboseTiming) Timers.CounterCopyTo.Stop();
-    calCtxFlush(ctxs[j]);
+    calCtxFlush(ctx_main);
 }
 
 int caldgemm::ExitCALDGEMM()
 {
     for (int i = 0;i < ctxcount;i++)
     {
-	if (!Cleanup(&device, &ctxs[i], modules[i], resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers))
+	if (!Cleanup(&device, &ctx_main, modules[i], resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers))
 	{
 	    return 1;
 	}
@@ -1199,6 +1199,7 @@ int caldgemm::ExitCALDGEMM()
     }
 
     // Close the device
+    if (ctx_main) calCtxDestroy(ctx_main);
     if (device)
     {
         if (calDeviceClose(device) != CAL_RESULT_OK )
