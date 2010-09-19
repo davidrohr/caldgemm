@@ -256,10 +256,10 @@ protected:
     CALint Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles);
     CALformat getFormat(CALuint formatSize, CALuint dataSize, CALboolean isInt = CAL_FALSE);
     CALuint AnalyzeResults(Data* data);
-    CALint SetupData(CALmodule* module, CALresource* &_Res, Data* &data, CALdevice* device, CALcontext* ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers);
+    CALint SetupData(CALmodule* module, CALresource* &_Res, Data* &data, CALdevice* device, CALcontext* ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames);
     CALint CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALevent* event);
     CALint CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event);
-    CALint BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data);
+    CALint BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, CALname* ctxProgNames);
     CALint AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data);
     int AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i);
     CALint ParameterValidation(CALuint nInput, CALuint nOutput, CALdeviceattribs* attribs);
@@ -315,7 +315,7 @@ protected:
 #else
     static const CALuint cPartsNum = 8;
 #endif
-    static const int ctxcount = 3;
+    static const int ctxcount = 3;		//Not cal context count but number of copies of data buffers etc.
     static const int vcpysize = 16;
     static const int kernel_count = 2;
     
@@ -328,6 +328,7 @@ protected:
     CALcontext ctx_main;
     CALresource* resourceHandlers[ctxcount];
     CALmodule modules[ctxcount][kernel_count];
+    CALname *progNames[ctxcount][kernel_count];
     CALevent events[ctxcount];
 
     static const char *ILKernel, *ILKernelALPHA1;

@@ -578,8 +578,8 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 
 	datas[i] = new Data[numInputs + numOutputs + numConstantBuffers];
 	resourceHandlers[i] = new CALresource[numInputs + numOutputs + numConstantBuffers];
-
-	if (!SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctx_main, numInputs, numOutputs, numConstantBuffers))
+	for (int j = 0;j < kernel_count;j++) progNames[i][j] = new CALname[numInputs + numOutputs + numConstantBuffers];
+	if (!SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctx_main, numInputs, numOutputs, numConstantBuffers, progNames[i]))
 	{
 	    return 1;
 	}
@@ -884,7 +884,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	for (int i = 0;i < ctxcount;i++)
 	{
     	    CleanupData(&ctx_main, resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers);
-	    SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctx_main, numInputs, numOutputs, numConstantBuffers);
+	    SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctx_main, numInputs, numOutputs, numConstantBuffers, progNames[i]);
 	}
     }
 
@@ -1178,6 +1178,9 @@ int caldgemm::ExitCALDGEMM()
 	    if (pthread_mutex_unlock(&mParam[i].mergeMutex[1])) printf("Error unlocking mergemutex %d/1 to terminate slave\n", i);
 	}
     }
+    
+    for (int i = 0;i < ctxcount;i++) for (int j = 0;j < kernel_count;j++) delete[] progNames[i][j];
+    
     if (Info->Debug) printf("Trying to terminate blas slave\n");
     cParam.terminate = CAL_TRUE;
     if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blas mutex 1 to terminate thread\n");

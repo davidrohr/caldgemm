@@ -194,7 +194,7 @@ CALuint calutil::AnalyzeResults(Data* data)
     return !wrong;
 }
 
-CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, CALdevice *device, CALcontext *ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers )
+CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, CALdevice *device, CALcontext *ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames )
 {
     // Fill in the dimensions
     const CALuint aStop = aPartsNum;
@@ -342,10 +342,12 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     }
     
     for (int i = 0;i < kernel_count;i++)
-    if (!BindIONames(ctx, &module[i], bStop, fStop, cStop, data))
     {
-        fprintf(stderr, "There was an error in binding the memory to I/O names.\n");
-        return 0;
+	if (!BindIONames(ctx, &module[i], bStop, fStop, cStop, data, ctxProgNames[i]))
+	{
+    	    fprintf(stderr, "There was an error in binding the memory to I/O names.\n");
+    	    return 0;
+    	}
     }
     
     
@@ -853,9 +855,8 @@ typedef enum calSamplerParamWrapMode {
     CAL_SAMPLER_WRAP_MIRROR_CLAMP_TO_BORDER_EXT
 } CALsamplerParamWrapMode;*/
 
-CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data)
+CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, CALname* ctxProgNames)
 {
-    CALname progName = 0;
     CALresult r = CAL_RESULT_ERROR;
     for (CALuint i = 0; i < oStop; ++i)
     {
@@ -881,7 +882,7 @@ CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, C
             fprintf(stderr, "Error: Path that should be unreachable is reached\n");
             return 0;
         }
-        r = calModuleGetName(&progName, *ctx, *module, buffer);
+        r = calModuleGetName(&ctxProgNames[i], *ctx, *module, buffer);
         if (r != CAL_RESULT_OK)
         {
             fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
@@ -889,7 +890,7 @@ CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, C
             fprintf(stderr, "Failing name binding was %s\n", buffer);
             return 0;
         }
-        r = calCtxSetMem(*ctx, progName, data[i].dstMem);
+        r = calCtxSetMem(*ctx, ctxProgNames[i], data[i].dstMem);
         if (r != CAL_RESULT_OK)
         {
             fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
