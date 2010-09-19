@@ -201,7 +201,7 @@ const char *calutil::ILKernelName =
 #endif
 #endif
 "dcl_literal l0, 0x00000000, 0x00000000, 0x00000000, 0x00000000\n"
-"dcl_literal l1, 0.0, 1.0, -0.5, 2.0\n"
+"dcl_literal l1, 1024.0, 1.0, -0.5, 2.0\n"
 "mov r3, l0\n"
 "mov r4, l0\n"
 "mov r5, l0\n"

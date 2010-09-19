@@ -475,7 +475,7 @@ CALint calutil::SetupKernel(const CALchar* ILKernel, CALmodule* module, CALconte
         fprintf(stderr, "Error string is %s\n", calGetErrorString());
         return 0;
     }
-
+    
     // Compile IL kernel into object
     CALobject obj;
     if (Info->PrintILKernel && ctx == ctxs) printf("Kernel:\n%s\n", ILKernel);

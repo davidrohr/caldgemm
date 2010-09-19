@@ -13,8 +13,8 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 
 ============================================================ */
 
-#define CALDGEMM_TRANSPOSED_A
-//#define CALDGEMM_TRANSPOSED_B
+//#define CALDGEMM_TRANSPOSED_A
+#define CALDGEMM_TRANSPOSED_B
 //#define CALDGEMM_88
 //#define CALDGEMM_84
 #define CALDGEMM_44

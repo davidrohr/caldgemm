@@ -113,7 +113,7 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     
     if (transpose)
     {
-#if !defined(CALDGEMM_44) | !defined(CALDGEMM_TRANSPOSED_A)
+#if !defined(CALDGEMM_44)
 	if (numBuffers <= 4)
 	{
 	    for (CALint y = 0;y < width;y += 4)
@@ -188,7 +188,11 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
         
     	    for (int i = 0;i < height;i += 2)
     	    {
-#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
+		CALint bank = (i / 2) % 2;
+		double* daddr = dst[bank].d_data + (i / 4) * width * 2 + y * 2;
+		double* daddr2 = dst[bank].d_data + (i / 4) * width * 2 + y * 2 + 2;
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
 		//Col Interleaved Storage, Numbuffers is either 2 or 4, might be optimized in 2 branches
     		CALint bank = (y / 2) % numBuffers;
 #ifdef CALDGEMM_DIAGONAL_TEXTURE
