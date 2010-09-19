@@ -182,6 +182,7 @@ class calutil
 	CALuint    Iterations;
 	CALchar	   DstMemory;
 	CALboolean VerboseTiming;
+	CALboolean AsyncTiming;
 	CALboolean TabularTiming;
 	CALboolean Debug;
 	CALboolean MultiThread;

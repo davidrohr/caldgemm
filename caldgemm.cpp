@@ -56,6 +56,7 @@ calutil::SampleInfo::SampleInfo()
     Iterations = 1;
     DstMemory = 'c';
     VerboseTiming = CAL_FALSE;
+    AsyncTiming = CAL_FALSE;
     TabularTiming = CAL_FALSE;
     Debug = CAL_FALSE;
     MultiThread = CAL_TRUE;
@@ -971,11 +972,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
     	    	    if (blockm < ctxcount)
 	    	    {
-	    		if (Info->Debug) printf("\tCopying part of A to GPU\n");
-    	    		if (CopyDataToGPU(&ctxs[j], resourceHandlers[j], datas[j], aPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+	    		if (Info->Debug) printf("\tCopying part of A and B to GPU\n");
+    	    		if (CopyDataToGPU(&ctxs[j], resourceHandlers[j], datas[j], aPartsNum + bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
     	    	    }
-    	    	    if (Info->Debug) printf("\tCopying part of B to GPU\n");
-    	    	    if (CopyDataToGPU(&ctxs[j], resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+    	    	    else
+    	    	    {
+    	    		if (Info->Debug) printf("\tCopying part of B to GPU\n");
+    	    		if (CopyDataToGPU(&ctxs[j], resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+    	    	    }
     	    	}
     		if (Info->VerboseTiming) Timers.CounterCopyTo.Stop();
     	        calCtxFlush(ctxs[j]);

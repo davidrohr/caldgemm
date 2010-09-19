@@ -133,7 +133,8 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-l        Automatically select height for good performance\n" );
     fprintf(stderr, "\t-m  <int> m for matrix multiply, must be multiple of h, default 1024\n" );
     fprintf(stderr, "\t-n  <int> n for matrix multiply, must be multiple of h, default 1024\n" );
-    fprintf(stderr, "\t-v        Verbose Symchronous Timing for Single Kernels / Transfers\n" );
+    fprintf(stderr, "\t-v        Verbose Synchronous Timing for Single Kernels / Transfers\n" );
+    fprintf(stderr, "\t-k        Print Timing of Asynchronous DGEMM Operation\n" );
     fprintf(stderr, "\t-r  <int> Number of iterations to run the program\n" );
     fprintf(stderr, "\t-y  <int> Force Device ID\n" );
     fprintf(stderr, "\t-d        Enable Debug Mode\n" );
@@ -337,6 +338,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
         	break;
             case 'v':
         	Info->VerboseTiming = CAL_TRUE;
+        	break;
+            case 'k':
+        	Info->AsyncTiming = CAL_TRUE;
         	break;
             case 'd':
         	Info->Debug = CAL_TRUE;
