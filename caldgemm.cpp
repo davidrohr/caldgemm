@@ -298,22 +298,18 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
 		int count = dst[0].DataSize * width;
     	        double* saddr = src + (y * pitch);
         
-    		for (int i = 0;i < count;i += 128)
+    		for (int i = 0;i < count;i += 64)
     	        {
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
+    		    _mm_prefetch(saddr + 75, _MM_HINT_NTA);
 #endif
     		    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
     		    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
     		    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 4));
     		    _mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 6));
-    		    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 8));
-    		    _mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 10));
-    		    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 12));
-    		    _mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 14));
-    		    saddr += 16;
-    		    daddr += 8;
-    		    daddr2+= 8;
+    		    saddr += 8;
+    		    daddr += 4;
+    		    daddr2+= 4;
     		}
     	    }
         }
