@@ -193,6 +193,7 @@ class calutil
 	CALboolean MemPolicy;
 	CALboolean DumpMatrix;
 	CALboolean DivideToGPU;
+	CALboolean AsyncDMA;
 	size_t     m, n;		//height of A, width of B, must be multiple of height
     };
 

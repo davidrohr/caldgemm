@@ -54,6 +54,8 @@ class caldgemm : public calutil
     int divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose);
     int mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers);
     
+    int DGEMM_prepare(size_t k, int j, size_t usem, size_t usen);
+
     struct mergeParameters
     {
 	caldgemm* cls;

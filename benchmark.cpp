@@ -158,6 +158,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-8        No initial run to negate cache effects\n" );
     fprintf(stderr, "\t-9        Output a table with timing information\n" );
     fprintf(stderr, "\t-0        Write the output of divideBuffers directly to GPU instead of a seperate DMA transfer\n" );
+    fprintf(stderr, "\t-A        Do the DMA transfer to GPU asynchronously\n" );
     fprintf(stderr, "\t-x <file> Load Matrix\n" );
     
     fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
@@ -190,6 +191,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     //Info->GPURatio = -1;
     Info->DumpMatrix = CAL_FALSE;
     Info->DivideToGPU = CAL_FALSE;
+    Info->AsyncDMA = CAL_FALSE;
 
     for (CALuint x = 1; x < argc; ++x)
     {
@@ -231,6 +233,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case '0':
 		Info->DivideToGPU = CAL_TRUE;
+                break;
+            case 'A':
+		Info->AsyncDMA = CAL_TRUE;
                 break;
             case '8':
 		initialrun = false;
