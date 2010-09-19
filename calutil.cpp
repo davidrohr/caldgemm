@@ -194,7 +194,7 @@ CALuint calutil::AnalyzeResults(Data* data)
     return !wrong;
 }
 
-CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, CALdevice *device, CALcontext *ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames )
+CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, CALdevice *device, CALcontext *ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames, int nContext )
 {
     // Fill in the dimensions
     const CALuint aStop = aPartsNum;
@@ -205,6 +205,8 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     
     for (CALuint i = 0; i < cStop; ++i)
     {
+	if (nContext >= 2 && i < aStop) continue;
+	if (nContext >= ctxcount && (i < aStop || i >= bStop)) continue;
         CALuint tWidth = 0;
         CALuint tHeight = 0;
         CALresallocflags flag = static_cast<CALresallocflags>(0);
@@ -277,6 +279,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
         if (AllocateMemory(data[i], device, ctx, tWidth, tHeight, mComponents, sizeof(CALdouble), flag, i)) return(1);
     }
 
+    if (nContext < ctxcount) {
     // Setup the constants for the kernel
     data[bStop].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos
     data[bStop].f_data[2] = (float) TILING_X / Info->Height;  //Scale factor for normalized x pos
@@ -331,16 +334,18 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
 #ifdef CALDGEMM_DIAGONAL_TEXTURE
     data[bStop].f_data[11] = 8.f / Info->Height;  //Offset for diagonal texture read
 #endif
-
+    }
+    
     //////////////////////////////////////////////////////////////////////////
     //
     //  setup the program's inputs and outputs
     //
-    if (!AllocateResources(ctx, device, _Res, bStop, fStop, cStop, data)) {
+    if (!AllocateResources(ctx, device, _Res, bStop, fStop, cStop, data, nContext)) {
         fprintf(stderr, "There was an error in allocating resources and binding them to memory\n");
         return 0;
     }
     
+    if (nContext >= ctxcount) return 1;
     for (int i = 0;i < kernel_count;i++)
     {
 	if (!BindIONames(ctx, &module[i], bStop, fStop, cStop, data, ctxProgNames[i]))
@@ -349,7 +354,6 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     	    return 0;
     	}
     }
-    
     
     return 1;
 }
@@ -561,13 +565,13 @@ CALint calutil::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, CA
     return 1;
 }
 
-CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles)
+CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext)
 {
     if (data)
     {
         for (CALuint i = 0; i < numHandles;++i)
         {
-            if (data[i].c_data)
+            if ((nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && data[i].c_data)
             {
         	if (data[i].CALMemory )
         	{
@@ -592,7 +596,7 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
     {
         for (CALuint i = 0; i < numHandles; i++ )
         {
-            if (resourceHandler[i] )
+            if ((nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && resourceHandler[i])
             {
         	if (calCtxReleaseMem(*ctx, data[i].dstMem) != CAL_RESULT_OK )
                 {
@@ -609,12 +613,13 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
     }
 }
 
-CALint calutil::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles)
+CALint calutil::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext)
 {
-    CleanupData(ctx, resourceHandler, data, numHandles);
+    CleanupData(ctx, resourceHandler, data, numHandles, nContext);
 
     // Unload the module from the context
     
+    if (nContext < ctxcount)
     for (int i = 0;i < kernel_count;i++)
     {
 	if (module[i])
@@ -916,7 +921,7 @@ CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, C
     return 1;
 }
 
-CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data)
+CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, int nContext)
 {
     CALresult r = CAL_RESULT_ERROR;
     //////////////////////////////////////////////////////////////////////////
@@ -925,6 +930,8 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
     //
     for (CALuint i = 0; i < oStop; ++i)
     {
+	if (nContext >= 2 && i < aPartsNum) continue;
+	if (nContext >= ctxcount && (i < aPartsNum || i >= aPartsNum + bPartsNum)) continue;
         CALint tWidth = data[i].Width;;
         CALint tHeight = data[i].Height;
         CALresallocflags flag = (CALresallocflags) NULL;
@@ -976,6 +983,7 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         }
     }
 
+    if (nContext >= ctxcount) return 1;
     /* Setup constant resources/memory handles */
     for (CALuint i = iStop; i < cStop; ++i)
     {

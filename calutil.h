@@ -252,15 +252,15 @@ protected:
     CALint Initialize (CALdevice *device, CALcontext *ctx, CALuint deviceNum);
     CALint SetupKernel(const CALchar* ILKernel, CALmodule* module, CALcontext* ctx, CALboolean disassemble = CAL_FALSE);
     CALint RunProgram(CALcontext* ctx, CALmodule* module, CALuint Width, CALuint Height, CALevent* event);
-    CALint CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles);
-    CALint Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles);
+    CALint CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext);
+    CALint Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext);
     CALformat getFormat(CALuint formatSize, CALuint dataSize, CALboolean isInt = CAL_FALSE);
     CALuint AnalyzeResults(Data* data);
-    CALint SetupData(CALmodule* module, CALresource* &_Res, Data* &data, CALdevice* device, CALcontext* ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames);
+    CALint SetupData(CALmodule* module, CALresource* &_Res, Data* &data, CALdevice* device, CALcontext* ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames, int nContext);
     CALint CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALevent* event);
     CALint CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event, Data* dest_data = NULL);
     CALint BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, CALname* ctxProgNames);
-    CALint AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data);
+    CALint AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, int nContext);
     int AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i);
     CALint ParameterValidation(CALuint nInput, CALuint nOutput, CALdeviceattribs* attribs);
     CALvoid SupportedCALVersion(CALVersion *calVersion);
@@ -318,15 +318,16 @@ protected:
     static const int ctxcount = 3;		//Not cal context count but number of copies of data buffers etc.
     static const int vcpysize = 16;
     static const int kernel_count = 2;
+    static const int bbuffers = 20;
     
     SampleInfo* Info;
     SampleFeatures Features;
 
-    Data* datas[ctxcount];
+    Data* datas[bbuffers];
     CALuint numInputs, numOutputs, numConstantBuffers;
     CALdevice device;
     CALcontext ctx_main;
-    CALresource* resourceHandlers[ctxcount];
+    CALresource* resourceHandlers[bbuffers];
     CALmodule modules[ctxcount][kernel_count];
     CALname *progNames[ctxcount][kernel_count];
     CALevent events[ctxcount];
