@@ -1026,6 +1026,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
     	        WAITFOREVENT(ctx_main, events[j]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
+    	        for (int l = 0;l < aPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[j][kernel_num][l], datas[blockn % 2][l].dstMem), "setting kernel memory");
     		if (!RunProgram(&ctx_main, &modules[j][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
     		calCtxFlush(ctx_main);
     		
@@ -1132,9 +1133,9 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
     {
 	if (Info->Debug) printf("\tDividing Buffer A (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_A
-	if (divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
+	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
 #else
-	if (divideBuffer(datas[j], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
+	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
 #endif
 	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
     }
@@ -1148,16 +1149,14 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
     if (Info->VerboseTiming) Timers.CounterCopyTo.Start();
     if (Info->DivideToGPU == CAL_FALSE)
     {
-	if (blockm < ctxcount)
+	if (blockm == 0)
 	{
-	    if (Info->Debug) printf("\tCopying part of A and B to GPU (k = %lld)\n", k);
-    	    if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[j], aPartsNum + bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+	    if (Info->Debug) printf("\tCopying part of A to GPU (k = %lld)\n", k);
+    	    if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[blockn % 2], aPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
     	}
-    	else
-    	{
-    	    if (Info->Debug) printf("\tCopying part of B to GPU (k = %lld)\n", k);
-    	    if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
-    	}
+    	
+    	if (Info->Debug) printf("\tCopying part of B to GPU (k = %lld)\n", k);
+    	if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
     }
     if (Info->VerboseTiming) Timers.CounterCopyTo.Stop();
     calCtxFlush(ctx_main);

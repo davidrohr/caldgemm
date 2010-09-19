@@ -780,8 +780,9 @@ void calutil::copyTo(CALchar* ptr, Data& data, CALuint pitch)
 }
 
 
-CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event)
+CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event, Data* dest_data)
 {
+    if (dest_data == NULL) dest_data = data;
     CPerfCounter ATime;
     if (Info->AsyncTiming)
     {
@@ -796,7 +797,7 @@ CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CA
 	if (data[i].CALMemory == constants) continue;
 	if (data[i].CALMemory)
 	{
-	    CHKERR(calMemCopy(event, *ctx, data[i].mem, data[i].dstMem, NULL), "copying data to gpu");
+	    CHKERR(calMemCopy(event, *ctx, data[i].mem, dest_data[i].dstMem, NULL), "copying data to gpu");
 	    continue;
 	}
         r = calResMap((CALvoid**)&ptr, &pitch, _Res[i], 0);
