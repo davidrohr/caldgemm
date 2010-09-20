@@ -261,7 +261,7 @@ protected:
     CALint CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event, Data* dest_data = NULL);
     CALint BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, CALname* ctxProgNames);
     CALint AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, int nContext);
-    int AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i);
+    int AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i, int nContext);
     CALint ParameterValidation(CALuint nInput, CALuint nOutput, CALdeviceattribs* attribs);
     CALvoid SupportedCALVersion(CALVersion *calVersion);
     CALint QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList);
@@ -318,18 +318,20 @@ protected:
     static const int ctxcount = 3;		//Not cal context count but number of copies of data buffers etc.
     static const int vcpysize = 16;
     static const int kernel_count = 2;
-    static const int bbuffers = 20;
+    static const int max_bbuffers = 20;
+    int bbuffers;
     
     size_t BufferHeight;			//Height to which the buffers were originally initialized
+    size_t BufferWidth;				//Same for width
     
     SampleInfo* Info;
     SampleFeatures Features;
 
-    Data* datas[bbuffers];
+    Data* datas[max_bbuffers];
     CALuint numInputs, numOutputs, numConstantBuffers;
     CALdevice device;
     CALcontext ctx_main;
-    CALresource* resourceHandlers[bbuffers];
+    CALresource* resourceHandlers[max_bbuffers];
     CALmodule modules[ctxcount][kernel_count];
     CALname *progNames[ctxcount][kernel_count];
     CALevent events[ctxcount];

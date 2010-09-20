@@ -573,7 +573,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	return 1;
     }
 
-    for (int i = 0;i < bbuffers;i++)
+    for (int i = 0;i < max_bbuffers;i++)
     {
 	if (i < ctxcount)
 	{
@@ -589,8 +589,12 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	resourceHandlers[i] = new CALresource[numInputs + numOutputs + numConstantBuffers];
 	if (!SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctx_main, numInputs, numOutputs, numConstantBuffers, progNames[i], i))
 	{
-	    return 1;
+	    if (i < ctxcount)
+		return 1;
+	    else
+		break;
 	}
+	bbuffers = i + 1;
     
 	if (i < ctxcount && Info->MultiThread)
 	{
@@ -602,6 +606,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	    pthread_create(&thr, NULL, merge_wrapper, &mParam[i]);
 	}
     }
+    if (Info->Debug) printf("Was able to allocate %d bbuffers\n", bbuffers);
     cParam.cls = this;
     cParam.terminate = CAL_FALSE;
     for (int j = 0;j < 2;j++) pthread_mutex_init(&cParam.cblasMutex[j], NULL);
@@ -980,6 +985,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	size_t nb = usen / Info->Height;
 	size_t blockm, blockn, lastm, lastn;
 	
+	if (!Info->Quiet && nb > bbuffers) printf("Insufficient buffers for B Matrix, retransfer required\n");
+	
 	if (usen && usem)
 	for (size_t k = 0;k <= mb * nb;k ++)
 	{
@@ -1145,9 +1152,9 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
     {
 	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_B
-	divideBuffer(datas[nb > bbuffers ? j : blockm] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, Info->Width, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
+	divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, Info->Width, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
 #else
-	divideBuffer(datas[nb > bbuffers ? j : blockm] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, Info->Width, B_pitch, bPartsNum, TransposeB == CblasTrans);
+	divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, Info->Width, B_pitch, bPartsNum, TransposeB == CblasTrans);
 #endif
     }
     if (Info->VerboseTiming) Timers.CounterDivide.Stop();
@@ -1164,7 +1171,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
     	if (blockn == 0 || nb > bbuffers)
     	{
     	    if (Info->Debug) printf("\tCopying part of B to GPU (k = %lld)\n", k);
-    	    if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[nb > bbuffers ? j : blockm] + aPartsNum, bPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+    	    if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[nb > bbuffers ? j : blockm] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
     	}
     }
     if (Info->VerboseTiming) Timers.CounterCopyTo.Stop();
@@ -1173,7 +1180,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
 
 int caldgemm::ExitCALDGEMM()
 {
-    for (int i = 0;i < ctxcount;i++)
+    for (int i = 0;i < bbuffers;i++)
     {
 	if (!Cleanup(&device, &ctx_main, modules[i], resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers, i))
 	{

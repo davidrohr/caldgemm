@@ -197,6 +197,7 @@ CALuint calutil::AnalyzeResults(Data* data)
 CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, CALdevice *device, CALcontext *ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames, int nContext )
 {
     BufferHeight = Info->Height;
+    BufferWidth = Info->Width;
     // Fill in the dimensions
     const CALuint aStop = aPartsNum;
     const CALuint bStop = aStop + bPartsNum;
@@ -277,7 +278,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
             fprintf(stderr, "Error: Path that should be unreachable is reached\n");
             return 0;
         }
-        if (AllocateMemory(data[i], device, ctx, tWidth, tHeight, mComponents, sizeof(CALdouble), flag, i)) return(1);
+        if (AllocateMemory(data[i], device, ctx, tWidth, tHeight, mComponents, sizeof(CALdouble), flag, i, nContext)) return(1);
     }
 
     if (nContext < ctxcount) {
@@ -576,7 +577,7 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
             {
         	if (data[i].CALMemory )
         	{
-        	    if ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum + numConstantBuffers))
+        	    if ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum + numConstantBuffers) && nContext < ctxcount)
         	    {
         		calCtxReleaseMem(*ctx, data[i].mem);
         		calResUnmap(data[i].res);
@@ -1007,7 +1008,7 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
     return 1;
 }
 
-int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i)
+int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i, int nContext)
 {
     data.DataSize = DataSize;
     data.Width = tWidth;
@@ -1016,7 +1017,7 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
     if (tHeight > 1)
     {
 	data.CALMemory = CAL_TRUE;
-	if ((Info->DstMemory == 'g' || i < aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum))
+	if ((Info->DstMemory == 'g' || i < aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum) && nContext < ctxcount)
 	{
 		CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocating of remote memory");
 		CHKERR(calCtxGetMem(&data.mem, *ctx, data.res), "getting remote memory for context");
@@ -1033,7 +1034,7 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
 	data.c_data = new CALchar[tWidth * DataSize * CompSize * tHeight];
 	data.CALMemory = CAL_FALSE;
     }
-    if (Info->Debug && (data.CALMemory != CAL_TRUE || ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum))))
+    if (Info->Debug && nContext < ctxcount && (data.CALMemory != CAL_TRUE || ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum))))
     {
 	memset((void*)data.c_data, 0, tWidth * DataSize * CompSize * tHeight);
     }
