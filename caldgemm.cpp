@@ -96,7 +96,7 @@ void calutil::print_submatrices(double* M, size_t width, size_t height, size_t p
 #define _mm_store_pd_use _mm_stream_pd
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH
 
-int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose)
+int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers, bool transpose)
 {
     if (Info->Debug) printf("\t\tw: %d, h: %d, pitch: %d\n", width, height, pitch);
 
@@ -124,11 +124,11 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     		double* saddr4 = src + ((y + 3) * pitch);
 
 		double* daddr = dst[0].d_data + y;
-		double* daddr2 = dst[1 % numBuffers].d_data + (1 / numBuffers) * width + y;
-		double* daddr3 = dst[2 % numBuffers].d_data + (2 / numBuffers) * width + y;
-		double* daddr4 = dst[3 % numBuffers].d_data + (3 / numBuffers) * width + y;
+		double* daddr2 = dst[1 % numBuffers].d_data + (1 / numBuffers) * gpu_width + y;
+		double* daddr3 = dst[2 % numBuffers].d_data + (2 / numBuffers) * gpu_width + y;
+		double* daddr4 = dst[3 % numBuffers].d_data + (3 / numBuffers) * gpu_width + y;
 		
-		const int dpitch = 4 / numBuffers * width;
+		const int dpitch = 4 / numBuffers * gpu_width;
 		
 		for (int i = 0;i < height;i += 4)
 		{
@@ -190,24 +190,24 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     	    {
 #if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
 		CALint bank = (i / 2) % 2;
-		double* daddr = dst[bank].d_data + (i / 4) * width * 2 + y * 2;
-		double* daddr2 = dst[bank].d_data + (i / 4) * width * 2 + y * 2 + 2;
+		double* daddr = dst[bank].d_data + (i / 4) * gpu_width * 2 + y * 2;
+		double* daddr2 = dst[bank].d_data + (i / 4) * gpu_width * 2 + y * 2 + 2;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
 		//Col Interleaved Storage, Numbuffers is either 2 or 4, might be optimized in 2 branches
     		CALint bank = (y / 2) % numBuffers;
 #ifdef CALDGEMM_DIAGONAL_TEXTURE
-    		double* daddr = dst[bank].d_data + i * width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (width / 2);
-    		double* daddr2 = dst[bank].d_data + (i + 1) * width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (width / 2);
+    		double* daddr = dst[bank].d_data + i * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (gpu_width / 2);
+    		double* daddr2 = dst[bank].d_data + (i + 1) * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (gpu_width / 2);
 #else
-    		double* daddr = dst[bank].d_data + (i * width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
-    		double* daddr2 = dst[bank].d_data + ((i + 1) * width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
+    		double* daddr = dst[bank].d_data + (i * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
+    		double* daddr2 = dst[bank].d_data + ((i + 1) * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
 #endif
 #else
 		//Standard Storage
     		CALint bank = (i) % numBuffers;
     		CALint bank2 = (i + 1) % numBuffers;
-    		double* daddr = dst[bank].d_data + (i / numBuffers) * width + y;
-    		double* daddr2 = dst[bank2].d_data + (i / numBuffers) * width + y;
+    		double* daddr = dst[bank].d_data + (i / numBuffers) * gpu_width + y;
+    		double* daddr2 = dst[bank2].d_data + (i / numBuffers) * gpu_width + y;
 #endif
 
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
@@ -232,7 +232,7 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
 	//Row / Col Interleaved Storage with 2 rows stored in one col
 	for (CALint y = 0;y < height / 2;y++)
 	{
-	    double* daddr = dst[y % 2].d_data + y / 2 * width * 2;
+	    double* daddr = dst[y % 2].d_data + y / 2 * gpu_width * 2;
 	    double* saddr = src + 2 * y * pitch;
 	    double* saddr2 = src + (2 * y + 1) * pitch;
 	    for (int i = 0;i < width;i += 4)
@@ -291,6 +291,10 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     		    daddr3 += 8;
     		    daddr4 += 8;
     		}
+    		daddr += (gpu_width - width) / numBuffers;
+    		daddr2 += (gpu_width - width) / numBuffers;
+    		daddr3 += (gpu_width - width) / numBuffers;
+    		daddr4 += (gpu_width - width) / numBuffers;
     	    }
         }
         else
@@ -315,6 +319,8 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     		    daddr += 4;
     		    daddr2+= 4;
     		}
+    		daddr += (gpu_width - width) / numBuffers;
+    		daddr2 += (gpu_width - width) / numBuffers;
     	    }
         }
 #else
@@ -341,7 +347,7 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     		daddr += 8;
     	}
         
-    	    position[bank] += width;
+    	    position[bank] += gpu_width;
 	}
 	delete[] position;
 #endif
@@ -355,7 +361,7 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     return(0);
 }
 
-int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers)
+int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers)
 {
     // Array to store the position from which data will be pulled in from the input buffers
     CALint* position = new CALint[numBuffers];
@@ -424,12 +430,12 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 //    	        _mm_prefetch(daddr + 128, _MM_HINT_T0);
 #endif
     		_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
-    		_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
     	        _mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-    	        _mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
     		_mm_store_pd_use(daddr + 8, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 8))));
-    		_mm_store_pd_use(daddr + 10, _mm_add_pd(_mm_load_pd(saddr2 + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 10))));
     	        _mm_store_pd_use(daddr + 12, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 12))));
+    		_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
+    	        _mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
+    		_mm_store_pd_use(daddr + 10, _mm_add_pd(_mm_load_pd(saddr2 + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 10))));
     	        _mm_store_pd_use(daddr + 14, _mm_add_pd(_mm_load_pd(saddr2 + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 14))));
     		saddr += 8;
     		saddr2 += 8;
@@ -439,7 +445,7 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     	    }
     	}
     	    
-	position[bank] += width / 2;
+	position[bank] += gpu_width / 2;
 #else        
         if (__fpclassify(Beta) == FP_ZERO)
         {
@@ -478,7 +484,7 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     	    }
     	}
     	
-        position[bank] += width;
+        position[bank] += gpu_width;
 #endif //CALDGEMM_44
     }
 
@@ -708,7 +714,7 @@ void* merge_wrapper(void* arg)
     while (pthread_mutex_lock(&par->mergeMutex[1]) == 0 && par->terminate == CAL_FALSE)
     {
 	if (par->cls->Info->Debug) printf("\t\tSlave thread starting merge process\n");
-        par->cls->mergeBuffers(par->dst, par->src, par->cls->Info->Height, par->cls->Info->Height, par->cls->C_pitch, par->cls->cPartsNum);
+        par->cls->mergeBuffers(par->dst, par->src, par->cls->Info->Height, par->cls->Info->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch, par->cls->cPartsNum);
         if (par->cls->Info->Debug) printf("\t\tUnlocking mutex %d\n", par->nContext);
         pthread_mutex_unlock(&par->mergeMutex[0]);
     }
@@ -851,7 +857,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
 	if (Info->Height != BufferHeight)
 	{
-	    if (Info->Debug) printf("Height changed from %lld to %lld\n", BufferHeight, Info->Height);
+	    if (!Info->Quiet) printf("Height changed from %lld to %lld\n", BufferHeight, Info->Height);
 	    forceReinit = true;
 	}
     }
@@ -1074,7 +1080,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		if (k == nb * mb || Info->MultiThread == CAL_FALSE)
 		{
-	    	    if (mergeBuffers(C + lastm * Info->Height + lastn * C_pitch * Info->Height, datas[oldj] + numInputs + numConstantBuffers, Info->Height, Info->Height, C_pitch, cPartsNum)) {printf("Error merging\n"); return(1);}
+	    	    if (mergeBuffers(C + lastm * Info->Height + lastn * C_pitch * Info->Height, datas[oldj] + numInputs + numConstantBuffers, Info->Height, Info->Height, BufferHeight, BufferHeight, C_pitch, cPartsNum)) {printf("Error merging\n"); return(1);}
 	    	    if (Info->MultiThread)
 	    	    {
 	    		pthread_mutex_unlock(&mParam[oldj].mergeMutex[0]);
@@ -1134,18 +1140,18 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
     {
 	if (Info->Debug) printf("\tDividing Buffer A (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_A
-	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
+	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, BufferHeight, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
 #else
-	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
+	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, Info->Width, BufferHeight, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
 #endif
     }
     if (blockn == 0 || nb > bbuffers)
     {
 	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_B
-	divideBuffer(datas[nb > bbuffers ? j : blockm] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
+	divideBuffer(datas[nb > bbuffers ? j : blockm] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, Info->Width, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
 #else
-	divideBuffer(datas[nb > bbuffers ? j : blockm] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, B_pitch, bPartsNum, TransposeB == CblasTrans);
+	divideBuffer(datas[nb > bbuffers ? j : blockm] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, Info->Width, B_pitch, bPartsNum, TransposeB == CblasTrans);
 #endif
     }
     if (Info->VerboseTiming) Timers.CounterDivide.Stop();
