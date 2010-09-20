@@ -936,7 +936,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (Info->m >= Info->n / 2)
 	{
 	    const size_t virtualm = Info->m + (Info->n % Info->Height) * Info->m / Info->n;
-	    usem = GPURatio * (float) virtualm + (2 * Info->Height / 3);
+	    usem = GPURatio * (float) virtualm + (Info->Height - 1);
 	    if (usem > Info->m) usem = Info->m;
 	    usem -= usem % Info->Height;
 	    cParam.cblas_size = Info->m - usem;
@@ -947,7 +947,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
         else
         {
     	    const size_t virtualn = Info->n + (Info->m % Info->Height) * Info->n / Info->m;
-	    usen = GPURatio * (float) virtualn + (2 * Info->Height / 3);
+	    usen = GPURatio * (float) virtualn + (Info->Height - 1);
 	    if (usen > Info->n) usen = Info->n;
 	    usen -= usen % Info->Height;
 	    cParam.cblas_size = Info->n - usen;
@@ -1045,7 +1045,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     		{
     		    if (pthread_mutex_trylock(&cParam.cblasMutex[0]) == 0)
     		    {
-    			cParam.dynamic_size = ((1.0f - 0.95f * GPURatio) * (float) (nb * mb - k - 1) + 0.5) * Info->Height;
+    			cParam.dynamic_size = ((1.0f - GPURatio) * (float) (nb * mb - k - 1) + 0.5) * Info->Height;
     			if (cParam.dynamic_size > (nb * mb - k - 1) * Info->Height) cParam.dynamic_size = (nb * mb - k - 1) * Info->Height;
     			if (cParam.dynamic_size > Info->Height)
     			{
@@ -1114,7 +1114,21 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->Pin != -100) sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
-    if (Info->UseCPU) pthread_mutex_lock(&cParam.cblasMutex[0]);
+    if (Info->UseCPU)
+    {
+	CPerfCounter cpuwait;
+	if (!Info->Quiet)
+	{
+	    cpuwait.Reset();
+	    cpuwait.Start();
+	}
+	pthread_mutex_lock(&cParam.cblasMutex[0]);
+	if (!Info->Quiet)
+	{
+	    cpuwait.Stop();
+	    printf("CPU synchronisation took %2.4lf sec\n", cpuwait.GetElapsedTime());
+	}
+    }
 
 RunCALDGEMM_end:
     Timers.System.Stop();
