@@ -766,7 +766,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 {
     if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0) return(0);		//Do Nothing
     
-    Info->Height = BufferHeight;
     bool forceCPU = false;
     bool forceReinit = false;
     size_t old_k = Info->Width;
@@ -857,8 +856,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
 	if (Info->Height != BufferHeight)
 	{
-	    if (!Info->Quiet) printf("Height changed from %lld to %lld\n", BufferHeight, Info->Height);
-	    forceReinit = true;
+	    if (!Info->Quiet) printf("Using reduced Height %lld instead of  %lld\n", Info->Height, BufferHeight);
 	}
     }
 
@@ -870,7 +868,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	Timers.CPUTimer.Stop();
 	CPUOnlyRun = true;
 	Info->Width = old_k;
-	Info->Height = BufferHeight;
 	goto RunCALDGEMM_end;
     }
     CPUOnlyRun = false;
@@ -1124,7 +1121,6 @@ RunCALDGEMM_end:
         return 1;
     }
     if (Info->Verify) delete[] D;
-    Info->Height = BufferHeight;
     return(0);
 }
 
