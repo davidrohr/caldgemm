@@ -196,6 +196,7 @@ CALuint calutil::AnalyzeResults(Data* data)
 
 CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, CALdevice *device, CALcontext *ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames, int nContext )
 {
+    BufferHeight = Info->Height;
     // Fill in the dimensions
     const CALuint aStop = aPartsNum;
     const CALuint bStop = aStop + bPartsNum;

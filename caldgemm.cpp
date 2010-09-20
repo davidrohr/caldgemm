@@ -760,10 +760,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 {
     if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0) return(0);		//Do Nothing
     
+    Info->Height = BufferHeight;
     bool forceCPU = false;
     bool forceReinit = false;
     size_t old_k = Info->Width;
-    size_t old_height = Info->Height;
     double GPURatio;
     
     A = a;
@@ -849,9 +849,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 	    Info->Height = 4096;
 	}
-	if (Info->Height != old_height)
+	if (Info->Height != BufferHeight)
 	{
-	    if (Info->Debug) printf("Height changed from %lld to %lld\n", old_height, Info->Height);
+	    if (Info->Debug) printf("Height changed from %lld to %lld\n", BufferHeight, Info->Height);
 	    forceReinit = true;
 	}
     }
@@ -864,7 +864,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	Timers.CPUTimer.Stop();
 	CPUOnlyRun = true;
 	Info->Width = old_k;
-	Info->Height = old_height;
+	Info->Height = BufferHeight;
 	goto RunCALDGEMM_end;
     }
     CPUOnlyRun = false;
@@ -1118,6 +1118,7 @@ RunCALDGEMM_end:
         return 1;
     }
     if (Info->Verify) delete[] D;
+    Info->Height = BufferHeight;
     return(0);
 }
 

@@ -320,6 +320,8 @@ protected:
     static const int kernel_count = 2;
     static const int bbuffers = 20;
     
+    size_t BufferHeight;			//Height to which the buffers were originally initialized
+    
     SampleInfo* Info;
     SampleFeatures Features;
 
