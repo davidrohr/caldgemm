@@ -424,10 +424,10 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     	    for (int i = 0;i < count;i += 128)
     	    {
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-//    		_mm_prefetch(paddr, _MM_HINT_NTA);
-//    		_mm_prefetch(paddr2, _MM_HINT_NTA);
-//    	        _m_prefetchw(daddr + 256);
-//    	        _mm_prefetch(daddr + 128, _MM_HINT_T0);
+//    		_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+//    		_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+    	        _m_prefetchw(daddr + 50);
+//    	        _mm_prefetch(daddr + 50, _MM_HINT_NTA);
 #endif
     		_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
     	        _mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
