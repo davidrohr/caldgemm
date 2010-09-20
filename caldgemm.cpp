@@ -838,7 +838,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->AutoHeight)
     {
-	if (Info->m < 2048 || Info->n < 2048 || Info->m * Info->n < 30 * 1024 * 1024)
+	if (Info->m < 2048 || Info->n < 2048 || Info->m * Info->n < 16 * 1024 * 1024)
         {
     	    Info->Height = 1024;
 	}

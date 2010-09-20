@@ -115,6 +115,7 @@ bool verifylarge = false;
 bool quietbench = false;
 bool alphaone = false;
 bool betazero = false;
+int reduced_height = -1;
 
 char* matrixfile;
 
@@ -130,7 +131,8 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-i        Print IL Kernel used\n" );
     fprintf(stderr, "\t-o  <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n" );
     fprintf(stderr, "\t-w  <int> k for matrix multiply, default 1024\n" );
-    fprintf(stderr, "\t-h  <int> block size for matrix multiply, default 1024\n" );
+    fprintf(stderr, "\t-h  <int> block size for matrix multiply, default 4096\n" );
+    fprintf(stderr, "\t-H  <int> Reduced block size for actual matrix multiply (buffer size given by -h)\n" );
     fprintf(stderr, "\t-l        Automatically select height for good performance\n" );
     fprintf(stderr, "\t-m  <int> m for matrix multiply, must be multiple of h, default 1024\n" );
     fprintf(stderr, "\t-n  <int> n for matrix multiply, must be multiple of h, default 1024\n" );
@@ -309,6 +311,16 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 if (++x < argc)
                 {
                     sscanf(argv[x], "%u", &Info->Height);
+                }
+                else
+                {
+                    return CAL_FALSE;
+                }
+                break;
+            case 'H':
+                if (++x < argc)
+                {
+                    sscanf(argv[x], "%d", &reduced_height);
                 }
                 else
                 {
@@ -496,6 +508,11 @@ int main(CALint argc, CALchar** argv)
     {
 	printf("Error initializing CALDGEMM\n");
 	return(1);
+    }
+    if (reduced_height != -1)
+    {
+	printf("Using partial buffers %d / %lld\n", reduced_height, Info.Height);
+	Info.Height = reduced_height;
     }
 
     if (loadmatrix)
