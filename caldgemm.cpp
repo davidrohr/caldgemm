@@ -935,7 +935,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     {
 	if (Info->m >= Info->n / 2)
 	{
-	    usem = (int) (GPURatio * (float) ((Info->m) + ((Info->n - Info->n % Info->Height) * Info->m / Info->n)) + (2 * Info->Height / 3));
+	    const size_t virtualm = Info->m + (Info->n % Info->Height) * Info->m / Info->n;
+	    usem = GPURatio * (float) virtualm + (2 * Info->Height / 3);
 	    if (usem > Info->m) usem = Info->m;
 	    usem -= usem % Info->Height;
 	    cParam.cblas_size = Info->m - usem;
@@ -945,7 +946,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
         else
         {
-	    usen = (int) (GPURatio * (float) ((Info->n) + ((Info->m - Info->m % Info->Height) * Info->n / Info->m)) + (2 * Info->Height / 3));
+    	    const size_t virtualn = Info->n + (Info->m % Info->Height) * Info->n / Info->m;
+	    usen = GPURatio * (float) virtualn + (2 * Info->Height / 3);
 	    if (usen > Info->n) usen = Info->n;
 	    usen -= usen % Info->Height;
 	    cParam.cblas_size = Info->n - usen;
