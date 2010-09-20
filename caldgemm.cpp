@@ -914,12 +914,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     if (Info->GPURatio < 0)
     {
 	//Optimal ratio found using combined runs
-	if ((long long int) Info->m * (long long int) Info->n > (long long int) 4000000000) GPURatio = 0.75;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 1000000000) GPURatio = 0.74;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 600000000) GPURatio = 0.73;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 250000000) GPURatio = 0.72;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 150000000) GPURatio = 0.69;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 50000000) GPURatio = 0.65;
+	     if ((long long int) Info->m * (long long int) Info->n > (long long int) 5000000000) GPURatio = 0.76;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 4500000000) GPURatio = 0.74;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 3500000000) GPURatio = 0.73;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 2500000000) GPURatio = 0.72;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 200000000) GPURatio = 0.71;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 13000000) GPURatio = 0.70;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 8000000) GPURatio = 0.69;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 6000000) GPURatio = 0.65;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 3000000) GPURatio = 0.60;
 	else GPURatio = 0.50;
 	if (Info->Debug) printf("GPURatio automatically set to %1.2lf\n", GPURatio);
     }
