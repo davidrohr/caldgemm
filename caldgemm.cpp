@@ -847,7 +847,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
         {
     	    Info->Height = 1024;
 	}
-        else if (Info->m < 3072 || Info->n < 3072 || Info->m * Info->n < 100 * 1024 * 1024)
+        else if (Info->m < 3072 || Info->n < 3072 || Info->m * Info->n < 120 * 1024 * 1024)
 	{
 	    Info->Height = 2048;
 	}
@@ -1186,7 +1186,7 @@ int caldgemm::ExitCALDGEMM()
 	{
 	    return 1;
 	}
-	if (Info->MultiThread)
+	if (i < ctxcount && Info->MultiThread)
 	{
 	    if (Info->Debug) printf("Trying to terminate merge slave %d\n", i);
 	    mParam[i].terminate = CAL_TRUE;
