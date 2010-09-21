@@ -665,27 +665,31 @@ int main(CALint argc, CALchar** argv)
     
 //CALDGEMM_dgemm (ORDER=CblasColMajor, TRANSA=CblasNoTrans, TRANSB=CblasTrans, M=4096, N=4096, K=1024, ALPHA=-1, A=0x2aab136ea040, LDA=4096, B=0x2aab15eec080, LDB=4096, BETA=1, C=0x2aab09495040, LDC=4104)
 //int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB);
-    char* tmpmem = mem;
-    tmpmem += (size_t) 1024 * 1024 * 1024;
-    tmpmem -= (size_t) tmpmem % 1024 * 1024 * 1024;
-    AA = (CALdouble*) tmpmem;
-    tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
-    BB = (CALdouble*) tmpmem;
-    tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
-    CC = (CALdouble*) tmpmem;
+    {
+	char* tmpmem = mem;
+        tmpmem += (size_t) 1024 * 1024 * 1024;
+	tmpmem -= (size_t) tmpmem % 1024 * 1024 * 1024;
+        AA = (CALdouble*) tmpmem;
+	tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
+        BB = (CALdouble*) tmpmem;
+	tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
+        CC = (CALdouble*) tmpmem;
     
-    AA = (CALdouble*) (((size_t) AA) & ((size_t) 0x6ea040));
-    BB = (CALdouble*) (((size_t) BB) & ((size_t) 0xeec080));
-    CC = (CALdouble*) (((size_t) CC) & ((size_t) 0x495040));
-    double ALPHA = -1.0;
-    double BETA = 1.0;
-    size_t m = 4096, n = 4096, k = 1024;
-    size_t Apitch = 4096, Bpitch = 4096, Cpitch = 4104;
+	AA = (CALdouble*) (((size_t) AA) & ((size_t) 0x6ea040));
+        BB = (CALdouble*) (((size_t) BB) & ((size_t) 0xeec080));
+	CC = (CALdouble*) (((size_t) CC) & ((size_t) 0x495040));
+        double ALPHA = -1.0;
+	double BETA = 1.0;
+        size_t M = 4096, N = 4096, K = 1024;
+	size_t APITCH = 4096, BPITCH = 4096, CPITCH = 4104;
+        CBLAS_ORDER ORDER = CblasColMajor;
+	CBLAS_TRANSPOSE TRANSA = CblasNoTrans, TRANSB = CblasTrans;
 
-    printf("Running with caldgemm parameters: A=%llx, B=%llx, X=%llx, ALPHA=%2.4lf, BETA=%2.4lf, m=%lld, k=%lld, n=%lld, Apitch=%llx, Bpitch=%llx, Cpitch=%llx\n", AA, BB, CC, ALPHA, BETA, m, k, n, Apitch, Bpitch, Cpitch);
-    dgemm.RunCALDGEMM(AA, BB, CC, ALPHA, BETA, m, k, n, Apitch, Bpitch, Cpitch, CblasColMajor, CblasNoTrans, CblasTrans);
-    
-    delete[] mem;
+        printf("Running with caldgemm parameters: A=%llx, B=%llx, X=%llx, ALPHA=%2.4lf, BETA=%2.4lf, m=%lld, k=%lld, n=%lld, Apitch=%llx, Bpitch=%llx, Cpitch=%llx, ColMajor=%d, TransA=%d, TransB=%d\n", AA, BB, CC, ALPHA, BETA, M, K, N, APITCH, BPITCH, CPITCH, (int) (ORDER == CblasColMajor), (int) (TRANSA == CblasTrans), (int) (TRANSB == CblasTrans));
+	dgemm.RunCALDGEMM(AA, BB, CC, ALPHA, BETA, M, K, N, APITCH, BPITCH, CPITCH, ORDER, TRANSA, TRANSB);
+	
+	delete[] mem;
+    }
 #endif //TEST_PARAMETERS
     
     dgemm.ExitCALDGEMM();
