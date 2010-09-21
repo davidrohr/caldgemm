@@ -173,6 +173,7 @@ CALvoid Usage(const CALchar* name)
 
 CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo* Info)
 {
+#ifndef TEST_PARAMETERS
     Info->Verify = CAL_FALSE;
     Info->MemPolicy = CAL_FALSE;
     Info->Disassemble = CAL_FALSE;
@@ -196,6 +197,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->DumpMatrix = CAL_FALSE;
     Info->DivideToGPU = CAL_FALSE;
     Info->AsyncDMA = CAL_FALSE;
+#endif
 
     for (CALuint x = 1; x < argc; ++x)
     {
@@ -666,18 +668,21 @@ int main(CALint argc, CALchar** argv)
 //CALDGEMM_dgemm (ORDER=CblasColMajor, TRANSA=CblasNoTrans, TRANSB=CblasTrans, M=4096, N=4096, K=1024, ALPHA=-1, A=0x2aab136ea040, LDA=4096, B=0x2aab15eec080, LDB=4096, BETA=1, C=0x2aab09495040, LDC=4104)
 //int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB);
     {
-	char* tmpmem = mem;
+	size_t tmpmem = (size_t) mem;
+	printf("tmpmem = 0x%llx\n", tmpmem);
         tmpmem += (size_t) 1024 * 1024 * 1024;
-	tmpmem -= (size_t) tmpmem % 1024 * 1024 * 1024;
+	printf("tmpmem = 0x%llx\n", tmpmem);
+	tmpmem -= ((size_t) tmpmem) % ((size_t) 1024 * 1024 * 1024);
+	printf("tmpmem = 0x%llx\n", tmpmem);
         AA = (CALdouble*) tmpmem;
 	tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
         BB = (CALdouble*) tmpmem;
 	tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
         CC = (CALdouble*) tmpmem;
     
-	AA = (CALdouble*) (((size_t) AA) & ((size_t) 0x6ea040));
-        BB = (CALdouble*) (((size_t) BB) & ((size_t) 0xeec080));
-	CC = (CALdouble*) (((size_t) CC) & ((size_t) 0x495040));
+	AA = (CALdouble*) (((size_t) AA) | ((size_t) 0x6ea040));
+        BB = (CALdouble*) (((size_t) BB) | ((size_t) 0xeec080));
+	CC = (CALdouble*) (((size_t) CC) | ((size_t) 0x495040));
         double ALPHA = -1.0;
 	double BETA = 1.0;
         size_t M = 4096, N = 4096, K = 1024;
@@ -685,8 +690,11 @@ int main(CALint argc, CALchar** argv)
         CBLAS_ORDER ORDER = CblasColMajor;
 	CBLAS_TRANSPOSE TRANSA = CblasNoTrans, TRANSB = CblasTrans;
 
-        printf("Running with caldgemm parameters: A=%llx, B=%llx, X=%llx, ALPHA=%2.4lf, BETA=%2.4lf, m=%lld, k=%lld, n=%lld, Apitch=%llx, Bpitch=%llx, Cpitch=%llx, ColMajor=%d, TransA=%d, TransB=%d\n", AA, BB, CC, ALPHA, BETA, M, K, N, APITCH, BPITCH, CPITCH, (int) (ORDER == CblasColMajor), (int) (TRANSA == CblasTrans), (int) (TRANSB == CblasTrans));
+        printf("Running with caldgemm parameters: A=0x%llx, B=0x%llx, C=0x%llx, ALPHA=%2.4lf, BETA=%2.4lf, m=%lld, k=%lld, n=%lld, Apitch=0x%llx, Bpitch=0x%llx, Cpitch=0x%llx, ColMajor=%d, TransA=%d, TransB=%d\n", AA, BB, CC, ALPHA, BETA, M, K, N, APITCH, BPITCH, CPITCH, (int) (ORDER == CblasColMajor), (int) (TRANSA == CblasTrans), (int) (TRANSB == CblasTrans));
+        fflush(stdout);
 	dgemm.RunCALDGEMM(AA, BB, CC, ALPHA, BETA, M, K, N, APITCH, BPITCH, CPITCH, ORDER, TRANSA, TRANSB);
+	printf("Caldgemm run complete\n");
+	fflush(stdout);
 	
 	delete[] mem;
     }
@@ -694,8 +702,10 @@ int main(CALint argc, CALchar** argv)
     
     dgemm.ExitCALDGEMM();
 
+#ifndef TEST_PARAMETERS
     delete[] AA;
     delete[] BB;
     delete[] CC;
+#endif
     return 0;
 }

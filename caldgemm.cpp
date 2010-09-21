@@ -98,7 +98,7 @@ void calutil::print_submatrices(double* M, size_t width, size_t height, size_t p
 
 int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers, bool transpose)
 {
-    if (Info->Debug) printf("\t\tw: %d, h: %d, pitch: %d\n", width, height, pitch);
+    if (Info->Debug) printf("\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d)\n", src, width, height, pitch, gpu_width, gpu_height);
 
     if (Info->DivideToGPU)
     for (CALuint i = 0;i < numBuffers;i++)
@@ -267,7 +267,7 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
 	        for (int i = 0;i < count;i += 256)
 		{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		    _mm_prefetch(saddr + 25, _MM_HINT_NTA);
+    		    _mm_prefetch(saddr + 30, _MM_HINT_NTA);
 #endif
     		    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
     		    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
@@ -309,7 +309,7 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     		for (int i = 0;i < count;i += 64)
     	        {
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		    _mm_prefetch(saddr + 75, _MM_HINT_NTA);
+    		    _mm_prefetch(saddr + 76, _MM_HINT_NTA);
 #endif
     		    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
     		    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
