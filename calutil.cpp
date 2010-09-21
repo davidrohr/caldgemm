@@ -247,10 +247,10 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
 	    tHeight = Info->Height / 4;
 	    tWidth = Info->Width;
 #elif defined (CALDGEMM_TRANSPOSED_B)
-            /* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
             tWidth = Info->Width / 2;
             tHeight = Info->Height / bPartsNum;
 #else
+            /* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
             tWidth = Info->Height / 2;
             tHeight = Info->Width / bPartsNum;
 #endif
@@ -358,7 +358,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     {
 	if (!BindIONames(ctx, &module[i], bStop, fStop, cStop, data, ctxProgNames[i]))
 	{
-    	    fprintf(stderr, "There was an error in binding the memory to I/O names.\n");
+    	    fprintf(stderr, "There was an error in binding the memory to I/O names (context %d, kernel %d).\n", nContext, i);
     	    return 0;
     	}
     }

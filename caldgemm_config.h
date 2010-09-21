@@ -23,3 +23,4 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 //#define CALDGEMM_DIAGONAL_TEXTURE
 #define CALDGEMM_DUAL_ENTRY
 //#define TESTMODE
+//#define TEST_KERNEL

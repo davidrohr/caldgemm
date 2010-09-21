@@ -239,7 +239,7 @@ const char *calutil::ILKernelName =
 "mov r42, l0\n"
 "mov r43, l0\n"
 "mov r44, l0\n"
-#ifdef CALDGEMM_88
+#if defined(CALDGEMM_88)
 "mov r29, l0\n"
 "mov r30, l0\n"
 "mov r31, l0\n"
@@ -326,7 +326,7 @@ MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r21.xy,
 MMUL441(r37, r38, r39, r40, r41, r42, r43, r44, r15.xy, r15.zw, r16.xy, r16.zw, r21.xy, r21.zw, r22.xy, r22.zw)
 
 #elif defined(CALDGEMM_44)
-#ifdef CALDGEMM_TRANSPOSED_A
+#if defined(CALDGEMM_TRANSPOSED_A)
 #ifdef CALDGEMM_DUAL_ENTRY
 SAMPLE_A(r13, r14, r0.yz)
 SAMPLE_B(r15, r16, r0.xz)
@@ -418,12 +418,65 @@ MMUL_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, 
 MUL8(r3, r4, r5, r6, r7, r8, r9, r10, cb0[1].zw)
 #if defined(CALDGEMM_84) | defined(CALDGEMM_48)
 MUL8(r37, r38, r39, r40, r41, r42, r43, r44, cb0[1].zw)
-#ifdef CALDGEMM_88
+#if defined(CALDGEMM_88)
 MUL8(r29, r30, r31, r32, r33, r34, r35, r36, cb0[1].zw)
 MUL8(r45, r46, r47, r48, r49, r50, r51, r52, cb0[1].zw)
 #endif
 #endif
 #endif
+
+/*#ifdef TEST_KERNEL
+"dadd r3.xy, r3.xy, r37.xy\n"
+"dadd r3.zw, r3.zw, r37.zw\n"
+"dadd r4.xy, r4.xy, r38.xy\n"
+"dadd r4.zw, r4.zw, r38.zw\n"
+"dadd r5.xy, r5.xy, r39.xy\n"
+"dadd r5.zw, r5.zw, r39.zw\n"
+"dadd r6.xy, r6.xy, r40.xy\n"
+"dadd r6.zw, r6.zw, r40.zw\n"
+"dadd r7.xy, r7.xy, r41.xy\n"
+"dadd r7.zw, r7.zw, r41.zw\n"
+"dadd r8.xy, r8.xy, r42.xy\n"
+"dadd r8.zw, r8.zw, r42.zw\n"
+"dadd r9.xy, r9.xy, r43.xy\n"
+"dadd r9.zw, r9.zw, r43.zw\n"
+"dadd r10.xy, r10.xy, r44.xy\n"
+"dadd r10.zw, r10.zw, r44.zw\n"
+
+"dadd r3.xy, r3.xy, r45.xy\n"
+"dadd r3.zw, r3.zw, r45.zw\n"
+"dadd r4.xy, r4.xy, r46.xy\n"
+"dadd r4.zw, r4.zw, r46.zw\n"
+"dadd r5.xy, r5.xy, r47.xy\n"
+"dadd r5.zw, r5.zw, r47.zw\n"
+"dadd r6.xy, r6.xy, r48.xy\n"
+"dadd r6.zw, r6.zw, r48.zw\n"
+"dadd r7.xy, r7.xy, r49.xy\n"
+"dadd r7.zw, r7.zw, r49.zw\n"
+"dadd r8.xy, r8.xy, r50.xy\n"
+"dadd r8.zw, r8.zw, r50.zw\n"
+"dadd r9.xy, r9.xy, r51.xy\n"
+"dadd r9.zw, r9.zw, r51.zw\n"
+"dadd r10.xy, r10.xy, r52.xy\n"
+"dadd r10.zw, r10.zw, r52.zw\n"
+
+"dadd r3.xy, r3.xy, r29.xy\n"
+"dadd r3.zw, r3.zw, r29.zw\n"
+"dadd r4.xy, r4.xy, r30.xy\n"
+"dadd r4.zw, r4.zw, r30.zw\n"
+"dadd r5.xy, r5.xy, r31.xy\n"
+"dadd r5.zw, r5.zw, r31.zw\n"
+"dadd r6.xy, r6.xy, r32.xy\n"
+"dadd r6.zw, r6.zw, r32.zw\n"
+"dadd r7.xy, r7.xy, r33.xy\n"
+"dadd r7.zw, r7.zw, r33.zw\n"
+"dadd r8.xy, r8.xy, r34.xy\n"
+"dadd r8.zw, r8.zw, r34.zw\n"
+"dadd r9.xy, r9.xy, r35.xy\n"
+"dadd r9.zw, r9.zw, r35.zw\n"
+"dadd r10.xy, r10.xy, r36.xy\n"
+"dadd r10.zw, r10.zw, r36.zw\n"
+#endif*/
 
 #ifdef CALDGEMM_USE_MEMEXPORT
 "flr r0.xy, vWinCoord0.xy\n"
