@@ -17,6 +17,7 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 #define CALDGEMM_TRANSPOSED_B
 //#define CALDGEMM_88
 //#define CALDGEMM_84
+//#define CALDGEMM_48
 #define CALDGEMM_44
 //#define CALDGEMM_USE_MEMEXPORT
 //#define CALDGEMM_DIAGONAL_TEXTURE

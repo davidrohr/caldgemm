@@ -216,7 +216,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
         CALuint mComponents = 2;
         if (i < aStop)
         {
-#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
+#if defined(CALDGEMM_48) & defined(CALDGEMM_TRANSPOSED_A)
 	    tWidth = Info->Height / 8;
 	    tHeight = Info->Width;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
@@ -310,7 +310,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     data[bStop].i_data[18] = 0 + 1 * Info->Height / 2;
     data[bStop].i_data[19] = 0 + 1 * Info->Height / 2;
 
-    data[bStop].i_data[20] = 0 + 2 * Info->Height / 2;			//Skip one row
+    data[bStop].i_data[20] = 0 + 2 * Info->Height / 2;			//Proceed by two rows
     data[bStop].i_data[21] = 0 + 2 * Info->Height / 2;
     data[bStop].i_data[22] = 0 + 2 * Info->Height / 2;
     data[bStop].i_data[23] = 0 + 2 * Info->Height / 2;
@@ -323,6 +323,12 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     data[bStop].i_data[17] = 1 + 2 * Info->Height / 2;
     data[bStop].i_data[18] = 0 + 3 * Info->Height / 2;
     data[bStop].i_data[19] = 1 + 3 * Info->Height / 2;
+#ifdef CALDGEMM_48
+    data[bStop].i_data[20] = 0 + 4 * Info->Height / 2;			//Proceed by 4 rows
+    data[bStop].i_data[21] = 0 + 4 * Info->Height / 2;
+    data[bStop].i_data[22] = 0 + 4 * Info->Height / 2;
+    data[bStop].i_data[23] = 0 + 4 * Info->Height / 2;
+#endif
 #else
     data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;
     data[bStop].i_data[13] = 0 + 4 * Info->Height / 2;
@@ -901,6 +907,7 @@ CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, C
         r = calCtxSetMem(*ctx, ctxProgNames[i], data[i].dstMem);
         if (r != CAL_RESULT_OK)
         {
+    	    printf("Error setting memory buffer %d\n", i);
             fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
             fprintf(stderr, "Error string is %s\n",calGetErrorString());
             return 0;
