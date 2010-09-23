@@ -105,7 +105,7 @@ void calutil::print_submatrices(double* M, size_t width, size_t height, size_t p
 
 int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers, bool transpose)
 {
-    if (Info->Debug) printf("\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d)\n", src, width, height, pitch, gpu_width, gpu_height);
+    if (Info->Debug) printf("\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
 
     if (Info->DivideToGPU)
     for (CALuint i = 0;i < numBuffers;i++)
@@ -784,7 +784,15 @@ int calutil::DumpMatrix(double* a, double* b, double* c, double alpha, double be
 int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB)
 {
     if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0) return(0);		//Do Nothing
-    
+
+/*  //Disable output for all but one host in MPI rin
+    if (strcmp(hostname, "gpu-dev05") != 0)
+    {
+	Info->Debug = CAL_FALSE;
+	Info->Quiet = CAL_TRUE;
+	Info->Verify = CAL_FALSE;
+    }*/
+
     bool forceCPU = false;
     bool forceReinit = false;
     size_t old_k = Info->Width;
@@ -805,26 +813,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     A_pitch = Apitch != -1 ? Apitch : Info->Width;
     B_pitch = Bpitch != -1 ? Bpitch : Info->n;
     C_pitch = Cpitch != -1 ? Cpitch : Info->n;
-    TransposeA = TransA;
-    TransposeB = TransB;    
     ResetTimers();
     
+    if (Info->Debug) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx)\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C);
+
     //Check for double == 1.0 is unsafe and causes compiler warning
     const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
     const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
     if (kernel_num && Info->Debug) printf("Using Kernel for ALPHA = 1\n");
     
-    if (Info->Debug) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf\n", Info->m, Info->Width, Info->n, Alpha, Beta);
-    if (Info->Verify)
-    {
-	D = new CALdouble[(size_t) Info->m * (size_t) C_pitch];
-	if (D == NULL)
-	{
-	    printf("Memory allocation error\n");
-	    return(1);
-	}
-	memcpy(D, C, Info->m * C_pitch * sizeof(CALdouble));
-    }
 
     Timers.System.Start();
     
@@ -839,7 +836,21 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	tmpt = TransA;TransA = TransB;TransB = tmpt;
     }
     
-    if (Info->DumpMatrix) DumpMatrix(A, B, C, Alpha, Beta, Info->m, Info->Width, Info->n, A_pitch, B_pitch, C_pitch, CblasRowMajor, TransA, TransB);
+    TransposeA = TransA;
+    TransposeB = TransB;    
+    
+    if (Info->Verify)
+    {
+	D = new CALdouble[(size_t) Info->m * (size_t) C_pitch];
+	if (D == NULL)
+	{
+	    printf("Memory allocation error\n");
+	    return(1);
+	}
+	memcpy(D, C, Info->m * C_pitch * sizeof(CALdouble));
+    }
+
+    if (Info->DumpMatrix) DumpMatrix(A, B, C, Alpha, Beta, Info->m, Info->Width, Info->n, A_pitch, B_pitch, C_pitch, CblasRowMajor, TransposeA, TransposeB);
 
 #ifndef TESTMODE    
     //Check if the GPU can/shall process the required dgemm task
@@ -881,17 +892,18 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024)) forceCPU = true;
     
+/*  //Run on CPU on all but one node in MPIRUN
     if (strcmp(hostname, "gpu-dev05") != 0)
     {
 	printf("Hostname not 5 but %s\n", hostname);
 	forceCPU = true;
-    }
+    }*/
 
     if (forceCPU)
     {
 	if (Info->Debug) printf("Running CPU only DGEMM\n");
 	Timers.CPUTimer.Start();
-	cblas_dgemm(CblasRowMajor, TransA, TransB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
+	cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 	Timers.CPUTimer.Stop();
 	CPUOnlyRun = true;
 	Info->Width = old_k;

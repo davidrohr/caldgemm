@@ -173,12 +173,12 @@ CALvoid Usage(const CALchar* name)
 
 CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo* Info)
 {
+    Info->Quiet = CAL_FALSE;
 #ifndef TEST_PARAMETERS
     Info->Verify = CAL_FALSE;
     Info->MemPolicy = CAL_FALSE;
     Info->Disassemble = CAL_FALSE;
     Info->PrintILKernel = CAL_FALSE;
-    Info->Quiet = CAL_FALSE;
     //Info->Pin = -3;
     Info->MultiThread = CAL_FALSE;
     //Info->DeviceNum = 0;
@@ -685,10 +685,15 @@ int main(CALint argc, CALchar** argv)
 	CC = (CALdouble*) (((size_t) CC) | ((size_t) 0x495040));
         double ALPHA = -1.0;
 	double BETA = 1.0;
-        size_t M = 4096, N = 4096, K = 1024;
-	size_t APITCH = 4096, BPITCH = 4096, CPITCH = 4104;
+        size_t M = 3072, N = 3072, K = 1024;
+	size_t APITCH = 4104, BPITCH = 3072, CPITCH = 4104;
         CBLAS_ORDER ORDER = CblasColMajor;
 	CBLAS_TRANSPOSE TRANSA = CblasNoTrans, TRANSB = CblasTrans;
+	printf("Filling Source Matrices with random data\n");
+	fflush(stdout);
+	for (int i = 0;i < APITCH * (M > K ? M : K);i++) AA[i] = i % 257;
+	for (int i = 0;i < BPITCH * (N > K ? N : K);i++) BB[i] = i % 97;
+	for (int i = 0;i < CPITCH * (M > N ? M : N);i++) CC[i] = i % 65537;
 
         printf("Running with caldgemm parameters: A=0x%llx, B=0x%llx, C=0x%llx, ALPHA=%2.4lf, BETA=%2.4lf, m=%lld, k=%lld, n=%lld, Apitch=0x%llx, Bpitch=0x%llx, Cpitch=0x%llx, ColMajor=%d, TransA=%d, TransB=%d\n", AA, BB, CC, ALPHA, BETA, M, K, N, APITCH, BPITCH, CPITCH, (int) (ORDER == CblasColMajor), (int) (TRANSA == CblasTrans), (int) (TRANSB == CblasTrans));
         fflush(stdout);
