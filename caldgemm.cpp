@@ -871,8 +871,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    if (!Info->Quiet) printf("Using reduced Height %lld instead of  %lld\n", Info->Height, BufferHeight);
 	}
     }
+    
+    if (Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024)) forceCPU = true;
 
-    if (forceCPU || Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024))
+    if (forceCPU)
     {
 	if (Info->Debug) printf("Running CPU only DGEMM\n");
 	Timers.CPUTimer.Start();
