@@ -93,6 +93,12 @@ void calutil::print_submatrices(double* M, size_t width, size_t height, size_t p
     printf("Done\n");
 }
 
+#ifdef UNALIGNED_ADDRESSES
+#define _mm_load_pd_use _mm_loadu_pd
+#else
+#define _mm_load_pd_use _mm_load_pd
+#endif
+
 #define _mm_store_pd_use _mm_stream_pd
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH
 
@@ -140,14 +146,14 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     		    _mm_prefetch(saddr4 + 100, _MM_HINT_NTA);*/
 #endif
 		    __m128d x1, x2, x3, x4, x5, x6, x7, x8, x9, x10;
-		    x1 = _mm_load_pd(saddr);
-		    x3 = _mm_load_pd(saddr + 2);
-		    x2 = _mm_load_pd(saddr2);
-		    x4 = _mm_load_pd(saddr2 + 2);
-		    x5 = _mm_load_pd(saddr3);
-		    x7 = _mm_load_pd(saddr3 + 2);
-		    x6 = _mm_load_pd(saddr4);
-		    x8 = _mm_load_pd(saddr4 + 2);
+		    x1 = _mm_load_pd_use(saddr);
+		    x3 = _mm_load_pd_use(saddr + 2);
+		    x2 = _mm_load_pd_use(saddr2);
+		    x4 = _mm_load_pd_use(saddr2 + 2);
+		    x5 = _mm_load_pd_use(saddr3);
+		    x7 = _mm_load_pd_use(saddr3 + 2);
+		    x6 = _mm_load_pd_use(saddr4);
+		    x8 = _mm_load_pd_use(saddr4 + 2);
 		    
 		    x9 = _mm_unpacklo_pd(x1, x2);
 		    x10 = _mm_unpackhi_pd(x1, x2);
@@ -215,8 +221,8 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     		_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
 #endif
 		__m128d x1, x2, x3, x4;
-		x1 = _mm_load_pd(saddr);
-		x2 = _mm_load_pd(saddr2);
+		x1 = _mm_load_pd_use(saddr);
+		x2 = _mm_load_pd_use(saddr2);
 		x3 = _mm_unpacklo_pd(x1, x2);
 		x4 = _mm_unpackhi_pd(x1, x2);
     		_mm_store_pd_use(daddr, x3);
@@ -241,10 +247,10 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
     		_mm_prefetch(saddr + 60, _MM_HINT_NTA);
     		_mm_prefetch(saddr2 + 60, _MM_HINT_NTA);
 #endif
-    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    		_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
-    		_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
-    		_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
+    		_mm_store_pd_use(daddr + 0, _mm_load_pd_use(saddr));
+    		_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr2));
+    		_mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 2));
+    		_mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr2 + 2));
     		daddr += 8;
     		saddr += 4;
     		saddr2 += 4;
@@ -269,22 +275,22 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
     		    _mm_prefetch(saddr + 30, _MM_HINT_NTA);
 #endif
-    		    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    		    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
-    		    _mm_store_pd_use(daddr3, _mm_load_pd(saddr + 4));
-    		    _mm_store_pd_use(daddr4, _mm_load_pd(saddr + 6));
-    		    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 8));
-    		    _mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 10));
-    		    _mm_store_pd_use(daddr3 + 2, _mm_load_pd(saddr + 12));
-    		    _mm_store_pd_use(daddr4 + 2, _mm_load_pd(saddr + 14));
-    		    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 16));
-    		    _mm_store_pd_use(daddr2 + 4, _mm_load_pd(saddr + 18));
-    		    _mm_store_pd_use(daddr3 + 4, _mm_load_pd(saddr + 20));
-    		    _mm_store_pd_use(daddr4 + 4, _mm_load_pd(saddr + 22));
-    		    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 24));
-    		    _mm_store_pd_use(daddr2 + 6, _mm_load_pd(saddr + 26));
-    		    _mm_store_pd_use(daddr3 + 6, _mm_load_pd(saddr + 28));
-    		    _mm_store_pd_use(daddr4 + 6, _mm_load_pd(saddr + 30));
+    		    _mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
+    		    _mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));
+    		    _mm_store_pd_use(daddr3, _mm_load_pd_use(saddr + 4));
+    		    _mm_store_pd_use(daddr4, _mm_load_pd_use(saddr + 6));
+    		    _mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 8));
+    		    _mm_store_pd_use(daddr2 + 2, _mm_load_pd_use(saddr + 10));
+    		    _mm_store_pd_use(daddr3 + 2, _mm_load_pd_use(saddr + 12));
+    		    _mm_store_pd_use(daddr4 + 2, _mm_load_pd_use(saddr + 14));
+    		    _mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 16));
+    		    _mm_store_pd_use(daddr2 + 4, _mm_load_pd_use(saddr + 18));
+    		    _mm_store_pd_use(daddr3 + 4, _mm_load_pd_use(saddr + 20));
+    		    _mm_store_pd_use(daddr4 + 4, _mm_load_pd_use(saddr + 22));
+    		    _mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr + 24));
+    		    _mm_store_pd_use(daddr2 + 6, _mm_load_pd_use(saddr + 26));
+    		    _mm_store_pd_use(daddr3 + 6, _mm_load_pd_use(saddr + 28));
+    		    _mm_store_pd_use(daddr4 + 6, _mm_load_pd_use(saddr + 30));
     		    saddr += 32;
     		    daddr += 8;
     		    daddr2+= 8;
@@ -311,10 +317,10 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
     		    _mm_prefetch(saddr + 76, _MM_HINT_NTA);
 #endif
-    		    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    		    _mm_store_pd_use(daddr2, _mm_load_pd(saddr + 2));
-    		    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 4));
-    		    _mm_store_pd_use(daddr2 + 2, _mm_load_pd(saddr + 6));
+    		    _mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
+    		    _mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));
+    		    _mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 4));
+    		    _mm_store_pd_use(daddr2 + 2, _mm_load_pd_use(saddr + 6));
     		    saddr += 8;
     		    daddr += 4;
     		    daddr2+= 4;
@@ -339,10 +345,10 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
     		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
 #endif
-    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    		_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 2));
-    		_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 4));
-    		_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 6));
+    		_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
+    		_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 2));
+    		_mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 4));
+    		_mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr + 6));
     		saddr += 8;
     		daddr += 8;
     	}

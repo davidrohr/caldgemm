@@ -25,3 +25,4 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 //#define TESTMODE
 //#define TEST_KERNEL
 //#define TEST_PARAMETERS
+//#define UNALIGNED_ADDRESSES
