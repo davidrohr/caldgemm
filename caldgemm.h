@@ -70,4 +70,6 @@ class caldgemm : public calutil
         
     cpu_set_t oldcpumask;
     cpu_set_t gpumask;
+    
+    char hostname[256];	//Store hostname of node for host dependant debug code
 };

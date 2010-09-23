@@ -30,6 +30,7 @@ extern "C" {
 #include <common.h>
 }
 #include <math.h>
+#include <unistd.h>
 
 #define MPOL_DEFAULT 0
 #define MPOL_PREFERRED 1
@@ -506,7 +507,7 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 {
     Info = pInfo;
-
+    gethostname(hostname, 255);
     sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);
     
     if (Info->Pin != -100)
@@ -846,7 +847,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	forceCPU = true;
     }
 #endif
-    
+
     if (Info->AutoHeight)
     {
 	if (Info->m < 2048 || Info->n < 2048 || Info->m * Info->n < 16 * 1024 * 1024)
