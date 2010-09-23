@@ -618,8 +618,11 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     cParam.terminate = CAL_FALSE;
     for (int j = 0;j < 2;j++) pthread_mutex_init(&cParam.cblasMutex[j], NULL);
     pthread_mutex_lock(&cParam.cblasMutex[0]);
-    pthread_t thr;
-    pthread_create(&thr, NULL, cblas_wrapper, &cParam);
+    if (Info->MultiThread)
+    {
+	pthread_t thr;
+	pthread_create(&thr, NULL, cblas_wrapper, &cParam);
+    }
     
     if (Info->MemPolicy)
     {
@@ -639,7 +642,7 @@ void* cblas_wrapper(void* arg)
     
     sched_setaffinity(0, sizeof(par->cls->oldcpumask), &par->cls->oldcpumask);
     
-    pthread_mutex_lock(&par->cls->cParam.cblasMutex[1]);
+    if (Info->MultiThread) pthread_mutex_lock(&par->cls->cParam.cblasMutex[1]);
     while (pthread_mutex_lock(&par->cls->cParam.cblasMutex[1]) == 0 && par->terminate == CAL_FALSE)
     {
 	const CALdouble Alpha = par->cls->Alpha;
@@ -697,9 +700,13 @@ void* cblas_wrapper(void* arg)
 
         if (Info->Debug) printf("\t\tUnlocking cblasmutex\n");
         pthread_mutex_unlock(&par->cls->cParam.cblasMutex[0]);
+        if (!Info->MultiThread) break;
     }
     if (Info->Debug) printf("blas slave terminating\n");
-    pthread_exit(NULL);
+    if (Info->MultiThread)
+    {
+	pthread_exit(NULL);
+    }
     return(NULL);
 }
 
@@ -873,6 +880,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
     
     if (Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024)) forceCPU = true;
+    
+    if (strcmp(hostname, "gpu-dev05") != 0)
+    {
+	printf("Hostname not 5 but %s\n", hostname);
+	forceCPU = true;
+    }
 
     if (forceCPU)
     {
@@ -986,7 +999,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	usem = Info->m;
     }
     
-    if (Info->UseCPU) pthread_mutex_unlock(&cParam.cblasMutex[1]);
+    if (Info->UseCPU)
+    {
+	pthread_mutex_unlock(&cParam.cblasMutex[1]);
+	if (!Info->MultiThread)
+	{
+	    cblas_wrapper((void*) &cParam);
+	}
+    }
 
     Timers.GPUTimer.Start();
 
@@ -1053,7 +1073,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     		if (!RunProgram(&ctx_main, &modules[j][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
     		calCtxFlush(ctx_main);
     		
-    		if (Info->UseCPU && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * GPURatio * nb * mb)
+    		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * GPURatio * nb * mb)
     		{
     		    if (pthread_mutex_trylock(&cParam.cblasMutex[0]) == 0)
     		    {
@@ -1230,13 +1250,15 @@ int caldgemm::ExitCALDGEMM()
     if (pthread_mutex_unlock(&cParam.cblasMutex[0])) printf("Error unlocking blas mutex 0 to terminate thread\n");
     
     if (Info->MultiThread)
-    for (int i = 0;i < ctxcount;i++)
     {
-	while (pthread_mutex_trylock(&mParam[i].mergeMutex[1]) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeMutex[1]);
-	if (pthread_mutex_unlock(&mParam[i].mergeMutex[1])) printf("Error unlocking mergeMutex %d/1\n", i);
+	for (int i = 0;i < ctxcount;i++)
+	{
+	    while (pthread_mutex_trylock(&mParam[i].mergeMutex[1]) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeMutex[1]);
+	    if (pthread_mutex_unlock(&mParam[i].mergeMutex[1])) printf("Error unlocking mergeMutex %d/1\n", i);
+	}
+        while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
+	if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blasMutex 1\n");
     }
-    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
-    if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blasMutex 1\n");
     
     for (int j = 0;j < 2;j++)
     {
