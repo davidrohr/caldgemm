@@ -182,6 +182,7 @@ class calutil
 	CALuint    Iterations;
 	CALchar	   DstMemory;
 	CALboolean VerboseTiming;
+	CALboolean AsyncTiming;
 	CALboolean TabularTiming;
 	CALboolean Debug;
 	CALboolean MultiThread;
@@ -191,6 +192,8 @@ class calutil
 	CALboolean DynamicSched;
 	CALboolean MemPolicy;
 	CALboolean DumpMatrix;
+	CALboolean DivideToGPU;
+	CALboolean AsyncDMA;
 	size_t     m, n;		//height of A, width of B, must be multiple of height
     };
 
@@ -249,16 +252,16 @@ protected:
     CALint Initialize (CALdevice *device, CALcontext *ctx, CALuint deviceNum);
     CALint SetupKernel(const CALchar* ILKernel, CALmodule* module, CALcontext* ctx, CALboolean disassemble = CAL_FALSE);
     CALint RunProgram(CALcontext* ctx, CALmodule* module, CALuint Width, CALuint Height, CALevent* event);
-    CALint CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles);
-    CALint Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles);
+    CALint CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext);
+    CALint Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext);
     CALformat getFormat(CALuint formatSize, CALuint dataSize, CALboolean isInt = CAL_FALSE);
     CALuint AnalyzeResults(Data* data);
-    CALint SetupData(CALmodule* module, CALresource* &_Res, Data* &data, CALdevice* device, CALcontext* ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers);
+    CALint SetupData(CALmodule* module, CALresource* &_Res, Data* &data, CALdevice* device, CALcontext* ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames, int nContext);
     CALint CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALevent* event);
-    CALint CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event);
-    CALint BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data);
-    CALint AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data);
-    int AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i);
+    CALint CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event, Data* dest_data = NULL);
+    CALint BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, CALname* ctxProgNames);
+    CALint AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, int nContext);
+    int AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i, int nContext);
     CALint ParameterValidation(CALuint nInput, CALuint nOutput, CALdeviceattribs* attribs);
     CALvoid SupportedCALVersion(CALVersion *calVersion);
     CALint QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList);
@@ -288,12 +291,12 @@ protected:
     CBLAS_TRANSPOSE TransposeB;
 
 #ifdef CALDGEMM_44
-#if defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_88)
+#if !defined(CALDGEMM_48)
     static const CALuint aPartsNum = 2;
 #else
     static const CALuint aPartsNum = 4;
 #endif
-#if defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_84)
+#if !defined(CALDGEMM_84)
     static const CALuint bPartsNum = 2;
 #else
     static const CALuint bPartsNum = 4;
@@ -312,19 +315,25 @@ protected:
 #else
     static const CALuint cPartsNum = 8;
 #endif
-    static const int ctxcount = 3;
+    static const int ctxcount = 3;		//Not cal context count but number of copies of data buffers etc.
     static const int vcpysize = 16;
     static const int kernel_count = 2;
+    static const int max_bbuffers = 20;
+    int bbuffers;
+    
+    size_t BufferHeight;			//Height to which the buffers were originally initialized
+    size_t BufferWidth;				//Same for width
     
     SampleInfo* Info;
     SampleFeatures Features;
 
-    Data* datas[ctxcount];
+    Data* datas[max_bbuffers];
     CALuint numInputs, numOutputs, numConstantBuffers;
     CALdevice device;
-    CALcontext ctxs[ctxcount];
-    CALresource* resourceHandlers[ctxcount];
+    CALcontext ctx_main;
+    CALresource* resourceHandlers[max_bbuffers];
     CALmodule modules[ctxcount][kernel_count];
+    CALname *progNames[ctxcount][kernel_count];
     CALevent events[ctxcount];
 
     static const char *ILKernel, *ILKernelALPHA1;
@@ -333,7 +342,7 @@ protected:
     {
         caldgemm* cls;
         size_t cblas_size;
-        size_t dynamic_run;     //Do an extra dynic cblas run?, works also as m for the dynamic run, set negative value to omit doing the border run
+        size_t dynamic_run;     //Do an extra dynamic cblas run?, works also as m for the dynamic run
 	size_t dynamic_size;    //n for dynamic run
         CALboolean borders_done;
         CALboolean terminate;

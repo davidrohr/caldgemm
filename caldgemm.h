@@ -46,14 +46,16 @@ class caldgemm : public calutil
     //The Width (k in matrix multiply) is fixed and cannot be changed without reinitializing
     int InitCALDGEMM(SampleInfo* pInfo);
     int ExitCALDGEMM();
-    int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = -1, size_t = -1, size_t n = -1, size_t Apitch = -1, size_t Bpitch = -1, size_t Cpitch = -1, CBLAS_ORDER order = CblasRowMajor, CBLAS_TRANSPOSE TransA = CblasNoTrans, CBLAS_TRANSPOSE TransB = CblasNoTrans);
+    int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = -1, size_t k = -1, size_t n = -1, size_t Apitch = -1, size_t Bpitch = -1, size_t Cpitch = -1, CBLAS_ORDER order = CblasRowMajor, CBLAS_TRANSPOSE TransA = CblasNoTrans, CBLAS_TRANSPOSE TransB = CblasNoTrans);
     void ResetTimers();
 
     private:
     
-    CALvoid divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint pitch, CALint numBuffers, bool transpose);
-    int mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint pitch, CALint numBuffers);
+    int divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers, bool transpose);
+    int mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers);
     
+    int DGEMM_prepare(size_t k, int j, size_t usem, size_t usen);
+
     struct mergeParameters
     {
 	caldgemm* cls;
@@ -68,4 +70,6 @@ class caldgemm : public calutil
         
     cpu_set_t oldcpumask;
     cpu_set_t gpumask;
+    
+    char hostname[256];	//Store hostname of node for host dependant debug code
 };

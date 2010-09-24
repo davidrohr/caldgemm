@@ -17,9 +17,10 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 
 #ifdef CALDGEMM_88
 #define CALDGEMM_84
+#define CALDGEMM_48
 #endif
 
-#if defined(CALDGEMM_84)
+#if defined(CALDGEMM_84) | defined(CALDGEMM_48)
 #define CALDGEMM_44
 #define CALDGEMM_USE_MEMEXPORT
 #define CALDGEMM_TRANSPOSED_A
@@ -38,11 +39,15 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 #endif
 #endif
 
-#if defined(CALDGEMM_DIAGONAL_TEXTURE) & (!defined(CALDGEMM_44) | defined(CALDGEMM_88) | !defined(CALDGEMM_TRANSPOSED_A))
+#if defined(CALDGEMM_DIAGONAL_TEXTURE) & (!defined(CALDGEMM_44) | defined(CALDGEMM_84) | defined(CALDGEMM_48) | !defined(CALDGEMM_TRANSPOSED_A))
 #undef CALDGEMM_DIAGONAL_TEXTURE
 #endif
 
-#if defined(CALDGEMM_88) | !defined(CALDGEMM_44)
+#if defined(CALDGEMM_DUAL_ENTRY) & (!defined(CALDGEMM_44) | defined(CALDGEMM_84) | defined(CALDGEMM_48) | !defined(CALDGEMM_TRANSPOSED_A))
+#undef CALDGEMM_DUAL_ENTRY
+#endif
+
+#if defined(CALDGEMM_48) | !defined(CALDGEMM_44)
 #define TILING_Y 8
 #else
 #define TILING_Y 4

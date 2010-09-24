@@ -134,11 +134,11 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
         }
 	if (Info->VerboseTiming)
 	{
-	    CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble)Info->Iterations / Timers.Kernel.GetElapsedTime();
-	    CALdouble copyto = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterCopyTo.GetElapsedTime();
-    	    CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterCopyFrom.GetElapsedTime()) : 0;
-    	    CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterMerge.GetElapsedTime());
-    	    CALdouble copyDivide = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations/Timers.CounterDivide.GetElapsedTime();
+	    CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width) * (CALdouble)Info->Iterations / Timers.Kernel.GetElapsedTime();
+	    CALdouble copyto = (CALdouble) 1e-09 * (Info->m * (Info->n / Info->Height > ctxcount ? ctxcount : Info->n / Info->Height) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterCopyTo.GetElapsedTime();
+    	    CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterCopyFrom.GetElapsedTime()) : 0;
+    	    CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterMerge.GetElapsedTime());
+    	    CALdouble copyDivide = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterDivide.GetElapsedTime();
     	    printf("Times:  Kernel                    Divide                  Merge                   Copy To                 Copy From\n");
     	    printf("        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
     	    if (Info->TabularTiming)
@@ -169,7 +169,7 @@ CALuint calutil::AnalyzeResults(Data* data)
             {
                 if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
                 {
-            	    if (wrong < 1) printf("Error found at %lld, %lld: Expected: %le, Found: %le, Diff: %le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
+            	    if (wrong < 1) printf("Error found at row %lld, row %lld: Expected: %le, Found: %le, Diff: %le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
                     ++wrong;
                 }
                 ++total;
@@ -194,8 +194,10 @@ CALuint calutil::AnalyzeResults(Data* data)
     return !wrong;
 }
 
-CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, CALdevice *device, CALcontext *ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers )
+CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, CALdevice *device, CALcontext *ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames, int nContext )
 {
+    BufferHeight = Info->Height;
+    BufferWidth = Info->Width;
     // Fill in the dimensions
     const CALuint aStop = aPartsNum;
     const CALuint bStop = aStop + bPartsNum;
@@ -205,6 +207,8 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     
     for (CALuint i = 0; i < cStop; ++i)
     {
+	if (nContext >= 2 && i < aStop) continue;
+	if (nContext >= ctxcount && (i < aStop || i >= bStop)) continue;
         CALuint tWidth = 0;
         CALuint tHeight = 0;
         CALresallocflags flag = static_cast<CALresallocflags>(0);
@@ -212,12 +216,15 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
         CALuint mComponents = 2;
         if (i < aStop)
         {
-#if defined(CALDGEMM_88) & defined(CALDGEMM_TRANSPOSED_A)
+#if defined(CALDGEMM_48) & defined(CALDGEMM_TRANSPOSED_A)
 	    tWidth = Info->Height / 8;
 	    tHeight = Info->Width;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
 	    tWidth = Info->Height / 4;
 	    tHeight = Info->Width;
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
+	    tHeight = Info->Height / 4;
+	    tWidth = Info->Width;
 #elif defined(CALDGEMM_TRANSPOSED_A)
             /* A matrix sizes are shrunk by 2 (double2) in the width and 8 (8 resources) in the height */
             tWidth = Info->Height / 2;
@@ -236,11 +243,14 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
 	    tWidth = Info->Height / 4;
 	    tHeight = Info->Width;
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
+	    tHeight = Info->Height / 4;
+	    tWidth = Info->Width;
 #elif defined (CALDGEMM_TRANSPOSED_B)
-            /* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
             tWidth = Info->Width / 2;
             tHeight = Info->Height / bPartsNum;
 #else
+            /* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
             tWidth = Info->Height / 2;
             tHeight = Info->Width / bPartsNum;
 #endif
@@ -268,20 +278,16 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
             fprintf(stderr, "Error: Path that should be unreachable is reached\n");
             return 0;
         }
-        AllocateMemory(data[i], device, ctx, tWidth, tHeight, mComponents, sizeof(CALdouble), flag, i);
+        if (AllocateMemory(data[i], device, ctx, tWidth, tHeight, mComponents, sizeof(CALdouble), flag, i, nContext)) return(1);
     }
 
+    if (nContext < ctxcount) {
     // Setup the constants for the kernel
     data[bStop].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos
     data[bStop].f_data[2] = (float) TILING_X / Info->Height;  //Scale factor for normalized x pos
 #ifdef CALDGEMM_44
-#ifdef CALDGEMM_TRANSPOSED_A
     data[bStop].f_data[1] = 1.f / Info->Width;  //Step in K direction
     data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width);				//Iterations of loop in IL Kernel
-#else
-    data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
-    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / 2);			//Iterations of loop in IL Kernel, factor 2 for double2
-#endif
 #else //CALDGEMM_44
     data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
     data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));	//Iterations of loop in IL Kernel
@@ -304,7 +310,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     data[bStop].i_data[18] = 0 + 1 * Info->Height / 2;
     data[bStop].i_data[19] = 0 + 1 * Info->Height / 2;
 
-    data[bStop].i_data[20] = 0 + 2 * Info->Height / 2;			//Skip one row
+    data[bStop].i_data[20] = 0 + 2 * Info->Height / 2;			//Proceed by two rows
     data[bStop].i_data[21] = 0 + 2 * Info->Height / 2;
     data[bStop].i_data[22] = 0 + 2 * Info->Height / 2;
     data[bStop].i_data[23] = 0 + 2 * Info->Height / 2;
@@ -317,6 +323,12 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     data[bStop].i_data[17] = 1 + 2 * Info->Height / 2;
     data[bStop].i_data[18] = 0 + 3 * Info->Height / 2;
     data[bStop].i_data[19] = 1 + 3 * Info->Height / 2;
+#ifdef CALDGEMM_48
+    data[bStop].i_data[20] = 0 + 4 * Info->Height / 2;			//Proceed by 4 rows
+    data[bStop].i_data[21] = 0 + 4 * Info->Height / 2;
+    data[bStop].i_data[22] = 0 + 4 * Info->Height / 2;
+    data[bStop].i_data[23] = 0 + 4 * Info->Height / 2;
+#endif
 #else
     data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;
     data[bStop].i_data[13] = 0 + 4 * Info->Height / 2;
@@ -330,23 +342,26 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
 #ifdef CALDGEMM_DIAGONAL_TEXTURE
     data[bStop].f_data[11] = 8.f / Info->Height;  //Offset for diagonal texture read
 #endif
-
+    }
+    
     //////////////////////////////////////////////////////////////////////////
     //
     //  setup the program's inputs and outputs
     //
-    if (!AllocateResources(ctx, device, _Res, bStop, fStop, cStop, data)) {
+    if (!AllocateResources(ctx, device, _Res, bStop, fStop, cStop, data, nContext)) {
         fprintf(stderr, "There was an error in allocating resources and binding them to memory\n");
         return 0;
     }
     
+    if (nContext >= ctxcount) return 1;
     for (int i = 0;i < kernel_count;i++)
-    if (!BindIONames(ctx, &module[i], bStop, fStop, cStop, data))
     {
-        fprintf(stderr, "There was an error in binding the memory to I/O names.\n");
-        return 0;
+	if (!BindIONames(ctx, &module[i], bStop, fStop, cStop, data, ctxProgNames[i]))
+	{
+    	    fprintf(stderr, "There was an error in binding the memory to I/O names (context %d, kernel %d).\n", nContext, i);
+    	    return 0;
+    	}
     }
-    
     
     return 1;
 }
@@ -428,7 +443,7 @@ static void __logger(const CALchar *msg)
     fprintf(stderr, msg);
 }
 
-CALint calutil::Initialize(CALdevice *device, CALcontext *ctxs, CALuint deviceNum )
+CALint calutil::Initialize(CALdevice *device, CALcontext *ctx, CALuint deviceNum )
 {
     if (calInit() != CAL_RESULT_OK )
     {
@@ -446,16 +461,12 @@ CALint calutil::Initialize(CALdevice *device, CALcontext *ctxs, CALuint deviceNu
     }
 
     // Create a CAL context
-    for (int i = 0;i < ctxcount;i++)
+    if (calCtxCreate(&ctx_main, *device) != CAL_RESULT_OK )
     {
-	if (calCtxCreate(&ctxs[i], *device) != CAL_RESULT_OK )
-	{
-	    fprintf(stderr, "There was an error creatint the context.\n");
-	    fprintf(stderr, "Error string is %s\n", calGetErrorString());
-	    return 0;
-	}
+        fprintf(stderr, "There was an error creatint the context.\n");
+	fprintf(stderr, "Error string is %s\n", calGetErrorString());
+	return 0;
     }
-
     return 1;
 }
 
@@ -474,10 +485,10 @@ CALint calutil::SetupKernel(const CALchar* ILKernel, CALmodule* module, CALconte
         fprintf(stderr, "Error string is %s\n", calGetErrorString());
         return 0;
     }
-
+    
     // Compile IL kernel into object
     CALobject obj;
-    if (Info->PrintILKernel && ctx == ctxs) printf("Kernel:\n%s\n", ILKernel);
+    if (Info->PrintILKernel && (module == modules[0] || module == &modules[0][1])) printf("Kernel:\n%s\n", ILKernel);
     if (calclCompile(&obj, CAL_LANGUAGE_IL, ILKernel, attribs.target) != CAL_RESULT_OK)
     {
         fprintf(stderr, "There was an error compiling the program.\n");
@@ -562,17 +573,17 @@ CALint calutil::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, CA
     return 1;
 }
 
-CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles)
+CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext)
 {
     if (data)
     {
-        for (CALuint i = 0; i < numHandles; ++i)
+        for (CALuint i = 0; i < numHandles;++i)
         {
-            if (data[i].c_data)
+            if ((nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && data[i].c_data)
             {
         	if (data[i].CALMemory )
         	{
-        	    if (Info->DstMemory == 'g' || i <= aPartsNum)
+        	    if ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum + numConstantBuffers) && nContext < ctxcount)
         	    {
         		calCtxReleaseMem(*ctx, data[i].mem);
         		calResUnmap(data[i].res);
@@ -593,7 +604,7 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
     {
         for (CALuint i = 0; i < numHandles; i++ )
         {
-            if (resourceHandler[i] )
+            if ((nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && resourceHandler[i])
             {
         	if (calCtxReleaseMem(*ctx, data[i].dstMem) != CAL_RESULT_OK )
                 {
@@ -610,30 +621,23 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
     }
 }
 
-CALint calutil::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles)
+CALint calutil::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext)
 {
-    CleanupData(ctx, resourceHandler, data, numHandles);
+    CleanupData(ctx, resourceHandler, data, numHandles, nContext);
 
     // Unload the module from the context
     
+    if (nContext < ctxcount)
     for (int i = 0;i < kernel_count;i++)
     {
 	if (module[i])
 	{
     	    if (calModuleUnload(*ctx, module[i]) != CAL_RESULT_OK )
     	    {
+    		printf("Error unloading module\n");
         	fprintf(stderr, "Error string is %s\n", calGetErrorString());
     	    }
     	}
-    }
-
-    // Destroy the context
-    if (ctx )
-    {
-        if (calCtxDestroy(*ctx) != CAL_RESULT_OK )
-        {
-            fprintf(stderr, "Error string is %s\n", calGetErrorString());
-        }
     }
 
     delete[] resourceHandler;
@@ -735,6 +739,7 @@ CALint calutil::CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, Data* data, 
     CALuint pitch;
     CALresult r;
     CALchar* ptr;
+    WAITFOREVENT(*ctx, *event);
     for (CALuint i = 0; i < num; ++i)
     {
 	if (data[i].CALMemory)
@@ -788,8 +793,15 @@ void calutil::copyTo(CALchar* ptr, Data& data, CALuint pitch)
 }
 
 
-CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event)
+CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event, Data* dest_data)
 {
+    if (dest_data == NULL) dest_data = data;
+    CPerfCounter ATime;
+    if (Info->AsyncTiming)
+    {
+	ATime.Reset();
+	ATime.Start();
+    }
     CALuint pitch;
     CALresult r;
     CALchar* ptr;
@@ -798,7 +810,7 @@ CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CA
 	if (data[i].CALMemory == constants) continue;
 	if (data[i].CALMemory)
 	{
-	    CHKERR(calMemCopy(event, *ctx, data[i].mem, data[i].dstMem, NULL), "copying data to gpu");
+	    CHKERR(calMemCopy(event, *ctx, data[i].mem, dest_data[i].dstMem, NULL), "copying data to gpu");
 	    continue;
 	}
         r = calResMap((CALvoid**)&ptr, &pitch, _Res[i], 0);
@@ -817,7 +829,20 @@ CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CA
             return 1;
         }
     }
+    if (Info->AsyncTiming && constants == CAL_FALSE)
+    {
+	ATime.Stop();
+	printf("\t\tCopyToGPU: Time until command issued: %2.4lf\n", ATime.GetElapsedTime());
+	ATime.Start();
+    }
     if (Info->VerboseTiming && constants == CAL_FALSE) WAITFOREVENT(*ctx, *event);
+
+    if (Info->AsyncTiming && constants == CAL_FALSE)
+    {
+	WAITFOREVENT(*ctx, *event);
+	ATime.Stop();
+	printf("\t\tCopyToGPU: Time until event done: %2.4lf\n", ATime.GetElapsedTime());
+    }
     return 0;
 }
 
@@ -844,9 +869,8 @@ typedef enum calSamplerParamWrapMode {
     CAL_SAMPLER_WRAP_MIRROR_CLAMP_TO_BORDER_EXT
 } CALsamplerParamWrapMode;*/
 
-CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data)
+CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, CALname* ctxProgNames)
 {
-    CALname progName = 0;
     CALresult r = CAL_RESULT_ERROR;
     for (CALuint i = 0; i < oStop; ++i)
     {
@@ -872,7 +896,7 @@ CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, C
             fprintf(stderr, "Error: Path that should be unreachable is reached\n");
             return 0;
         }
-        r = calModuleGetName(&progName, *ctx, *module, buffer);
+        r = calModuleGetName(&ctxProgNames[i], *ctx, *module, buffer);
         if (r != CAL_RESULT_OK)
         {
             fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
@@ -880,9 +904,10 @@ CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, C
             fprintf(stderr, "Failing name binding was %s\n", buffer);
             return 0;
         }
-        r = calCtxSetMem(*ctx, progName, data[i].dstMem);
+        r = calCtxSetMem(*ctx, ctxProgNames[i], data[i].dstMem);
         if (r != CAL_RESULT_OK)
         {
+    	    printf("Error setting memory buffer %d\n", i);
             fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
             fprintf(stderr, "Error string is %s\n",calGetErrorString());
             return 0;
@@ -905,7 +930,7 @@ CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, C
     return 1;
 }
 
-CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data)
+CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, int nContext)
 {
     CALresult r = CAL_RESULT_ERROR;
     //////////////////////////////////////////////////////////////////////////
@@ -914,16 +939,14 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
     //
     for (CALuint i = 0; i < oStop; ++i)
     {
+	if (nContext >= 2 && i < aPartsNum) continue;
+	if (nContext >= ctxcount && (i < aPartsNum || i >= aPartsNum + bPartsNum)) continue;
         CALint tWidth = data[i].Width;;
         CALint tHeight = data[i].Height;
         CALresallocflags flag = (CALresallocflags) NULL;
         CALint mComponents = data[i].ComponentSize;
         CALchar mem = 'g';
-        if (i < iStop)
-        {
-            mem = 'g';
-        }
-        else if (i >= cStop && i < oStop)
+        if (i >= cStop && i < oStop)
         {
             mem = Info->DstMemory;
             flag = static_cast<CALresallocflags>(flag | CAL_RESALLOC_CACHEABLE);
@@ -931,11 +954,6 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         else if (i >= iStop && i < cStop)
         {
             continue;
-        }
-        else
-        {
-            fprintf(stderr, "Error: Path that should be unreachable is reached\n");
-            return 0;
         }
         
 #ifdef CALDGEMM_USE_MEMEXPORT
@@ -967,13 +985,14 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
             fprintf(stderr, "Error string is %s\n",calGetErrorString());
             return 0;
         }
-        if (Info->DstMemory == 'c' && i >= cStop)
+        if ((Info->DstMemory == 'c' && i >= cStop) || (Info->DivideToGPU && i < iStop))
         {
     	    data[i].mem = data[i].dstMem;
     	    data[i].res = _Res[i];
         }
     }
 
+    if (nContext >= ctxcount) return 1;
     /* Setup constant resources/memory handles */
     for (CALuint i = iStop; i < cStop; ++i)
     {
@@ -996,7 +1015,7 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
     return 1;
 }
 
-int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i)
+int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i, int nContext)
 {
     data.DataSize = DataSize;
     data.Width = tWidth;
@@ -1004,27 +1023,27 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
     data.ComponentSize = CompSize;
     if (tHeight > 1)
     {
-		data.CALMemory = CAL_TRUE;
-		if (Info->DstMemory == 'g' || i < aPartsNum + bPartsNum)
+	data.CALMemory = CAL_TRUE;
+	if ((Info->DstMemory == 'g' || i < aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum) && nContext < ctxcount)
+	{
+		CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocating of remote memory");
+		CHKERR(calCtxGetMem(&data.mem, *ctx, data.res), "getting remote memory for context");
+		CHKERR(calResMap(&data.v_data, &data.pitch, data.res, NULL), "mapping of remote memory");
+		if (((size_t) data.v_data) & (vcpysize - 1))
 		{
-			CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocating of remote memory");
-			CHKERR(calCtxGetMem(&data.mem, *ctx, data.res), "getting remote memory for context");
-			CHKERR(calResMap(&data.v_data, &data.pitch, data.res, NULL), "mapping of remote memory");
-			if (((size_t) data.v_data) & (vcpysize - 1))
-			{
-				printf("Memory not aligned correctly\n");
-				return(1);
-			}
+			printf("Memory not aligned correctly\n");
+			return(1);
 		}
+	}
     }
     else
     {
-		data.c_data = new CALchar[tWidth * DataSize * CompSize * tHeight];
-		data.CALMemory = CAL_FALSE;
+	data.c_data = new CALchar[tWidth * DataSize * CompSize * tHeight];
+	data.CALMemory = CAL_FALSE;
     }
-    if (data.CALMemory != CAL_TRUE || Info->DstMemory == 'g' || i <= aPartsNum)
+    if (Info->Debug && nContext < ctxcount && (data.CALMemory != CAL_TRUE || ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum))))
     {
-		memset((void*)data.c_data, 0, tWidth * DataSize * CompSize * tHeight);
+	memset((void*)data.c_data, 0, tWidth * DataSize * CompSize * tHeight);
     }
     return(0);
 }

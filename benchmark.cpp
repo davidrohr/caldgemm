@@ -86,7 +86,6 @@ Nations Convention on the International Sale of Goods. All disputes arising out
 of this license shall be subject to the jurisdiction of the federal and state
 courts in Austin, Texas, and all defenses are hereby waived concerning personal
 jurisdiction and venue of these courts.
- 
 
 All modifications to the original source code are property of the Frankfurt Institute for Advanced Studies (FIAS).
 None of the material may be copied, reproduced, distributed, republished, downloaded,
@@ -114,6 +113,10 @@ bool transb = false;
 bool initialrun = true;
 bool verifylarge = false;
 bool quietbench = false;
+bool alphaone = false;
+bool betazero = false;
+int reduced_height = -1;
+
 char* matrixfile;
 
 long seedused;
@@ -128,11 +131,13 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-i        Print IL Kernel used\n" );
     fprintf(stderr, "\t-o  <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n" );
     fprintf(stderr, "\t-w  <int> k for matrix multiply, default 1024\n" );
-    fprintf(stderr, "\t-h  <int> block size for matrix multiply, default 1024\n" );
+    fprintf(stderr, "\t-h  <int> block size for matrix multiply, default 4096\n" );
+    fprintf(stderr, "\t-H  <int> Reduced block size for actual matrix multiply (buffer size given by -h)\n" );
     fprintf(stderr, "\t-l        Automatically select height for good performance\n" );
     fprintf(stderr, "\t-m  <int> m for matrix multiply, must be multiple of h, default 1024\n" );
     fprintf(stderr, "\t-n  <int> n for matrix multiply, must be multiple of h, default 1024\n" );
-    fprintf(stderr, "\t-v        Verbose Symchronous Timing for Single Kernels / Transfers\n" );
+    fprintf(stderr, "\t-v        Verbose Synchronous Timing for Single Kernels / Transfers\n" );
+    fprintf(stderr, "\t-k        Print Timing of Asynchronous DGEMM Operation\n" );
     fprintf(stderr, "\t-r  <int> Number of iterations to run the program\n" );
     fprintf(stderr, "\t-y  <int> Force Device ID\n" );
     fprintf(stderr, "\t-d        Enable Debug Mode\n" );
@@ -148,12 +153,16 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-u        Dump Test Matrix\n" );
     fprintf(stderr, "\t-1        Transpose A Matrix\n" );
     fprintf(stderr, "\t-2        Transpose B Matrix\n" );
+    fprintf(stderr, "\t-3        Set alpha parameter to 1.0 to test optimized kernel\n" );
+    fprintf(stderr, "\t-#        Set beta parameter to 0.0 to test optimized memcpy\n" );
     fprintf(stderr, "\t-5        Quiet Benchmark mode (different from quiet caldgemm mode)\n" );
     fprintf(stderr, "\t-6  <int> Set m/n to value * height\n" );
     fprintf(stderr, "\t-4  <int> Set m/n to the closest multiple of height to value\n" );
     fprintf(stderr, "\t-7        Verify Large Matrices\n" );
     fprintf(stderr, "\t-8        No initial run to negate cache effects\n" );
     fprintf(stderr, "\t-9        Output a table with timing information\n" );
+    fprintf(stderr, "\t-0        Write the output of divideBuffers directly to GPU instead of a seperate DMA transfer\n" );
+    fprintf(stderr, "\t-A        Do the DMA transfer to GPU asynchronously\n" );
     fprintf(stderr, "\t-x <file> Load Matrix\n" );
     
     fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
@@ -164,16 +173,17 @@ CALvoid Usage(const CALchar* name)
 
 CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo* Info)
 {
+    Info->Quiet = CAL_FALSE;
+#ifndef TEST_PARAMETERS
     Info->Verify = CAL_FALSE;
     Info->MemPolicy = CAL_FALSE;
     Info->Disassemble = CAL_FALSE;
     Info->PrintILKernel = CAL_FALSE;
-    Info->Quiet = CAL_FALSE;
-    Info->Pin = -3;
+    //Info->Pin = -3;
     Info->MultiThread = CAL_FALSE;
-    Info->DeviceNum = 0;
-    Info->Width = 1024;
-    Info->Height = 4096;
+    //Info->DeviceNum = 0;
+    //Info->Width = 1024;
+    //Info->Height = 4096;
     Info->AutoHeight = CAL_FALSE;
     Info->DynamicSched = CAL_FALSE;
     Info->VerboseTiming = CAL_FALSE;
@@ -181,11 +191,13 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->Debug = CAL_FALSE;
     Info->m = Info->n = 4096;
     Info->Iterations = 1;
-    Info->DstMemory = 'g';
+    //Info->DstMemory = 'g';
     Info->UseCPU = Info->UseGPU = CAL_FALSE;
-    Info->GPURatio = -1;
+    //Info->GPURatio = -1;
     Info->DumpMatrix = CAL_FALSE;
-
+    Info->DivideToGPU = CAL_FALSE;
+    Info->AsyncDMA = CAL_FALSE;
+#endif
 
     for (CALuint x = 1; x < argc; ++x)
     {
@@ -225,6 +237,12 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
             case '9':
 		Info->TabularTiming = CAL_TRUE;
                 break;
+            case '0':
+		Info->DivideToGPU = CAL_TRUE;
+                break;
+            case 'A':
+		Info->AsyncDMA = CAL_TRUE;
+                break;
             case '8':
 		initialrun = false;
                 break;
@@ -241,6 +259,12 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case '5':
 		quietbench = true;
+                break;
+            case '3':
+		alphaone = true;
+                break;
+            case '#':
+		betazero = true;
                 break;
             case 'i':
                 Info->PrintILKernel = CAL_TRUE;
@@ -295,6 +319,16 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                     return CAL_FALSE;
                 }
                 break;
+            case 'H':
+                if (++x < argc)
+                {
+                    sscanf(argv[x], "%d", &reduced_height);
+                }
+                else
+                {
+                    return CAL_FALSE;
+                }
+                break;
             case 'm':
                 if (++x < argc)
                 {
@@ -328,6 +362,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
         	break;
             case 'v':
         	Info->VerboseTiming = CAL_TRUE;
+        	break;
+            case 'k':
+        	Info->AsyncTiming = CAL_TRUE;
         	break;
             case 'd':
         	Info->Debug = CAL_TRUE;
@@ -380,6 +417,21 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     return CAL_TRUE;
 }
 
+void SetupUserDataC(caldgemm::SampleInfo &Info)
+{
+    if (fastinit)
+	memset(CC, 0, (size_t) Info.m * (size_t) Info.n * sizeof(double));
+    else
+	for (long long int i = 0;i < (long long int) Info.m * (long long int) Info.n;i++)
+        {
+#ifdef TESTMODE
+	    CC[i] = 0;
+#else
+	    CC[i] = (CALdouble) (i % 16);
+#endif
+	}
+}
+
 int SetupUserData(caldgemm::SampleInfo &Info)
 {
     timespec randtime;
@@ -407,19 +459,9 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     {
 	memset(AA, 0, (size_t) Info.m * (size_t) Info.Width * sizeof(double));
 	memset(BB, 0, (size_t) Info.Width * (size_t) Info.n * sizeof(double));
-	memset(CC, 0, (size_t) Info.m * (size_t) Info.n * sizeof(double));
     }
     else
     {
-	for (long long int i = 0;i < (long long int) Info.m * (long long int) Info.n;i++)
-        {
-#ifdef TESTMODE
-	    CC[i] = 0;
-#else
-	    CC[i] = (CALdouble) (i % 16);
-#endif
-	}
-    
 	for (CALuint y = 0; y < Info.Width; y++)
         {
     	    for (CALuint x = 0; x < Info.m; x++)
@@ -469,7 +511,13 @@ int main(CALint argc, CALchar** argv)
 	printf("Error initializing CALDGEMM\n");
 	return(1);
     }
+    if (reduced_height != -1)
+    {
+	printf("Using partial buffers %d / %lld\n", reduced_height, Info.Height);
+	Info.Height = reduced_height;
+    }
 
+#ifndef TEST_PARAMETERS
     if (loadmatrix)
     {
 	FILE* fp;
@@ -518,18 +566,30 @@ int main(CALint argc, CALchar** argv)
     }
     else
     {
-	if (!quietbench) printf("Initializing Data... ");
+	if (!quietbench)
+	{
+	    fprintf(stdout, "Initializing Data... ");
+	    fflush(stdout);
+	}
 	if (SetupUserData(Info))
 	{
 	    return(1);
 	}
-	if (!quietbench) printf("Done\n");
+	if (!quietbench)
+	{
+	    fprintf(stdout, "Done\n");
+	    fflush(stdout);
+	}
 	
 	//Initial run to negate cache effects
 #ifndef TESTMODE
         if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE && initialrun)
         {
-    	    if (!quietbench) printf("Doing initial run... ");
+    	    if (!quietbench)
+    	    {
+    		fprintf(stdout, "Doing initial run... ");
+    		fflush(stdout);
+    	    }
 	    CALboolean tmpquiet = Info.Quiet;
     	    CALuint tmpiter = Info.Iterations;
     	    CALuint tmpm = Info.m, tmpn = Info.n;
@@ -537,7 +597,7 @@ int main(CALint argc, CALchar** argv)
     	    Info.Iterations = 2;
     	    if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
     	    if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
-    	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.0, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+    	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
     	    {
 	        printf("Error running CALDGEMM\n");
 		return(1);
@@ -546,18 +606,31 @@ int main(CALint argc, CALchar** argv)
 	    Info.n = tmpn;
 	    Info.Quiet = tmpquiet;
 	    Info.Iterations = tmpiter;
-	    if (!quietbench) printf("Done\n");
+	    if (!quietbench)
+	    {
+		fprintf(stdout, "Done\n");
+		fflush(stdout);
+	    }
 	}
 #endif
+    	if (!quietbench)
+    	{
+    	    fprintf(stdout, "Initializing Matrix C\n");
+    	    fflush(stdout);
+    	}
+	SetupUserDataC(Info);
 	dgemm.ResetTimers();
-    
-	if (!quietbench) printf("Running Benchmark\n");
+	if (!quietbench)
+	{
+	    fprintf(stdout, "Running Benchmark\n");
+	    fflush(stdout);
+	}
 	do
         {
 #ifdef TESTMODE
 	    if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #else
-	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, betazero ? 0.0 : 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #endif
 	    {
 		printf("Error running CALDGEMM\n");
@@ -575,7 +648,8 @@ int main(CALint argc, CALchar** argv)
 	Info.UseCPU = CAL_TRUE;
 	Info.Verify = CAL_FALSE;
 	Info.Quiet = CAL_TRUE;
-	dgemm.RunCALDGEMM(AA, BB, CC, -0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
+	dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : -0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : Info.n, Info.n, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
+	printf("CPU DGEMM Comparison run complete, comparing results\n");
 	int verifyok = 1;
 	for (long long int i = 0;i < (long long int) Info.m * (long long int) Info.n;i++)
         {
@@ -588,11 +662,55 @@ int main(CALint argc, CALchar** argv)
 	}
 	if (verifyok) printf("Verification succeeded\n");
     }
+#else //TEST_PARAMETERS
+    char* mem = new char[(size_t) 40 * 1024 * 1024 * 1024];
+    
+//CALDGEMM_dgemm (ORDER=CblasColMajor, TRANSA=CblasNoTrans, TRANSB=CblasTrans, M=4096, N=4096, K=1024, ALPHA=-1, A=0x2aab136ea040, LDA=4096, B=0x2aab15eec080, LDB=4096, BETA=1, C=0x2aab09495040, LDC=4104)
+//int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB);
+    {
+	size_t tmpmem = (size_t) mem;
+	printf("tmpmem = 0x%llx\n", tmpmem);
+        tmpmem += (size_t) 1024 * 1024 * 1024;
+	printf("tmpmem = 0x%llx\n", tmpmem);
+	tmpmem -= ((size_t) tmpmem) % ((size_t) 1024 * 1024 * 1024);
+	printf("tmpmem = 0x%llx\n", tmpmem);
+        AA = (CALdouble*) tmpmem;
+	tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
+        BB = (CALdouble*) tmpmem;
+	tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
+        CC = (CALdouble*) tmpmem;
+    
+	AA = (CALdouble*) (((size_t) AA) | ((size_t) 0x6ea040));
+        BB = (CALdouble*) (((size_t) BB) | ((size_t) 0xeec080));
+	CC = (CALdouble*) (((size_t) CC) | ((size_t) 0x495040));
+        double ALPHA = -1.0;
+	double BETA = 1.0;
+        size_t M = 3072, N = 3072, K = 1024;
+	size_t APITCH = 4104, BPITCH = 3072, CPITCH = 4104;
+        CBLAS_ORDER ORDER = CblasColMajor;
+	CBLAS_TRANSPOSE TRANSA = CblasNoTrans, TRANSB = CblasTrans;
+	printf("Filling Source Matrices with random data\n");
+	fflush(stdout);
+	for (int i = 0;i < APITCH * (M > K ? M : K);i++) AA[i] = i % 257;
+	for (int i = 0;i < BPITCH * (N > K ? N : K);i++) BB[i] = i % 97;
+	for (int i = 0;i < CPITCH * (M > N ? M : N);i++) CC[i] = i % 65537;
+
+        printf("Running with caldgemm parameters: A=0x%llx, B=0x%llx, C=0x%llx, ALPHA=%2.4lf, BETA=%2.4lf, m=%lld, k=%lld, n=%lld, Apitch=0x%llx, Bpitch=0x%llx, Cpitch=0x%llx, ColMajor=%d, TransA=%d, TransB=%d\n", AA, BB, CC, ALPHA, BETA, M, K, N, APITCH, BPITCH, CPITCH, (int) (ORDER == CblasColMajor), (int) (TRANSA == CblasTrans), (int) (TRANSB == CblasTrans));
+        fflush(stdout);
+	dgemm.RunCALDGEMM(AA, BB, CC, ALPHA, BETA, M, K, N, APITCH, BPITCH, CPITCH, ORDER, TRANSA, TRANSB);
+	printf("Caldgemm run complete\n");
+	fflush(stdout);
+	
+	delete[] mem;
+    }
+#endif //TEST_PARAMETERS
     
     dgemm.ExitCALDGEMM();
 
+#ifndef TEST_PARAMETERS
     delete[] AA;
     delete[] BB;
     delete[] CC;
+#endif
     return 0;
 }
