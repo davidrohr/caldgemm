@@ -795,7 +795,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     bool forceCPU = false;
     bool forceReinit = false;
-    size_t old_k = Info->Width;
     double GPURatio;
     
     A = a;
@@ -805,15 +804,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     Beta = beta;
     if (tmp_m != -1) Info->m = tmp_m;
     if (tmp_n != -1) Info->n = tmp_n;
-    if (tmp_k != -1 && tmp_k != Info->Width)
-    {
-	Info->Width = tmp_k;
-	forceReinit = true;
-    }
+    if (tmp_k != -1) Info->Width = tmp_k;
+
     A_pitch = Apitch != -1 ? Apitch : Info->Width;
     B_pitch = Bpitch != -1 ? Bpitch : Info->n;
     C_pitch = Cpitch != -1 ? Cpitch : Info->n;
     ResetTimers();
+    
     
     if (Info->Debug) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx)\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C);
 
@@ -890,6 +887,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
     }
     
+    if (Info->Width > BufferWidth || Info->Height > BufferHeight) forceReinit = true;
+
     if (Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024)) forceCPU = true;
     
 /*  //Run on CPU on all but one node in MPIRUN
@@ -906,7 +905,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 	Timers.CPUTimer.Stop();
 	CPUOnlyRun = true;
-	Info->Width = old_k;
 	goto RunCALDGEMM_end;
     }
     CPUOnlyRun = false;
@@ -928,7 +926,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (forceReinit)
     {
-	if (Info->Debug) printf("Reinit for changed width / height\n");
+	if (Info->Debug) printf("Reinit for biffer width / height\n");
 	for (int i = 0;i < bbuffers;i++)
 	{
     	    CleanupData(&ctx_main, resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers, i);
@@ -1203,18 +1201,18 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
     {
 	if (Info->Debug) printf("\tDividing Buffer A (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_A
-	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, BufferHeight, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
+	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, BufferHeight, BufferWidth, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
 #else
-	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, Info->Width, BufferHeight, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
+	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, BufferWidth, BufferHeight, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
 #endif
     }
     if (blockn == 0 || nb > bbuffers)
     {
 	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_B
-	divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, Info->Width, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
+	divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, BufferWidth, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
 #else
-	divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, Info->Width, B_pitch, bPartsNum, TransposeB == CblasTrans);
+	divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, BufferWidth, B_pitch, bPartsNum, TransposeB == CblasTrans);
 #endif
     }
     if (Info->VerboseTiming) Timers.CounterDivide.Stop();
