@@ -614,14 +614,17 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	}
     }
     if (Info->Debug) printf("Was able to allocate %d bbuffers\n", bbuffers);
-    cParam.cls = this;
-    cParam.terminate = CAL_FALSE;
-    for (int j = 0;j < 2;j++) pthread_mutex_init(&cParam.cblasMutex[j], NULL);
-    pthread_mutex_lock(&cParam.cblasMutex[0]);
-    if (Info->MultiThread)
+    if (Info->UseCPU)
     {
-	pthread_t thr;
-	pthread_create(&thr, NULL, cblas_wrapper, &cParam);
+	cParam.cls = this;
+	cParam.terminate = CAL_FALSE;
+        for (int j = 0;j < 2;j++) pthread_mutex_init(&cParam.cblasMutex[j], NULL);
+        pthread_mutex_lock(&cParam.cblasMutex[0]);
+        if (Info->MultiThread)
+        {
+    	    pthread_t thr;
+	    pthread_create(&thr, NULL, cblas_wrapper, &cParam);
+	}
     }
     
     if (Info->MemPolicy)
@@ -639,6 +642,8 @@ void* cblas_wrapper(void* arg)
 {
     volatile caldgemm::cblasParameters* par = (caldgemm::cblasParameters*) arg;
     volatile caldgemm::SampleInfo* Info = par->cls->Info;
+    
+    if (Info->Debug) printf("Cblas helper thread started\n");
     
     sched_setaffinity(0, sizeof(par->cls->oldcpumask), &par->cls->oldcpumask);
     
@@ -713,6 +718,8 @@ void* cblas_wrapper(void* arg)
 void* merge_wrapper(void* arg)
 {
     caldgemm::mergeParameters* par = (caldgemm::mergeParameters*) arg;
+    
+    if (par->cls->Info->Debug) printf("Merger Thread %d started\n", par->nContext);
     
     if (par->cls->Info->Pin != -100)
     {
@@ -1254,10 +1261,13 @@ int caldgemm::ExitCALDGEMM()
     
     for (int i = 0;i < ctxcount;i++) for (int j = 0;j < kernel_count;j++) delete[] progNames[i][j];
     
-    if (Info->Debug) printf("Trying to terminate blas slave\n");
-    cParam.terminate = CAL_TRUE;
-    if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blas mutex 1 to terminate thread\n");
-    if (pthread_mutex_unlock(&cParam.cblasMutex[0])) printf("Error unlocking blas mutex 0 to terminate thread\n");
+    if (Info->UseCPU && Info->UseGPU)
+    {
+	if (Info->Debug) printf("Trying to terminate blas slave\n");
+	cParam.terminate = CAL_TRUE;
+        if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blas mutex 1 to terminate thread\n");
+        if (pthread_mutex_unlock(&cParam.cblasMutex[0])) printf("Error unlocking blas mutex 0 to terminate thread\n");
+    }
     
     if (Info->MultiThread)
     {
@@ -1266,14 +1276,17 @@ int caldgemm::ExitCALDGEMM()
 	    while (pthread_mutex_trylock(&mParam[i].mergeMutex[1]) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeMutex[1]);
 	    if (pthread_mutex_unlock(&mParam[i].mergeMutex[1])) printf("Error unlocking mergeMutex %d/1\n", i);
 	}
-        while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
-	if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blasMutex 1\n");
+	if (Info->UseCPU && Info->UseGPU)
+	{
+    	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
+	    if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blasMutex 1\n");
+	}
     }
     
     for (int j = 0;j < 2;j++)
     {
 	if (Info->MultiThread) for (int i = 0;i < ctxcount;i++) if (pthread_mutex_destroy(&mParam[i].mergeMutex[j])) printf("Error destroying mergemutex %d/%d\n", i, j);
-	if (pthread_mutex_destroy(&cParam.cblasMutex[j])) printf("Error destroying blas mutex %d\n", j);
+	if (Info->UseCPU && Info->UseGPU) if (pthread_mutex_destroy(&cParam.cblasMutex[j])) printf("Error destroying blas mutex %d\n", j);
     }
 
     // Close the device
