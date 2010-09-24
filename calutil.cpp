@@ -349,7 +349,8 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     //  setup the program's inputs and outputs
     //
     if (!AllocateResources(ctx, device, _Res, bStop, fStop, cStop, data, nContext)) {
-        fprintf(stderr, "There was an error in allocating resources and binding them to memory\n");
+        if (nContext < ctxcount) fprintf(stderr, "There was an error in allocating resources and binding them to memory\n");
+        else if (Info->Debug) printf("No more memory available for bbuffers\n");
         return 0;
     }
     
@@ -974,14 +975,17 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         }
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
-            fprintf(stderr, "Error string is %s\n",calGetErrorString());
+    	    if (nContext < ctxcount || Info->Debug)
+    	    {
+        	fprintf(stderr, "%s:%d - An error occured while allocating memory: %d\n",__FILE__, __LINE__, r);
+        	fprintf(stderr, "Error string is %s\n",calGetErrorString());
+    	    }
             return 0;
         }
         r = calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]);
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
+            fprintf(stderr, "%s:%d - An error occured while binding the allocated memory to the context: %d\n",__FILE__, __LINE__, r);
             fprintf(stderr, "Error string is %s\n",calGetErrorString());
             return 0;
         }
@@ -1000,14 +1004,14 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         r = calResAllocRemote1D(&_Res[i], device, 1, cWidth, getFormat(data[i].ComponentSize,data[i].DataSize), 0);
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
+            fprintf(stderr, "%s:%d - An error occured while allocating constant memory: %d\n",__FILE__, __LINE__, r);
             fprintf(stderr, "Error string is %s\n",calGetErrorString());
             return 0;
         }
         r = calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]);
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
+            fprintf(stderr, "%s:%d - An error occured while binding the allocated constant memory to the context: %d\n",__FILE__, __LINE__, r);
             fprintf(stderr, "Error string is %s\n",calGetErrorString());
             return 0;
         }
