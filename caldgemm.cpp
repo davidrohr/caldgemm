@@ -963,6 +963,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 6000000) GPURatio = 0.65;
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 3000000) GPURatio = 0.60;
 	else GPURatio = 0.50;
+	GPURatio *= (double) Info->Width / (double) 1024;
 	if (Info->Debug) printf("GPURatio automatically set to %1.2lf\n", GPURatio);
     }
     else
