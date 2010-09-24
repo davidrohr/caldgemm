@@ -860,7 +860,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     //Check if the GPU can/shall process the required dgemm task
     if (Info->Iterations > 1);
     else if (Info->Width % 256 || Info->Width < 256) forceCPU = true;
-    else if (Info->m < 1024 || Info->n < 1024) forceCPU = true;
+    else if (Info->m < 512 || Info->n < 512) forceCPU = true;
     else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
     else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
 	A_pitch & (vcpysize / sizeof(CALdouble) - 1) || B_pitch & (vcpysize / sizeof(CALdouble) - 1)|| C_pitch & (vcpysize / sizeof(CALdouble) - 1))
@@ -872,7 +872,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     if (Info->AutoHeight)
     {
-	if (Info->m < 2048 || Info->n < 2048 || Info->m * Info->n < 16 * 1024 * 1024)
+	if (Info->m < 1024 || Info->n < 1024)
+	{
+	    Info->Height = 512;
+	}
+	else if (Info->m < 2048 || Info->n < 2048 || Info->m * Info->n < 16 * 1024 * 1024)
         {
     	    Info->Height = 1024;
 	}
@@ -896,7 +900,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->Width > BufferWidth || Info->Height > BufferHeight) forceReinit = true;
 
-    if (Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024)) forceCPU = true;
+    if (Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Info->Width < 1024 && Info->Height < 1024)) forceCPU = true;
     
 /*  //Run on CPU on all but one node in MPIRUN
     if (strcmp(hostname, "gpu-dev05") != 0)
@@ -964,6 +968,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 3000000) GPURatio = 0.60;
 	else GPURatio = 0.50;
 	GPURatio *= (double) Info->Width / (double) 1024;
+	if (Info->Height < 1024) GPURatio *= (double) Info->Height / (double) 1024 * (double) Info->Height / (double) 1024;
 	if (Info->Debug) printf("GPURatio automatically set to %1.2lf\n", GPURatio);
     }
     else
