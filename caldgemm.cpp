@@ -614,14 +614,17 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	}
     }
     if (Info->Debug) printf("Was able to allocate %d bbuffers\n", bbuffers);
-    cParam.cls = this;
-    cParam.terminate = CAL_FALSE;
-    for (int j = 0;j < 2;j++) pthread_mutex_init(&cParam.cblasMutex[j], NULL);
-    pthread_mutex_lock(&cParam.cblasMutex[0]);
-    if (Info->MultiThread)
+    if (Info->UseCPU)
     {
-	pthread_t thr;
-	pthread_create(&thr, NULL, cblas_wrapper, &cParam);
+	cParam.cls = this;
+	cParam.terminate = CAL_FALSE;
+        for (int j = 0;j < 2;j++) pthread_mutex_init(&cParam.cblasMutex[j], NULL);
+        pthread_mutex_lock(&cParam.cblasMutex[0]);
+        if (Info->MultiThread)
+        {
+    	    pthread_t thr;
+	    pthread_create(&thr, NULL, cblas_wrapper, &cParam);
+	}
     }
     
     if (Info->MemPolicy)
@@ -639,6 +642,8 @@ void* cblas_wrapper(void* arg)
 {
     volatile caldgemm::cblasParameters* par = (caldgemm::cblasParameters*) arg;
     volatile caldgemm::SampleInfo* Info = par->cls->Info;
+    
+    if (Info->Debug) printf("Cblas helper thread started\n");
     
     sched_setaffinity(0, sizeof(par->cls->oldcpumask), &par->cls->oldcpumask);
     
@@ -713,6 +718,8 @@ void* cblas_wrapper(void* arg)
 void* merge_wrapper(void* arg)
 {
     caldgemm::mergeParameters* par = (caldgemm::mergeParameters*) arg;
+    
+    if (par->cls->Info->Debug) printf("Merger Thread %d started\n", par->nContext);
     
     if (par->cls->Info->Pin != -100)
     {
@@ -795,7 +802,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     bool forceCPU = false;
     bool forceReinit = false;
-    size_t old_k = Info->Width;
     double GPURatio;
     
     A = a;
@@ -805,15 +811,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     Beta = beta;
     if (tmp_m != -1) Info->m = tmp_m;
     if (tmp_n != -1) Info->n = tmp_n;
-    if (tmp_k != -1 && tmp_k != Info->Width)
-    {
-	Info->Width = tmp_k;
-	forceReinit = true;
-    }
+    if (tmp_k != -1) Info->Width = tmp_k;
+
     A_pitch = Apitch != -1 ? Apitch : Info->Width;
     B_pitch = Bpitch != -1 ? Bpitch : Info->n;
     C_pitch = Cpitch != -1 ? Cpitch : Info->n;
     ResetTimers();
+    
     
     if (Info->Debug) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx)\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C);
 
@@ -856,7 +860,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     //Check if the GPU can/shall process the required dgemm task
     if (Info->Iterations > 1);
     else if (Info->Width % 256 || Info->Width < 256) forceCPU = true;
-    else if (Info->m < 1024 || Info->n < 1024) forceCPU = true;
+    else if (Info->m < 512 || Info->n < 512) forceCPU = true;
     else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
     else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
 	A_pitch & (vcpysize / sizeof(CALdouble) - 1) || B_pitch & (vcpysize / sizeof(CALdouble) - 1)|| C_pitch & (vcpysize / sizeof(CALdouble) - 1))
@@ -868,7 +872,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     if (Info->AutoHeight)
     {
-	if (Info->m < 2048 || Info->n < 2048 || Info->m * Info->n < 16 * 1024 * 1024)
+	if (Info->m < 1024 || Info->n < 1024)
+	{
+	    Info->Height = 512;
+	}
+	else if (Info->m < 2048 || Info->n < 2048 || Info->m * Info->n < 16 * 1024 * 1024)
         {
     	    Info->Height = 1024;
 	}
@@ -890,7 +898,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
     }
     
-    if (Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024)) forceCPU = true;
+    if (Info->Width > BufferWidth || Info->Height > BufferHeight) forceReinit = true;
+
+    if (Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Info->Width < 1024 && Info->Height < 1024)) forceCPU = true;
     
 /*  //Run on CPU on all but one node in MPIRUN
     if (strcmp(hostname, "gpu-dev05") != 0)
@@ -906,7 +916,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 	Timers.CPUTimer.Stop();
 	CPUOnlyRun = true;
-	Info->Width = old_k;
 	goto RunCALDGEMM_end;
     }
     CPUOnlyRun = false;
@@ -928,7 +937,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (forceReinit)
     {
-	if (Info->Debug) printf("Reinit for changed width / height\n");
+	if (Info->Debug) printf("Reinit for biffer width / height\n");
 	for (int i = 0;i < bbuffers;i++)
 	{
     	    CleanupData(&ctx_main, resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers, i);
@@ -958,6 +967,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 6000000) GPURatio = 0.65;
 	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 3000000) GPURatio = 0.60;
 	else GPURatio = 0.50;
+	GPURatio *= (double) Info->Width / (double) 1024;
+	if (Info->Height < 1024) GPURatio *= (double) Info->Height / (double) 1024 * (double) Info->Height / (double) 1024;
 	if (Info->Debug) printf("GPURatio automatically set to %1.2lf\n", GPURatio);
     }
     else
@@ -1203,18 +1214,18 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
     {
 	if (Info->Debug) printf("\tDividing Buffer A (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_A
-	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, BufferHeight, Info->Width, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
+	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, BufferHeight, BufferWidth, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
 #else
-	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, Info->Width, BufferHeight, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
+	if (divideBuffer(datas[blockn % 2], A + blockn * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, BufferWidth, BufferHeight, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
 #endif
     }
     if (blockn == 0 || nb > bbuffers)
     {
 	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_B
-	divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, Info->Width, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
+	divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, BufferWidth, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
 #else
-	divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, Info->Width, B_pitch, bPartsNum, TransposeB == CblasTrans);
+	divideBuffer(datas[j] + aPartsNum, B + blockm * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, BufferWidth, B_pitch, bPartsNum, TransposeB == CblasTrans);
 #endif
     }
     if (Info->VerboseTiming) Timers.CounterDivide.Stop();
@@ -1256,10 +1267,13 @@ int caldgemm::ExitCALDGEMM()
     
     for (int i = 0;i < ctxcount;i++) for (int j = 0;j < kernel_count;j++) delete[] progNames[i][j];
     
-    if (Info->Debug) printf("Trying to terminate blas slave\n");
-    cParam.terminate = CAL_TRUE;
-    if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blas mutex 1 to terminate thread\n");
-    if (pthread_mutex_unlock(&cParam.cblasMutex[0])) printf("Error unlocking blas mutex 0 to terminate thread\n");
+    if (Info->UseCPU && Info->UseGPU)
+    {
+	if (Info->Debug) printf("Trying to terminate blas slave\n");
+	cParam.terminate = CAL_TRUE;
+        if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blas mutex 1 to terminate thread\n");
+        if (pthread_mutex_unlock(&cParam.cblasMutex[0])) printf("Error unlocking blas mutex 0 to terminate thread\n");
+    }
     
     if (Info->MultiThread)
     {
@@ -1268,14 +1282,17 @@ int caldgemm::ExitCALDGEMM()
 	    while (pthread_mutex_trylock(&mParam[i].mergeMutex[1]) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeMutex[1]);
 	    if (pthread_mutex_unlock(&mParam[i].mergeMutex[1])) printf("Error unlocking mergeMutex %d/1\n", i);
 	}
-        while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
-	if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blasMutex 1\n");
+	if (Info->UseCPU && Info->UseGPU)
+	{
+    	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
+	    if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blasMutex 1\n");
+	}
     }
     
     for (int j = 0;j < 2;j++)
     {
 	if (Info->MultiThread) for (int i = 0;i < ctxcount;i++) if (pthread_mutex_destroy(&mParam[i].mergeMutex[j])) printf("Error destroying mergemutex %d/%d\n", i, j);
-	if (pthread_mutex_destroy(&cParam.cblasMutex[j])) printf("Error destroying blas mutex %d\n", j);
+	if (Info->UseCPU && Info->UseGPU) if (pthread_mutex_destroy(&cParam.cblasMutex[j])) printf("Error destroying blas mutex %d\n", j);
     }
 
     // Close the device
