@@ -1085,6 +1085,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
     	        for (int l = 0;l < aPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[j][kernel_num][l], datas[blockn % 2][l].dstMem), "setting kernel memory A");
     	        for (int l = aPartsNum;l < aPartsNum + bPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[j][kernel_num][l], datas[nb > bbuffers ? j : blockm][l].dstMem), "setting kernel memory B");
+    	        for (int l = 0;l < cPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[j][kernel_num][numInputs + numConstantBuffers + l], datas[j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
     		if (!RunProgram(&ctx_main, &modules[j][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
     		calCtxFlush(ctx_main);
     		

@@ -906,14 +906,17 @@ CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, C
             return 0;
         }
         //if (Info->Debug) printf("Setting Kernel Memory Resource: Memory Handle: %d, CALname handle: %d\n", data[i].dstMem, ctxProgNames[i]);
-        r = calCtxSetMem(*ctx, ctxProgNames[i], data[i].dstMem);
-        if (r != CAL_RESULT_OK)
+        if (i >= iStop && i < cStop)
         {
-    	    fprintf(stderr, "Error setting memory buffer %d\n", i);
-            fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
-            fprintf(stderr, "Error string is %s\n",calGetErrorString());
-            fprintf(stderr, "Memory Handle: %d, CALname handle: %d\n", data[i].dstMem, ctxProgNames[i]);
-            return 0;
+    	    r = calCtxSetMem(*ctx, ctxProgNames[i], data[i].dstMem);
+    	    if (r != CAL_RESULT_OK)
+    	    {
+    		fprintf(stderr, "Error setting memory buffer %d\n", i);
+    		fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
+        	fprintf(stderr, "Error string is %s\n",calGetErrorString());
+        	fprintf(stderr, "Memory Handle: %d, CALname handle: %d\n", data[i].dstMem, ctxProgNames[i]);
+        	return 0;
+    	    }
         }
 
 /*	CALresult CALAPIENTRY (*calCtxSetSamplerParams) (CALcontext ctx, CALname name, CALsamplerParameter param, CALvoid* vals);
