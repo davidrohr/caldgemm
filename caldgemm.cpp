@@ -822,7 +822,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
     const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
     if (kernel_num && Info->Debug) printf("Using Kernel for ALPHA = 1\n");
-    
 
     Timers.System.Start();
     
@@ -1029,7 +1028,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
 
     Timers.GPUTimer.Start();
-    
 
     for (CALuint i = 0; i < Info->Iterations; ++i)
     {
@@ -1090,7 +1088,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	        WAITFOREVENT(ctx_main, events[j]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
     	        for (int l = 0;l < aPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[blockm % 2][l].dstMem), "setting kernel memory A");
-    	        for (int l = aPartsNum;l < aPartsNum + bPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[nb > bbuffers ? j : blockn][l].dstMem), "setting kernel memory B");
+    	        for (int l = aPartsNum;l < aPartsNum + bPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[nb > bbuffers ? (blockn % 2) : blockn][l].dstMem), "setting kernel memory B");
     	        for (int l = 0;l < cPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][numInputs + numConstantBuffers + l], datas[j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
     		if (!RunProgram(&ctx_main, &modules[0][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
     		calCtxFlush(ctx_main);
@@ -1222,9 +1220,9 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
     {
 	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_B
-	divideBuffer(datas[j] + aPartsNum, B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, BufferWidth, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
+	divideBuffer(datas[blockn % 2] + aPartsNum, B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, BufferWidth, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
 #else
-	divideBuffer(datas[j] + aPartsNum, B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, BufferWidth, B_pitch, bPartsNum, TransposeB == CblasTrans);
+	divideBuffer(datas[blockn % 2] + aPartsNum, B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, BufferWidth, B_pitch, bPartsNum, TransposeB == CblasTrans);
 #endif
     }
     if (Info->VerboseTiming) Timers.CounterDivide.Stop();
@@ -1241,7 +1239,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
     	if (blockm == 0 || nb > bbuffers)
     	{
     	    if (Info->Debug) printf("\tCopying part of B to GPU (k = %lld)\n", k);
-    	    if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[j] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[nb > bbuffers ? j : blockn] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
+    	    if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[nb > bbuffers ? (blockn % 2) : blockn] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
     	}
     }
     if (Info->VerboseTiming) Timers.CounterCopyTo.Stop();
