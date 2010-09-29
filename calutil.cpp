@@ -354,7 +354,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
         return 0;
     }
     
-    if (nContext >= ctxcount) return 1;
+    if (nContext >= 1) return 1;
     for (int i = 0;i < kernel_count;i++)
     {
 	if (!BindIONames(ctx, &module[i], bStop, fStop, cStop, data, ctxProgNames[i]))
@@ -628,7 +628,7 @@ CALint calutil::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, C
 
     // Unload the module from the context
     
-    if (nContext < ctxcount)
+    if (nContext < 1)
     for (int i = 0;i < kernel_count;i++)
     {
 	if (module[i])

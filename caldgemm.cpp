@@ -574,7 +574,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 
     for (int i = 0;i < max_bbuffers;i++)
     {
-	if (i < ctxcount)
+	if (i < 1)
 	{
 	    if (!SetupKernel(ILKernel, &modules[i][0], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)) ||
 		!SetupKernel(ILKernelALPHA1, &modules[i][1], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)))
@@ -1083,10 +1083,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
     	        WAITFOREVENT(ctx_main, events[j]);
     	        if (Info->Debug) printf("\tExecuting MM kernel\n");
-    	        for (int l = 0;l < aPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[j][kernel_num][l], datas[blockn % 2][l].dstMem), "setting kernel memory A");
-    	        for (int l = aPartsNum;l < aPartsNum + bPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[j][kernel_num][l], datas[nb > bbuffers ? j : blockm][l].dstMem), "setting kernel memory B");
-    	        for (int l = 0;l < cPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[j][kernel_num][numInputs + numConstantBuffers + l], datas[j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
-    		if (!RunProgram(&ctx_main, &modules[j][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
+    	        for (int l = 0;l < aPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[blockn % 2][l].dstMem), "setting kernel memory A");
+    	        for (int l = aPartsNum;l < aPartsNum + bPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[nb > bbuffers ? j : blockm][l].dstMem), "setting kernel memory B");
+    	        for (int l = 0;l < cPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][numInputs + numConstantBuffers + l], datas[j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
+    		if (!RunProgram(&ctx_main, &modules[0][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
     		calCtxFlush(ctx_main);
     		
     		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * GPURatio * nb * mb)
@@ -1244,8 +1244,10 @@ int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
 
 int caldgemm::ExitCALDGEMM()
 {
+    if (Info->Debug) printf("Uninitializing CALDGEMM\n");
     for (int i = 0;i < bbuffers;i++)
     {
+	//if (Info->Debug) printf("Running Cleanup for Context/bbuffer %d\n", i);
 	if (!Cleanup(&device, &ctx_main, modules[i], resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers, i))
 	{
 	    return 1;
@@ -1258,7 +1260,7 @@ int caldgemm::ExitCALDGEMM()
 	}
     }
     
-    for (int i = 0;i < ctxcount;i++) for (int j = 0;j < kernel_count;j++) delete[] progNames[i][j];
+    for (int i = 0;i < 1;i++) for (int j = 0;j < kernel_count;j++) delete[] progNames[i][j];
     
     if (Info->UseCPU && Info->UseGPU)
     {
