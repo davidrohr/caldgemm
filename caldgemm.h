@@ -54,7 +54,7 @@ class caldgemm : public calutil
     int divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers, bool transpose);
     int mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers);
     
-    int DGEMM_prepare(size_t k, int j, size_t usem, size_t usen);
+    int DGEMM_prepare(size_t k, int j);
 
     struct mergeParameters
     {
@@ -72,4 +72,6 @@ class caldgemm : public calutil
     cpu_set_t gpumask;
     
     char hostname[256];	//Store hostname of node for host dependant debug code
+    
+    size_t gpu_m, gpu_n;
 };

@@ -972,7 +972,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	GPURatio = Info->GPURatio;
     }
     
-    size_t usem, usen; //m and n for gpu, rest done by cblas
     cParam.dynamic_run = 0;
     cParam.borders_done = CAL_FALSE;
     if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
@@ -980,24 +979,24 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (Info->m >= Info->n)
 	{
 	    const size_t virtualm = Info->m + (Info->n % Info->Height) * Info->m / Info->n;
-	    usem = GPURatio * (float) virtualm + (Info->Height - 1);
-	    if (usem > Info->m) usem = Info->m;
-	    usem -= usem % Info->Height;
-	    cParam.cblas_size = Info->m - usem;
-	    usen = Info->n;
-	    usen -= usen % Info->Height;
-	    if (Info->Debug) printf("Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", usem, usen, Info->m - usem, usen);
+	    gpu_m = GPURatio * (float) virtualm + (Info->Height - 1);
+	    if (gpu_m > Info->m) gpu_m = Info->m;
+	    gpu_m -= gpu_m % Info->Height;
+	    cParam.cblas_size = Info->m - gpu_m;
+	    gpu_n = Info->n;
+	    gpu_n -= gpu_n % Info->Height;
+	    if (Info->Debug) printf("Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", gpu_m, gpu_n, Info->m - gpu_m, gpu_n);
 	}
         else
         {
     	    const size_t virtualn = Info->n + (Info->m % Info->Height) * Info->n / Info->m;
-	    usen = GPURatio * (float) virtualn + (Info->Height - 1);
-	    if (usen > Info->n) usen = Info->n;
-	    usen -= usen % Info->Height;
-	    cParam.cblas_size = Info->n - usen;
-	    usem = Info->m;
-	    usem -= usem % Info->Height;
-	    if (Info->Debug) printf("Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", usem, usen, Info->m, Info->n - usen);
+	    gpu_n = GPURatio * (float) virtualn + (Info->Height - 1);
+	    if (gpu_n > Info->n) gpu_n = Info->n;
+	    gpu_n -= gpu_n % Info->Height;
+	    cParam.cblas_size = Info->n - gpu_n;
+	    gpu_m = Info->m;
+	    gpu_m -= gpu_m % Info->Height;
+	    if (Info->Debug) printf("Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", gpu_m, gpu_n, Info->m, Info->n - gpu_n);
 	}
 	if (cParam.cblas_size == 0 && Info->DynamicSched == CAL_TRUE)
 	{
@@ -1014,8 +1013,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    printf("Invalid matrix size for GPU only\n");
 	    return(1);
 	}
-	usen = Info->n;
-	usem = Info->m;
+	gpu_n = Info->n;
+	gpu_m = Info->m;
     }
     
     if (Info->UseCPU)
@@ -1034,20 +1033,20 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	int oldj;
 	int j = 0;
 	
-	size_t mb = usem / Info->Height;
-	size_t nb = usen / Info->Height;
+	size_t mb = gpu_m / Info->Height;
+	size_t nb = gpu_n / Info->Height;
 	size_t blockm, blockn, lastm, lastn;
 	
 	if (!Info->Quiet && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers) printf("Insufficient buffers for Input Matrices, retransfer required\n");
 	
-	if (usen && usem)
+	if (gpu_n && gpu_m)
 	for (size_t k = 0;k <= mb * nb;k++)
 	{
 	    if (cParam.dynamic_run && k < nb * mb)
 	    {
 		if (Info->m >= Info->n)
 		{
-		    if (k / nb * Info->Height >= usem - cParam.dynamic_run && (k % nb) * Info->Height >= usen - cParam.dynamic_size)
+		    if (k / nb * Info->Height >= gpu_m - cParam.dynamic_run && (k % nb) * Info->Height >= gpu_n - cParam.dynamic_size)
 		    {
 			if (Info->Debug) printf("GPU skipping k = %lld\n", k);
 			continue;
@@ -1055,7 +1054,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		}
 		else
 		{
-		    if ((k % nb) * Info->Height >= usen - cParam.dynamic_run && k / nb * Info->Height >= usem - cParam.dynamic_size)
+		    if ((k % nb) * Info->Height >= gpu_n - cParam.dynamic_run && k / nb * Info->Height >= gpu_m - cParam.dynamic_size)
 		    {
 			if (Info->Debug) printf("GPU skipping k = %lld\n", k);
 			continue;
@@ -1071,16 +1070,16 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		blockm = k / nb;
 		if (Info->Debug) printf("Iteration k = %lld, m = %lld, n = %lld (Context %d)\n", k, blockm, blockn, j);
 		
-		if (k <= 1 || ctxcount == 1 || Info->AsyncDMA == CAL_FALSE) DGEMM_prepare(k, j, usem, usen);
+		if (k <= 1 || ctxcount == 1 || Info->AsyncDMA == CAL_FALSE) DGEMM_prepare(k, j);
     	        if (ctxcount > 1 && k >= 1 && Info->AsyncDMA)
     	        {
 		    size_t newk = k + 1;
 		    if (cParam.dynamic_run)
 			if (Info->m >= Info->n)
-			    while (newk < nb * mb && newk / nb * Info->Height >= usem - cParam.dynamic_run && (newk % nb) * Info->Height >= usen - cParam.dynamic_size) newk++;
+			    while (newk < nb * mb && newk / nb * Info->Height >= gpu_m - cParam.dynamic_run && (newk % nb) * Info->Height >= gpu_n - cParam.dynamic_size) newk++;
 			else
-			    while (newk < nb * mb && (newk % nb) * Info->Height >= usen - cParam.dynamic_run && newk / nb * Info->Height >= usem - cParam.dynamic_size) newk++;
-		    if (newk < nb * mb) DGEMM_prepare(newk, (j + 1) % ctxcount, usem, usen);
+			    while (newk < nb * mb && (newk % nb) * Info->Height >= gpu_n - cParam.dynamic_run && newk / nb * Info->Height >= gpu_m - cParam.dynamic_size) newk++;
+		    if (newk < nb * mb) DGEMM_prepare(newk, (j + 1) % ctxcount);
 		}
 
     	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);
@@ -1199,10 +1198,10 @@ RunCALDGEMM_end:
     return(0);
 }
 
-int caldgemm::DGEMM_prepare(size_t k, int j, size_t usem, size_t usen)
+int caldgemm::DGEMM_prepare(size_t k, int j)
 {
-    const size_t mb = usem / Info->Height;
-    const size_t nb = usen / Info->Height;
+    const size_t mb = gpu_m / Info->Height;
+    const size_t nb = gpu_n / Info->Height;
     const size_t blockn = k % nb;
     const size_t blockm = k / nb;
 
