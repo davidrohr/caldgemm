@@ -585,7 +585,7 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
             {
         	if (data[i].CALMemory )
         	{
-        	    if ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum + numConstantBuffers) && nContext < ctxcount)
+        	    if ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum + numConstantBuffers) && nContext < 2)
         	    {
         		calCtxReleaseMem(*ctx, data[i].mem);
         		calResUnmap(data[i].res);
@@ -594,7 +594,7 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
         	}
         	else
         	{
-        	    delete [] data[i].c_data;
+        	    if (nContext == 0) delete [] data[i].c_data;
         	}
         	data[i].c_data = NULL;
             }
@@ -1041,7 +1041,7 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
     if (tHeight > 1)
     {
 	data.CALMemory = CAL_TRUE;
-	if ((Info->DstMemory == 'g' || i < aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum) && nContext < ctxcount)
+	if ((Info->DstMemory == 'g' || i < aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum) && nContext < 2)
 	{
 		CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocating of remote memory");
 		CHKERR(calCtxGetMem(&data.mem, *ctx, data.res), "getting remote memory for context");
@@ -1055,10 +1055,10 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
     }
     else
     {
-	data.c_data = new CALchar[tWidth * DataSize * CompSize * tHeight];
+	if (nContext == 0) data.c_data = new CALchar[tWidth * DataSize * CompSize * tHeight];
 	data.CALMemory = CAL_FALSE;
     }
-    if (Info->Debug && nContext < ctxcount && (data.CALMemory != CAL_TRUE || ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum))))
+    if (Info->Debug && nContext < 2 && (data.CALMemory == CAL_TRUE ? ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum)) : nContext == 0))
     {
 	memset((void*)data.c_data, 0, tWidth * DataSize * CompSize * tHeight);
     }
