@@ -207,6 +207,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     
     for (CALuint i = 0; i < cStop; ++i)
     {
+	if (nContext >= 1 && i == aPartsNum + bPartsNum) continue;
 	if (nContext >= 2 && i < aStop) continue;
 	if (nContext >= ctxcount && (i < aStop || i >= bStop)) continue;
         CALuint tWidth = 0;
@@ -281,7 +282,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
         if (AllocateMemory(data[i], device, ctx, tWidth, tHeight, mComponents, sizeof(CALdouble), flag, i, nContext)) return(1);
     }
 
-    if (nContext < ctxcount) {
+    if (nContext < 1) {
     // Setup the constants for the kernel
     data[bStop].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos
     data[bStop].f_data[2] = (float) TILING_X / Info->Height;  //Scale factor for normalized x pos
@@ -354,7 +355,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
         return 0;
     }
     
-    if (nContext >= ctxcount) return 1;
+    if (nContext >= 1) return 1;
     for (int i = 0;i < kernel_count;i++)
     {
 	if (!BindIONames(ctx, &module[i], bStop, fStop, cStop, data, ctxProgNames[i]))
@@ -580,7 +581,7 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
     {
         for (CALuint i = 0; i < numHandles;++i)
         {
-            if ((nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && data[i].c_data)
+            if ((nContext == 0 || i != aPartsNum + bPartsNum) && (nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && data[i].c_data)
             {
         	if (data[i].CALMemory )
         	{
@@ -605,7 +606,7 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
     {
         for (CALuint i = 0; i < numHandles; i++ )
         {
-            if ((nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && resourceHandler[i])
+            if ((nContext == 0 || i != aPartsNum + bPartsNum) && (nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && resourceHandler[i])
             {
         	if (calCtxReleaseMem(*ctx, data[i].dstMem) != CAL_RESULT_OK )
                 {
@@ -628,7 +629,7 @@ CALint calutil::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, C
 
     // Unload the module from the context
     
-    if (nContext < ctxcount)
+    if (nContext < 1)
     for (int i = 0;i < kernel_count;i++)
     {
 	if (module[i])
@@ -905,13 +906,18 @@ CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, C
             fprintf(stderr, "Failing name binding was %s\n", buffer);
             return 0;
         }
-        r = calCtxSetMem(*ctx, ctxProgNames[i], data[i].dstMem);
-        if (r != CAL_RESULT_OK)
+        //if (Info->Debug) printf("Setting Kernel Memory Resource: Memory Handle: %d, CALname handle: %d\n", data[i].dstMem, ctxProgNames[i]);
+        if (i >= iStop && i < cStop)
         {
-    	    printf("Error setting memory buffer %d\n", i);
-            fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
-            fprintf(stderr, "Error string is %s\n",calGetErrorString());
-            return 0;
+    	    r = calCtxSetMem(*ctx, ctxProgNames[i], data[i].dstMem);
+    	    if (r != CAL_RESULT_OK)
+    	    {
+    		fprintf(stderr, "Error setting memory buffer %d\n", i);
+    		fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
+        	fprintf(stderr, "Error string is %s\n",calGetErrorString());
+        	fprintf(stderr, "Memory Handle: %d, CALname handle: %d\n", data[i].dstMem, ctxProgNames[i]);
+        	return 0;
+    	    }
         }
 
 /*	CALresult CALAPIENTRY (*calCtxSetSamplerParams) (CALcontext ctx, CALname name, CALsamplerParameter param, CALvoid* vals);
@@ -942,6 +948,7 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
     {
 	if (nContext >= 2 && i < aPartsNum) continue;
 	if (nContext >= ctxcount && (i < aPartsNum || i >= aPartsNum + bPartsNum)) continue;
+	if (nContext >= 1 && i == aPartsNum + bPartsNum) continue;
         CALint tWidth = data[i].Width;;
         CALint tHeight = data[i].Height;
         CALresallocflags flag = (CALresallocflags) NULL;
@@ -977,6 +984,11 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         {
     	    if (nContext < ctxcount || Info->Debug)
     	    {
+    		for (CALuint j = aPartsNum;j < i;j++)
+    		{
+		    calCtxReleaseMem(*ctx, data[j].dstMem);
+    		    calResFree(_Res[j]);
+    		}
         	fprintf(stderr, "%s:%d - An error occured while allocating memory: %d\n",__FILE__, __LINE__, r);
         	fprintf(stderr, "Error string is %s\n",calGetErrorString());
     	    }
@@ -989,6 +1001,7 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
             fprintf(stderr, "Error string is %s\n",calGetErrorString());
             return 0;
         }
+        //if (Info->Debug) printf("Memory Handle Context %d Buffer %d Handle %d\n", nContext, i, data[i].dstMem);
         if ((Info->DstMemory == 'c' && i >= cStop) || (Info->DivideToGPU && i < iStop))
         {
     	    data[i].mem = data[i].dstMem;
@@ -996,7 +1009,7 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         }
     }
 
-    if (nContext >= ctxcount) return 1;
+    if (nContext >= 1) return 1;
     /* Setup constant resources/memory handles */
     for (CALuint i = iStop; i < cStop; ++i)
     {
@@ -1050,63 +1063,6 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
 	memset((void*)data.c_data, 0, tWidth * DataSize * CompSize * tHeight);
     }
     return(0);
-}
-
-CALint calutil::ParameterValidation(CALuint nInput, CALuint nOutput, CALdeviceattribs* attribs)
-{
-    CALint retval = 1;
-    CALuint mult = 0;
-    CALuint mega = 1024 * 1024;
-    CALuint pitch = (Info->Width + 63) &(~63);
-    CALuint single = (pitch * Info->Height * sizeof(CALfloat));
-    CALuint srcbytes = 2 *(CALuint)single * nInput / mega;
-    CALuint dstbytes = 2 *(CALuint)single * nOutput / mega;
-    mult += 1;
-    if (srcbytes >= attribs->uncachedRemoteRAM)
-    {
-        retval = 0;
-    }
-    else if (srcbytes >= attribs->localRAM)
-    {
-        retval = 0;
-    }
-
-    if (Info->DstMemory == 'c')
-    {
-        if (mult * dstbytes >= attribs->cachedRemoteRAM)
-        {
-            retval = 0;
-        }
-        else if (dstbytes >= attribs->uncachedRemoteRAM)
-        {
-            retval = 0;
-        }
-    }
-    else
-    {
-        if (mult * dstbytes >= attribs->cachedRemoteRAM)
-        {
-            retval = 0;
-        }
-        else if (dstbytes >= attribs->uncachedRemoteRAM)
-        {
-            retval = 0;
-        }
-        else if (dstbytes >= attribs->localRAM)
-        {
-            retval = 0;
-        }
-    }
-    return retval;
-}
-
-
-CALvoid calutil::SupportedCALVersion(CALVersion *calVersion)
-{
-	calVersion->major = 1;
-	calVersion->minor = 3;
-	calVersion->imp = 185;
-	if (Info->Debug) printf("Supported CAL Runtime Version: %d.%d.%d\n", calVersion->major, calVersion->minor, calVersion->imp);
 }
 
 CALint calutil::QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList)
@@ -1213,6 +1169,14 @@ CALint calutil::QueryCALVersion(CALVersion required, const CALchar* comparison)
 	}
 
 	return 0;
+}
+
+CALvoid calutil::SupportedCALVersion(CALVersion *calVersion)
+{
+    calVersion->major = 1;
+    calVersion->minor = 3;
+    calVersion->imp = 185;
+    if (Info->Debug) printf("Supported CAL Runtime Version: %d.%d.%d\n", calVersion->major, calVersion->minor, calVersion->imp);
 }
 
 CALint calutil::ValidateCALRuntime()
