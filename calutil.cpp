@@ -207,6 +207,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     
     for (CALuint i = 0; i < cStop; ++i)
     {
+	if (nContext >= 1 && i == aPartsNum + bPartsNum) continue;
 	if (nContext >= 2 && i < aStop) continue;
 	if (nContext >= ctxcount && (i < aStop || i >= bStop)) continue;
         CALuint tWidth = 0;
@@ -281,7 +282,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
         if (AllocateMemory(data[i], device, ctx, tWidth, tHeight, mComponents, sizeof(CALdouble), flag, i, nContext)) return(1);
     }
 
-    if (nContext < ctxcount) {
+    if (nContext < 1) {
     // Setup the constants for the kernel
     data[bStop].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos
     data[bStop].f_data[2] = (float) TILING_X / Info->Height;  //Scale factor for normalized x pos
@@ -580,7 +581,7 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
     {
         for (CALuint i = 0; i < numHandles;++i)
         {
-            if ((nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && data[i].c_data)
+            if ((nContext == 0 || i != aPartsNum + bPartsNum) && (nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && data[i].c_data)
             {
         	if (data[i].CALMemory )
         	{
@@ -605,7 +606,7 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
     {
         for (CALuint i = 0; i < numHandles; i++ )
         {
-            if ((nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && resourceHandler[i])
+            if ((nContext == 0 || i != aPartsNum + bPartsNum) && (nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && resourceHandler[i])
             {
         	if (calCtxReleaseMem(*ctx, data[i].dstMem) != CAL_RESULT_OK )
                 {
@@ -947,6 +948,7 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
     {
 	if (nContext >= 2 && i < aPartsNum) continue;
 	if (nContext >= ctxcount && (i < aPartsNum || i >= aPartsNum + bPartsNum)) continue;
+	if (nContext >= 1 && i == aPartsNum + bPartsNum) continue;
         CALint tWidth = data[i].Width;;
         CALint tHeight = data[i].Height;
         CALresallocflags flag = (CALresallocflags) NULL;
@@ -982,10 +984,8 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         {
     	    if (nContext < ctxcount || Info->Debug)
     	    {
-    		for (CALuint j = 0;j < i;j++)
+    		for (CALuint j = aPartsNum;j < i;j++)
     		{
-		    if (nContext >= 2 && j < aPartsNum) continue;
-		    if (nContext >= ctxcount && (j < aPartsNum || j >= aPartsNum + bPartsNum)) continue;
 		    calCtxReleaseMem(*ctx, data[j].dstMem);
     		    calResFree(_Res[j]);
     		}
@@ -1009,7 +1009,7 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         }
     }
 
-    if (nContext >= ctxcount) return 1;
+    if (nContext >= 1) return 1;
     /* Setup constant resources/memory handles */
     for (CALuint i = iStop; i < cStop; ++i)
     {

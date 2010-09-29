@@ -938,7 +938,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
 
     if (Info->Debug) printf("Initiliazing GPU Constant Buffers...");
-    for (int i = 0;i < ctxcount;i++)
+    for (int i = 0;i < 1;i++)
     {
 	if (Info->Debug) printf("%d", i);
 	datas[i][aPartsNum + bPartsNum].d_data[3] = alpha;
