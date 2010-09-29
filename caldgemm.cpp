@@ -809,7 +809,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     B_pitch = Bpitch != -1 ? Bpitch : Info->n;
     C_pitch = Cpitch != -1 ? Cpitch : Info->n;
     ResetTimers();
-    
+
+#if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
+    const bool buffersSwitchable = true;
+#else
+    const bool buffersSwitchable = false;
+#endif
     
     if (Info->Debug) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx)\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C);
 
@@ -1024,6 +1029,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
 
     Timers.GPUTimer.Start();
+    
 
     for (CALuint i = 0; i < Info->Iterations; ++i)
     {
@@ -1034,10 +1040,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	size_t nb = usen / Info->Height;
 	size_t blockm, blockn, lastm, lastn;
 	
-	if (!Info->Quiet && nb > bbuffers) printf("Insufficient buffers for B Matrix, retransfer required\n");
+	if (!Info->Quiet && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers) printf("Insufficient buffers for Input Matrices, retransfer required\n");
 	
 	if (usen && usem)
-	for (size_t k = 0;k <= mb * nb;k ++)
+	for (size_t k = 0;k <= mb * nb;k++)
 	{
 	    if (cParam.dynamic_run && k < nb * mb)
 	    {
