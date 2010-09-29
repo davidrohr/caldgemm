@@ -905,12 +905,14 @@ CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, C
             fprintf(stderr, "Failing name binding was %s\n", buffer);
             return 0;
         }
+        //if (Info->Debug) printf("Setting Kernel Memory Resource: Memory Handle: %d, CALname handle: %d\n", data[i].dstMem, ctxProgNames[i]);
         r = calCtxSetMem(*ctx, ctxProgNames[i], data[i].dstMem);
         if (r != CAL_RESULT_OK)
         {
-    	    printf("Error setting memory buffer %d\n", i);
+    	    fprintf(stderr, "Error setting memory buffer %d\n", i);
             fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
             fprintf(stderr, "Error string is %s\n",calGetErrorString());
+            fprintf(stderr, "Memory Handle: %d, CALname handle: %d\n", data[i].dstMem, ctxProgNames[i]);
             return 0;
         }
 
@@ -977,6 +979,13 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         {
     	    if (nContext < ctxcount || Info->Debug)
     	    {
+    		for (CALuint j = 0;j < i;j++)
+    		{
+		    if (nContext >= 2 && j < aPartsNum) continue;
+		    if (nContext >= ctxcount && (j < aPartsNum || j >= aPartsNum + bPartsNum)) continue;
+		    calCtxReleaseMem(*ctx, data[j].dstMem);
+    		    calResFree(_Res[j]);
+    		}
         	fprintf(stderr, "%s:%d - An error occured while allocating memory: %d\n",__FILE__, __LINE__, r);
         	fprintf(stderr, "Error string is %s\n",calGetErrorString());
     	    }
@@ -989,6 +998,7 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
             fprintf(stderr, "Error string is %s\n",calGetErrorString());
             return 0;
         }
+        //if (Info->Debug) printf("Memory Handle Context %d Buffer %d Handle %d\n", nContext, i, data[i].dstMem);
         if ((Info->DstMemory == 'c' && i >= cStop) || (Info->DivideToGPU && i < iStop))
         {
     	    data[i].mem = data[i].dstMem;
