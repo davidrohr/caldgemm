@@ -169,7 +169,7 @@ CALuint calutil::AnalyzeResults(Data* data)
             {
                 if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
                 {
-            	    if (wrong < 1) printf("Error found at row %lld, row %lld: Expected: %le, Found: %le, Diff: %le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
+            	    if (wrong < 1) printf("Error found at row %lld, col %lld: Expected: %le, Found: %le, Diff: %le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
                     ++wrong;
                 }
                 ++total;
