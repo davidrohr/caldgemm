@@ -663,7 +663,7 @@ void* cblas_wrapper(void* arg)
 	    goto_set_num_threads(old_goto_threads - (Info->Pin < 0 ? -Info->Pin : 1));
 	    caldgemm_goto_reserve_cpus(Info->Pin < 0 ? -Info->Pin : 1);
 	}
-	if (Info->m >= Info->n / 2)	//favor splitting m because of consecutive memory
+	if (Info->m >= Info->n)	//favor splitting m because of consecutive memory
 	{
 	    if (par->dynamic_run == 0)
 	    {
@@ -973,7 +973,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     cParam.borders_done = CAL_FALSE;
     if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
     {
-	if (Info->m >= Info->n / 2)
+	if (Info->m >= Info->n)
 	{
 	    const size_t virtualm = Info->m + (Info->n % Info->Height) * Info->m / Info->n;
 	    usem = GPURatio * (float) virtualm + (Info->Height - 1);
@@ -998,7 +998,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (cParam.cblas_size == 0 && Info->DynamicSched == CAL_TRUE)
 	{
 	    cParam.dynamic_run = Info->Height;
-	    cParam.dynamic_size = mymin((int) (Info->m >= Info->n / 2 ? Info->m : Info->n), (int) ((1.0f - GPURatio) * (float) Info->m * Info->n / Info->Height));
+	    cParam.dynamic_size = mymin((int) (Info->m >= Info->n ? Info->m : Info->n), (int) ((1.0f - GPURatio) * (float) Info->m * Info->n / Info->Height));
 	    cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
 	    if (!Info->Quiet) printf("Scheduling initial dynamic run over %lldx%lld blocks\n", cParam.dynamic_run, cParam.dynamic_size);
 	}
@@ -1041,7 +1041,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 	    if (cParam.dynamic_run && k < nb * mb)
 	    {
-		if (Info->m >= Info->n / 2)
+		if (Info->m >= Info->n)
 		{
 		    if (k / nb * Info->Height >= usem - cParam.dynamic_run && (k % nb) * Info->Height >= usen - cParam.dynamic_size)
 		    {
@@ -1072,7 +1072,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	        {
 		    size_t newk = k + 1;
 		    if (cParam.dynamic_run)
-			if (Info->m >= Info->n / 2)
+			if (Info->m >= Info->n)
 			    while (newk < nb * mb && newk / nb * Info->Height >= usem - cParam.dynamic_run && (newk % nb) * Info->Height >= usen - cParam.dynamic_size) newk++;
 			else
 			    while (newk < nb * mb && (newk % nb) * Info->Height >= usen - cParam.dynamic_run && newk / nb * Info->Height >= usem - cParam.dynamic_size) newk++;
@@ -1097,7 +1097,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     			if (cParam.dynamic_size > (nb * mb - k - 1) * Info->Height) cParam.dynamic_size = (nb * mb - k - 1) * Info->Height;
     			if (cParam.dynamic_size > Info->Height)
     			{
-    			    cParam.dynamic_run = 1 + cParam.dynamic_size / (Info->m >= Info->n / 2 ? Info->n : Info->m);
+    			    cParam.dynamic_run = 1 + cParam.dynamic_size / (Info->m >= Info->n ? Info->n : Info->m);
     			    cParam.dynamic_size /= cParam.dynamic_run;
     			    cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
     			    cParam.dynamic_run *= Info->Height;
