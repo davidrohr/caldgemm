@@ -565,14 +565,6 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
         return 1;
     }
 
-    // Verify that there is space on the graphics card to run the kernel
-    // with the given parameters
-    if (!ParameterValidation(numInputs, numOutputs, &attribs))
-    {
-        printf("There is not enough memory on the card to run the sample\n"
-               "with the given command line options. Please try again.\n");
-        return 1;
-    }
     Features.DoublePrecision = CAL_TRUE;
     if(QueryDeviceCaps(Info->DeviceNum, &Features) != CAL_TRUE)
     {

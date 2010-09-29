@@ -262,9 +262,8 @@ protected:
     CALint BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, CALname* ctxProgNames);
     CALint AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, int nContext);
     int AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i, int nContext);
-    CALint ParameterValidation(CALuint nInput, CALuint nOutput, CALdeviceattribs* attribs);
-    CALvoid SupportedCALVersion(CALVersion *calVersion);
     CALint QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList);
+    CALvoid SupportedCALVersion(CALVersion *calVersion); 
     CALint QueryCALVersion(CALVersion required, const CALchar *comparison);
     CALint ValidateCALRuntime();
     CALvoid displayMatrixTiming(const CALchar* name);

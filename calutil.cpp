@@ -1052,63 +1052,6 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
     return(0);
 }
 
-CALint calutil::ParameterValidation(CALuint nInput, CALuint nOutput, CALdeviceattribs* attribs)
-{
-    CALint retval = 1;
-    CALuint mult = 0;
-    CALuint mega = 1024 * 1024;
-    CALuint pitch = (Info->Width + 63) &(~63);
-    CALuint single = (pitch * Info->Height * sizeof(CALfloat));
-    CALuint srcbytes = 2 *(CALuint)single * nInput / mega;
-    CALuint dstbytes = 2 *(CALuint)single * nOutput / mega;
-    mult += 1;
-    if (srcbytes >= attribs->uncachedRemoteRAM)
-    {
-        retval = 0;
-    }
-    else if (srcbytes >= attribs->localRAM)
-    {
-        retval = 0;
-    }
-
-    if (Info->DstMemory == 'c')
-    {
-        if (mult * dstbytes >= attribs->cachedRemoteRAM)
-        {
-            retval = 0;
-        }
-        else if (dstbytes >= attribs->uncachedRemoteRAM)
-        {
-            retval = 0;
-        }
-    }
-    else
-    {
-        if (mult * dstbytes >= attribs->cachedRemoteRAM)
-        {
-            retval = 0;
-        }
-        else if (dstbytes >= attribs->uncachedRemoteRAM)
-        {
-            retval = 0;
-        }
-        else if (dstbytes >= attribs->localRAM)
-        {
-            retval = 0;
-        }
-    }
-    return retval;
-}
-
-
-CALvoid calutil::SupportedCALVersion(CALVersion *calVersion)
-{
-	calVersion->major = 1;
-	calVersion->minor = 3;
-	calVersion->imp = 185;
-	if (Info->Debug) printf("Supported CAL Runtime Version: %d.%d.%d\n", calVersion->major, calVersion->minor, calVersion->imp);
-}
-
 CALint calutil::QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList)
 {
 	CALboolean capable = CAL_TRUE;
@@ -1213,6 +1156,14 @@ CALint calutil::QueryCALVersion(CALVersion required, const CALchar* comparison)
 	}
 
 	return 0;
+}
+
+CALvoid calutil::SupportedCALVersion(CALVersion *calVersion)
+{
+    calVersion->major = 1;
+    calVersion->minor = 3;
+    calVersion->imp = 185;
+    if (Info->Debug) printf("Supported CAL Runtime Version: %d.%d.%d\n", calVersion->major, calVersion->minor, calVersion->imp);
 }
 
 CALint calutil::ValidateCALRuntime()
