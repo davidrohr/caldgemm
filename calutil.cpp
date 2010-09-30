@@ -186,7 +186,7 @@ CALuint calutil::AnalyzeResults(Data* data)
         if (wrong || Info->Debug)
         {
     	    print_submatrices(C, Info->n, Info->m, Info->n, 2, 2, Info->Height, Info->Height);
-    	    print_submatrices(D, Info->n, Info->m, Info->n, 2, 2, Info->Height, Info->Height);
+    	    print_submatrices(D, Info->n, Info->m, Info->n, 2, 2, Info->Height, Info->Height, C);
         }
         
     }

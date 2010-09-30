@@ -73,7 +73,7 @@ calutil::SampleInfo::SampleInfo()
     n = 0;
 }
 
-void calutil::print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey)
+void calutil::print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2)
 {
     printf("Matrix %lld x %lld, Subblocks %lld x %lld, Strides: %lld / %lld\n", width, height, subx, suby, stridex, stridey);
     for (int j = 0;j < height;j += stridey)
@@ -84,7 +84,10 @@ void calutil::print_submatrices(double* M, size_t width, size_t height, size_t p
 	    {
 		for (int ii = i;ii < i + subx && ii < width;ii++)
 		{
-		    printf("%+ 10.3lf\t", M[jj * pitch + ii]);
+		    if (M2 != NULL)
+			printf("%d%+ 10.3lf\t", (int) isDoubleEqual(M[jj * pitch + ii], M2[jj * pitch + ii]), M[jj * pitch + ii]);
+		    else
+			printf(" %+ 10.3lf\t", M[jj * pitch + ii]);
 		}
 	    }
 	    printf("\n");
@@ -1085,7 +1088,16 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		    size_t nextblockm, nextblockn;
 		    DGEMM_getblocks(nextk, nextblockm, nextblockn);
 		    if (cParam.dynamic_run)
-			while (nextk < nBlocks && nextblockm * Info->Height >= gpu_m - cParam.dynamic_run && nextblockn * Info->Height >= gpu_n - cParam.dynamic_size) nextk++;
+		    {
+			if (gpu_m >= gpu_n)
+			{
+			    while (nextk < nBlocks && nextblockm * Info->Height >= gpu_m - cParam.dynamic_run && nextblockn * Info->Height >= gpu_n - cParam.dynamic_size) nextk++;
+			}
+			else
+			{
+			    while (nextk < nBlocks && nextblockn * Info->Height >= gpu_n - cParam.dynamic_run && nextblockm * Info->Height >= gpu_m - cParam.dynamic_size) nextk++;
+			}
+		    }
 		    if (nextk < nBlocks) DGEMM_prepare(nextk, (j + 1) % ctxcount);
 		}
 
@@ -1110,7 +1122,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (!RunProgram(&ctx_main, &modules[0][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
 		calCtxFlush(ctx_main);
 		
-		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * GPURatio * nBlocks)
+		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && cParam.dynamic_run == 0 && (double) k >= 0.75f * GPURatio * nBlocks)
 		{
 		    if (pthread_mutex_trylock(&cParam.cblasMutex[0]) == 0)
 		    {
@@ -1124,7 +1136,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     			    cParam.dynamic_run *= Info->Height;
     			    cParam.borders_done = CAL_TRUE;
     			    if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
-    			    pthread_mutex_unlock(&cParam.cblasMutex[1]);
+    			    pthread_mutex_unlock(&cParam.cblasMutex[0]);
     			}
     			else
     			{

@@ -672,7 +672,7 @@ int main(CALint argc, CALchar** argv)
         {
 	    if (!isDoubleEqual(CC[i] * 1.0, (CALdouble) (i % 16)))
 	    {
-		printf("Verification failed at i = %lld, m = %lld, n = %lld\n", i, i % Info.n, i / Info.n);
+		printf("Verification failed at i = %lld, m = %lld, n = %lld\n", i, i / Info.n, i % Info.n);
 		verifyok = 0;
 		break;
 	    }
