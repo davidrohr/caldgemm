@@ -1089,13 +1089,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		    DGEMM_getblocks(nextk, nextblockm, nextblockn);
 		    if (cParam.dynamic_run)
 		    {
-			if (gpu_m >= gpu_n)
+			while (gpu_m >= gpu_n ? (nextk < nBlocks && nextblockm * Info->Height >= gpu_m - cParam.dynamic_run && nextblockn * Info->Height >= gpu_n - cParam.dynamic_size) :
+			    (nextk < nBlocks && nextblockn * Info->Height >= gpu_n - cParam.dynamic_run && nextblockm * Info->Height >= gpu_m - cParam.dynamic_size))
 			{
-			    while (nextk < nBlocks && nextblockm * Info->Height >= gpu_m - cParam.dynamic_run && nextblockn * Info->Height >= gpu_n - cParam.dynamic_size) nextk++;
-			}
-			else
-			{
-			    while (nextk < nBlocks && nextblockn * Info->Height >= gpu_n - cParam.dynamic_run && nextblockm * Info->Height >= gpu_m - cParam.dynamic_size) nextk++;
+			    nextk++;
+			    DGEMM_getblocks(nextk, nextblockm, nextblockn);
 			}
 		    }
 		    if (nextk < nBlocks) DGEMM_prepare(nextk, (j + 1) % ctxcount);
@@ -1136,7 +1134,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     			    cParam.dynamic_run *= Info->Height;
     			    cParam.borders_done = CAL_TRUE;
     			    if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
-    			    pthread_mutex_unlock(&cParam.cblasMutex[0]);
+    			    pthread_mutex_unlock(&cParam.cblasMutex[1]);
     			}
     			else
     			{
