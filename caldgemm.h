@@ -77,7 +77,7 @@ class caldgemm : public calutil
     size_t gpu_m, gpu_n;
     
 #if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
-    static const bool buffersSwitchable = false;
+    static const bool buffersSwitchable = true;
 #else
     static const bool buffersSwitchable = false;
 #endif

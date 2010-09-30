@@ -1262,18 +1262,26 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 	{
 	    if (Info->Debug) printf("\tCopying part of A to GPU (k = %lld)\n", k);
 	    if (gpu_m < gpu_n && buffersSufficiant)
+	    {
     		if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[blockm % 2], aPartsNum, CAL_FALSE, &events[j], datas[blockm] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
+    	    }
 	    else
+	    {
     		if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[blockm % 2], aPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+    	    }
     	}
     	
     	if (blockm == 0 || (gpu_m >= gpu_n && !buffersSufficiant))
     	{
     	    if (Info->Debug) printf("\tCopying part of B to GPU (k = %lld)\n", k);
 	    if (gpu_m < gpu_n && buffersSufficiant)
+	    {
 		if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[blockn % 2])) {printf("Error copying to GPU\n"); return(1);}
+	    }
 	    else
+	    {
     		if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[nb > bbuffers ? (blockn % 2) : blockn] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
+    	    }
     	}
     }
     if (Info->VerboseTiming) Timers.CounterCopyTo.Stop();
