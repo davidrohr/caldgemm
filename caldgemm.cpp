@@ -1047,10 +1047,21 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		DGEMM_getblocks(k, newblockm, newblockn);
 		if (cParam.dynamic_run)
 		{
-		    if (newblockm * Info->Height >= gpu_m - cParam.dynamic_run && newblockn * Info->Height >= gpu_n - cParam.dynamic_size)
+		    if (gpu_m >= gpu_n)
 		    {
-			if (Info->Debug) printf("GPU skipping k = %lld\n", k);
-			continue;
+			if (newblockm * Info->Height >= gpu_m - cParam.dynamic_run && newblockn * Info->Height >= gpu_n - cParam.dynamic_size)
+			{
+			    if (Info->Debug) printf("GPU skipping k = %lld\n", k);
+			    continue;
+			}
+		    }
+		    else
+		    {
+			if (newblockn * Info->Height >= gpu_n - cParam.dynamic_run && newblockm * Info->Height >= gpu_m - cParam.dynamic_size)
+			{
+			    if (Info->Debug) printf("GPU skipping k = %lld\n", k);
+			    continue;
+			}
 		    }
 		}
 	    }
