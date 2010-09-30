@@ -1003,13 +1003,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    gpu_m -= gpu_m % Info->Height;
 	    if (Info->Debug) printf("Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", gpu_m, gpu_n, Info->m, Info->n - gpu_n);
 	}
-	if (cParam.cblas_size == 0 && Info->DynamicSched == CAL_TRUE)
+	/*if (cParam.cblas_size == 0 && Info->DynamicSched == CAL_TRUE)
 	{
 	    cParam.dynamic_size = Info->Height;
 	    cParam.dynamic_run = (1.0f - GPURatio) * (float) mymax(gpu_m, gpu_n);
 	    cParam.dynamic_run -= cParam.dynamic_run % Info->Height;
 	    if (!Info->Quiet) printf("Scheduling initial dynamic run over %lldx%lld blocks\n", cParam.dynamic_run, cParam.dynamic_size);
-	}
+	}*/
     }
     else
     {
