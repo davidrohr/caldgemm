@@ -55,6 +55,7 @@ class caldgemm : public calutil
     int mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers);
     
     int DGEMM_prepare(size_t k, int j);
+    inline void DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn);
 
     struct mergeParameters
     {
@@ -74,4 +75,10 @@ class caldgemm : public calutil
     char hostname[256];	//Store hostname of node for host dependant debug code
     
     size_t gpu_m, gpu_n;
+    
+#if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
+    static const bool buffersSwitchable = false;
+#else
+    static const bool buffersSwitchable = false;
+#endif
 };

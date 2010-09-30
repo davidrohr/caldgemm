@@ -41,8 +41,7 @@ template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
 template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
-#define WAITFOREVENT(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
-#define WAITFOREVENTR(ctx, event, retval) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(retval);} } while (r == CAL_RESULT_PENDING);}
+#define WAITFOREVENT(ctx, eventnr) { CALresult r; if (Info->Debug) {printf("\tWaiting for event from context %d...", eventnr); fflush(stdout);} do { r = calCtxIsEventDone(ctx, events[eventnr]); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING); if (Info->Debug) printf("Done\n");}
 
 calutil::SampleInfo::SampleInfo()
 {
@@ -663,15 +662,24 @@ void* cblas_wrapper(void* arg)
 	    goto_set_num_threads(old_goto_threads - (Info->Pin < 0 ? -Info->Pin : 1));
 	    caldgemm_goto_reserve_cpus(Info->Pin < 0 ? -Info->Pin : 1);
 	}
+	
+	if (par->dynamic_run)
+	{
+	    if (par->cls->gpu_m >= par->cls->gpu_n)
+	    {
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Info->Width, Alpha, A + (Info->m - par->cblas_size - par->dynamic_run) * A_pitch_use, A_pitch, B + (Info->n - Info->n % Info->Height - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (Info->m - par->cblas_size - par->dynamic_run) * C_pitch + Info->n - Info->n % Info->Height - par->dynamic_size, C_pitch);
+	    }
+	    else
+	    {
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height - par->dynamic_size) * A_pitch_use, A_pitch, B + (Info->n - par->cblas_size - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (Info->m - Info->m % Info->Height - par->dynamic_size) * C_pitch + Info->n - par->cblas_size - par->dynamic_run, C_pitch);
+	    }
+	}
+	
 	if (Info->m >= Info->n)	//favor splitting m because of consecutive memory
 	{
 	    if (par->dynamic_run == 0)
 	    {
 		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, Info->n, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - par->cblas_size) * C_pitch, C_pitch);
-	    }
-	    else
-	    {
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Info->Width, Alpha, A + (Info->m - par->cblas_size - par->dynamic_run) * A_pitch_use, A_pitch, B + (Info->n - Info->n % Info->Height - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (Info->m - par->cblas_size - par->dynamic_run) * C_pitch + Info->n - Info->n % Info->Height - par->dynamic_size, C_pitch);
 	    }
 	    
 	    if (Info->n % Info->Height && par->borders_done == CAL_FALSE)
@@ -682,10 +690,6 @@ void* cblas_wrapper(void* arg)
 	    if (par->dynamic_run == 0)
 	    {
 		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, par->cblas_size, Info->Width, Alpha, A, A_pitch, B + (Info->n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + Info->n - par->cblas_size, C_pitch);
-	    }
-	    else
-	    {
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height - par->dynamic_size) * A_pitch_use, A_pitch, B + (Info->n - par->cblas_size - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (Info->m - Info->m % Info->Height - par->dynamic_size) * C_pitch + Info->n - par->cblas_size - par->dynamic_run, C_pitch);
 	    }
 	    
 	    if (Info->m % Info->Height && par->borders_done == CAL_FALSE)
@@ -733,7 +737,7 @@ void* merge_wrapper(void* arg)
     {
 	if (par->cls->Info->Debug) printf("\t\tSlave thread starting merge process\n");
         par->cls->mergeBuffers(par->dst, par->src, par->cls->Info->Height, par->cls->Info->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch, par->cls->cPartsNum);
-        if (par->cls->Info->Debug) printf("\t\tUnlocking mutex %d\n", par->nContext);
+        if (par->cls->Info->Debug) printf("\t\tUnlocking mutex %d (Slavethread)\n", par->nContext);
         pthread_mutex_unlock(&par->mergeMutex[0]);
     }
     if (par->cls->Info->Debug) printf("merge slave %d terminating\n", par->nContext);
@@ -810,12 +814,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     C_pitch = Cpitch != -1 ? Cpitch : Info->n;
     ResetTimers();
 
-#if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
-    const bool buffersSwitchable = true;
-#else
-    const bool buffersSwitchable = false;
-#endif
-    
     if (Info->Debug) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx)\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C);
 
     //Check for double == 1.0 is unsafe and causes compiler warning
@@ -1033,28 +1031,23 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	int oldj;
 	int j = 0;
 	
-	size_t mb = gpu_m / Info->Height;
-	size_t nb = gpu_n / Info->Height;
+	const size_t mb = gpu_m / Info->Height;
+	const size_t nb = gpu_n / Info->Height;
 	size_t blockm, blockn, lastm, lastn;
+	size_t nBlocks = mb * nb;
 	
 	if (!Info->Quiet && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers) printf("Insufficient buffers for Input Matrices, retransfer required\n");
 	
 	if (gpu_n && gpu_m)
-	for (size_t k = 0;k <= mb * nb;k++)
+	for (size_t k = 0;k <= nBlocks;k++)
 	{
-	    if (cParam.dynamic_run && k < nb * mb)
+	    size_t newblockm, newblockn;
+	    if (k < nBlocks)
 	    {
-		if (Info->m >= Info->n)
+		DGEMM_getblocks(k, newblockm, newblockn);
+		if (cParam.dynamic_run)
 		{
-		    if (k / nb * Info->Height >= gpu_m - cParam.dynamic_run && (k % nb) * Info->Height >= gpu_n - cParam.dynamic_size)
-		    {
-			if (Info->Debug) printf("GPU skipping k = %lld\n", k);
-			continue;
-		    }
-		}
-		else
-		{
-		    if ((k % nb) * Info->Height >= gpu_n - cParam.dynamic_run && k / nb * Info->Height >= gpu_m - cParam.dynamic_size)
+		    if (newblockm * Info->Height >= gpu_m - cParam.dynamic_run && newblockn * Info->Height >= gpu_n - cParam.dynamic_size)
 		    {
 			if (Info->Debug) printf("GPU skipping k = %lld\n", k);
 			continue;
@@ -1063,49 +1056,59 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    }
 	
 	    lastm = blockm;
-    	    lastn = blockn;
-	    if (k < nb * mb)
+	    lastn = blockn;
+	    if (k < nBlocks)
 	    {
-		blockn = k % nb;
-		blockm = k / nb;
+		blockn = newblockn;
+		blockm = newblockm;
 		if (Info->Debug) printf("Iteration k = %lld, m = %lld, n = %lld (Context %d)\n", k, blockm, blockn, j);
 		
 		if (k <= 1 || ctxcount == 1 || Info->AsyncDMA == CAL_FALSE) DGEMM_prepare(k, j);
-    	        if (ctxcount > 1 && k >= 1 && Info->AsyncDMA)
-    	        {
-		    size_t newk = k + 1;
+	        if (ctxcount > 1 && k >= 1 && Info->AsyncDMA)
+	        {
+		    size_t nextk = k + 1;
+		    size_t nextblockm, nextblockn;
+		    DGEMM_getblocks(nextk, nextblockm, nextblockn);
 		    if (cParam.dynamic_run)
-			if (Info->m >= Info->n)
-			    while (newk < nb * mb && newk / nb * Info->Height >= gpu_m - cParam.dynamic_run && (newk % nb) * Info->Height >= gpu_n - cParam.dynamic_size) newk++;
-			else
-			    while (newk < nb * mb && (newk % nb) * Info->Height >= gpu_n - cParam.dynamic_run && newk / nb * Info->Height >= gpu_m - cParam.dynamic_size) newk++;
-		    if (newk < nb * mb) DGEMM_prepare(newk, (j + 1) % ctxcount);
+			while (nextk < nBlocks && nextblockm * Info->Height >= gpu_m - cParam.dynamic_run && nextblockn * Info->Height >= gpu_n - cParam.dynamic_size) nextk++;
+		    if (nextk < nBlocks) DGEMM_prepare(nextk, (j + 1) % ctxcount);
 		}
 
-    	    	if (Info->Debug) printf("\tLocking mutex %d\n", j);
-    	        if (Info->MultiThread) pthread_mutex_lock(&mParam[j].mergeMutex[0]);
-    	        WAITFOREVENT(ctx_main, events[j]);
-    	        if (Info->Debug) printf("\tExecuting MM kernel\n");
-    	        for (int l = 0;l < aPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[blockm % 2][l].dstMem), "setting kernel memory A");
-    	        for (int l = aPartsNum;l < aPartsNum + bPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[nb > bbuffers ? (blockn % 2) : blockn][l].dstMem), "setting kernel memory B");
-    	        for (int l = 0;l < cPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][numInputs + numConstantBuffers + l], datas[j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
-    		if (!RunProgram(&ctx_main, &modules[0][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
-    		calCtxFlush(ctx_main);
-    		
-    		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * GPURatio * nb * mb)
-    		{
-    		    if (pthread_mutex_trylock(&cParam.cblasMutex[0]) == 0)
-    		    {
-    			cParam.dynamic_size = ((1.0f - GPURatio) * (float) (nb * mb - k - 1) + 0.5) * Info->Height;
-    			if (cParam.dynamic_size > (nb * mb - k - 1) * Info->Height) cParam.dynamic_size = (nb * mb - k - 1) * Info->Height;
-    			if (cParam.dynamic_size > Info->Height)
-    			{
-    			    cParam.dynamic_run = 1 + cParam.dynamic_size / (Info->m >= Info->n ? Info->n : Info->m);
+	        if (Info->MultiThread)
+	        {
+		    if (Info->Debug) printf("\tLocking mutex %d\n", j);
+		    pthread_mutex_lock(&mParam[j].mergeMutex[0]);
+		}
+		WAITFOREVENT(ctx_main, j);
+	        if (Info->Debug) printf("\tExecuting MM kernel\n");
+	        if (gpu_m < gpu_n && buffersSwitchable && bbuffers >= mb)
+	        {
+		    for (int l = 0;l < aPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[blockm][aPartsNum + l].dstMem), "setting kernel memory A");
+		    for (int l = 0;l < bPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][aPartsNum + l], datas[blockn % 2][l].dstMem), "setting kernel memory B");
+	        }
+	        else
+	        {
+		    for (int l = 0;l < aPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[blockm % 2][l].dstMem), "setting kernel memory A");
+		    for (int l = aPartsNum;l < aPartsNum + bPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[nb > bbuffers ? (blockn % 2) : blockn][l].dstMem), "setting kernel memory B");
+		}
+	        for (int l = 0;l < cPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][numInputs + numConstantBuffers + l], datas[j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
+		if (!RunProgram(&ctx_main, &modules[0][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
+		calCtxFlush(ctx_main);
+		
+		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && cParam.dynamic_run == 0 && k >= 0.75f * GPURatio * nBlocks)
+		{
+		    if (pthread_mutex_trylock(&cParam.cblasMutex[0]) == 0)
+		    {
+			cParam.dynamic_size = ((1.0f - GPURatio) * (float) (nBlocks - k - 1) + 0.5) * Info->Height;
+			if (cParam.dynamic_size > (nBlocks - k - 1) * Info->Height) cParam.dynamic_size = (nBlocks - k - 1) * Info->Height;
+			if (cParam.dynamic_size > Info->Height)
+			{
+    			    cParam.dynamic_run = 1 + cParam.dynamic_size / mymin(gpu_m, gpu_n);
     			    cParam.dynamic_size /= cParam.dynamic_run;
     			    cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
     			    cParam.dynamic_run *= Info->Height;
     			    cParam.borders_done = CAL_TRUE;
-    			    if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lldx%lld blocks\n", cParam.dynamic_run, cParam.dynamic_size);
+    			    if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
     			    pthread_mutex_unlock(&cParam.cblasMutex[1]);
     			}
     			else
@@ -1121,21 +1124,21 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     		lastm = blockm;
     		lastn = blockn;
     	    }
-    	    if ((ctxcount > 1) ? (k > 0) : (k < nb * mb))
+    	    if ((ctxcount > 1) ? (k > 0) : (k < nBlocks))
     	    {
-    		WAITFOREVENT(ctx_main, events[oldj]);
+    		WAITFOREVENT(ctx_main, oldj);
     		if (Info->DstMemory == 'g')
     		{
     	    	    if (Info->VerboseTiming) Timers.CounterCopyFrom.Start();
     	    	    if (Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
     		    if (CopyDataFromGPU(&ctx_main, resourceHandlers[oldj] + numInputs + numConstantBuffers, datas[oldj] + numInputs + numConstantBuffers, numOutputs, &events[oldj])) {printf("Error copying from GPU\n"); return(1);}
     	    	    if (Info->VerboseTiming) Timers.CounterCopyFrom.Stop();
-    		    WAITFOREVENT(ctx_main, events[oldj]);
+    		    WAITFOREVENT(ctx_main, oldj);
     	    	}
     		if (Info->VerboseTiming) Timers.CounterMerge.Start();
     		if (Info->Debug) printf("\tMerging buffer\n");
 
-		if (k == nb * mb || Info->MultiThread == CAL_FALSE)
+		if (k == nBlocks || Info->MultiThread == CAL_FALSE)
 		{
 	    	    if (mergeBuffers(C + lastn * Info->Height + lastm * C_pitch * Info->Height, datas[oldj] + numInputs + numConstantBuffers, Info->Height, Info->Height, BufferHeight, BufferHeight, C_pitch, cPartsNum)) {printf("Error merging\n"); return(1);}
 	    	    if (Info->MultiThread)
@@ -1198,15 +1201,41 @@ RunCALDGEMM_end:
     return(0);
 }
 
+inline void caldgemm::DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn)
+{
+    if (gpu_m >= gpu_n)
+    {
+        const int nb = gpu_n / Info->Height;
+        blockn = k % nb;
+        blockm = k / nb;
+    }
+    else
+    {
+        const int mb = gpu_m / Info->Height;
+        blockm = k % mb;
+        blockn = k / mb;
+    }
+}
+
 int caldgemm::DGEMM_prepare(size_t k, int j)
 {
-    const size_t mb = gpu_m / Info->Height;
     const size_t nb = gpu_n / Info->Height;
-    const size_t blockn = k % nb;
-    const size_t blockm = k / nb;
+    const size_t mb = gpu_m / Info->Height;
+    size_t blockm, blockn;
+    DGEMM_getblocks(k, blockm, blockn);
+    
+    bool buffersSufficiant;
+    if (gpu_m >= gpu_n)
+    {
+	buffersSufficiant = (bbuffers >= nb);
+    }
+    else
+    {
+	buffersSufficiant = (bbuffers >= mb && buffersSwitchable);
+    }
 
     if (Info->VerboseTiming) Timers.CounterDivide.Start();
-    if (blockn == 0) 
+    if (blockn == 0 || (gpu_m < gpu_n && !buffersSufficiant)) 
     {
 	if (Info->Debug) printf("\tDividing Buffer A (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_A
@@ -1215,7 +1244,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 	if (divideBuffer(datas[blockm % 2], A + blockm * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, BufferWidth, BufferHeight, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
 #endif
     }
-    if (blockm == 0 || nb > bbuffers)
+    if (blockm == 0 || (gpu_m >= gpu_n && !buffersSufficiant))
     {
 	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
 #ifdef CALDGEMM_TRANSPOSED_B
@@ -1229,16 +1258,22 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
     if (Info->VerboseTiming) Timers.CounterCopyTo.Start();
     if (Info->DivideToGPU == CAL_FALSE)
     {
-	if (blockn == 0)
+	if (blockn == 0 || (gpu_m < gpu_n && !buffersSufficiant))
 	{
 	    if (Info->Debug) printf("\tCopying part of A to GPU (k = %lld)\n", k);
-    	    if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[blockm % 2], aPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+	    if (gpu_m < gpu_n && buffersSufficiant)
+    		if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[blockm % 2], aPartsNum, CAL_FALSE, &events[j], datas[blockm] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
+	    else
+    		if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[blockm % 2], aPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
     	}
     	
-    	if (blockm == 0 || nb > bbuffers)
+    	if (blockm == 0 || (gpu_m >= gpu_n && !buffersSufficiant))
     	{
     	    if (Info->Debug) printf("\tCopying part of B to GPU (k = %lld)\n", k);
-    	    if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[nb > bbuffers ? (blockn % 2) : blockn] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
+	    if (gpu_m < gpu_n && buffersSufficiant)
+		if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[blockn % 2])) {printf("Error copying to GPU\n"); return(1);}
+	    else
+    		if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[nb > bbuffers ? (blockn % 2) : blockn] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
     	}
     }
     if (Info->VerboseTiming) Timers.CounterCopyTo.Stop();
