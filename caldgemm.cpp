@@ -602,6 +602,8 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	    mParam[i].terminate = CAL_FALSE;
 	    pthread_t thr;
 	    pthread_create(&thr, NULL, merge_wrapper, &mParam[i]);
+	    
+	    while (pthread_mutex_trylock(&mParam[i].mergeMutex[1]) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeMutex[1]);
 	}
     }
     if (Info->Debug) printf("Was able to allocate %d bbuffers\n", bbuffers);
@@ -615,6 +617,8 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
         {
     	    pthread_t thr;
 	    pthread_create(&thr, NULL, cblas_wrapper, &cParam);
+	    if (Info->Debug) printf("Waiting for cblas slave to start\n");
+	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
 	}
     }
     
@@ -1339,6 +1343,11 @@ int caldgemm::ExitCALDGEMM()
     	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
 	    if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blasMutex 1\n");
 	}
+    }
+    else if(Info->UseCPU)
+    {
+	pthread_mutex_trylock(&cParam.cblasMutex[1]);
+	pthread_mutex_unlock(&cParam.cblasMutex[1]);
     }
     
     for (int j = 0;j < 2;j++)
