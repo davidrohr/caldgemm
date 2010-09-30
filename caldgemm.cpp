@@ -821,8 +821,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
     if (kernel_num && Info->Debug) printf("Using Kernel for ALPHA = 1\n");
 
-    Timers.System.Start();
-    
     if (order == CblasColMajor)
     {
 	double* tmpd;
@@ -849,6 +847,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
 
     if (Info->DumpMatrix) DumpMatrix(A, B, C, Alpha, Beta, Info->m, Info->Width, Info->n, A_pitch, B_pitch, C_pitch, CblasRowMajor, TransposeA, TransposeB);
+
+    Timers.System.Start();
 
 #ifndef TESTMODE    
     //Check if the GPU can/shall process the required dgemm task
