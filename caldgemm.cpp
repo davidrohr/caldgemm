@@ -703,7 +703,7 @@ void* cblas_wrapper(void* arg)
 	caldgemm_goto_reserve_cpus(0);
 	par->cls->Timers.CPUTimer.Stop();
 
-        if (Info->Debug) printf("\t\tUnlocking cblasmutex\n");
+        if (Info->Debug) printf("\t\tUnlocking cblasmutex 0\n");
         pthread_mutex_unlock(&par->cls->cParam.cblasMutex[0]);
         if (!Info->MultiThread) break;
     }
@@ -1021,11 +1021,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->UseCPU)
     {
-	pthread_mutex_unlock(&cParam.cblasMutex[1]);
 	if (!Info->MultiThread)
 	{
 	    cblas_wrapper((void*) &cParam);
 	}
+	pthread_mutex_unlock(&cParam.cblasMutex[1]);
     }
 
     Timers.GPUTimer.Start();
@@ -1186,13 +1186,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     if (Info->UseCPU)
     {
 	CPerfCounter cpuwait;
-	if (!Info->Quiet)
+	if (!Info->Quiet && Info->MultiThread)
 	{
 	    cpuwait.Reset();
 	    cpuwait.Start();
 	}
 	pthread_mutex_lock(&cParam.cblasMutex[0]);
-	if (!Info->Quiet)
+	if (!Info->Quiet && Info->MultiThread)
 	{
 	    cpuwait.Stop();
 	    printf("CPU synchronisation took %2.4lf sec\n", cpuwait.GetElapsedTime());
@@ -1327,7 +1327,7 @@ int caldgemm::ExitCALDGEMM()
     {
 	if (Info->Debug) printf("Trying to terminate blas slave\n");
 	cParam.terminate = CAL_TRUE;
-        if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blas mutex 1 to terminate thread\n");
+        if (Info->MultiThread && pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blas mutex 1 to terminate thread\n");
         if (pthread_mutex_unlock(&cParam.cblasMutex[0])) printf("Error unlocking blas mutex 0 to terminate thread\n");
     }
     
@@ -1343,11 +1343,6 @@ int caldgemm::ExitCALDGEMM()
     	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
 	    if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blasMutex 1\n");
 	}
-    }
-    else if(Info->UseCPU)
-    {
-	pthread_mutex_trylock(&cParam.cblasMutex[1]);
-	pthread_mutex_unlock(&cParam.cblasMutex[1]);
     }
     
     for (int j = 0;j < 2;j++)
