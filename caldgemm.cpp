@@ -96,7 +96,7 @@ void calutil::print_submatrices(double* M, size_t width, size_t height, size_t p
     printf("Done\n");
 }
 
-#ifdef UNALIGNED_ADDRESSES
+#ifdef CALDGEMM_UNALIGNED_ADDRESSES
 #define _mm_load_pd_use _mm_loadu_pd
 #else
 #define _mm_load_pd_use _mm_load_pd
@@ -735,7 +735,14 @@ void* merge_wrapper(void* arg)
 	}
 	else
 	{
+#ifdef CALDGEMM_UNEQUAL_PINNING
+	    cpu_set_t merge_mask;
+	    CPU_ZERO(&merge_mask);
+	    for (int i = 1;i < -par->cls->Info->Pin;i++) CPU_SET(i, &merge_mask);
+	    sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
+#else
 	    sched_setaffinity(0, sizeof(cpu_set_t), &par->cls->gpumask);
+#endif
 	}
     }
     
@@ -923,17 +930,21 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->Pin != -100)
     {
+#ifndef CALDGEMM_UNEQUAL_PINNING
 	if (-Info->Pin == ctxcount + 1)
 	{
+#endif
 	    cpu_set_t divide_mask;
 	    CPU_ZERO(&divide_mask);
 	    CPU_SET(0, &divide_mask);
 	    sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
+#ifndef CALDGEMM_UNEQUAL_PINNING
 	}
 	else
 	{
 	    sched_setaffinity(0, sizeof(cpu_set_t), &gpumask);
 	}
+#endif
     }
     
     if (forceReinit)
