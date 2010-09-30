@@ -120,7 +120,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
     		flopsc = (double) 1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
     		flopsg = 0.0;
     	    }
-    	    else if (Info->m >= Info->n / 2)
+    	    else if (Info->m >= Info->n)
     	    {
     		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->n + (Info->n % Info->Height) * (Info->m - cParam.cblas_size)) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
     		flopsg = (double) 1e-09 * ((Info->m - cParam.cblas_size) * (Info->n - Info->n % Info->Height) - cParam.dynamic_run * cParam.dynamic_size) * (2 * Info->Width + 2) * Info->Iterations / Timers.GPUTimer.GetElapsedTime();
@@ -135,10 +135,10 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
 	if (Info->VerboseTiming)
 	{
 	    CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width) * (CALdouble)Info->Iterations / Timers.Kernel.GetElapsedTime();
-	    CALdouble copyto = (CALdouble) 1e-09 * (Info->m * (Info->n / Info->Height > ctxcount ? ctxcount : Info->n / Info->Height) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterCopyTo.GetElapsedTime();
+	    CALdouble copyto = (CALdouble) 1e-09 * (Info->Height * Timers.divideA + Info->Height * Timers.divideB) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterCopyTo.GetElapsedTime();
     	    CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterCopyFrom.GetElapsedTime()) : 0;
     	    CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterMerge.GetElapsedTime());
-    	    CALdouble copyDivide = (CALdouble) 1e-09 * (Info->m * (1 + (double) (Info->n > Info->Height)) + Info->n * (Info->m / Info->Height)) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterDivide.GetElapsedTime();
+    	    CALdouble copyDivide = (CALdouble) 1e-09 * (Info->Height * Timers.divideA + Info->Height * Timers.divideB) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterDivide.GetElapsedTime();
     	    printf("Times:  Kernel                    Divide                  Merge                   Copy To                 Copy From\n");
     	    printf("        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
     	    if (Info->TabularTiming)

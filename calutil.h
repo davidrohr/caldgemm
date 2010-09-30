@@ -274,6 +274,7 @@ protected:
     struct TimerInfo
     {
 	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer;
+	int divideA, divideB;
     } Timers;
 
     void print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey);
