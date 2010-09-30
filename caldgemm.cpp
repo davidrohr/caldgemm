@@ -1052,6 +1052,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    if (k < nBlocks)
 	    {
 		DGEMM_getblocks(k, newblockm, newblockn);
+		
 		if (cParam.dynamic_run)
 		{
 		    if (gpu_m >= gpu_n)
@@ -1081,6 +1082,37 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		blockm = newblockm;
 		if (Info->Debug) printf("Iteration k = %lld, m = %lld, n = %lld (Context %d)\n", k, blockm, blockn, j);
 		
+		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && cParam.dynamic_run == 0 && (double) k >= 0.75f * GPURatio * nBlocks)
+		{
+		    if (pthread_mutex_trylock(&cParam.cblasMutex[0]) == 0)
+		    {
+			cParam.dynamic_size = ((1.0f - GPURatio) * (float) (nBlocks - k - 1) + 0.5) * Info->Height;
+			if (cParam.dynamic_size > (nBlocks - k - 1) * Info->Height) cParam.dynamic_size = (nBlocks - k - 1) * Info->Height;
+			if (cParam.dynamic_size > Info->Height)
+			{
+    			    cParam.dynamic_run = 1 + cParam.dynamic_size / mymin(gpu_m, gpu_n);
+    			    cParam.dynamic_size /= cParam.dynamic_run;
+    			    cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
+    			    cParam.dynamic_run *= Info->Height;
+    			    cParam.borders_done = CAL_TRUE;
+    			    
+			    while (gpu_m >= gpu_n ? (blockm * Info->Height >= gpu_m - cParam.dynamic_run && blockn * Info->Height >= gpu_n - cParam.dynamic_size) :
+				(blockn * Info->Height >= gpu_n - cParam.dynamic_run && blockm * Info->Height >= gpu_m - cParam.dynamic_size))
+			    {
+				cParam.dynamic_run -= Info->Height;
+				cParam.dynamic_size = mymin(gpu_m, gpu_n);
+			    }
+    			    
+    			    if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
+    			    pthread_mutex_unlock(&cParam.cblasMutex[1]);
+    			}
+    			else
+    			{
+    			    pthread_mutex_unlock(&cParam.cblasMutex[0]);
+    			}
+    		    }
+    		}
+
 		if (k <= 1 || ctxcount == 1 || Info->AsyncDMA == CAL_FALSE) DGEMM_prepare(k, j);
 	        if (ctxcount > 1 && k >= 1 && Info->AsyncDMA)
 	        {
@@ -1119,29 +1151,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	        for (int l = 0;l < cPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][numInputs + numConstantBuffers + l], datas[j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 		if (!RunProgram(&ctx_main, &modules[0][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
 		calCtxFlush(ctx_main);
-		
-		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && cParam.dynamic_run == 0 && (double) k >= 0.75f * GPURatio * nBlocks)
-		{
-		    if (pthread_mutex_trylock(&cParam.cblasMutex[0]) == 0)
-		    {
-			cParam.dynamic_size = ((1.0f - GPURatio) * (float) (nBlocks - k - 1) + 0.5) * Info->Height;
-			if (cParam.dynamic_size > (nBlocks - k - 1) * Info->Height) cParam.dynamic_size = (nBlocks - k - 1) * Info->Height;
-			if (cParam.dynamic_size > Info->Height)
-			{
-    			    cParam.dynamic_run = 1 + cParam.dynamic_size / mymin(gpu_m, gpu_n);
-    			    cParam.dynamic_size /= cParam.dynamic_run;
-    			    cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
-    			    cParam.dynamic_run *= Info->Height;
-    			    cParam.borders_done = CAL_TRUE;
-    			    if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
-    			    pthread_mutex_unlock(&cParam.cblasMutex[1]);
-    			}
-    			else
-    			{
-    			    pthread_mutex_unlock(&cParam.cblasMutex[0]);
-    			}
-    		    }
-    		}
     	    }
     	    if (ctxcount == 1)
     	    {
