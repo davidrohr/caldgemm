@@ -1168,7 +1168,17 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	        if (Info->MultiThread)
 	        {
 		    if (Info->Debug) printf("\tLocking mutex %d\n", j);
+		    if (Info->AsyncTiming)
+		    {
+			Timers.ATime.Reset();
+			Timers.ATime.Start();
+		    }
 		    pthread_mutex_lock(&mParam[j].mergeMutex[0]);
+		    if (Info->AsyncTiming)
+		    {
+			Timers.ATime.Stop();
+			printf("\t\tWait Time for merge thread: %1.5lf\n", Timers.ATime.GetElapsedTime());
+		    }
 		}
 		WAITFOREVENT(ctx_main, j);
 	        if (Info->Debug) printf("\tExecuting MM kernel\n");
@@ -1238,17 +1248,16 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     if (Info->UseCPU)
     {
-	CPerfCounter cpuwait;
 	if (!Info->Quiet && Info->MultiThread)
 	{
-	    cpuwait.Reset();
-	    cpuwait.Start();
+	    Timers.ATime.Reset();
+	    Timers.ATime.Start();
 	}
 	pthread_mutex_lock(&cParam.cblasMutex[0]);
 	if (!Info->Quiet && Info->MultiThread)
 	{
-	    cpuwait.Stop();
-	    printf("CPU synchronisation took %2.4lf sec\n", cpuwait.GetElapsedTime());
+	    Timers.ATime.Stop();
+	    printf("CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
 	}
     }
 

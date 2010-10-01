@@ -804,11 +804,10 @@ void calutil::copyTo(CALchar* ptr, Data& data, CALuint pitch)
 CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event, Data* dest_data)
 {
     if (dest_data == NULL) dest_data = data;
-    CPerfCounter ATime;
     if (Info->AsyncTiming)
     {
-	ATime.Reset();
-	ATime.Start();
+	Timers.ATime.Reset();
+	Timers.ATime.Start();
     }
     CALuint pitch;
     CALresult r;
@@ -839,17 +838,17 @@ CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CA
     }
     if (Info->AsyncTiming && constants == CAL_FALSE)
     {
-	ATime.Stop();
-	printf("\t\tCopyToGPU: Time until command issued: %2.4lf\n", ATime.GetElapsedTime());
-	ATime.Start();
+	Timers.ATime.Stop();
+	printf("\t\tCopyToGPU: Time until command issued: %2.4lf\n", Timers.ATime.GetElapsedTime());
+	Timers.ATime.Start();
     }
     if (Info->VerboseTiming && constants == CAL_FALSE) WAITFOREVENT(*ctx, *event);
 
     if (Info->AsyncTiming && constants == CAL_FALSE)
     {
 	WAITFOREVENT(*ctx, *event);
-	ATime.Stop();
-	printf("\t\tCopyToGPU: Time until event done: %2.4lf\n", ATime.GetElapsedTime());
+	Timers.ATime.Stop();
+	printf("\t\tCopyToGPU: Time until event done: %2.4lf\n", Timers.ATime.GetElapsedTime());
     }
     return 0;
 }
