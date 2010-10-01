@@ -1136,6 +1136,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				cParam.dynamic_size = mymin(gpu_m, gpu_n);
 				if (Info->Debug) printf("cParam dynamic size reduced to: %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
 			    }
+			    
+			    if (nBlocks - k - 1 > 16 && cParam.dynamic_run == Info->Height && cParam.dynamic_size < mymin(gpu_m, gpu_n)) cParam.dynamic_size += Info->Height;
     			    
     			    if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
     			    pthread_mutex_unlock(&cParam.cblasMutex[1]);
