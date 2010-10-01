@@ -962,7 +962,7 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         if (i >= cStop && i < oStop)
         {
             mem = Info->DstMemory;
-            flag = static_cast<CALresallocflags>(flag | CAL_RESALLOC_CACHEABLE);
+            if (mem == 'c') flag = static_cast<CALresallocflags>(flag | CAL_RESALLOC_CACHEABLE);
         }
         else if (i >= iStop && i < cStop)
         {
