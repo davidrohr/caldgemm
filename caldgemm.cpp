@@ -1189,7 +1189,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     		if (Info->DstMemory == 'g')
     		{
     	    	    if (Info->VerboseTiming) Timers.CounterCopyFrom.Start();
-    	    	    if (Info->Debug == CAL_TRUE) printf("Fething part of C from GPU\n");
+    	    	    if (Info->Debug == CAL_TRUE) printf("\tFething part of C from GPU (m = %lld, n = %lld)\n", lastm, lastn);
     		    if (CopyDataFromGPU(&ctx_main, resourceHandlers[oldj] + numInputs + numConstantBuffers, datas[oldj] + numInputs + numConstantBuffers, numOutputs, &events[oldj])) {printf("Error copying from GPU\n"); return(1);}
     	    	    if (Info->VerboseTiming) Timers.CounterCopyFrom.Stop();
     		    WAITFOREVENT(ctx_main, oldj);

@@ -751,6 +751,7 @@ CALint calutil::CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, Data* data, 
     {
 	if (data[i].CALMemory)
 	{
+	    //if (Info->Debug) printf("GPUHandle: %d, CPUHandle: %d\n", data[i].dstMem, data[i].mem);
 	    CHKERR(calMemCopy(event, *ctx, data[i].dstMem, data[i].mem, NULL), "copying data from gpu");
 	    continue;
 	}
@@ -1046,7 +1047,7 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
     if (tHeight > 1)
     {
 	data.CALMemory = CAL_TRUE;
-	if ((Info->DstMemory == 'g' || i < aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum) && nContext < 2)
+	if ((Info->DstMemory == 'g' || i < aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum) && (nContext < 2 || (Info->DstMemory == 'g' && i >= aPartsNum + bPartsNum + numConstantBuffers)))
 	{
 		CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocating of remote memory");
 		CHKERR(calCtxGetMem(&data.mem, *ctx, data.res), "getting remote memory for context");
