@@ -1299,9 +1299,9 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 	if (Info->Debug) printf("\tDividing Buffer A (k = %lld)\n", k);
 	Timers.divideA++;
 #ifdef CALDGEMM_TRANSPOSED_A
-	if (divideBuffer(datas[blockm % 2], A + blockm * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, BufferHeight, BufferWidth, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
+	if (divideBuffer(Info->DivideToGPU && gpu_m < gpu_n && buffersSufficiant ? (datas[blockm] + aPartsNum) : datas[blockm % 2], A + blockm * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, BufferHeight, BufferWidth, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
 #else
-	if (divideBuffer(datas[blockm % 2], A + blockm * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, BufferWidth, BufferHeight, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
+	if (divideBuffer(Info->DivideToGPU && gpu_m < gpu_n && buffersSufficiant ? (datas[blockm] + aPartsNum) : datas[blockm % 2], A + blockm * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, BufferWidth, BufferHeight, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
 #endif
     }
     if (blockm == 0 || (gpu_m >= gpu_n && !buffersSufficiant))
@@ -1309,9 +1309,9 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
 	Timers.divideB++;
 #ifdef CALDGEMM_TRANSPOSED_B
-	divideBuffer(datas[blockn % 2] + aPartsNum, B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, BufferWidth, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
+	divideBuffer(Info->DivideToGPU && buffersSufficiant ? (datas[blockn] + (gpu_m >= gpu_n ? aPartsNum : 0)) : (datas[blockn % 2] + aPartsNum), B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, BufferWidth, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
 #else
-	divideBuffer(datas[blockn % 2] + aPartsNum, B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, BufferWidth, B_pitch, bPartsNum, TransposeB == CblasTrans);
+	divideBuffer(Info->DivideToGPU && buffersSufficiant ? (datas[blockn] + (gpu_m >= gpu_n ? aPartsNum : 0)) : (datas[blockn % 2] + aPartsNum), B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, BufferWidth, B_pitch, bPartsNum, TransposeB == CblasTrans);
 #endif
     }
     if (Info->VerboseTiming) Timers.CounterDivide.Stop();
@@ -1341,7 +1341,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 	    }
 	    else
 	    {
-    		if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[nb > bbuffers ? (blockn % 2) : blockn] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
+    		if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[buffersSufficiant ? blockn : (blockn % 2)] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
     	    }
     	}
     }
