@@ -751,7 +751,16 @@ void* merge_wrapper(void* arg)
 #ifdef CALDGEMM_UNEQUAL_PINNING
 	    cpu_set_t merge_mask;
 	    CPU_ZERO(&merge_mask);
-	    for (int i = 1;i < -par->cls->Info->Pin;i++) CPU_SET(i, &merge_mask);
+	    if (par->cls->ctxcount % (-par->cls->Info->Pin - 1) == 0)
+	    {
+		int merge_cpu = 1 + (par->nContext % (-par->cls->Info->Pin - 1));
+		if (par->cls->Info->Debug) printf("Merge CPU for Thread %d: %d\n", par->nContext, merge_cpu);
+		CPU_SET(merge_cpu, &merge_mask);
+	    }
+	    else
+	    {
+		for (int i = 1;i < -par->cls->Info->Pin;i++) CPU_SET(i, &merge_mask);
+	    }
 	    sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
 #else
 	    sched_setaffinity(0, sizeof(cpu_set_t), &par->cls->gpumask);

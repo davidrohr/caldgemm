@@ -988,14 +988,14 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         }
         if (r != CAL_RESULT_OK)
         {
+    	    for (CALuint j = aPartsNum;j < i;j++)
+    	    {
+	        calCtxReleaseMem(*ctx, data[j].dstMem);
+    	        calResFree(_Res[j]);
+    	    }
     	    if (nContext < ctxcount || Info->Debug)
     	    {
-    		for (CALuint j = aPartsNum;j < i;j++)
-    		{
-		    calCtxReleaseMem(*ctx, data[j].dstMem);
-    		    calResFree(_Res[j]);
-    		}
-        	fprintf(stderr, "%s:%d - An error occured while allocating memory: %d\n",__FILE__, __LINE__, r);
+        	fprintf(stderr, "%s:%d - An error occured while allocating memory (context %d, i %d): %d\n", __FILE__, __LINE__, nContext, i, r);
         	fprintf(stderr, "Error string is %s\n",calGetErrorString());
     	    }
             return 0;
