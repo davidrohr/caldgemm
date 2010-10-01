@@ -31,6 +31,8 @@ extern "C" {
 }
 #include <math.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #define MPOL_DEFAULT 0
 #define MPOL_PREFERRED 1
@@ -630,6 +632,17 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	unsigned long nodemask = 0xffffff;
 	syscall(SYS_set_mempolicy, MPOL_INTERLEAVE, &nodemask, sizeof(nodemask) * 8);
     }
+    
+    /*printf("Setting FIFO scheduler\n");
+    sched_param param;
+    sched_getparam( 0, &param );
+    param.sched_priority = 1;
+    if ( 0 != sched_setscheduler( 0, SCHED_FIFO, &param ) )
+    {
+	printf("Error setting scheduler\n");
+	return(1);
+    }*/
+    //setpriority(PRIO_PROCESS, 0, -20);
 
     if (Info->Pin != -100) sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
