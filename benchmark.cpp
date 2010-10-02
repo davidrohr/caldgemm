@@ -455,8 +455,8 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     if (BB) delete[] BB;
     if (CC) delete[] CC;
     AA = new CALdouble[Info.m * Info.Width];
-    BB = new CALdouble[Info.Width * Info.n];
-    CC = new CALdouble[Info.m * Info.n];
+    BB = new CALdouble[Info.Width * pitch];
+    CC = new CALdouble[Info.m * pitch];
     
     if (mlock(AA, Info.m * Info.Width * sizeof(double)) ||
     mlock(BB, Info.Width * Info.n * sizeof(double)) ||
@@ -585,6 +585,7 @@ int main(CALint argc, CALchar** argv)
     else
     {
 	pitch = Info.n + (Info.n % 2);
+	if (Info.n % 2) printf("Padding 8 bytes for correct alignment, n = %lld, pitch = %lld\n", Info.n, pitch);
 	if (!quietbench)
 	{
 	    fprintf(stdout, "Initializing Data... ");
