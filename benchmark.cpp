@@ -125,6 +125,8 @@ char* matrixfile;
 
 long seedused;
 
+caldgemm dgemm;
+
 CALvoid Usage(const CALchar* name)
 {
     fprintf(stderr,"Usage: %s", name);
@@ -466,9 +468,8 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 	if (linpackmem) delete[] linpackmem;
     
 	pitch_a = pitch_b = pitch_c = Info.n + Info.Width + (Info.n + Info.Width) % 2;
-	linpackmem = new CALdouble[pitch_c * (Info.m + Info.Width)];
+	linpackmem = dgemm.AllocMemory(pitch_c * (Info.m + Info.Width), true);
 	if (linpackmem == NULL) {printf("Memory Allocation Error\n"); return(1);}
-	if (mlock(linpackmem, pitch_c * (Info.m + Info.Width) * sizeof(CALdouble))) printf("Error locking memory");
 	
 	AA = linpackmem + Info.Width * pitch_c;
 	BB = linpackmem + Info.Width;
@@ -481,22 +482,18 @@ int SetupUserData(caldgemm::SampleInfo &Info)
         pitch_a = Info.Width + (Info.Width % 2);
         if (Info.n % 2) printf("Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", Info.n, pitch_b);
 
-	if (AA) delete[] AA;
-        if (BB) delete[] BB;
-	if (CC) delete[] CC;
-        AA = new CALdouble[Info.m * pitch_a];
-	BB = new CALdouble[Info.Width * pitch_b];
-        CC = new CALdouble[Info.m * pitch_c];
+	if (AA) dgemm.FreeMemory(AA);
+        if (BB) dgemm.FreeMemory(BB);
+	if (CC) dgemm.FreeMemory(CC);
+        AA = dgemm.AllocMemory(Info.m * pitch_a, true);
+	BB = dgemm.AllocMemory(Info.Width * pitch_b, true);
+        CC = dgemm.AllocMemory(Info.m * pitch_c, true);
     
         if (AA == NULL || BB == NULL || CC == NULL)
 	{
 	    printf("Memory allocation error allocating matrices\n");
     	    return(1);
 	}
-	
-	if (mlock(AA, Info.m * pitch_a * sizeof(double)) ||
-        mlock(BB, Info.Width * pitch_b * sizeof(double)) ||
-	mlock(CC, Info.m * pitch_c * sizeof(double))) printf("Error locking memory\n");
     }
     
     if (fastinit)
@@ -543,7 +540,6 @@ bool isDoubleEqual(CALdouble a, CALdouble b)
 int main(CALint argc, CALchar** argv)
 {
     caldgemm::SampleInfo Info;
-    caldgemm dgemm;
 
     if (!ParseCommandLine(argc, argv, &Info))
     {
@@ -759,13 +755,13 @@ int main(CALint argc, CALchar** argv)
 #ifndef TEST_PARAMETERS
     if (linpackmemory)
     {
-	delete[] linpackmem;
+	dgemm.FreeMemory(linpackmem);
     }
     else
     {
-	delete[] AA;
-        delete[] BB;
-	delete[] CC;
+	dgemm.FreeMemory(AA);
+        dgemm.FreeMemory(BB);
+	dgemm.FreeMemory(CC);
     }
 #endif
     return 0;
