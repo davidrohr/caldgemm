@@ -115,6 +115,8 @@ bool verifylarge = false;
 bool quietbench = false;
 bool alphaone = false;
 bool betazero = false;
+bool linpackmemory = false;
+double* linpackmem = NULL;
 int reduced_height = -1;
 int reduced_width = -1;
 size_t pitch_a, pitch_b, pitch_c;
@@ -166,6 +168,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-9        Output a table with timing information\n" );
     fprintf(stderr, "\t-0        Write the output of divideBuffers directly to GPU instead of a seperate DMA transfer\n" );
     fprintf(stderr, "\t-A        Do the DMA transfer to GPU asynchronously\n" );
+    fprintf(stderr, "\t-L        Memory Organisation like in HPL (LINPACK)\n" );
     fprintf(stderr, "\t-x <file> Load Matrix\n" );
     
     fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
@@ -207,6 +210,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
         switch(argv[x][1])
         {
             default:
+        	printf("Invalid parameter: %s\n", argv[x]);
 		Usage(argv[0]);
                 return CAL_FALSE;
             case 'q':
@@ -245,6 +249,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case 'A':
 		Info->AsyncDMA = CAL_TRUE;
+                break;
+            case 'L':
+		linpackmemory = true;
                 break;
             case '8':
 		initialrun = false;
@@ -435,13 +442,16 @@ void SetupUserDataC(caldgemm::SampleInfo &Info)
     if (fastinit)
 	memset(CC, 0, Info.m * pitch_c * sizeof(double));
     else
-	for (size_t i = 0;i < Info.m * pitch_c;i++)
+	for (size_t i = 0;i < Info.m;i++)
         {
+    	    for (size_t j = 0;j < Info.n;j++)
+    	    {
 #ifdef TESTMODE
-	    CC[i] = 0;
+		CC[i * pitch_c + j] = 0;
 #else
-	    CC[i] = (CALdouble) (i % 16);
+		CC[i * pitch_c + j] = (CALdouble) (i + j % 16);
 #endif
+	    }
 	}
 }
 
@@ -451,26 +461,42 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     clock_gettime(CLOCK_REALTIME, &randtime);
     srand((int) (seedused = randtime.tv_nsec));
     
-    pitch_b = Info.n + (Info.n % 2);
-    pitch_c = Info.n + (Info.n % 2);
-    pitch_a = Info.Width + (Info.Width % 2);
-    if (Info.n % 2) printf("Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", Info.n, pitch_b);
-
-    if (AA) delete[] AA;
-    if (BB) delete[] BB;
-    if (CC) delete[] CC;
-    AA = new CALdouble[Info.m * pitch_a];
-    BB = new CALdouble[Info.Width * pitch_b];
-    CC = new CALdouble[Info.m * pitch_c];
-    
-    if (mlock(AA, Info.m * pitch_a * sizeof(double)) ||
-    mlock(BB, Info.Width * pitch_b * sizeof(double)) ||
-    mlock(CC, Info.m * pitch_c * sizeof(double))) printf("Error locking memory\n");
-    
-    if (AA == NULL || BB == NULL || CC == NULL)
+    if (linpackmemory)
     {
-	printf("Memory allocation error allocating matrices\n");
-	return(1);
+	if (linpackmem) delete[] linpackmem;
+    
+	pitch_a = pitch_b = pitch_c = Info.n + Info.Width + (Info.n + Info.Width) % 2;
+	linpackmem = new CALdouble[pitch_c * (Info.m + Info.Width)];
+	if (linpackmem == NULL) {printf("Memory Allocation Error\n"); return(1);}
+	if (mlock(linpackmem, pitch_c * (Info.m + Info.Width) * sizeof(CALdouble))) printf("Error locking memory");
+	
+	AA = linpackmem + Info.Width * pitch_c;
+	BB = linpackmem + Info.Width;
+	CC = linpackmem + Info.Width * (pitch_c + 1);
+    }
+    else
+    {
+	pitch_b = Info.n + (Info.n % 2);
+        pitch_c = Info.n + (Info.n % 2);
+        pitch_a = Info.Width + (Info.Width % 2);
+        if (Info.n % 2) printf("Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", Info.n, pitch_b);
+
+	if (AA) delete[] AA;
+        if (BB) delete[] BB;
+	if (CC) delete[] CC;
+        AA = new CALdouble[Info.m * pitch_a];
+	BB = new CALdouble[Info.Width * pitch_b];
+        CC = new CALdouble[Info.m * pitch_c];
+    
+        if (AA == NULL || BB == NULL || CC == NULL)
+	{
+	    printf("Memory allocation error allocating matrices\n");
+    	    return(1);
+	}
+	
+	if (mlock(AA, Info.m * pitch_a * sizeof(double)) ||
+        mlock(BB, Info.Width * pitch_b * sizeof(double)) ||
+	mlock(CC, Info.m * pitch_c * sizeof(double))) printf("Error locking memory\n");
     }
     
     if (fastinit)
@@ -731,9 +757,16 @@ int main(CALint argc, CALchar** argv)
     dgemm.ExitCALDGEMM();
 
 #ifndef TEST_PARAMETERS
-    delete[] AA;
-    delete[] BB;
-    delete[] CC;
+    if (linpackmemory)
+    {
+	delete[] linpackmem;
+    }
+    else
+    {
+	delete[] AA;
+        delete[] BB;
+	delete[] CC;
+    }
 #endif
     return 0;
 }
