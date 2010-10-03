@@ -1451,3 +1451,20 @@ void caldgemm::ResetTimers()
     Timers.GPUTimer.Reset();
     Timers.divideA = Timers.divideB = 0;
 }
+
+double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked)
+{
+    double* ptr = new double[nDoubles];
+    if (ptr == NULL) return(NULL);
+    if (page_locked && mlock(ptr, nDoubles * sizeof(double)))
+    {
+	delete[] ptr;
+	return(NULL);
+    }
+    return(ptr);
+}
+
+void caldgemm::FreeMemory(double* ptr)
+{
+    delete[] ptr;
+}
