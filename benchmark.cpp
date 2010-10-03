@@ -117,7 +117,7 @@ bool alphaone = false;
 bool betazero = false;
 int reduced_height = -1;
 int reduced_width = -1;
-size_t pitch;
+size_t pitch_a, pitch_b, pitch_c;
 
 char* matrixfile;
 
@@ -433,9 +433,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 void SetupUserDataC(caldgemm::SampleInfo &Info)
 {
     if (fastinit)
-	memset(CC, 0, Info.m * pitch * sizeof(double));
+	memset(CC, 0, Info.m * pitch_c * sizeof(double));
     else
-	for (size_t i = 0;i < Info.m * pitch;i++)
+	for (size_t i = 0;i < Info.m * pitch_c;i++)
         {
 #ifdef TESTMODE
 	    CC[i] = 0;
@@ -451,16 +451,21 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     clock_gettime(CLOCK_REALTIME, &randtime);
     srand((int) (seedused = randtime.tv_nsec));
     
+    pitch_b = Info.n + (Info.n % 2);
+    pitch_c = Info.n + (Info.n % 2);
+    pitch_a = Info.Width + (Info.Width % 2);
+    if (Info.n % 2) printf("Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", Info.n, pitch_b);
+
     if (AA) delete[] AA;
     if (BB) delete[] BB;
     if (CC) delete[] CC;
-    AA = new CALdouble[Info.m * Info.Width];
-    BB = new CALdouble[Info.Width * pitch];
-    CC = new CALdouble[Info.m * pitch];
+    AA = new CALdouble[Info.m * pitch_a];
+    BB = new CALdouble[Info.Width * pitch_b];
+    CC = new CALdouble[Info.m * pitch_c];
     
-    if (mlock(AA, Info.m * Info.Width * sizeof(double)) ||
-    mlock(BB, Info.Width * Info.n * sizeof(double)) ||
-    mlock(CC, Info.m * Info.n * sizeof(double))) printf("Error locking memory\n");
+    if (mlock(AA, Info.m * pitch_a * sizeof(double)) ||
+    mlock(BB, Info.Width * pitch_b * sizeof(double)) ||
+    mlock(CC, Info.m * pitch_c * sizeof(double))) printf("Error locking memory\n");
     
     if (AA == NULL || BB == NULL || CC == NULL)
     {
@@ -470,8 +475,8 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     
     if (fastinit)
     {
-	memset(AA, 0, Info.m * Info.Width * sizeof(double));
-	memset(BB, 0, Info.Width * pitch * sizeof(double));
+	memset(AA, 0, Info.m * pitch_a * sizeof(double));
+	memset(BB, 0, Info.Width * pitch_b * sizeof(double));
     }
     else
     {
@@ -480,17 +485,17 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     	    for (CALuint x = 0; x < Info.m; x++)
     	    {
 #ifdef TESTMODE
-        	AA[x * Info.Width + y] = 1;
+        	AA[x * pitch_a + y] = 1;
 #else
-        	AA[x * Info.Width + y] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
+        	AA[x * pitch_a + y] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
 #endif
     	    }
     	    for (CALuint x = 0; x < Info.n; x++)
     	    {
 #ifdef TESTMODE
-        	BB[y * pitch + x] = 1;
+        	BB[y * pitch_b + x] = 1;
 #else
-        	BB[y * pitch + x] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
+        	BB[y * pitch_b + x] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
 #endif
     	    }
 	}
@@ -584,8 +589,6 @@ int main(CALint argc, CALchar** argv)
     }
     else
     {
-	pitch = Info.n + (Info.n % 2);
-	if (Info.n % 2) printf("Padding 8 bytes for correct alignment, n = %lld, pitch = %lld\n", Info.n, pitch);
 	if (!quietbench)
 	{
 	    fprintf(stdout, "Initializing Data... ");
@@ -617,7 +620,7 @@ int main(CALint argc, CALchar** argv)
     	    Info.Iterations = 2;
     	    if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
     	    if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
-    	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : pitch, pitch, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+    	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
     	    {
 	        printf("Error running CALDGEMM\n");
 		return(1);
@@ -648,9 +651,9 @@ int main(CALint argc, CALchar** argv)
 	do
         {
 #ifdef TESTMODE
-	    if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : pitch, pitch, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+	    if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #else
-	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, betazero ? 0.0 : 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : pitch, pitch, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, betazero ? 0.0 : 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #endif
 	    {
 		printf("Error running CALDGEMM\n");
@@ -668,14 +671,14 @@ int main(CALint argc, CALchar** argv)
 	Info.UseCPU = CAL_TRUE;
 	Info.Verify = CAL_FALSE;
 	Info.Quiet = CAL_TRUE;
-	dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : -0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : Info.Width, transb ? Info.Width : pitch, pitch, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
+	dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : -0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
 	printf("CPU DGEMM Comparison run complete, comparing results\n");
 	int verifyok = 1;
-	for (size_t i = 0;i < Info.m * pitch;i++)
+	for (size_t i = 0;i < Info.m * pitch_c;i++)
         {
 	    if (!isDoubleEqual(CC[i] * 1.0, (CALdouble) (i % 16)))
 	    {
-		printf("Verification failed at i = %lld, m = %lld, n = %lld\n", i, i / pitch, i % pitch);
+		printf("Verification failed at i = %lld, m = %lld, n = %lld\n", i, i / pitch_c, i % pitch_c);
 		verifyok = 0;
 		break;
 	    }
