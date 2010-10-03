@@ -850,13 +850,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     C_pitch = Cpitch != -1 ? Cpitch : Info->n;
     ResetTimers();
 
-    if (Info->Debug) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx)\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C);
-
-    //Check for double == 1.0 is unsafe and causes compiler warning
-    const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
-    const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
-    if (kernel_num && Info->Debug) printf("Using Kernel for ALPHA = 1\n");
-
     if (order == CblasColMajor)
     {
 	double* tmpd;
@@ -868,6 +861,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	tmpt = TransA;TransA = TransB;TransB = tmpt;
     }
     
+    if (Info->Debug) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/2=%lld))\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C, (size_t) (C - A) / sizeof(double), (size_t) (C - B) / sizeof(double) / Info->Width);
+
+    //Check for double == 1.0 is unsafe and causes compiler warning
+    const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
+    const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
+    if (kernel_num && Info->Debug) printf("Using Kernel for ALPHA = 1\n");
+
     TransposeA = TransA;
     TransposeB = TransB;    
     
