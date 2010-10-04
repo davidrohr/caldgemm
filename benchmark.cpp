@@ -121,6 +121,9 @@ int reduced_height = -1;
 int reduced_width = -1;
 size_t pitch_a, pitch_b, pitch_c;
 
+bool mem_page_lock = true;;
+bool mem_huge_table = false;
+
 char* matrixfile;
 
 long seedused;
@@ -468,7 +471,7 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 	if (linpackmem) delete[] linpackmem;
     
 	pitch_a = pitch_b = pitch_c = Info.n + Info.Width + (Info.n + Info.Width) % 2;
-	linpackmem = dgemm.AllocMemory(pitch_c * (Info.m + Info.Width), true, true);
+	linpackmem = dgemm.AllocMemory(pitch_c * (Info.m + Info.Width), mem_page_lock, mem_huge_table);
 	if (linpackmem == NULL) {printf("Memory Allocation Error\n"); return(1);}
 	
 	AA = linpackmem + Info.Width * pitch_c;
@@ -485,9 +488,9 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 	if (AA) dgemm.FreeMemory(AA);
         if (BB) dgemm.FreeMemory(BB);
 	if (CC) dgemm.FreeMemory(CC);
-        AA = dgemm.AllocMemory(Info.m * pitch_a, true, true);
-	BB = dgemm.AllocMemory(Info.Width * pitch_b, true, true);
-        CC = dgemm.AllocMemory(Info.m * pitch_c, true, true);
+        AA = dgemm.AllocMemory(Info.m * pitch_a, mem_page_lock, mem_huge_table);
+	BB = dgemm.AllocMemory(Info.Width * pitch_b, mem_page_lock, mem_huge_table);
+        CC = dgemm.AllocMemory(Info.m * pitch_c, mem_page_lock, mem_huge_table);
     
         if (AA == NULL || BB == NULL || CC == NULL)
 	{

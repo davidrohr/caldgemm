@@ -1477,27 +1477,35 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
       
         if ((shmid = shmget(IPC_PRIVATE, (nDoubles * sizeof(double) + HUGE_PAGESIZE) & ~(HUGE_PAGESIZE - 1), SHM_HUGETLB | IPC_CREAT | 0600)) < 0)
         {
-    	    printf( "Memory allocation error (shmget).\n");
+    	    printf("Memory allocation error (shmget).\n");
 	    return(NULL);
 	}
 	
 	ptr = (double*) shmat(shmid, NULL, SHM_RND);
 	if ((long long int) address == -1)
 	{
-	    printf( "Memory allocation error (shmat).\n");
+	    printf("Memory allocation error (shmat).\n");
 	    return(NULL);
 	}
 	
+        shmctl(shmid, IPC_RMID, NULL);
+
+	if (page_locked && shmctl(shmid, SHM_LOCK, NULL) == -1)
+	{
+	    printf("Error Locking HugePage Memory\n");
+	    shmdt((void*) ptr);
+	    return(NULL);
+	}
+
 	huge_page_addresses[nHugeAddresses++] = ptr;
 
-        shmctl(shmid, IPC_RMID, 0);
     }
     else
     {
 	ptr = new double[nDoubles];
     }
     if (ptr == NULL) return(NULL);
-    if (page_locked && mlock(ptr, nDoubles * sizeof(double)))
+    if (!huge_pages && page_locked && mlock(ptr, nDoubles * sizeof(double)))
     {
 	printf("Error locking Pages\n");
 	if (!huge_pages) delete[] ptr;
