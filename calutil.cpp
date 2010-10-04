@@ -592,8 +592,8 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
         	{
         	    if ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum + numConstantBuffers) && nContext < 2)
         	    {
-        		calCtxReleaseMem(*ctx, data[i].mem);
         		calResUnmap(data[i].res);
+        		calCtxReleaseMem(*ctx, data[i].mem);
         		calResFree(data[i].res);
         	    }
         	}
@@ -613,6 +613,10 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
         {
             if ((nContext == 0 || i != aPartsNum + bPartsNum) && (nContext < 2 || i >= aPartsNum) && (nContext < ctxcount || i < aPartsNum + bPartsNum) && resourceHandler[i])
             {
+    		if (Info->DstMemory == 'c' && i >= aPartsNum + bPartsNum + numConstantBuffers && Info->KeepBuffersMapped)
+    		{
+		    CHKERR(calResUnmap(data[i].res), "mapping of remote output memory");
+		}
         	if (calCtxReleaseMem(*ctx, data[i].dstMem) != CAL_RESULT_OK )
                 {
                     fprintf(stderr, "There was an error releasing memory handle %d.\n", i);
@@ -1012,6 +1016,10 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
     	    data[i].mem = data[i].dstMem;
     	    data[i].res = _Res[i];
         }
+        if (Info->DstMemory == 'c' && i >= cStop && Info->KeepBuffersMapped)
+        {
+	    CHKERR(calResMap(&data[i].v_data, &data[i].pitch, data[i].res, NULL), "mapping of remote output memory");
+	}
     }
 
     if (nContext >= 1) return 1;
@@ -1048,7 +1056,7 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
 	data.CALMemory = CAL_TRUE;
 	if ((Info->DstMemory == 'g' || i < aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum) && (nContext < 2 || (Info->DstMemory == 'g' && i >= aPartsNum + bPartsNum + numConstantBuffers)))
 	{
-		CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocating of remote memory");
+		CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocattion of remote memory");
 		CHKERR(calCtxGetMem(&data.mem, *ctx, data.res), "getting remote memory for context");
 		CHKERR(calResMap(&data.v_data, &data.pitch, data.res, NULL), "mapping of remote memory");
 		if (((size_t) data.v_data) & (vcpysize - 1))

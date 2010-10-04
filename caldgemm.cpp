@@ -75,6 +75,7 @@ calutil::SampleInfo::SampleInfo()
     DumpMatrix = CAL_FALSE;
     DivideToGPU = CAL_FALSE;
     AsyncDMA = CAL_TRUE;
+    KeepBuffersMapped = CAL_FALSE;
     m = 0;
     n = 0;
 }
@@ -382,7 +383,7 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     CALint* position = new CALint[numBuffers];
     memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
     
-    if (Info->DstMemory == 'c')
+    if (Info->DstMemory == 'c' && !Info->KeepBuffersMapped)
     for (CALuint i = 0;i < cPartsNum;i++)
     {
         CHKERR(calResMap(&src[i].v_data, &src[i].pitch, src[i].res, 0), "mapping output buffer for merging");
@@ -503,7 +504,7 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 #endif //CALDGEMM_44
     }
 
-    if (Info->DstMemory == 'c')
+    if (Info->DstMemory == 'c' && !Info->KeepBuffersMapped)
     for (CALuint i = 0;i < cPartsNum;i++)
     {
         CHKERR(calResUnmap(src[i].res), "unmapping output buffer for merging");

@@ -175,6 +175,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-A        Do the DMA transfer to GPU asynchronously\n" );
     fprintf(stderr, "\t-L        Memory Organisation like in HPL (LINPACK)\n" );
     fprintf(stderr, "\t-T        Allocate Memory using Huge Tables\n" );
+    fprintf(stderr, "\t-B        Keep DMA Buffers mapped during kernel execution\n" );
     fprintf(stderr, "\t-x <file> Load Matrix\n" );
     
     fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
@@ -209,6 +210,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->DumpMatrix = CAL_FALSE;
     Info->DivideToGPU = CAL_FALSE;
     Info->AsyncDMA = CAL_FALSE;
+    Info->KeepBuffersMapped = CAL_FALSE;
 #endif
 
     for (CALuint x = 1; x < argc; ++x)
@@ -255,6 +257,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case 'A':
 		Info->AsyncDMA = CAL_TRUE;
+                break;
+            case 'B':
+		Info->KeepBuffersMapped = CAL_TRUE;
                 break;
             case 'L':
 		linpackmemory = true;
