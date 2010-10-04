@@ -174,6 +174,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-0        Write the output of divideBuffers directly to GPU instead of a seperate DMA transfer\n" );
     fprintf(stderr, "\t-A        Do the DMA transfer to GPU asynchronously\n" );
     fprintf(stderr, "\t-L        Memory Organisation like in HPL (LINPACK)\n" );
+    fprintf(stderr, "\t-T        Allocate Memory using Huge Tables\n" );
     fprintf(stderr, "\t-x <file> Load Matrix\n" );
     
     fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
@@ -257,6 +258,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case 'L':
 		linpackmemory = true;
+                break;
+            case 'T':
+		mem_huge_table = true;
                 break;
             case '8':
 		initialrun = false;
