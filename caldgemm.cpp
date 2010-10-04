@@ -39,6 +39,10 @@ extern "C" {
 #define MPOL_BIND 2
 #define MPOL_INTERLEAVE 3
 
+#ifndef SHM_HUGETLB
+#define SHM_HUGETLB 04000
+#endif
+
 template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
 template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 
@@ -1452,13 +1456,51 @@ void caldgemm::ResetTimers()
     Timers.divideA = Timers.divideB = 0;
 }
 
-double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked)
+#define MAX_HUGE_ADDRESSES 256
+double* huge_page_addresses[MAX_HUGE_ADDRESSES];
+int nHugeAddresses = 0;
+
+double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages)
 {
-    double* ptr = new double[nDoubles];
+    double* ptr;
+    if (huge_pages)
+    {
+	if (nHugeAddresses >= MAX_HUGE_ADDRESSES - 1)
+	{
+	    printf("No more huge_page memory available, increase MAX_HUGE_ADDRESSES\n");
+	    return(NULL);
+	}
+	int shmid;
+	void *address;
+    
+	if (Info->Debug)  printf("Running Huge Maloc\n");
+      
+        if ((shmid = shmget(IPC_PRIVATE, (nDoubles * sizeof(double) + HUGE_PAGESIZE) & ~(HUGE_PAGESIZE - 1), SHM_HUGETLB | IPC_CREAT | 0600)) < 0)
+        {
+    	    printf( "Memory allocation error (shmget).\n");
+	    return(NULL);
+	}
+	
+	ptr = (double*) shmat(shmid, NULL, SHM_RND);
+	if ((long long int) address == -1)
+	{
+	    printf( "Memory allocation error (shmat).\n");
+	    return(NULL);
+	}
+	
+	huge_page_addresses[nHugeAddresses++] = ptr;
+
+        shmctl(shmid, IPC_RMID, 0);
+    }
+    else
+    {
+	ptr = new double[nDoubles];
+    }
     if (ptr == NULL) return(NULL);
     if (page_locked && mlock(ptr, nDoubles * sizeof(double)))
     {
-	delete[] ptr;
+	printf("Error locking Pages\n");
+	if (!huge_pages) delete[] ptr;
 	return(NULL);
     }
     return(ptr);
@@ -1466,5 +1508,14 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked)
 
 void caldgemm::FreeMemory(double* ptr)
 {
+    for (int i = 0;i < nHugeAddresses;i++)
+    {
+	if (huge_page_addresses[i] == ptr)
+	{
+	    shmdt((void*) ptr);
+	    huge_page_addresses[i] = huge_page_addresses[--nHugeAddresses];
+	    return;
+	}
+    }
     delete[] ptr;
 }

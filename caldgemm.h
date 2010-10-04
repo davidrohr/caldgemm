@@ -47,7 +47,7 @@ class caldgemm : public calutil
     int InitCALDGEMM(SampleInfo* pInfo);
     int ExitCALDGEMM();
     int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = -1, size_t k = -1, size_t n = -1, size_t Apitch = -1, size_t Bpitch = -1, size_t Cpitch = -1, CBLAS_ORDER order = CblasRowMajor, CBLAS_TRANSPOSE TransA = CblasNoTrans, CBLAS_TRANSPOSE TransB = CblasNoTrans);
-    double* AllocMemory(size_t nDoubles, bool page_locked);
+    double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages);
     void FreeMemory(double* ptr);
     void ResetTimers();
 
