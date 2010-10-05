@@ -24,6 +24,13 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 #undef CALDGEMM_ALPHA1
 #undef ILKernelName
 
+const char* calutil::ILFakeKernel =
+"il_ps_2_0\n"
+"dcl_cb cb0[4]\n"
+"dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"
+"end\n"
+;
+
 #include <syscall.h>
 #include <errno.h>
 extern "C" {
@@ -75,7 +82,7 @@ calutil::SampleInfo::SampleInfo()
     DumpMatrix = CAL_FALSE;
     DivideToGPU = CAL_FALSE;
     AsyncDMA = CAL_TRUE;
-    KeepBuffersMapped = CAL_FALSE;
+    KeepBuffersMapped = CAL_TRUE;
     m = 0;
     n = 0;
 }

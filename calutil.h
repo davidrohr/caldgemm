@@ -333,11 +333,12 @@ protected:
     CALdevice device;
     CALcontext ctx_main;
     CALresource* resourceHandlers[max_bbuffers];
-    CALmodule modules[ctxcount][kernel_count];
-    CALname *progNames[ctxcount][kernel_count];
+    CALmodule modules[1][kernel_count];
+    CALmodule fakeModule;
+    CALname *progNames[1][kernel_count];
     CALevent events[ctxcount];
 
-    static const char *ILKernel, *ILKernelALPHA1;
+    static const char *ILKernel, *ILKernelALPHA1, *ILFakeKernel;
 
     struct cblasParameters
     {
