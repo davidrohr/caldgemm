@@ -195,6 +195,7 @@ class calutil
 	CALboolean DivideToGPU;
 	CALboolean AsyncDMA;
 	CALboolean KeepBuffersMapped;
+	CALboolean NoPerformanceWarnings;
 	size_t     m, n;		//height of A, width of B, must be multiple of height
     };
 

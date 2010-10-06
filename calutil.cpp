@@ -561,7 +561,9 @@ CALint calutil::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, CA
 
     // Execute the program iterations number of times
     if (Info->VerboseTiming) Timers.Kernel.Start();
+    fprintf(stderr, "Starting kernel %p %p %p %d\n", event, ctx, &rect, func);
     r = calCtxRunProgram(event, *ctx, func, &rect);
+    fprintf(stderr, "Starting kernel ok\n");
     if (r != CAL_RESULT_OK)
     {
 	fprintf(stderr, "There was an error running the program, Error code: %d.\n", r);
@@ -572,7 +574,7 @@ CALint calutil::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, CA
     // Wait for the last run to complete.
     if (Info->VerboseTiming)
     {
-	WAITFOREVENT(*ctx, *event);
+	if (event) WAITFOREVENT(*ctx, *event);
 	Timers.Kernel.Stop();
 	if (Info->Debug) printf("\tTotal Kernel Time: %2.4lf\n", Timers.Kernel.GetElapsedTime());
     }
@@ -1195,6 +1197,15 @@ CALvoid calutil::SupportedCALVersion(CALVersion *calVersion)
 CALint calutil::ValidateCALRuntime()
 {
 	CALVersion supportedCALRuntime;
+	
+	supportedCALRuntime.major = 1;
+	supportedCALRuntime.minor = 4;
+	supportedCALRuntime.imp = 815;
+	if (QueryCALVersion(supportedCALRuntime, ">="))
+	{
+	    if (Info->AsyncDMA && !Info->NoPerformanceWarnings) printf("WARNING: Asynchronous DMA not supported by CAL Runtime Version\n");
+	    Info->AsyncDMA = CAL_FALSE;
+	}
 
 	// Get the CAL runtime currently supported by the SDK 
 	SupportedCALVersion( &supportedCALRuntime );

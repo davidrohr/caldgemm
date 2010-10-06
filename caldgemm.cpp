@@ -26,7 +26,6 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 
 const char* calutil::ILFakeKernel =
 "il_ps_2_0\n"
-"dcl_cb cb0[4]\n"
 "dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"
 "end\n"
 ;
@@ -58,7 +57,6 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 
 calutil::SampleInfo::SampleInfo()
 {
-    Pin = -4;
     Verify = CAL_FALSE;
     Disassemble = CAL_FALSE;
     PrintILKernel = CAL_FALSE;
@@ -83,6 +81,8 @@ calutil::SampleInfo::SampleInfo()
     DivideToGPU = CAL_FALSE;
     AsyncDMA = CAL_TRUE;
     KeepBuffersMapped = CAL_TRUE;
+    NoPerformanceWarnings = CAL_FALSE;
+    Pin = MultiThread ? -(caldgemm::ctxcount + 1) : 0;
     m = 0;
     n = 0;
 }
@@ -520,6 +520,29 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     return(0);
 }
 
+void caldgemm::checkCalPatch()
+{
+    unsigned char *RunProgPTL = (unsigned char *)(&calCtxRunProgram);
+    unsigned char **RunProgWrapperFunc = *(unsigned char ***)((size_t)(*(unsigned int *)(RunProgPTL + 2)) + RunProgPTL + 6);
+    //printf("RunProgWrapperFunc = %p, ddi_interface[?] = %p\n", RunProgWrapperFunc, RunProgWrapperFunc + (0x10f588 - 0x4220)/sizeof(void*));
+    unsigned char *RunProgFunc = *(RunProgWrapperFunc + (0x10f588 - 0x4220) / sizeof(void*));
+    unsigned char *patchpos = RunProgFunc + 0x7fffe591b631 - 0x7fffe591b560;
+    if (*patchpos == 0x74)
+    {
+	if (Info->KeepBuffersMapped && !Info->NoPerformanceWarnings) printf("WARNING: CAL library not patched, KeepBuffersMapped unavailable\n");
+	Info->KeepBuffersMapped = CAL_FALSE;
+    }
+    else if (*patchpos != 0xEB)
+    {
+	if (!Info->NoPerformanceWarnings) printf("WARNING: Unknown CAL Library found, KeepBuffersMapped unavailable\n");
+	Info->KeepBuffersMapped = CAL_FALSE;
+    }
+    else if (Info->Debug)
+    {
+	printf("Patched CAL library found, KeepBuffersMapped available\n");
+    }
+}
+
 int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 {
     Info = pInfo;
@@ -587,7 +610,16 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	printf("The Device Number is invalid or this device is not capable of running this sample.");
 	return 1;
     }
-
+    
+    if (!SetupKernel(ILFakeKernel, &fakeModule, &ctx_main, CAL_FALSE)) return(1);
+    if (!RunProgram(&ctx_main, &fakeModule, 0, 0, events)) {printf("Error running test kernel on GPU\n"); return(1);}
+    checkCalPatch();
+    if (calModuleUnload(ctx_main, fakeModule) != CAL_RESULT_OK )
+    {
+        printf("Error unloading test module\n");
+        fprintf(stderr, "Error string is %s\n", calGetErrorString());
+    }
+                                                                    
     for (int i = 0;i < max_bbuffers;i++)
     {
 	if (i < 1)
@@ -983,7 +1015,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (forceReinit)
     {
-	if (Info->Debug) printf("Reinit for biffer width / height\n");
+	if (!Info->NoPerformanceWarnings) printf("WARNING: Reinit for increased buffer width / height\n");
 	for (int i = 0;i < bbuffers;i++)
 	{
     	    CleanupData(&ctx_main, resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers, i);
@@ -1088,7 +1120,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	size_t blockm, blockn, lastm, lastn;
 	size_t nBlocks = mb * nb;
 	
-	if (!Info->Quiet && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers) printf("Insufficient buffers for Input Matrices, retransfer required\n");
+	if (!Info->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers) printf("WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
 	
 	if (gpu_n && gpu_m)
 	for (size_t k = 0;k <= nBlocks;k++)
@@ -1284,6 +1316,10 @@ RunCALDGEMM_end:
     print_submatrices(C, 12, 24, Info->n, 1, 1, 1, 1);
 #endif
     
+    if (!Info->NoPerformanceWarnings && Info->UseCPU && Info->UseGPU && !CPUOnlyRun && fabs(Timers.CPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()) > 1.0)
+    {
+	printf("WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf\n", Timers.GPUTimer.GetElapsedTime(), Timers.CPUTimer.GetElapsedTime());
+    }
     if( Info->Quiet == CAL_FALSE && !AnalyzeResults(datas[0]) )
     {
         return 1;
