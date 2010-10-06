@@ -919,7 +919,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	tmpt = TransA;TransA = TransB;TransB = tmpt;
     }
     
-    if (Info->Debug) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C, ((size_t) C - (size_t) A) / sizeof(double), ((size_t) C - (size_t) B) / sizeof(double) / Info->Width);
+    if (Info->Debug || 1) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C, ((size_t) C - (size_t) A) / sizeof(double), ((size_t) C - (size_t) B) / sizeof(double) / Info->Width);
 
     //Check for double == 1.0 is unsafe and causes compiler warning
     const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double

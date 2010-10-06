@@ -119,6 +119,7 @@ bool linpackmemory = false;
 double* linpackmem = NULL;
 int reduced_height = -1;
 int reduced_width = -1;
+int iterations = 1;
 size_t pitch_a, pitch_b, pitch_c;
 
 bool mem_page_lock = true;;
@@ -148,7 +149,8 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-n  <int> n for matrix multiply, must be multiple of h, default 1024\n" );
     fprintf(stderr, "\t-v        Verbose Synchronous Timing for Single Kernels / Transfers\n" );
     fprintf(stderr, "\t-k        Print Timing of Asynchronous DGEMM Operation\n" );
-    fprintf(stderr, "\t-r  <int> Number of iterations to run the program\n" );
+    fprintf(stderr, "\t-r  <int> Number of iterations to run the program (inside caldgemm)\n" );
+    fprintf(stderr, "\t-R  <int> Number of iterations to run the program (seperate caldgemm calls)\n" );
     fprintf(stderr, "\t-y  <int> Force Device ID\n" );
     fprintf(stderr, "\t-d        Enable Debug Mode\n" );
     fprintf(stderr, "\t-z        Enable Multithreading\n" );
@@ -410,6 +412,16 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 if (++x < argc)
                 {
                     sscanf(argv[x], "%u", &Info->Iterations);
+                }
+                else
+                {
+                    return CAL_FALSE;
+                }
+                break;
+            case 'R':
+                if (++x < argc)
+                {
+                    sscanf(argv[x], "%u", &iterations);
                 }
                 else
                 {
@@ -684,16 +696,19 @@ int main(CALint argc, CALchar** argv)
 	}
 	do
         {
+    	    for (int iter = 0;iter < iterations;iter++)
+    	    {
+    		if (iterations > 1) printf("\nDGEMM Call Iteration %d\n\n", iter);
 #ifdef TESTMODE
-	    if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+		if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #else
-	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, betazero ? 0.0 : 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+		if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, betazero ? 0.0 : 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #endif
-	    {
-		printf("Error running CALDGEMM\n");
-		return(1);
+		{
+		    printf("Error running CALDGEMM\n");
+		    return(1);
+		}
 	    }
-	    dgemm.ResetTimers();
 	} while (benchmark && (Info.n += Info.Height) < 70000 && (Info.m += Info.Height) < 70000 && SetupUserData(Info) == 0);
     }
     
