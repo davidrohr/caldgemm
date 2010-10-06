@@ -621,7 +621,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     
     if (!SetupKernel(ILFakeKernel, &fakeModule, &ctx_main, CAL_FALSE)) return(1);
     if (!RunProgram(&ctx_main, &fakeModule, 0, 0, events)) {printf("Error running test kernel on GPU\n"); return(1);}
-    checkCalPatch();
+    if (Info->KeepBuffersMapped) checkCalPatch();
     if (calModuleUnload(ctx_main, fakeModule) != CAL_RESULT_OK )
     {
         printf("Error unloading test module\n");
