@@ -65,12 +65,15 @@ class caldgemm : public calutil
 	caldgemm* cls;
 	CALdouble* dst;
 	Data* src;
+	int nMergeThread;
 	int nContext;
 	CALboolean terminate;
-	pthread_mutex_t mergeMutex[2];
+	pthread_mutex_t mergeThreadMutex;
     };
     
-    mergeParameters mParam[ctxcount];
+    pthread_mutex_t obufferMutex[ctxcount];
+    
+    mergeParameters mParam[outputthreads];
         
     cpu_set_t oldcpumask;
     cpu_set_t gpumask;

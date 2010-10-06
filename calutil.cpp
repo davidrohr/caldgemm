@@ -561,9 +561,7 @@ CALint calutil::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, CA
 
     // Execute the program iterations number of times
     if (Info->VerboseTiming) Timers.Kernel.Start();
-    fprintf(stderr, "Starting kernel %p %p %p %d\n", event, ctx, &rect, func);
     r = calCtxRunProgram(event, *ctx, func, &rect);
-    fprintf(stderr, "Starting kernel ok\n");
     if (r != CAL_RESULT_OK)
     {
 	fprintf(stderr, "There was an error running the program, Error code: %d.\n", r);
@@ -1201,7 +1199,7 @@ CALint calutil::ValidateCALRuntime()
 	supportedCALRuntime.major = 1;
 	supportedCALRuntime.minor = 4;
 	supportedCALRuntime.imp = 815;
-	if (QueryCALVersion(supportedCALRuntime, ">="))
+	if (QueryCALVersion(supportedCALRuntime, ">=") == 0)
 	{
 	    if (Info->AsyncDMA && !Info->NoPerformanceWarnings) printf("WARNING: Asynchronous DMA not supported by CAL Runtime Version\n");
 	    Info->AsyncDMA = CAL_FALSE;
