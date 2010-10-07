@@ -919,7 +919,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	tmpt = TransA;TransA = TransB;TransB = tmpt;
     }
     
-    if (Info->Debug || 1) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C, ((size_t) C - (size_t) A) / sizeof(double), ((size_t) C - (size_t) B) / sizeof(double) / Info->Width);
+    if (Info->Debug) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C, ((size_t) C - (size_t) A) / sizeof(double), ((size_t) C - (size_t) B) / sizeof(double) / Info->Width);
 
     //Check for double == 1.0 is unsafe and causes compiler warning
     const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
@@ -1050,14 +1050,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     {
 	//Optimal ratio found using combined runs
 	     if ((long long int) Info->m * (long long int) Info->n > (long long int) 5000000000) GPURatio = 0.76;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 4500000000) GPURatio = 0.74;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 3500000000) GPURatio = 0.73;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 2500000000) GPURatio = 0.72;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 200000000) GPURatio = 0.71;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 13000000) GPURatio = 0.70;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 8000000) GPURatio = 0.69;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 6000000) GPURatio = 0.65;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 3000000) GPURatio = 0.60;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 600000000) GPURatio = 0.75;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 500000000) GPURatio = 0.74;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 200000000) GPURatio = 0.73;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 100000000) GPURatio = 0.72;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 7000000) GPURatio = 0.70;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 5000000) GPURatio = 0.67;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 2500000) GPURatio = 0.60;
+	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 1000000) GPURatio = 0.55;
 	else GPURatio = 0.50;
 	GPURatio *= (double) Info->Width / (double) 1024;
 	if (Info->Height < 1024) GPURatio *= (double) Info->Height / (double) 1024 * (double) Info->Height / (double) 1024;
