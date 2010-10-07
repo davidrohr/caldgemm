@@ -591,10 +591,15 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     }
 
 #ifdef CALDGEMM_44
-    if (Info->Width % 64)
+    if (Info->Width % 8)
     {
-        fprintf(stderr, "Only width of size 64 are computable.\n");
+        fprintf(stderr, "Only width of multiples of 8 are computable.\n");
         return(0);
+    }
+    else if (Info->Width % 64)
+    {
+	Info->Width += 64 - Info->Width % 64;
+	fprintf(stderr, "Cannot allocate buffers of size that is not multiple of 64, increasing buffer size to %lld\n", Info->Width);
     }
 #else
     if (Info->Width % 64)
@@ -967,7 +972,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 #ifndef TESTMODE    
     //Check if the GPU can/shall process the required dgemm task
     if (Info->Iterations > 1);
-    else if (Info->Width % 64 || Info->Width < 256) forceCPU = true;
+    else if (Info->Width % 8 || Info->Width < 256) forceCPU = true;
     else if (Info->m < 512 || Info->n < 512) forceCPU = true;
     else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
     else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
