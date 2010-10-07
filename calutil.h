@@ -361,4 +361,6 @@ protected:
 
     //For Timing only
     bool CPUOnlyRun;
+    
+    char hostname[256]; //Store hostname of node for host dependant debug code
 };

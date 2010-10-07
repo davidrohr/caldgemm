@@ -110,8 +110,8 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
     if (!Info->Quiet)
     {
         CALdouble gflops_CPU = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Timers.System.GetElapsedTime();
-        printf("Program: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld System Time %2.3lf System Gflops %2.3lf\n", name, 
-                Info->m, Info->Width, Info->Width, Info->n, Info->m, Info->n, Timers.System.GetElapsedTime(), gflops_CPU);
+        printf("Program: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", name, 
+                Info->m, Info->Width, Info->Width, Info->n, Info->m, Info->n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
         if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
         {
     	    double flopsc, flopsg;
