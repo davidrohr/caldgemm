@@ -55,6 +55,16 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
 #define WAITFOREVENT(ctx, eventnr) { CALresult r; if (Info->Debug) {printf("\tWaiting for event from context %d...", eventnr); fflush(stdout);} do { r = calCtxIsEventDone(ctx, events[eventnr]); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING); if (Info->Debug) printf("Done\n");}
 
+caldgemm::caldgemm()
+{
+    caldgemm_initialized = false;
+}
+
+caldgemm::~caldgemm()
+{
+    if (caldgemm_initialized) ExitCALDGEMM();
+}
+
 calutil::SampleInfo::SampleInfo()
 {
     Verify = CAL_FALSE;
@@ -728,6 +738,8 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     //setpriority(PRIO_PROCESS, 0, -20);
 
     if (Info->Pin != -100) sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
+    
+    caldgemm_initialized = true;
 
     return(0);
 }
@@ -906,6 +918,12 @@ int calutil::DumpMatrix(double* a, double* b, double* c, double alpha, double be
 int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB)
 {
     if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0) return(0);		//Do Nothing
+    
+    if (!caldgemm_initialized)
+    {
+	printf("Caldgemm not initialized, aborting DGEMM run\n");
+	return(1);
+    }
 
 /*  //Disable output for all but one host in MPI rin
     if (strcmp(hostname, "gpu-dev05") != 0)
@@ -1462,6 +1480,11 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 
 int caldgemm::ExitCALDGEMM()
 {
+    if (!caldgemm_initialized)
+    {
+	printf("CALDGEMM not initialized, cannot uninitialize!\n");
+	return(1);
+    }
     if (Info->Debug) printf("Uninitializing CALDGEMM\n");
     for (int i = 0;i < bbuffers;i++)
     {
@@ -1532,6 +1555,7 @@ int caldgemm::ExitCALDGEMM()
         fprintf(stderr, "Error string is %s\n", calGetErrorString());
     }
 
+    caldgemm_initialized = false;
     return(0);
 }
 

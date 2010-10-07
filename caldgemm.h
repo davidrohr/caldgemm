@@ -39,6 +39,9 @@ class caldgemm : public calutil
 
     public:
     
+    caldgemm();
+    ~caldgemm();
+    
     //CALDGEMM interface functions
     //Initiate an appropriate sampleinfo struct and call InitCALDGEMM for initialization
     //Optimal parameters for big n,m are: DstMemory = 'c', Height = 2048, Width = 1024, MultiThread = CAL_TRUE, UseGPU = UseCPU = CAL_TRUE, GPURatio = 0.66
@@ -81,6 +84,8 @@ class caldgemm : public calutil
     char hostname[256];	//Store hostname of node for host dependant debug code
     
     size_t gpu_m, gpu_n;
+    
+    bool caldgemm_initialized;
     
 #if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
     static const bool buffersSwitchable = true;
