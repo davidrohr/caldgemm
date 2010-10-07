@@ -73,7 +73,7 @@ class caldgemm : public calutil
     
     pthread_mutex_t obufferMutex[ctxcount];
     
-    mergeParameters mParam[outputthreads];
+    mergeParameters mParam[max_outputthreads];
         
     cpu_set_t oldcpumask;
     cpu_set_t gpumask;

@@ -82,7 +82,8 @@ calutil::SampleInfo::SampleInfo()
     AsyncDMA = CAL_TRUE;
     KeepBuffersMapped = CAL_TRUE;
     NoPerformanceWarnings = CAL_FALSE;
-    Pin = MultiThread ? -(caldgemm::outputthreads + 1) : 0;
+    Pin = MultiThread ? -3 : 0;		//2 Output Threads
+    Pin_HackedLibUnavailable = MultiThread ? -4 : 0;  //3 Output Threads
     m = 0;
     n = 0;
 }
@@ -541,6 +542,21 @@ void caldgemm::checkCalPatch()
     {
 	printf("Patched CAL library found, KeepBuffersMapped available\n");
     }
+
+    if (Info->KeepBuffersMapped == CAL_FALSE && (Info->Pin = Info->Pin_HackedLibUnavailable) != -100)
+    {
+        CPU_ZERO(&gpumask);
+        if (Info->Pin < 0)
+        {
+            for (int i = 0;i < -Info->Pin;i++) CPU_SET(i, &gpumask);
+        }
+        else
+        {
+            CPU_SET(Info->Pin, &gpumask);
+        }
+	if (Info->Debug) printf("Setting affinitiy to restrict on CPU %d\n", Info->Pin);
+	sched_setaffinity(0, sizeof(gpumask), &gpumask);
+    }
 }
 
 int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
@@ -619,14 +635,18 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	return 1;
     }
     
-    if (!SetupKernel(ILFakeKernel, &fakeModule, &ctx_main, CAL_FALSE)) return(1);
-    if (!RunProgram(&ctx_main, &fakeModule, 0, 0, events)) {printf("Error running test kernel on GPU\n"); return(1);}
-    if (Info->KeepBuffersMapped) checkCalPatch();
-    if (calModuleUnload(ctx_main, fakeModule) != CAL_RESULT_OK )
+    if (Info->KeepBuffersMapped)
     {
-        printf("Error unloading test module\n");
-        fprintf(stderr, "Error string is %s\n", calGetErrorString());
+	if (!SetupKernel(ILFakeKernel, &fakeModule, &ctx_main, CAL_FALSE)) return(1);
+	if (!RunProgram(&ctx_main, &fakeModule, 0, 0, events)) {printf("Error running test kernel on GPU\n"); return(1);}
+	if (Info->KeepBuffersMapped) checkCalPatch();
+	if (calModuleUnload(ctx_main, fakeModule) != CAL_RESULT_OK )
+	{
+    	    printf("Error unloading test module\n");
+    	    fprintf(stderr, "Error string is %s\n", calGetErrorString());
+	}
     }
+    outputthreads = Info->KeepBuffersMapped ? 2 : 3;
                                                                     
     for (int i = 0;i < max_bbuffers;i++)
     {

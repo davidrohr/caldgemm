@@ -171,6 +171,7 @@ class calutil
 	SampleInfo();
     
 	CALint     Pin;
+	CALint     Pin_HackedLibUnavailable;
 	CALboolean Verify;
 	CALboolean Disassemble;
 	CALboolean PrintILKernel;
@@ -318,11 +319,12 @@ protected:
     static const CALuint cPartsNum = 8;
 #endif
     static const int ctxcount = 3;		//Not cal context count but number of copies of data buffers etc.
-    static const int outputthreads = 2;
+    static const int max_outputthreads = 3;
     static const int vcpysize = 16;
     static const int kernel_count = 2;
     static const int max_bbuffers = 20;
     int bbuffers;
+    int outputthreads;
     
     size_t BufferHeight;			//Height to which the buffers were originally initialized
     size_t BufferWidth;				//Same for width
