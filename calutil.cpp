@@ -1122,11 +1122,11 @@ CALint calutil::QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList)
 	return capable;
 }
 
-CALint calutil::QueryCALVersion(CALVersion required, const CALchar* comparison)
+CALint calutil::QueryCALVersion(CALVersion required, const CALchar* comparison, bool silent)
 {
 	CALVersion available;
 	calGetVersion(&available.major, &available.minor, &available.imp);
-	if (Info->Debug) printf("Found CAL Runtime Version: %d.%d.%d\n", available.major, available.minor, available.imp);
+	if (Info->Debug && !silent) printf("Found CAL Runtime Version: %d.%d.%d\n", available.major, available.minor, available.imp);
 
 	if( strcmp(comparison,">") == 0 )
 	{
@@ -1199,7 +1199,7 @@ CALint calutil::ValidateCALRuntime()
 	supportedCALRuntime.major = 1;
 	supportedCALRuntime.minor = 4;
 	supportedCALRuntime.imp = 815;
-	if (QueryCALVersion(supportedCALRuntime, ">=") == 0)
+	if (QueryCALVersion(supportedCALRuntime, ">=", true) == 0)
 	{
 	    if (Info->AsyncDMA && !Info->NoPerformanceWarnings) printf("WARNING: Asynchronous DMA not supported by CAL Runtime Version\n");
 	    Info->AsyncDMA = CAL_FALSE;

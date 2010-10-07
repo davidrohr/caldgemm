@@ -267,7 +267,7 @@ protected:
     int AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i, int nContext);
     CALint QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList);
     CALvoid SupportedCALVersion(CALVersion *calVersion); 
-    CALint QueryCALVersion(CALVersion required, const CALchar *comparison);
+    CALint QueryCALVersion(CALVersion required, const CALchar *comparison, bool silent = false);
     CALint ValidateCALRuntime();
     CALvoid displayMatrixTiming(const CALchar* name);
     void copyFrom(CALchar* ptr, Data& data, CALuint pitch);
