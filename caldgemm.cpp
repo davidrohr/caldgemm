@@ -1355,16 +1355,17 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     if (Info->UseCPU)
     {
-	if (!Info->Quiet && Info->MultiThread)
+	if (!Info->NoPerformanceWarnings && Info->MultiThread)
 	{
 	    Timers.ATime.Reset();
 	    Timers.ATime.Start();
 	}
 	pthread_mutex_lock(&cParam.cblasMutex[0]);
-	if (!Info->Quiet && Info->MultiThread)
+	if (!Info->NoPerformanceWarnings && Info->MultiThread)
 	{
 	    Timers.ATime.Stop();
-	    printf("CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
+	    if (!Info->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15) printf("WARNING: CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
+	    else if (Info->Debug) printf("CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
 	}
     }
 
