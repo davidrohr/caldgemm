@@ -121,6 +121,7 @@ int reduced_height = -1;
 int reduced_width = -1;
 int iterations = 1;
 size_t pitch_a, pitch_b, pitch_c;
+size_t height_a, height_b;
 
 bool mem_page_lock = true;;
 bool mem_huge_table = false;
@@ -489,6 +490,8 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     
     if (linpackmemory)
     {
+	if (transa || transb) printf("WARNING: Transposed not supported in linpackmem-mode, disabling !!!\n");
+	transa = transb = false;
 	if (linpackmem) delete[] linpackmem;
     
 	pitch_a = pitch_b = pitch_c = Info.n + Info.Width + (Info.n + Info.Width) % 2;
@@ -501,16 +504,34 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     }
     else
     {
-	pitch_b = Info.n + (Info.n % 2);
+	if (transa)
+	{
+	    pitch_a = Info.m + (Info.m % 2);
+	    height_a = Info.Width;
+	}
+	else
+	{
+    	    pitch_a = Info.Width + (Info.Width % 2);
+	    height_a = Info.m;
+	}
+	if (transb)
+	{
+	    pitch_b = Info.Width + (Info.Width % 2);
+	    height_b = Info.n;
+	}
+	else
+	{
+	    height_b = Info.Width;
+	    pitch_b = Info.n + (Info.n % 2);
+	}
         pitch_c = Info.n + (Info.n % 2);
-        pitch_a = Info.Width + (Info.Width % 2);
         if (Info.n % 2) printf("Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", Info.n, pitch_b);
 
 	if (AA) dgemm.FreeMemory(AA);
         if (BB) dgemm.FreeMemory(BB);
 	if (CC) dgemm.FreeMemory(CC);
-        AA = dgemm.AllocMemory(Info.m * pitch_a, mem_page_lock, mem_huge_table);
-	BB = dgemm.AllocMemory(Info.Width * pitch_b, mem_page_lock, mem_huge_table);
+        AA = dgemm.AllocMemory(height_a * pitch_a, mem_page_lock, mem_huge_table);
+	BB = dgemm.AllocMemory(height_b * pitch_b, mem_page_lock, mem_huge_table);
         CC = dgemm.AllocMemory(Info.m * pitch_c, mem_page_lock, mem_huge_table);
     
         if (AA == NULL || BB == NULL || CC == NULL)
@@ -522,14 +543,14 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     
     if (fastinit)
     {
-	memset(AA, 0, Info.m * pitch_a * sizeof(double));
-	memset(BB, 0, Info.Width * pitch_b * sizeof(double));
+	memset(AA, 0, height_a * pitch_a * sizeof(double));
+	memset(BB, 0, height_b * pitch_b * sizeof(double));
     }
     else
     {
-	for (CALuint y = 0; y < Info.Width; y++)
+	for (CALuint y = 0; y < pitch_a; y++)
         {
-    	    for (CALuint x = 0; x < Info.m; x++)
+    	    for (CALuint x = 0; x < height_a; x++)
     	    {
 #ifdef TESTMODE
         	AA[x * pitch_a + y] = 1;
@@ -537,7 +558,10 @@ int SetupUserData(caldgemm::SampleInfo &Info)
         	AA[x * pitch_a + y] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
 #endif
     	    }
-    	    for (CALuint x = 0; x < Info.n; x++)
+    	}
+	for (CALuint y = 0; y < height_b; y++)
+	{
+    	    for (CALuint x = 0; x < pitch_b; x++)
     	    {
 #ifdef TESTMODE
         	BB[y * pitch_b + x] = 1;
@@ -666,7 +690,7 @@ int main(CALint argc, CALchar** argv)
     	    Info.Iterations = 2;
     	    if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
     	    if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
-    	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+    	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Info.m, Info.Width, Info.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
     	    {
 	        printf("Error running CALDGEMM\n");
 		return(1);
@@ -700,9 +724,9 @@ int main(CALint argc, CALchar** argv)
     	    {
     		if (iterations > 1) printf("\nDGEMM Call Iteration %d\n\n", iter);
 #ifdef TESTMODE
-		if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+		if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #else
-		if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, betazero ? 0.0 : 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+		if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, betazero ? 0.0 : 1.0, Info.m, Info.Width, Info.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #endif
 		{
 		    printf("Error running CALDGEMM\n");
@@ -720,7 +744,7 @@ int main(CALint argc, CALchar** argv)
 	Info.UseCPU = CAL_TRUE;
 	Info.Verify = CAL_FALSE;
 	Info.Quiet = CAL_TRUE;
-	dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : -0.5, 1.0, Info.m, Info.Width, Info.n, transa ? Info.m : pitch_a, transb ? Info.Width : pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
+	dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : -0.5, 1.0, Info.m, Info.Width, Info.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
 	printf("CPU DGEMM Comparison run complete, comparing results\n");
 	int verifyok = 1;
 	for (size_t i = 0;i < Info.m * pitch_c;i++)

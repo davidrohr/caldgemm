@@ -994,7 +994,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     else if (Info->m < 512 || Info->n < 512) forceCPU = true;
     else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
     else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
-	A_pitch & (vcpysize / sizeof(CALdouble) - 1) || B_pitch & (vcpysize / sizeof(CALdouble) - 1)|| C_pitch & (vcpysize / sizeof(CALdouble) - 1))
+	A_pitch & (vcpysize / sizeof(CALdouble) - 1) || B_pitch & (vcpysize / sizeof(CALdouble) - 1) || C_pitch & (vcpysize / sizeof(CALdouble) - 1))
     {
 	printf("Input addresses not aligned correctly: A 0x%llX B 0x%llX C 0x%llX Pitch 0x%llX 0x%llX 0x%llX\n", A, B, C, A_pitch, B_pitch, C_pitch);
 	forceCPU = true;
