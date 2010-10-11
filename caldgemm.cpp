@@ -808,7 +808,7 @@ void* cblas_wrapper(void* arg)
 	    }
 	    
 	    if (Info->m % Info->Height && par->borders_done == CAL_FALSE)
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * B_pitch, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * C_pitch, C_pitch);
 	}
 	goto_set_num_threads(old_goto_threads);
 	caldgemm_goto_reserve_cpus(0);
