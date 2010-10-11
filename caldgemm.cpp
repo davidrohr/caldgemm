@@ -1318,10 +1318,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     		    WAITFOREVENT(ctx_main, oldj);
     	    	}
     		if (Info->VerboseTiming) Timers.CounterMerge.Start();
-    		if (Info->Debug) printf("\tMerging buffer\n");
 
 		if (k == nBlocks || Info->MultiThread == CAL_FALSE)
 		{
+    		    if (Info->Debug) printf("\tMerging buffer (context %d, main thread)\n", oldj);
 	    	    if (mergeBuffers(C + lastn * Info->Height + lastm * C_pitch * Info->Height, datas[oldj] + numInputs + numConstantBuffers, Info->Height, Info->Height, BufferHeight, BufferHeight, C_pitch, cPartsNum)) {printf("Error merging\n"); return(1);}
 	    	    if (Info->MultiThread)
 	    	    {

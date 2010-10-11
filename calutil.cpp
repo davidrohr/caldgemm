@@ -174,7 +174,7 @@ CALuint calutil::AnalyzeResults(Data* data)
             {
                 if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
                 {
-            	    if (wrong < 1) printf("Error found at row %lld, col %lld: Expected: %le, Found: %le, Diff: %le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
+            	    if (wrong < 1) printf("Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
                     ++wrong;
                 }
                 ++total;
@@ -190,8 +190,8 @@ CALuint calutil::AnalyzeResults(Data* data)
         }
         if (wrong || Info->Debug)
         {
-    	    print_submatrices(C, Info->n, Info->m, Info->n, 2, 2, Info->Height, Info->Height);
-    	    print_submatrices(D, Info->n, Info->m, Info->n, 2, 2, Info->Height, Info->Height, C);
+    	    print_submatrices(C, Info->n, Info->m, C_pitch, 2, 2, Info->Height, Info->Height);
+    	    print_submatrices(D, Info->n, Info->m, C_pitch, 2, 2, Info->Height, Info->Height, C);
         }
         
     }
