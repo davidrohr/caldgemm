@@ -287,69 +287,6 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
         if (AllocateMemory(data[i], device, ctx, tWidth, tHeight, mComponents, sizeof(CALdouble), flag, i, nContext)) return(1);
     }
 
-    if (nContext < 1) {
-    // Setup the constants for the kernel
-    data[bStop].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos
-    data[bStop].f_data[2] = (float) TILING_X / Info->Height;  //Scale factor for normalized x pos
-#ifdef CALDGEMM_44
-    data[bStop].f_data[1] = 1.f / Info->Width;  //Step in K direction
-    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width);				//Iterations of loop in IL Kernel
-#else //CALDGEMM_44
-    data[bStop].f_data[1] = 2.f / Info->Width;  //Step in K direction
-    data[bStop].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));	//Iterations of loop in IL Kernel
-#endif //CALDGEMM_44
-    data[bStop].f_data[3] = 0.f;
-    data[bStop].f_data[5] = (float) aPartsNum / Info->Height;  //For transposed matrix finer y resolution is needed
-    data[bStop].f_data[8] = 0.5f - 0.5f / (float) (TILING_Y / aPartsNum);
-    
-    //Constants for Memexport
-    data[bStop].i_data[9] = TILING_Y * Info->Height / 2;		//2 for double2
-    data[bStop].i_data[10] = TILING_X / 2;				//x tiling in double2
-#if defined(CALDGEMM_84)
-    data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;			//8 consecutive entries in x
-    data[bStop].i_data[13] = 1 + 0 * Info->Height / 2;
-    data[bStop].i_data[14] = 2 + 0 * Info->Height / 2;
-    data[bStop].i_data[15] = 3 + 0 * Info->Height / 2;
-
-    data[bStop].i_data[16] = 0 + 1 * Info->Height / 2;			//Next row
-    data[bStop].i_data[17] = 0 + 1 * Info->Height / 2;
-    data[bStop].i_data[18] = 0 + 1 * Info->Height / 2;
-    data[bStop].i_data[19] = 0 + 1 * Info->Height / 2;
-
-    data[bStop].i_data[20] = 0 + 2 * Info->Height / 2;			//Proceed by two rows
-    data[bStop].i_data[21] = 0 + 2 * Info->Height / 2;
-    data[bStop].i_data[22] = 0 + 2 * Info->Height / 2;
-    data[bStop].i_data[23] = 0 + 2 * Info->Height / 2;
-#elif defined(CALDGEMM_44)
-    data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;
-    data[bStop].i_data[13] = 1 + 0 * Info->Height / 2;
-    data[bStop].i_data[14] = 0 + 1 * Info->Height / 2;
-    data[bStop].i_data[15] = 1 + 1 * Info->Height / 2;
-    data[bStop].i_data[16] = 0 + 2 * Info->Height / 2;
-    data[bStop].i_data[17] = 1 + 2 * Info->Height / 2;
-    data[bStop].i_data[18] = 0 + 3 * Info->Height / 2;
-    data[bStop].i_data[19] = 1 + 3 * Info->Height / 2;
-#ifdef CALDGEMM_48
-    data[bStop].i_data[20] = 0 + 4 * Info->Height / 2;			//Proceed by 4 rows
-    data[bStop].i_data[21] = 0 + 4 * Info->Height / 2;
-    data[bStop].i_data[22] = 0 + 4 * Info->Height / 2;
-    data[bStop].i_data[23] = 0 + 4 * Info->Height / 2;
-#endif
-#else
-    data[bStop].i_data[12] = 0 + 0 * Info->Height / 2;
-    data[bStop].i_data[13] = 0 + 4 * Info->Height / 2;
-    data[bStop].i_data[14] = 0 + 1 * Info->Height / 2;
-    data[bStop].i_data[15] = 0 + 5 * Info->Height / 2;
-    data[bStop].i_data[16] = 0 + 2 * Info->Height / 2;
-    data[bStop].i_data[17] = 0 + 6 * Info->Height / 2;
-    data[bStop].i_data[18] = 0 + 3 * Info->Height / 2;
-    data[bStop].i_data[19] = 0 + 7 * Info->Height / 2;
-#endif
-#ifdef CALDGEMM_DIAGONAL_TEXTURE
-    data[bStop].f_data[11] = 8.f / Info->Height;  //Offset for diagonal texture read
-#endif
-    }
-    
     //////////////////////////////////////////////////////////////////////////
     //
     //  setup the program's inputs and outputs

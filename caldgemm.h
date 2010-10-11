@@ -62,6 +62,7 @@ class caldgemm : public calutil
     int DGEMM_prepare(size_t k, int j);
     inline void DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn);
     void checkCalPatch();
+	void cal_init_constant_data(data* &data, double alpha)
 
     struct mergeParameters
     {
