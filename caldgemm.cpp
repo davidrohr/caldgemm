@@ -744,7 +744,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     return(0);
 }
 
-void cal_init_constant_data(data* &data, double alpha)
+void caldgemm::cal_init_constant_data(Data* &data, double alpha)
 {
     // Setup the constants for the kernel
     data[aPartsNum + bPartsNum].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos
@@ -1149,7 +1149,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     for (int i = 0;i < 1;i++)
     {
 	if (Info->Debug) printf("%d", i);
-	cal_init_constant_data(datas[i], alpha)
+	cal_init_constant_data(datas[i], alpha);
 	if (CopyDataToGPU(&ctx_main, resourceHandlers[i] + numInputs, datas[i] + numInputs, numConstantBuffers, CAL_TRUE, &events[i])) return(1);
     }
     if (Info->Debug) printf("   Done\n");
