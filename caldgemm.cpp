@@ -94,6 +94,7 @@ calutil::SampleInfo::SampleInfo()
     NoPerformanceWarnings = CAL_FALSE;
     Pin = MultiThread ? -3 : 0;		//2 Output Threads
     Pin_HackedLibUnavailable = MultiThread ? -4 : 0;  //3 Output Threads
+    pPatchedAtiLibLDPath = NULL;
     m = 0;
     n = 0;
 }
