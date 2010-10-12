@@ -312,12 +312,13 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
 
 bool calutil::isDoubleEqual(CALdouble a, CALdouble b)
 {
-    CALdouble epsilon = 1e-6;
+    CALdouble epsilon1 = 1e-6;
+    CALdouble epsilon2 = 1e-4;
 
     if(fabs(b) <1e-13)
-       return (fabs(a-b) < epsilon);
+       return (fabs(a-b) < epsilon1);
     else
-       return (fabs((a-b)/b) < epsilon);
+       return (fabs((a-b)/b) < epsilon2);
 }
 
 CPerfCounter::CPerfCounter() : _clocks(0.0E0), _start(0.0E0)
