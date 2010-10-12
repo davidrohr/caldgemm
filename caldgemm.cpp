@@ -1156,10 +1156,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 	    Info->Height = 4096;
 	}
-	if (Info->Height != BufferHeight)
-	{
-	    if (!Info->Quiet) printf("Using reduced Height %lld instead of  %lld\n", Info->Height, BufferHeight);
-	}
+	if ((Info->Height != BufferHeight && !Info->Quiet) || Info->Debug)  printf("Using Height %lld of max %lld\n", Info->Height, BufferHeight);
     }
     
     if (Info->Width > BufferWidth || Info->Height > BufferHeight) forceReinit = true;
