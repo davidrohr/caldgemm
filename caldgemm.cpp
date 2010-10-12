@@ -92,7 +92,7 @@ calutil::SampleInfo::SampleInfo()
     AsyncDMA = CAL_TRUE;
     KeepBuffersMapped = CAL_TRUE;
     NoPerformanceWarnings = CAL_FALSE;
-    Pin = MultiThread ? -3 : 0;		//2 Output Threads
+    Pin = MultiThread ? -2 : 0;		//1 Output Thread
     Pin_HackedLibUnavailable = MultiThread ? -4 : 0;  //3 Output Threads
     m = 0;
     n = 0;
@@ -715,7 +715,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     	    fprintf(stderr, "Error string is %s\n", calGetErrorString());
 	}
     }
-    outputthreads = Info->KeepBuffersMapped ? 2 : 3;
+    outputthreads = Info->KeepBuffersMapped ? 1 : 3;
                                                                     
     for (int i = 0;i < max_bbuffers;i++)
     {
