@@ -755,7 +755,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	    pthread_t thr;
 	    pthread_create(&thr, NULL, merge_wrapper, &mParam[i]);
 	    
-	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex[0]) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0]);
+	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	}
     }
     if (Info->Debug) printf("Was able to allocate %d bbuffers\n", bbuffers);
@@ -764,13 +764,13 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	cParam.cls = this;
 	cParam.terminate = CAL_FALSE;
         for (int j = 0;j < 2;j++) pthread_mutex_init(&cParam.cblasMutex[j], NULL);
-        pthread_mutex_lock(&cParam.cblasMutex[0]);
+        if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
         if (Info->MultiThread)
         {
     	    pthread_t thr;
 	    pthread_create(&thr, NULL, cblas_wrapper, &cParam);
 	    if (Info->Debug) printf("Waiting for cblas slave to start\n");
-	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
+	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	}
     }
     
@@ -872,7 +872,7 @@ void* cblas_wrapper(void* arg)
     
     sched_setaffinity(0, sizeof(par->cls->oldcpumask), &par->cls->oldcpumask);
     
-    if (Info->MultiThread) pthread_mutex_lock(&par->cls->cParam.cblasMutex[1]);
+    if (Info->MultiThread) if (pthread_mutex_lock(&par->cls->cParam.cblasMutex[1])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
     while (pthread_mutex_lock(&par->cls->cParam.cblasMutex[1]) == 0 && par->terminate == CAL_FALSE)
     {
 	const CALdouble Alpha = par->cls->Alpha;
@@ -947,7 +947,7 @@ void* cblas_wrapper(void* arg)
 	par->cls->Timers.CPUTimer.Stop();
 
         if (Info->Debug) printf("\t\tUnlocking cblasmutex 0\n");
-        pthread_mutex_unlock(&par->cls->cParam.cblasMutex[0]);
+        if (pthread_mutex_unlock(&par->cls->cParam.cblasMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
         if (!Info->MultiThread) break;
     }
     if (Info->Debug) printf("blas slave terminating\n");
@@ -995,14 +995,14 @@ void* merge_wrapper(void* arg)
 	}
     }
     
-    pthread_mutex_lock(&par->mergeThreadMutex[0]);
+    if (pthread_mutex_lock(&par->mergeThreadMutex[0])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
     while (pthread_mutex_lock(&par->mergeThreadMutex[0]) == 0 && par->terminate == CAL_FALSE)
     {
 	if (par->cls->Info->Debug) printf("\t\tSlave thread %d starting merge process for context %d\n", par->nMergeThread, par->nContext);
         par->cls->mergeBuffers(par->dst, par->src, par->cls->Info->Height, par->cls->Info->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch, par->cls->cPartsNum);
         if (par->cls->Info->Debug) printf("\t\tUnlocking mutex obuffer %d (Slavethread %d)\n", par->nContext, par->nMergeThread);
-        pthread_mutex_unlock(&par->cls->obufferMutex[par->nContext]);
-        pthread_mutex_unlock(&par->mergeThreadMutex[1]);
+        if (pthread_mutex_unlock(&par->cls->obufferMutex[par->nContext])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+        if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
     }
     if (par->cls->Info->Debug) printf("merge slave %d terminating\n", par->nMergeThread);
     pthread_exit(NULL);
@@ -1296,7 +1296,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 	    cblas_wrapper((void*) &cParam);
 	}
-	pthread_mutex_unlock(&cParam.cblasMutex[1]);
+	if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
     }
 
     Timers.GPUTimer.Start();
@@ -1384,7 +1384,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				if (nBlocks >= 256 && nBlocks - k - 1 > 16 && cParam.dynamic_run == Info->Height && cParam.dynamic_size < mymin(gpu_m, gpu_n)) cParam.dynamic_size += Info->Height;
     			    
     				if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
-    				pthread_mutex_unlock(&cParam.cblasMutex[1]);
+    				if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
     			    }
     			}
     			else
@@ -1402,12 +1402,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			    {
 				if (!Info->Quiet) printf("Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", cParam.cpu_k, cpublockm, cpublockn);
 				cParam.dynamic_run2++;
-				pthread_mutex_unlock(&cParam.cblasMutex[1]);
+				if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 			    }
 			    else
 			    {
 				cParam.cpu_k = 0;
-				pthread_mutex_unlock(&cParam.cblasMutex[0]);
+				if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 			    }
     			}
     		    }
@@ -1439,7 +1439,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			Timers.ATime.Reset();
 			Timers.ATime.Start();
 		    }
-		    pthread_mutex_lock(&obufferMutex[j]);
+		    if (pthread_mutex_lock(&obufferMutex[j])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
 		    if (Info->AsyncTiming)
 		    {
 			Timers.ATime.Stop();
@@ -1487,22 +1487,23 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    	    if (mergeBuffers(C + lastn * Info->Height + lastm * C_pitch * Info->Height, datas[oldj] + numInputs + numConstantBuffers, Info->Height, Info->Height, BufferHeight, BufferHeight, C_pitch, cPartsNum)) {printf("Error merging\n"); return(1);}
 	    	    if (Info->MultiThread)
 	    	    {
-	    		pthread_mutex_unlock(&obufferMutex[oldj]);
+	    		if (pthread_mutex_unlock(&obufferMutex[oldj])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	    		for (int l = 1;l < ctxcount;l++)
 	    		{
-	    		    pthread_mutex_lock(&obufferMutex[(oldj + l) % ctxcount]);
-	    		    pthread_mutex_unlock(&obufferMutex[(oldj + l) % ctxcount]);
+	    		    if (Info->Debug) fprintf(stderr, "Waiting for context %d to finish merge process\n", (oldj + l) % ctxcount);
+	    		    if (pthread_mutex_lock(&obufferMutex[(oldj + l) % ctxcount])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+	    		    if (pthread_mutex_unlock(&obufferMutex[(oldj + l) % ctxcount])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	    		}
 	    	    }
 	    	}
 	    	else
 	    	{
-		    pthread_mutex_lock(&mParam[iMergeThread].mergeThreadMutex[1]);
+		    if (pthread_mutex_lock(&mParam[iMergeThread].mergeThreadMutex[1])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
 		    if (Info->Debug) printf("\t\tUnlocking outputthread mutex %d to process context %d\n", iMergeThread, oldj);
 	    	    mParam[iMergeThread].nContext = oldj;
 		    mParam[iMergeThread].dst = C + (lastn * Info->Height + lastm * C_pitch * Info->Height);
 		    mParam[iMergeThread].src = datas[oldj] + numInputs + numConstantBuffers;
-		    pthread_mutex_unlock(&mParam[iMergeThread].mergeThreadMutex[0]);
+		    if (pthread_mutex_unlock(&mParam[iMergeThread].mergeThreadMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 		    iMergeThread = (iMergeThread + 1) % outputthreads;
 		}
 
@@ -1523,7 +1524,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    Timers.ATime.Reset();
 	    Timers.ATime.Start();
 	}
-	pthread_mutex_lock(&cParam.cblasMutex[0]);
+	if (Info->Debug) fprintf(stderr, "Waiting for CPU DGEMM to finish\n");
+	if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
 	if (!Info->NoPerformanceWarnings && Info->MultiThread)
 	{
 	    Timers.ATime.Stop();
@@ -1680,13 +1682,13 @@ int caldgemm::ExitCALDGEMM()
 	if (Info->Debug) printf("Waiting for merge threads to terminate\n");
 	for (int i = 0;i < outputthreads;i++)
 	{
-	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex[0]) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0]);
+	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	    if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) printf("Error unlocking mergeMutex %d/1\n", i);
 	}
 	if (Info->UseCPU && Info->UseGPU)
 	{
 	    if (Info->Debug) printf("Waiting for blas threads to terminate\n");
-    	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) pthread_mutex_unlock(&cParam.cblasMutex[1]);
+    	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	    if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blasMutex 1\n");
 	}
     }
