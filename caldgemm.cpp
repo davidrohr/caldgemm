@@ -435,7 +435,7 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     	    if (__fpclassify(Beta) == FP_ZERO)
     	    {
     		//CALDGEMM_44 BETA=ZERO HACKED LIB
-    		for (int i = 0;i < count;i += 128)
+    		for (int i = 0;i < count;i += 64)
     		{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
     		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
@@ -445,13 +445,9 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
     		    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
     	    	    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
     	    	    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
-    		    _mm_store_pd_use(daddr + 8, _mm_load_pd(saddr + 4));
-    		    _mm_store_pd_use(daddr + 10, _mm_load_pd(saddr2 + 4));
-    	    	    _mm_store_pd_use(daddr + 12, _mm_load_pd(saddr + 6));
-    	    	    _mm_store_pd_use(daddr + 14, _mm_load_pd(saddr2 + 6));
-    		    saddr += 8;
-    		    saddr2 += 8;
-    	    	    daddr += 16;
+    		    saddr += 4;
+    		    saddr2 += 4;
+    	    	    daddr += 8;
     		}
     	    }
     	    else
@@ -460,27 +456,23 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 #undef _mm_store_pd_use
 #define _mm_store_pd_use _mm_store_pd
     		__m128d beta = _mm_set1_pd(Beta);
-    		for (int i = 0;i < count;i += 128)
+    		for (int i = 0;i < count;i += 64)
     		{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-//    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
-//    		    _mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
+    		    _mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
     	            _m_prefetchw(daddr + 50);
 //    	            _mm_prefetch(daddr + 50, _MM_HINT_NTA);
 #endif
     		    _mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
     	    	    _mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-    		    _mm_store_pd_use(daddr + 8, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 8))));
-    	    	    _mm_store_pd_use(daddr + 12, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 12))));
     		    _mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
     	    	    _mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
-    		    _mm_store_pd_use(daddr + 10, _mm_add_pd(_mm_load_pd(saddr2 + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 10))));
-    	    	    _mm_store_pd_use(daddr + 14, _mm_add_pd(_mm_load_pd(saddr2 + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 14))));
-    		    saddr += 8;
-    		    saddr2 += 8;
-/*    		    paddr += 8;
-    		    paddr2 += 8;*/
-    	    	    daddr += 16;
+    		    saddr += 4;
+    		    saddr2 += 4;
+    		    paddr += 4;
+    		    paddr2 += 4;
+    	    	    daddr += 8;
     	    	}
     	    }
 	}
