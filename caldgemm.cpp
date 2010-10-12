@@ -53,7 +53,7 @@ template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
 template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
-#define WAITFOREVENT(ctx, eventnr) { CALresult r; if (Info->Debug) {printf("\tWaiting for event from context %d...", eventnr); fflush(stdout);} do { r = calCtxIsEventDone(ctx, events[eventnr]); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING); if (Info->Debug) printf("Done\n");}
+#define WAITFOREVENT(ctx, eventnr) { CALresult r; if (Info->Debug) {printf("\tWaiting for event from context %d...\n", eventnr); fflush(stdout);} do { r = calCtxIsEventDone(ctx, events[eventnr]); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
 caldgemm::caldgemm()
 {
@@ -751,11 +751,11 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	    mParam[i].cls = this;
 	    mParam[i].terminate = CAL_FALSE;
 	    mParam[i].nMergeThread = i;
-	    pthread_mutex_init(&mParam[i].mergeThreadMutex, NULL);
+	    for (int j = 0;j < 2;j++) pthread_mutex_init(&mParam[i].mergeThreadMutex[j], NULL);
 	    pthread_t thr;
 	    pthread_create(&thr, NULL, merge_wrapper, &mParam[i]);
 	    
-	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeThreadMutex);
+	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex[0]) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0]);
 	}
     }
     if (Info->Debug) printf("Was able to allocate %d bbuffers\n", bbuffers);
@@ -995,13 +995,14 @@ void* merge_wrapper(void* arg)
 	}
     }
     
-    pthread_mutex_lock(&par->mergeThreadMutex);
-    while (pthread_mutex_lock(&par->mergeThreadMutex) == 0 && par->terminate == CAL_FALSE)
+    pthread_mutex_lock(&par->mergeThreadMutex[0]);
+    while (pthread_mutex_lock(&par->mergeThreadMutex[0]) == 0 && par->terminate == CAL_FALSE)
     {
 	if (par->cls->Info->Debug) printf("\t\tSlave thread %d starting merge process for context %d\n", par->nMergeThread, par->nContext);
         par->cls->mergeBuffers(par->dst, par->src, par->cls->Info->Height, par->cls->Info->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch, par->cls->cPartsNum);
-        if (par->cls->Info->Debug) printf("\t\tUnlocking mutex %d (Slavethread %d)\n", par->nContext, par->nMergeThread);
+        if (par->cls->Info->Debug) printf("\t\tUnlocking mutex obuffer %d (Slavethread %d)\n", par->nContext, par->nMergeThread);
         pthread_mutex_unlock(&par->cls->obufferMutex[par->nContext]);
+        pthread_mutex_unlock(&par->mergeThreadMutex[1]);
     }
     if (par->cls->Info->Debug) printf("merge slave %d terminating\n", par->nMergeThread);
     pthread_exit(NULL);
@@ -1496,11 +1497,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    	}
 	    	else
 	    	{
+		    pthread_mutex_lock(&mParam[iMergeThread].mergeThreadMutex[1]);
+		    if (Info->Debug) printf("\t\tUnlocking outputthread mutex %d to process context %d\n", iMergeThread, oldj);
 	    	    mParam[iMergeThread].nContext = oldj;
 		    mParam[iMergeThread].dst = C + (lastn * Info->Height + lastm * C_pitch * Info->Height);
 		    mParam[iMergeThread].src = datas[oldj] + numInputs + numConstantBuffers;
-		    while (pthread_mutex_trylock(&mParam[iMergeThread].mergeThreadMutex) != EBUSY) pthread_mutex_unlock(&mParam[iMergeThread].mergeThreadMutex);
-		    pthread_mutex_unlock(&mParam[iMergeThread].mergeThreadMutex);
+		    pthread_mutex_unlock(&mParam[iMergeThread].mergeThreadMutex[0]);
 		    iMergeThread = (iMergeThread + 1) % outputthreads;
 		}
 
@@ -1659,7 +1661,7 @@ int caldgemm::ExitCALDGEMM()
 	{
 	    if (Info->Debug) printf("Trying to terminate merge slave %d\n", i);
 	    mParam[i].terminate = CAL_TRUE;
-	    if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex)) printf("Error unlocking mergemutex %d/1 to terminate slave\n", i);
+	    if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) printf("Error unlocking mergemutex %d/1 to terminate slave\n", i);
 	}
     }
     
@@ -1678,8 +1680,8 @@ int caldgemm::ExitCALDGEMM()
 	if (Info->Debug) printf("Waiting for merge threads to terminate\n");
 	for (int i = 0;i < outputthreads;i++)
 	{
-	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeThreadMutex);
-	    if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex)) printf("Error unlocking mergeMutex %d/1\n", i);
+	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex[0]) != EBUSY) pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0]);
+	    if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) printf("Error unlocking mergeMutex %d/1\n", i);
 	}
 	if (Info->UseCPU && Info->UseGPU)
 	{
@@ -1696,7 +1698,7 @@ int caldgemm::ExitCALDGEMM()
     if (Info->MultiThread)
     {
 	for (int i = 0;i < ctxcount;i++) if (pthread_mutex_destroy(&obufferMutex[i])) printf("Error destroying obuffermutex %d\n", i);
-	for (int i = 0;i < outputthreads;i++) if (pthread_mutex_destroy(&mParam[i].mergeThreadMutex)) printf("Error destroying merge thread mutex %d\n", i);
+	for (int i = 0;i < outputthreads;i++) for (int j = 0;j < 2;j++) if (pthread_mutex_destroy(&mParam[i].mergeThreadMutex[j])) printf("Error destroying merge thread mutex %d/%d\n", i, j);
     }
 
     // Close the device

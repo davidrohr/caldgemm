@@ -72,7 +72,7 @@ class caldgemm : public calutil
 	int nMergeThread;
 	int nContext;
 	CALboolean terminate;
-	pthread_mutex_t mergeThreadMutex;
+	pthread_mutex_t mergeThreadMutex[2];
     };
     
     pthread_mutex_t obufferMutex[ctxcount];
