@@ -1386,6 +1386,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     				if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
     				if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
     			    }
+    			    else
+    			    {
+    				if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+    			    }
     			}
     			else
     			{
