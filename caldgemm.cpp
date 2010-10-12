@@ -833,7 +833,7 @@ void* cblas_wrapper(void* arg)
 	const size_t B_pitch_use = (par->cls->TransposeB == CblasTrans ? B_pitch : 1);
 	const CBLAS_TRANSPOSE TransposeA = par->cls->TransposeA;
 	const CBLAS_TRANSPOSE TransposeB = par->cls->TransposeB;
-	if (!Info->Quiet) printf("\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld, dynamic: %lld/%lld)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size);
+	if (!Info->Quiet) printf("\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld, dynamic: %lld/%lld, cpu_k: %lld)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size, par->cpu_k);
 
 	par->cls->Timers.CPUTimer.Start();
 	int old_goto_threads = get_num_procs();
@@ -843,37 +843,50 @@ void* cblas_wrapper(void* arg)
 	    caldgemm_goto_reserve_cpus(Info->Pin < 0 ? -Info->Pin : 1);
 	}
 	
-	if (par->dynamic_run)
+	if (par->dynamic_run2)
 	{
-	    if (par->cls->gpu_m >= par->cls->gpu_n)
-	    {
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Info->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_run) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_run) * C_pitch + par->cls->gpu_n - par->dynamic_size, C_pitch);
-	    }
-	    else
-	    {
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Info->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_size) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_size) * C_pitch + par->cls->gpu_n - par->dynamic_run, C_pitch);
-	    }
-	}
-	
-	if (Info->m >= Info->n)	//favor splitting m because of consecutive memory
-	{
-	    if (par->dynamic_run == 0)
-	    {
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, Info->n, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - par->cblas_size) * C_pitch, C_pitch);
-	    }
-	    
-	    if (Info->n % Info->Height && par->borders_done == CAL_FALSE)
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m - par->cblas_size, Info->n % Info->Height, Info->Width, Alpha, A, A_pitch, B + (Info->n - Info->n % Info->Height) * B_pitch_use, B_pitch, Beta, C + Info->n - Info->n % Info->Height, C_pitch);
+	    size_t blockm, blockn;
+	    par->cls->DGEMM_getblocks(par->cpu_k, blockm, blockn);
+	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->Height, Info->Height, Info->Width, Alpha, A + blockm * Info->Height * A_pitch_use, A_pitch, B + blockn * Info->Height * B_pitch_use, B_pitch, Beta, C + blockm * Info->Height * C_pitch + blockn * Info->Height, C_pitch);
 	}
 	else
 	{
-	    if (par->dynamic_run == 0)
+	    if (par->dynamic_run)
 	    {
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, par->cblas_size, Info->Width, Alpha, A, A_pitch, B + (Info->n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + Info->n - par->cblas_size, C_pitch);
+	        if (par->cls->gpu_m >= par->cls->gpu_n)
+	        {
+		    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Info->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_run) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_run) * C_pitch + par->cls->gpu_n - par->dynamic_size, C_pitch);
+		}
+	        else
+	        {
+		    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Info->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_size) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_size) * C_pitch + par->cls->gpu_n - par->dynamic_run, C_pitch);
+		}
 	    }
+	
+	    if (Info->m >= Info->n)	//favor splitting m because of consecutive memory
+	    {
+	        if (par->dynamic_run == 0)
+	        {
+		    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, Info->n, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - par->cblas_size) * C_pitch, C_pitch);
+		}
 	    
-	    if (Info->m % Info->Height && par->borders_done == CAL_FALSE)
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * C_pitch, C_pitch);
+		if (Info->n % Info->Height && par->borders_done == CAL_FALSE)
+		{
+		    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m - par->cblas_size, Info->n % Info->Height, Info->Width, Alpha, A, A_pitch, B + (Info->n - Info->n % Info->Height) * B_pitch_use, B_pitch, Beta, C + Info->n - Info->n % Info->Height, C_pitch);
+		}
+	    }
+	    else
+	    {
+		if (par->dynamic_run == 0)
+		{
+		    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, par->cblas_size, Info->Width, Alpha, A, A_pitch, B + (Info->n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + Info->n - par->cblas_size, C_pitch);
+		}
+	    
+		if (Info->m % Info->Height && par->borders_done == CAL_FALSE)
+		{
+		    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * C_pitch, C_pitch);
+		}
+	    }
 	}
 	goto_set_num_threads(old_goto_threads);
 	caldgemm_goto_reserve_cpus(0);
@@ -1177,6 +1190,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
     
     cParam.dynamic_run = 0;
+    cParam.dynamic_run2 = 0;
     cParam.borders_done = CAL_FALSE;
     if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
     {
@@ -1245,12 +1259,18 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	
 	if (!Info->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers) printf("WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
 	
+	cParam.cpu_k = nBlocks;
 	if (gpu_n && gpu_m)
 	for (size_t k = 0;k <= nBlocks;k++)
 	{
 	    size_t newblockm, newblockn;
 	    if (k < nBlocks)
 	    {
+		if (k >= cParam.cpu_k)
+		{
+		    if (Info->Debug) printf("GPU skipping k = %lld (Dynamic Run 3rd Phase)\n", k);
+		    continue;
+		}
 		DGEMM_getblocks(k, newblockm, newblockn);
 		
 		if (cParam.dynamic_run)
@@ -1259,7 +1279,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		    {
 			if (newblockm * Info->Height >= gpu_m - cParam.dynamic_run && newblockn * Info->Height >= gpu_n - cParam.dynamic_size)
 			{
-			    if (Info->Debug) printf("GPU skipping k = %lld\n", k);
+			    if (Info->Debug) printf("GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", k);
 			    continue;
 			}
 		    }
@@ -1267,7 +1287,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		    {
 			if (newblockn * Info->Height >= gpu_n - cParam.dynamic_run && newblockm * Info->Height >= gpu_m - cParam.dynamic_size)
 			{
-			    if (Info->Debug) printf("GPU skipping k = %lld\n", k);
+			    if (Info->Debug) printf("GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", k);
 			    continue;
 			}
 		    }
@@ -1282,36 +1302,58 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		blockm = newblockm;
 		if (Info->Debug) printf("Iteration k = %lld, m = %lld, n = %lld (Context %d)\n", k, blockm, blockn, j);
 		
-		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && cParam.dynamic_run == 0 && (double) k >= 0.75f * GPURatio * nBlocks)
+		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && (double) k >= 0.70f * GPURatio * nBlocks && k < cParam.cpu_k - 2)
 		{
 		    if (pthread_mutex_trylock(&cParam.cblasMutex[0]) == 0)
 		    {
-			cParam.dynamic_size = ((1.0f - GPURatio) * (float) (nBlocks - k - 1) + 0.5) * Info->Height;
-			if (cParam.dynamic_size > (nBlocks - k - 1) * Info->Height) cParam.dynamic_size = (nBlocks - k - 1) * Info->Height;
-			if (cParam.dynamic_size > Info->Height)
+			if (cParam.dynamic_run == 0)
 			{
-    			    cParam.dynamic_run = 1 + cParam.dynamic_size / mymin(gpu_m, gpu_n);
-    			    cParam.dynamic_size /= cParam.dynamic_run;
-    			    cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
-    			    cParam.dynamic_run *= Info->Height;
-    			    cParam.borders_done = CAL_TRUE;
-    			    
-			    while (gpu_m >= gpu_n ? (blockm * Info->Height >= gpu_m - cParam.dynamic_run && blockn * Info->Height >= gpu_n - cParam.dynamic_size) :
-				(blockn * Info->Height >= gpu_n - cParam.dynamic_run && blockm * Info->Height >= gpu_m - cParam.dynamic_size))
+			    cParam.dynamic_size = ((1.0f - GPURatio) * (float) (nBlocks - k - 1) + 0.5) * Info->Height;
+			    if (cParam.dynamic_size > (nBlocks - k - 1) * Info->Height) cParam.dynamic_size = (nBlocks - k - 1) * Info->Height;
+			    if (cParam.dynamic_size > Info->Height)
 			    {
-				cParam.dynamic_run -= Info->Height;
-				cParam.dynamic_size = mymin(gpu_m, gpu_n);
-				if (Info->Debug) printf("cParam dynamic size reduced to: %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
-			    }
-			    
-			    if (nBlocks >= 256 && nBlocks - k - 1 > 16 && cParam.dynamic_run == Info->Height && cParam.dynamic_size < mymin(gpu_m, gpu_n)) cParam.dynamic_size += Info->Height;
+    				cParam.dynamic_run = 1 + cParam.dynamic_size / mymin(gpu_m, gpu_n);
+    				cParam.dynamic_size /= cParam.dynamic_run;
+    				cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
+    				cParam.dynamic_run *= Info->Height;
+    				cParam.borders_done = CAL_TRUE;
     			    
-    			    if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
-    			    pthread_mutex_unlock(&cParam.cblasMutex[1]);
+				while (gpu_m >= gpu_n ? (blockm * Info->Height >= gpu_m - cParam.dynamic_run && blockn * Info->Height >= gpu_n - cParam.dynamic_size) :
+				    (blockn * Info->Height >= gpu_n - cParam.dynamic_run && blockm * Info->Height >= gpu_m - cParam.dynamic_size))
+				{
+				    cParam.dynamic_run -= Info->Height;
+				    cParam.dynamic_size = mymin(gpu_m, gpu_n);
+				    if (Info->Debug) printf("cParam dynamic size reduced to: %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
+				}
+			    
+				if (nBlocks >= 256 && nBlocks - k - 1 > 16 && cParam.dynamic_run == Info->Height && cParam.dynamic_size < mymin(gpu_m, gpu_n)) cParam.dynamic_size += Info->Height;
+    			    
+    				if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
+    				pthread_mutex_unlock(&cParam.cblasMutex[1]);
+    			    }
     			}
     			else
     			{
-    			    pthread_mutex_unlock(&cParam.cblasMutex[0]);
+    			    cParam.cpu_k--;
+			    size_t cpublockm, cpublockn;
+			    DGEMM_getblocks(cParam.cpu_k, cpublockm, cpublockn);
+			    while (gpu_m >= gpu_n ? (cpublockm * Info->Height >= gpu_m - cParam.dynamic_run && cpublockn * Info->Height >= gpu_n - cParam.dynamic_size) :
+				(cpublockn * Info->Height >= gpu_n - cParam.dynamic_run && cpublockm * Info->Height >= gpu_m - cParam.dynamic_size))
+			    {
+				cParam.cpu_k--;
+				DGEMM_getblocks(cParam.cpu_k, cpublockm, cpublockn);
+			    }
+			    if (k < cParam.cpu_k - 1)
+			    {
+				if (!Info->Quiet) printf("Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", cParam.cpu_k, cpublockm, cpublockn);
+				cParam.dynamic_run2++;
+				pthread_mutex_unlock(&cParam.cblasMutex[1]);
+			    }
+			    else
+			    {
+				cParam.cpu_k = 0;
+				pthread_mutex_unlock(&cParam.cblasMutex[0]);
+			    }
     			}
     		    }
     		}
