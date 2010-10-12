@@ -363,6 +363,8 @@ protected:
 
     //For Timing only
     bool CPUOnlyRun;
+    double gpu_ratio_used;
+    double cpu_wait_time;
     
     char hostname[256]; //Store hostname of node for host dependant debug code
 };

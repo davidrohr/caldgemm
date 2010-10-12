@@ -1241,6 +1241,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	GPURatio = Info->GPURatio;
     }
     
+    gpu_ratio_used = GPURatio;
+    
     cParam.dynamic_run = 0;
     cParam.dynamic_run2 = 0;
     cParam.borders_done = CAL_FALSE;
@@ -1534,6 +1536,7 @@ OmitThirdRun:
 	if (!Info->NoPerformanceWarnings && Info->MultiThread)
 	{
 	    Timers.ATime.Stop();
+	    cpu_wait_time = Timers.ATime.GetElapsedTime();
 	    if (!Info->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15) printf("WARNING: CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
 	    else if (Info->Debug) printf("CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
 	}

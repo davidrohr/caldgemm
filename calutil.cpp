@@ -133,7 +133,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
     	    printf("GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)", Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
     	    if (Info->TabularTiming)
     	    {
-    		printf("            GPU Ratio - Real: %2.3lf%% Guessed: %2.3lf%%, m*n: %E", (100.0 * flopsg / (flopsc + flopsg)), Info->GPURatio, (double) (Info->m * Info->n));
+    		printf("            GPU Ratio - Real: %2.3lf%% Guessed: %2.3lf%%, m*n: %E, CPU Wait Time: %2.3lf", (100.0 * flopsg / (flopsc + flopsg)), gpu_ratio_used, (double) (Info->m * Info->n), cpu_wait_time);
     	    }
     	    printf("\n");
         }
