@@ -1388,11 +1388,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     			    }
     			    else
     			    {
-    				if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+    				cParam.dynamic_size = 0;
+    				goto TryThirdRun;
     			    }
     			}
     			else
     			{
+TryThirdRun:
     			    cParam.cpu_k--;
 			    size_t cpublockm, cpublockn;
 			    DGEMM_getblocks(cParam.cpu_k, cpublockm, cpublockn);
