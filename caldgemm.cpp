@@ -1318,7 +1318,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    size_t newblockm, newblockn;
 	    if (k < nBlocks)
 	    {
-		if (k >= cParam.cpu_k)
+		if (k >= cParam.cpu_k && cParam.cpu_k)
 		{
 		    if (Info->Debug) printf("GPU skipping k = %lld (Dynamic Run 3rd Phase)\n", k);
 		    continue;
