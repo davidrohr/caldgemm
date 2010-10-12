@@ -1395,8 +1395,8 @@ TryThirdRun:
     			    cParam.cpu_k--;
 			    size_t cpublockm, cpublockn;
 			    DGEMM_getblocks(cParam.cpu_k, cpublockm, cpublockn);
-			    while (gpu_m >= gpu_n ? (cpublockm * Info->Height >= gpu_m - cParam.dynamic_run && cpublockn * Info->Height >= gpu_n - cParam.dynamic_size) :
-				(cpublockn * Info->Height >= gpu_n - cParam.dynamic_run && cpublockm * Info->Height >= gpu_m - cParam.dynamic_size))
+			    while (cParam.cpu_k > k && (gpu_m >= gpu_n ? (cpublockm * Info->Height >= gpu_m - cParam.dynamic_run && cpublockn * Info->Height >= gpu_n - cParam.dynamic_size) :
+				(cpublockn * Info->Height >= gpu_n - cParam.dynamic_run && cpublockm * Info->Height >= gpu_m - cParam.dynamic_size)))
 			    {
 				cParam.cpu_k--;
 				DGEMM_getblocks(cParam.cpu_k, cpublockm, cpublockn);
