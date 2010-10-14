@@ -891,16 +891,6 @@ void* cblas_wrapper(void* arg)
 
 	par->cls->Timers.CPUTimer.Start();
 
-	if (par->borders_done == CAL_FALSE && par->cls->ExecLinpack)
-	{
-	    if (1 || !Info->Quiet) printf("\t\t\tDoint initial cblas runs to prepare Linpack factorization\n");
-	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m + Info->Width, Info->Width, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B - Info->Width * B_pitch_use, B_pitch, Beta, C, C_pitch);
-	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->Width, Info->n, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C + Info->Width, C_pitch);
-	    if (1 || !Info->Quiet) printf("\t\t\tStarting Linpack factorization\n");
-	    Info->linpack_factorize_function();
-	    Info->linpack_broadcast_function();
-	}
-
 	int old_goto_threads = get_num_procs();
 	if (Info->Pin != -100)
 	{
@@ -908,6 +898,16 @@ void* cblas_wrapper(void* arg)
 	    caldgemm_goto_reserve_cpus(Info->Pin < 0 ? -Info->Pin : 1);
 	}
 	
+	if (par->borders_done == CAL_FALSE && par->cls->ExecLinpack)
+	{
+	    if (!Info->Quiet) printf("\t\t\tDoint initial cblas runs to prepare Linpack factorization\n");
+	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m + Info->Width, Info->Width, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B - Info->Width * B_pitch_use, B_pitch, Beta, C - Info->Width * (C_pitch + 1), C_pitch);
+	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->Width, Info->n, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Info->Width * C_pitch, C_pitch);
+	    if (!Info->Quiet) printf("\t\t\tStarting Linpack factorization\n");
+	    Info->linpack_factorize_function();
+	    Info->linpack_broadcast_function();
+	}
+
 	if (par->dynamic_run2)
 	{
 	    size_t blockm, blockn;
