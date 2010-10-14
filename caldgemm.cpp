@@ -1050,7 +1050,15 @@ int calutil::DumpMatrix(double* a, double* b, double* c, double alpha, double be
 
 int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB, bool ExecuteLinpackCallbacks)
 {
-    if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0) return(0);		//Do Nothing
+    if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0)
+    {
+	if (ExecuteLinpackCallbacks)
+	{
+	    Info->linpack_factorize_function();
+	    Info->linpack_broadcast_function();
+	}
+	return(0);		//Do Nothing
+    }
     
     if (!caldgemm_initialized)
     {
@@ -1560,6 +1568,13 @@ RunCALDGEMM_end:
         return 1;
     }
     if (Info->Verify) delete[] D;
+    
+    if (ExecuteLinpackCallbacks)
+    {
+        Info->linpack_factorize_function();
+        Info->linpack_broadcast_function();
+    }
+
     return(0);
 }
 
