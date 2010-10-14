@@ -890,6 +890,17 @@ void* cblas_wrapper(void* arg)
 	if (!Info->Quiet) printf("\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld, dynamic: %lld/%lld, cpu_k: %lld)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size, par->cpu_k);
 
 	par->cls->Timers.CPUTimer.Start();
+
+	if (par->borders_done == CAL_FALSE && par->cls->ExecLinpack)
+	{
+	    if (1 || !Info->Quiet) printf("\t\t\tDoint initial cblas runs to prepare Linpack factorization\n");
+	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m + Info->Width, Info->Width, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B - Info->Width * B_pitch_use, B_pitch, Beta, C, C_pitch);
+	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->Width, Info->n, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C + Info->Width, C_pitch);
+	    if (1 || !Info->Quiet) printf("\t\t\tStarting Linpack factorization\n");
+	    Info->linpack_factorize_function();
+	    Info->linpack_broadcast_function();
+	}
+
 	int old_goto_threads = get_num_procs();
 	if (Info->Pin != -100)
 	{
@@ -942,6 +953,7 @@ void* cblas_wrapper(void* arg)
 		}
 	    }
 	}
+	par->borders_done = CAL_TRUE;
 	goto_set_num_threads(old_goto_threads);
 	caldgemm_goto_reserve_cpus(0);
 	par->cls->Timers.CPUTimer.Stop();
@@ -1078,6 +1090,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     bool forceReinit = false;
     double GPURatio;
     
+    size_t MaxGpuM, MaxGpuN; //Maximal values of m and n that can be given to GPU, This is below m,n if ExecuteLinpackCallback = true
+    
     A = a;
     B = b;
     C = c;
@@ -1112,6 +1126,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     TransposeA = TransA;
     TransposeB = TransB;    
+    ExecLinpack = ExecuteLinpackCallbacks;
     
     if (Info->Verify)
     {
@@ -1128,11 +1143,30 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     Timers.System.Start();
 
+    if (ExecuteLinpackCallbacks)
+    {
+	if (Info->m < Info->Width || Info->n < Info->Width)
+	{
+	    MaxGpuM = 0;
+	    MaxGpuN = 0;
+	}
+	else
+	{
+	    MaxGpuM = Info->m - Info->Width;
+	    MaxGpuN = Info->n - Info->Width;
+	}
+    }
+    else
+    {
+	MaxGpuM = Info->m;
+	MaxGpuN = Info->n;
+    }
+    
 #ifndef TESTMODE    
     //Check if the GPU can/shall process the required dgemm task
     if (Info->Iterations > 1);
     else if (Info->Width % 8 || Info->Width < 256) forceCPU = true;
-    else if (Info->m < 512 || Info->n < 512) forceCPU = true;
+    else if (MaxGpuM < 512 || MaxGpuN < 512) forceCPU = true;
     else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
     else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
 	A_pitch & (vcpysize / sizeof(CALdouble) - 1) || B_pitch & (vcpysize / sizeof(CALdouble) - 1) || C_pitch & (vcpysize / sizeof(CALdouble) - 1))
@@ -1144,19 +1178,19 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     if (Info->AutoHeight)
     {
-	if (Info->m < 1024 || Info->n < 1024)
+	if (MaxGpuM < 1024 || MaxGpuN < 1024)
 	{
 	    Info->Height = 512;
 	}
-	else if (Info->m < 2048 || Info->n < 2048 || Info->m * Info->n < 16 * 1024 * 1024)
+	else if (MaxGpuM < 2048 || MaxGpuN < 2048 || MaxGpuM * MaxGpuN < 16 * 1024 * 1024)
         {
     	    Info->Height = 1024;
 	}
-        else if (Info->m < 3072 || Info->n < 3072 || Info->m * Info->n < 120 * 1024 * 1024)
+        else if (MaxGpuM < 3072 || MaxGpuN < 3072 || MaxGpuM * MaxGpuN < 120 * 1024 * 1024)
 	{
 	    Info->Height = 2048;
 	}
-        else if (Info->m < 4096 || Info->n < 4096 || Info->m * Info->n < 400 * 1024 * 1024)
+        else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < 400 * 1024 * 1024)
 	{
 	    Info->Height = 3072;
 	}
@@ -1169,7 +1203,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (Info->Width > BufferWidth || Info->Height > BufferHeight) forceReinit = true;
 
-    if (Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) Info->m * (long long int) Info->n * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Info->Width < 1024 && Info->Height < 1024)) forceCPU = true;
+    if (Info->UseGPU == CAL_FALSE || Info->m < Info->Height || Info->n < Info->Height || (forceReinit && (long long int) MaxGpuM * (long long int) MaxGpuN * (long long int) Info->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Info->Width < 1024 && Info->Height < 1024)) forceCPU = true;
     
 /*  //Run on CPU on all but one node in MPIRUN
     if (strcmp(hostname, "gpu-dev05") != 0)
@@ -1185,6 +1219,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 	Timers.CPUTimer.Stop();
 	CPUOnlyRun = true;
+	if (ExecuteLinpackCallbacks)
+	{
+	    if (Info->Debug) printf("DGEMM was running on CPU only, executing linpack callback functions\n");
+    	    Info->linpack_factorize_function();
+    	    Info->linpack_broadcast_function();
+	}
 	goto RunCALDGEMM_end;
     }
     CPUOnlyRun = false;
@@ -1230,15 +1270,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     if (Info->GPURatio < 0)
     {
 	//Optimal ratio found using combined runs
-	     if ((long long int) Info->m * (long long int) Info->n > (long long int) 5000000000) GPURatio = 0.75;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 600000000) GPURatio = 0.74;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 500000000) GPURatio = 0.73;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 200000000) GPURatio = 0.73;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 100000000) GPURatio = 0.72;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 7000000) GPURatio = 0.70;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 5000000) GPURatio = 0.67;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 2500000) GPURatio = 0.60;
-	else if ((long long int) Info->m * (long long int) Info->n > (long long int) 1000000) GPURatio = 0.55;
+	     if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000000) GPURatio = 0.75;
+	else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 600000000) GPURatio = 0.74;
+	else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 500000000) GPURatio = 0.73;
+	else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 200000000) GPURatio = 0.73;
+	else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 100000000) GPURatio = 0.72;
+	else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 7000000) GPURatio = 0.70;
+	else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000) GPURatio = 0.67;
+	else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 2500000) GPURatio = 0.60;
+	else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 1000000) GPURatio = 0.55;
 	else GPURatio = 0.50;
 	GPURatio *= (double) Info->Width / (double) 1024;
 	if (Info->Height < 1024) GPURatio *= (double) Info->Height / (double) 1024 * (double) Info->Height / (double) 1024;
@@ -1250,6 +1290,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
     
     gpu_ratio_used = GPURatio;
+    
+    if (ExecuteLinpackCallbacks)
+    {
+	Info->m -= Info->Width;
+	Info->n -= Info->Width;
+	A += Info->Width * (TransposeA == CblasTrans ? 1 : A_pitch);
+	B += Info->Width * (TransposeB == CblasTrans ? B_pitch : 1);
+	C += Info->Width * (C_pitch + 1);
+    }
     
     cParam.dynamic_run = 0;
     cParam.dynamic_run2 = 0;
@@ -1378,7 +1427,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     				cParam.dynamic_size /= cParam.dynamic_run;
     				cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
     				cParam.dynamic_run *= Info->Height;
-    				cParam.borders_done = CAL_TRUE;
     			    
 				while (gpu_m >= gpu_n ? (blockm * Info->Height >= gpu_m - cParam.dynamic_run && blockn * Info->Height >= gpu_n - cParam.dynamic_size) :
 				    (blockn * Info->Height >= gpu_n - cParam.dynamic_run && blockm * Info->Height >= gpu_m - cParam.dynamic_size))
@@ -1552,6 +1600,13 @@ OmitThirdRun:
 
 RunCALDGEMM_end:
     Timers.System.Stop();
+    
+    if (!Info->UseCPU && ExecuteLinpackCallbacks)
+    {
+	if (!Info->Quiet) printf("CPU Was disabled, no asynchronous processing of linpack functions possible, executing linpack callback functions\n");
+        Info->linpack_factorize_function();
+        Info->linpack_broadcast_function();
+    }
 
     if (Info->Debug) printf("DGEMM Run Complete\n");
     
@@ -1569,11 +1624,6 @@ RunCALDGEMM_end:
     }
     if (Info->Verify) delete[] D;
     
-    if (ExecuteLinpackCallbacks)
-    {
-        Info->linpack_factorize_function();
-        Info->linpack_broadcast_function();
-    }
 
     return(0);
 }
