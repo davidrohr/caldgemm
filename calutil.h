@@ -198,6 +198,8 @@ class calutil
 	CALboolean KeepBuffersMapped;
 	CALboolean NoPerformanceWarnings;
 	size_t     m, n;		//height of A, width of B, must be multiple of height
+	void (*linpack_factorize_function)();
+	void (*linpack_broadcast_function)();
     };
 
 protected:
