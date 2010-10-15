@@ -71,6 +71,7 @@ calutil::SampleInfo::SampleInfo()
     Disassemble = CAL_FALSE;
     PrintILKernel = CAL_FALSE;
     Quiet = CAL_TRUE;
+    DisplayTiming = CAL_FALSE;
     DeviceNum = 0;
     Width = 1024;
     Height = 4096;

@@ -176,6 +176,7 @@ class calutil
 	CALboolean Disassemble;
 	CALboolean PrintILKernel;
 	CALboolean Quiet;
+	CALboolean DisplayTiming;	//Display Final Timing Information even when quiet
 	CALuint    DeviceNum;
 	size_t     Width;		//k for matrix multiply
 	size_t     Height;		//height of subblock od A, width of subblock of B
@@ -196,7 +197,7 @@ class calutil
 	CALboolean DivideToGPU;
 	CALboolean AsyncDMA;
 	CALboolean KeepBuffersMapped;
-	CALboolean NoPerformanceWarnings;
+	CALboolean NoPerformanceWarnings;	//Suppress also performance warnings, will usually be shown even in quiet mode
 	size_t     m, n;		//height of A, width of B, must be multiple of height
 	void (*linpack_factorize_function)();
 	void (*linpack_broadcast_function)();
