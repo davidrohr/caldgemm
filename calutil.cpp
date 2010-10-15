@@ -107,7 +107,7 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 
 CALvoid calutil::displayMatrixTiming(const CALchar* name)
 {
-    if (!Info->Quiet)
+    if (!Info->Quiet || Info->DisplayTiming)
     {
         CALdouble gflops_CPU = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Timers.System.GetElapsedTime();
         printf("Program: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", name, 

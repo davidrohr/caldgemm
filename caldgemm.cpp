@@ -1627,7 +1627,7 @@ RunCALDGEMM_end:
     {
 	printf("WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.CPUTimer.GetElapsedTime(), Info->m, Info->n);
     }
-    if( Info->Quiet == CAL_FALSE && !AnalyzeResults(datas[0]) )
+    if( !AnalyzeResults(datas[0]) )
     {
         return 1;
     }
