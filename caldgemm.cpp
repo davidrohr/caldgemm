@@ -133,457 +133,457 @@ void calutil::print_submatrices(double* M, size_t width, size_t height, size_t p
 
 int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers, bool transpose)
 {
-    if (Info->Debug) printf("\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
+	if (Info->Debug) printf("\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
 
-    if (Info->DivideToGPU)
-    for (CALuint i = 0;i < numBuffers;i++)
-    {
-        CHKERR(calResMap(&dst[i].v_data, &dst[i].pitch, dst[i].res, 0), "mapping input buffer for buffer division");
-	if (((size_t) dst[i].v_data) & (vcpysize - 1))
-	{
-	    printf("Invalid alignment\n");
-	    return(1);
-	}
-    }
-    
-    if (transpose)
-    {
-#if !defined(CALDGEMM_44)
-	if (numBuffers <= 4)
-	{
-	    for (CALint y = 0;y < width;y += 4)
-	    {
-    		double* saddr = src + (y * pitch);
-    		double* saddr2 = src + ((y + 1) * pitch);
-    		double* saddr3 = src + ((y + 2) * pitch);
-    		double* saddr4 = src + ((y + 3) * pitch);
-
-		double* daddr = dst[0].d_data + y;
-		double* daddr2 = dst[1 % numBuffers].d_data + (1 / numBuffers) * gpu_width + y;
-		double* daddr3 = dst[2 % numBuffers].d_data + (2 / numBuffers) * gpu_width + y;
-		double* daddr4 = dst[3 % numBuffers].d_data + (3 / numBuffers) * gpu_width + y;
-		
-		const int dpitch = 4 / numBuffers * gpu_width;
-		
-		for (int i = 0;i < height;i += 4)
+	if (Info->DivideToGPU)
+		for (CALuint i = 0;i < numBuffers;i++)
 		{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-		    //Prefetching disabled as it currently has a negative performance impact
-    		    /*_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-    		    _mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
-    		    _mm_prefetch(saddr3 + 100, _MM_HINT_NTA);
-    		    _mm_prefetch(saddr4 + 100, _MM_HINT_NTA);*/
-#endif
-		    __m128d x1, x2, x3, x4, x5, x6, x7, x8, x9, x10;
-		    x1 = _mm_load_pd_use(saddr);
-		    x3 = _mm_load_pd_use(saddr + 2);
-		    x2 = _mm_load_pd_use(saddr2);
-		    x4 = _mm_load_pd_use(saddr2 + 2);
-		    x5 = _mm_load_pd_use(saddr3);
-		    x7 = _mm_load_pd_use(saddr3 + 2);
-		    x6 = _mm_load_pd_use(saddr4);
-		    x8 = _mm_load_pd_use(saddr4 + 2);
-		    
-		    x9 = _mm_unpacklo_pd(x1, x2);
-		    x10 = _mm_unpackhi_pd(x1, x2);
-		    x1 = _mm_unpacklo_pd(x3, x4);
-		    x2 = _mm_unpackhi_pd(x3, x4);
-		    x3 = _mm_unpacklo_pd(x5, x6);
-		    x4 = _mm_unpackhi_pd(x5, x6);
-		    x5 = _mm_unpacklo_pd(x7, x8);
-		    x6 = _mm_unpackhi_pd(x7, x8);
-		    
-		    _mm_store_pd_use(daddr, x9);
-		    _mm_store_pd_use(daddr2, x10);
-		    _mm_store_pd_use(daddr + 2, x3);
-		    _mm_store_pd_use(daddr2 + 2, x4);
-		    _mm_store_pd_use(daddr3, x1);
-		    _mm_store_pd_use(daddr4, x2);
-		    _mm_store_pd_use(daddr3 + 2, x5);
-		    _mm_store_pd_use(daddr4 + 2, x6);
-		    
-		    saddr += 4;
-		    saddr2 += 4;
-		    saddr3 += 4;
-		    saddr4 += 4;
-		    
-		    daddr += dpitch;
-		    daddr2 += dpitch;
-		    daddr3 += dpitch;
-		    daddr4 += dpitch;
+			CHKERR(calResMap(&dst[i].v_data, &dst[i].pitch, dst[i].res, 0), "mapping input buffer for buffer division");
+			if (((size_t) dst[i].v_data) & (vcpysize - 1))
+			{
+				printf("Invalid alignment\n");
+				return(1);
+			}
 		}
-	    }
-	}
-	else
-#endif
-	for (CALint y=0; y < width; y += 2)
-	{
-    	    double* saddr = src + (y * pitch);
-    	    double* saddr2 = src + ((y + 1) * pitch);
-        
-    	    for (int i = 0;i < height;i += 2)
-    	    {
-#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
-		CALint bank = (i / 2) % 2;
-		double* daddr = dst[bank].d_data + (i / 4) * gpu_width * 2 + y * 2;
-		double* daddr2 = dst[bank].d_data + (i / 4) * gpu_width * 2 + y * 2 + 2;
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-		//Col Interleaved Storage, Numbuffers is either 2 or 4, might be optimized in 2 branches
-    		CALint bank = (y / 2) % numBuffers;
-#ifdef CALDGEMM_DIAGONAL_TEXTURE
-    		double* daddr = dst[bank].d_data + i * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (gpu_width / 2);
-    		double* daddr2 = dst[bank].d_data + (i + 1) * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (gpu_width / 2);
-#else
-    		double* daddr = dst[bank].d_data + (i * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
-    		double* daddr2 = dst[bank].d_data + ((i + 1) * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
-#endif
-#else
-		//Standard Storage
-    		CALint bank = (i) % numBuffers;
-    		CALint bank2 = (i + 1) % numBuffers;
-    		double* daddr = dst[bank].d_data + (i / numBuffers) * gpu_width + y;
-    		double* daddr2 = dst[bank2].d_data + (i / numBuffers) * gpu_width + y;
-#endif
 
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-    		_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
-#endif
-		__m128d x1, x2, x3, x4;
-		x1 = _mm_load_pd_use(saddr);
-		x2 = _mm_load_pd_use(saddr2);
-		x3 = _mm_unpacklo_pd(x1, x2);
-		x4 = _mm_unpackhi_pd(x1, x2);
-    		_mm_store_pd_use(daddr, x3);
-    		_mm_store_pd_use(daddr2, x4);
-    		saddr += 2;
-    		saddr2 += 2;
-    	    }
-    	}
-    }
-    else
-    {
-#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
-	//Row / Col Interleaved Storage with 2 rows stored in one col
-	for (CALint y = 0;y < height / 2;y++)
-	{
-	    double* daddr = dst[y % 2].d_data + y / 2 * gpu_width * 2;
-	    double* saddr = src + 2 * y * pitch;
-	    double* saddr2 = src + (2 * y + 1) * pitch;
-	    for (int i = 0;i < width;i += 4)
-	    {
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		_mm_prefetch(saddr + 60, _MM_HINT_NTA);
-    		_mm_prefetch(saddr2 + 60, _MM_HINT_NTA);
-#endif
-    		_mm_store_pd_use(daddr + 0, _mm_load_pd_use(saddr));
-    		_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr2));
-    		_mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 2));
-    		_mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr2 + 2));
-    		daddr += 8;
-    		saddr += 4;
-    		saddr2 += 4;
-	    }
-	}
-
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-	//Col Interleaved Storage for transposed A with 4x4, 8x4 and 8x8 tiling
-	if (numBuffers == 4)
-	{
-	    double* daddr = dst[0].d_data;
-	    double* daddr2 = dst[1].d_data;
-	    double* daddr3 = dst[2].d_data;
-	    double* daddr4 = dst[3].d_data;
-	    for (CALint y=0; y < height; y++)
-	    {
-		int count = dst[0].DataSize * width;
-	        double* saddr = src + (y * pitch);
-        
-	        for (int i = 0;i < count;i += 256)
+		if (transpose)
 		{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		    _mm_prefetch(saddr + 30, _MM_HINT_NTA);
-#endif
-    		    _mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
-    		    _mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));
-    		    _mm_store_pd_use(daddr3, _mm_load_pd_use(saddr + 4));
-    		    _mm_store_pd_use(daddr4, _mm_load_pd_use(saddr + 6));
-    		    _mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 8));
-    		    _mm_store_pd_use(daddr2 + 2, _mm_load_pd_use(saddr + 10));
-    		    _mm_store_pd_use(daddr3 + 2, _mm_load_pd_use(saddr + 12));
-    		    _mm_store_pd_use(daddr4 + 2, _mm_load_pd_use(saddr + 14));
-    		    _mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 16));
-    		    _mm_store_pd_use(daddr2 + 4, _mm_load_pd_use(saddr + 18));
-    		    _mm_store_pd_use(daddr3 + 4, _mm_load_pd_use(saddr + 20));
-    		    _mm_store_pd_use(daddr4 + 4, _mm_load_pd_use(saddr + 22));
-    		    _mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr + 24));
-    		    _mm_store_pd_use(daddr2 + 6, _mm_load_pd_use(saddr + 26));
-    		    _mm_store_pd_use(daddr3 + 6, _mm_load_pd_use(saddr + 28));
-    		    _mm_store_pd_use(daddr4 + 6, _mm_load_pd_use(saddr + 30));
-    		    saddr += 32;
-    		    daddr += 8;
-    		    daddr2+= 8;
-    		    daddr3 += 8;
-    		    daddr4 += 8;
-    		}
-    		daddr += (gpu_width - width) / numBuffers;
-    		daddr2 += (gpu_width - width) / numBuffers;
-    		daddr3 += (gpu_width - width) / numBuffers;
-    		daddr4 += (gpu_width - width) / numBuffers;
-    	    }
-        }
-        else
-        {
-	    double* daddr = dst[0].d_data;
-	    double* daddr2 = dst[1].d_data;
-	    for (CALint y=0; y < height; y++)
-	    {
-		int count = dst[0].DataSize * width;
-    	        double* saddr = src + (y * pitch);
-        
-    		for (int i = 0;i < count;i += 64)
-    	        {
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		    _mm_prefetch(saddr + 76, _MM_HINT_NTA);
-#endif
-    		    _mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
-    		    _mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));
-    		    _mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 4));
-    		    _mm_store_pd_use(daddr2 + 2, _mm_load_pd_use(saddr + 6));
-    		    saddr += 8;
-    		    daddr += 4;
-    		    daddr2+= 4;
-    		}
-    		daddr += (gpu_width - width) / numBuffers;
-    		daddr2 += (gpu_width - width) / numBuffers;
-    	    }
-        }
-#else
-	// Array to store the position from which data will be filled in the various output buffers.
-	CALint* position = new CALint[numBuffers];
-        memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
-	for (CALint y=0; y < height; y++)
-	{
-    	    CALint bank = y % numBuffers;
-    	    double* daddr = dst[bank].d_data + position[bank];
-    	    double* saddr = src + (y * pitch);
-    	    int count = dst[bank].DataSize * width;
-        
-    	    for (int i = 0;i < count;i += 64)
-    	    {
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-#endif
-    		_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
-    		_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 2));
-    		_mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 4));
-    		_mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr + 6));
-    		saddr += 8;
-    		daddr += 8;
-    	}
-        
-    	    position[bank] += gpu_width;
-	}
-	delete[] position;
-#endif
-    }
+#if !defined(CALDGEMM_44)
+			if (numBuffers <= 4)
+			{
+				for (CALint y = 0;y < width;y += 4)
+				{
+					double* saddr = src + (y * pitch);
+					double* saddr2 = src + ((y + 1) * pitch);
+					double* saddr3 = src + ((y + 2) * pitch);
+					double* saddr4 = src + ((y + 3) * pitch);
 
-    if (Info->DivideToGPU)
-    for (CALuint i = 0;i < numBuffers;i++)
-    {
-        CHKERR(calResUnmap(dst[i].res), "unmapping input buffer for buffer division");
-    }
-    return(0);
+					double* daddr = dst[0].d_data + y;
+					double* daddr2 = dst[1 % numBuffers].d_data + (1 / numBuffers) * gpu_width + y;
+					double* daddr3 = dst[2 % numBuffers].d_data + (2 / numBuffers) * gpu_width + y;
+					double* daddr4 = dst[3 % numBuffers].d_data + (3 / numBuffers) * gpu_width + y;
+
+					const int dpitch = 4 / numBuffers * gpu_width;
+
+					for (int i = 0;i < height;i += 4)
+					{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+						//Prefetching disabled as it currently has a negative performance impact
+						/*_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+						_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
+						_mm_prefetch(saddr3 + 100, _MM_HINT_NTA);
+						_mm_prefetch(saddr4 + 100, _MM_HINT_NTA);*/
+#endif
+						__m128d x1, x2, x3, x4, x5, x6, x7, x8, x9, x10;
+						x1 = _mm_load_pd_use(saddr);
+						x3 = _mm_load_pd_use(saddr + 2);
+						x2 = _mm_load_pd_use(saddr2);
+						x4 = _mm_load_pd_use(saddr2 + 2);
+						x5 = _mm_load_pd_use(saddr3);
+						x7 = _mm_load_pd_use(saddr3 + 2);
+						x6 = _mm_load_pd_use(saddr4);
+						x8 = _mm_load_pd_use(saddr4 + 2);
+
+						x9 = _mm_unpacklo_pd(x1, x2);
+						x10 = _mm_unpackhi_pd(x1, x2);
+						x1 = _mm_unpacklo_pd(x3, x4);
+						x2 = _mm_unpackhi_pd(x3, x4);
+						x3 = _mm_unpacklo_pd(x5, x6);
+						x4 = _mm_unpackhi_pd(x5, x6);
+						x5 = _mm_unpacklo_pd(x7, x8);
+						x6 = _mm_unpackhi_pd(x7, x8);
+
+						_mm_store_pd_use(daddr, x9);
+						_mm_store_pd_use(daddr2, x10);
+						_mm_store_pd_use(daddr + 2, x3);
+						_mm_store_pd_use(daddr2 + 2, x4);
+						_mm_store_pd_use(daddr3, x1);
+						_mm_store_pd_use(daddr4, x2);
+						_mm_store_pd_use(daddr3 + 2, x5);
+						_mm_store_pd_use(daddr4 + 2, x6);
+
+						saddr += 4;
+						saddr2 += 4;
+						saddr3 += 4;
+						saddr4 += 4;
+
+						daddr += dpitch;
+						daddr2 += dpitch;
+						daddr3 += dpitch;
+						daddr4 += dpitch;
+					}
+				}
+			}
+			else
+#endif
+				for (CALint y=0; y < width; y += 2)
+				{
+					double* saddr = src + (y * pitch);
+					double* saddr2 = src + ((y + 1) * pitch);
+
+					for (int i = 0;i < height;i += 2)
+					{
+#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
+						CALint bank = (i / 2) % 2;
+						double* daddr = dst[bank].d_data + (i / 4) * gpu_width * 2 + y * 2;
+						double* daddr2 = dst[bank].d_data + (i / 4) * gpu_width * 2 + y * 2 + 2;
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+						//Col Interleaved Storage, Numbuffers is either 2 or 4, might be optimized in 2 branches
+						CALint bank = (y / 2) % numBuffers;
+#ifdef CALDGEMM_DIAGONAL_TEXTURE
+						double* daddr = dst[bank].d_data + i * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (gpu_width / 2);
+						double* daddr2 = dst[bank].d_data + (i + 1) * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (gpu_width / 2);
+#else
+						double* daddr = dst[bank].d_data + (i * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
+						double* daddr2 = dst[bank].d_data + ((i + 1) * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
+#endif
+#else
+						//Standard Storage
+						CALint bank = (i) % numBuffers;
+						CALint bank2 = (i + 1) % numBuffers;
+						double* daddr = dst[bank].d_data + (i / numBuffers) * gpu_width + y;
+						double* daddr2 = dst[bank2].d_data + (i / numBuffers) * gpu_width + y;
+#endif
+
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+						_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+						_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
+#endif
+						__m128d x1, x2, x3, x4;
+						x1 = _mm_load_pd_use(saddr);
+						x2 = _mm_load_pd_use(saddr2);
+						x3 = _mm_unpacklo_pd(x1, x2);
+						x4 = _mm_unpackhi_pd(x1, x2);
+						_mm_store_pd_use(daddr, x3);
+						_mm_store_pd_use(daddr2, x4);
+						saddr += 2;
+						saddr2 += 2;
+					}
+				}
+		}
+		else
+		{
+#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
+			//Row / Col Interleaved Storage with 2 rows stored in one col
+			for (CALint y = 0;y < height / 2;y++)
+			{
+				double* daddr = dst[y % 2].d_data + y / 2 * gpu_width * 2;
+				double* saddr = src + 2 * y * pitch;
+				double* saddr2 = src + (2 * y + 1) * pitch;
+				for (int i = 0;i < width;i += 4)
+				{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+					_mm_prefetch(saddr + 60, _MM_HINT_NTA);
+					_mm_prefetch(saddr2 + 60, _MM_HINT_NTA);
+#endif
+					_mm_store_pd_use(daddr + 0, _mm_load_pd_use(saddr));
+					_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr2));
+					_mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 2));
+					_mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr2 + 2));
+					daddr += 8;
+					saddr += 4;
+					saddr2 += 4;
+				}
+			}
+
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+			//Col Interleaved Storage for transposed A with 4x4, 8x4 and 8x8 tiling
+			if (numBuffers == 4)
+			{
+				double* daddr = dst[0].d_data;
+				double* daddr2 = dst[1].d_data;
+				double* daddr3 = dst[2].d_data;
+				double* daddr4 = dst[3].d_data;
+				for (CALint y=0; y < height; y++)
+				{
+					int count = dst[0].DataSize * width;
+					double* saddr = src + (y * pitch);
+
+					for (int i = 0;i < count;i += 256)
+					{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+						_mm_prefetch(saddr + 30, _MM_HINT_NTA);
+#endif
+						_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
+						_mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));
+						_mm_store_pd_use(daddr3, _mm_load_pd_use(saddr + 4));
+						_mm_store_pd_use(daddr4, _mm_load_pd_use(saddr + 6));
+						_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 8));
+						_mm_store_pd_use(daddr2 + 2, _mm_load_pd_use(saddr + 10));
+						_mm_store_pd_use(daddr3 + 2, _mm_load_pd_use(saddr + 12));
+						_mm_store_pd_use(daddr4 + 2, _mm_load_pd_use(saddr + 14));
+						_mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 16));
+						_mm_store_pd_use(daddr2 + 4, _mm_load_pd_use(saddr + 18));
+						_mm_store_pd_use(daddr3 + 4, _mm_load_pd_use(saddr + 20));
+						_mm_store_pd_use(daddr4 + 4, _mm_load_pd_use(saddr + 22));
+						_mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr + 24));
+						_mm_store_pd_use(daddr2 + 6, _mm_load_pd_use(saddr + 26));
+						_mm_store_pd_use(daddr3 + 6, _mm_load_pd_use(saddr + 28));
+						_mm_store_pd_use(daddr4 + 6, _mm_load_pd_use(saddr + 30));
+						saddr += 32;
+						daddr += 8;
+						daddr2+= 8;
+						daddr3 += 8;
+						daddr4 += 8;
+					}
+					daddr += (gpu_width - width) / numBuffers;
+					daddr2 += (gpu_width - width) / numBuffers;
+					daddr3 += (gpu_width - width) / numBuffers;
+					daddr4 += (gpu_width - width) / numBuffers;
+				}
+			}
+			else
+			{
+				double* daddr = dst[0].d_data;
+				double* daddr2 = dst[1].d_data;
+				for (CALint y=0; y < height; y++)
+				{
+					int count = dst[0].DataSize * width;
+					double* saddr = src + (y * pitch);
+
+					for (int i = 0;i < count;i += 64)
+					{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+						_mm_prefetch(saddr + 76, _MM_HINT_NTA);
+#endif
+						_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
+						_mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));
+						_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 4));
+						_mm_store_pd_use(daddr2 + 2, _mm_load_pd_use(saddr + 6));
+						saddr += 8;
+						daddr += 4;
+						daddr2+= 4;
+					}
+					daddr += (gpu_width - width) / numBuffers;
+					daddr2 += (gpu_width - width) / numBuffers;
+				}
+			}
+#else
+			// Array to store the position from which data will be filled in the various output buffers.
+			CALint* position = new CALint[numBuffers];
+			memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
+			for (CALint y=0; y < height; y++)
+			{
+				CALint bank = y % numBuffers;
+				double* daddr = dst[bank].d_data + position[bank];
+				double* saddr = src + (y * pitch);
+				int count = dst[bank].DataSize * width;
+
+				for (int i = 0;i < count;i += 64)
+				{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+					_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+#endif
+					_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
+					_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 2));
+					_mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 4));
+					_mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr + 6));
+					saddr += 8;
+					daddr += 8;
+				}
+
+				position[bank] += gpu_width;
+			}
+			delete[] position;
+#endif
+		}
+
+		if (Info->DivideToGPU)
+			for (CALuint i = 0;i < numBuffers;i++)
+			{
+				CHKERR(calResUnmap(dst[i].res), "unmapping input buffer for buffer division");
+			}
+			return(0);
 }
 
 int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers)
 {
-    // Array to store the position from which data will be pulled in from the input buffers
-    CALint* position = new CALint[numBuffers];
-    memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
-    
-    if (Info->DstMemory == 'c' && !Info->KeepBuffersMapped)
-    for (CALuint i = 0;i < cPartsNum;i++)
-    {
-        CHKERR(calResMap(&src[i].v_data, &src[i].pitch, src[i].res, 0), "mapping output buffer for merging");
-	if (((size_t) src[i].v_data) & (vcpysize - 1))
-	{
-	    printf("Invalid alignment\n");
-	    return(1);
-	}
-    }
+	// Array to store the position from which data will be pulled in from the input buffers
+	CALint* position = new CALint[numBuffers];
+	memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
 
-    for (CALint y=0; y < height; y++)
-    {
-	//CALDGEMM_44 Init
+	if (Info->DstMemory == 'c' && !Info->KeepBuffersMapped)
+		for (CALuint i = 0;i < cPartsNum;i++)
+		{
+			CHKERR(calResMap(&src[i].v_data, &src[i].pitch, src[i].res, 0), "mapping output buffer for merging");
+			if (((size_t) src[i].v_data) & (vcpysize - 1))
+			{
+				printf("Invalid alignment\n");
+				return(1);
+			}
+		}
+
+		for (CALint y=0; y < height; y++)
+		{
+			//CALDGEMM_44 Init
 #if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
-	CALint bank = y % 4;
-	double* saddr2 = src[bank + 4].d_data + position[bank];
-	double* paddr2 = src[(y + 1) % 4 + 4].d_data + position[(y + 1) % 4];
+			CALint bank = y % 4;
+			double* saddr2 = src[bank + 4].d_data + position[bank];
+			double* paddr2 = src[(y + 1) % 4 + 4].d_data + position[(y + 1) % 4];
 #else
-        CALint bank = y % numBuffers;
+			CALint bank = y % numBuffers;
 #endif
 
-        double* daddr = dst + (y * pitch);
-        double* saddr = src[bank].d_data + position[bank];
-        double* paddr = src[(y + 1) % 4].d_data + position[(y + 1) % 4];
-        int count = src[bank].DataSize * width;
-        
+			double* daddr = dst + (y * pitch);
+			double* saddr = src[bank].d_data + position[bank];
+			double* paddr = src[(y + 1) % 4].d_data + position[(y + 1) % 4];
+			int count = src[bank].DataSize * width;
+
 #if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
 
-	if (Info->KeepBuffersMapped)
-	{
-    	    if (__fpclassify(Beta) == FP_ZERO)
-    	    {
-    		//CALDGEMM_44 BETA=ZERO HACKED LIB
-    		for (int i = 0;i < count;i += 64)
-    		{
+			if (Info->KeepBuffersMapped)
+			{
+				if (__fpclassify(Beta) == FP_ZERO)
+				{
+					//CALDGEMM_44 BETA=ZERO HACKED LIB
+					for (int i = 0;i < count;i += 64)
+					{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
-    		    _mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+						_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+						_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
 #endif
-    		    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    		    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
-    	    	    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
-    	    	    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
-    		    saddr += 4;
-    		    saddr2 += 4;
-    	    	    daddr += 8;
-    		}
-    	    }
-    	    else
-    	    {
-    		//CALDGEMM_44 GENERAL CASE ORIGINAL LIB
+						_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+						_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
+						_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
+						_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
+						saddr += 4;
+						saddr2 += 4;
+						daddr += 8;
+					}
+				}
+				else
+				{
+					//CALDGEMM_44 GENERAL CASE ORIGINAL LIB
 #undef _mm_store_pd_use
 #define _mm_store_pd_use _mm_store_pd
-    		__m128d beta = _mm_set1_pd(Beta);
-    		for (int i = 0;i < count;i += 64)
-    		{
+					__m128d beta = _mm_set1_pd(Beta);
+					for (int i = 0;i < count;i += 64)
+					{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
-    		    _mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-    	            _m_prefetchw(daddr + 50);
-//    	            _mm_prefetch(daddr + 50, _MM_HINT_NTA);
+						_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+						_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+						_m_prefetchw(daddr + 50);
+						//    	            _mm_prefetch(daddr + 50, _MM_HINT_NTA);
 #endif
-    		    _mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
-    	    	    _mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-    		    _mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
-    	    	    _mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
-    		    saddr += 4;
-    		    saddr2 += 4;
-    		    paddr += 4;
-    		    paddr2 += 4;
-    	    	    daddr += 8;
-    	    	}
-    	    }
-	}
-	else
-	{
-    	    if (__fpclassify(Beta) == FP_ZERO)
-    	    {
-    		//CALDGEMM_44 BETA=ZERO ORIGINAL LIB
-    	        for (int i = 0;i < count;i += 128)
-    		{
+						_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
+						_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
+						_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
+						_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
+						saddr += 4;
+						saddr2 += 4;
+						paddr += 4;
+						paddr2 += 4;
+						daddr += 8;
+					}
+				}
+			}
+			else
+			{
+				if (__fpclassify(Beta) == FP_ZERO)
+				{
+					//CALDGEMM_44 BETA=ZERO ORIGINAL LIB
+					for (int i = 0;i < count;i += 128)
+					{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
-    		    _mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+						_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+						_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
 #endif
-    		    _mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    		    _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
-    	    	    _mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
-    	    	    _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
-    		    _mm_store_pd_use(daddr + 8, _mm_load_pd(saddr + 4));
-    		    _mm_store_pd_use(daddr + 10, _mm_load_pd(saddr2 + 4));
-    	    	    _mm_store_pd_use(daddr + 12, _mm_load_pd(saddr + 6));
-    	    	    _mm_store_pd_use(daddr + 14, _mm_load_pd(saddr2 + 6));
-    		    saddr += 8;
-    		    saddr2 += 8;
-    	    	    daddr += 16;
-    		}
-    	    }
-    	    else
-    	    {
-    		//CALDGEMM_44 GENERAL CASE ORIGINAL LIB
+						_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+						_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
+						_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
+						_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
+						_mm_store_pd_use(daddr + 8, _mm_load_pd(saddr + 4));
+						_mm_store_pd_use(daddr + 10, _mm_load_pd(saddr2 + 4));
+						_mm_store_pd_use(daddr + 12, _mm_load_pd(saddr + 6));
+						_mm_store_pd_use(daddr + 14, _mm_load_pd(saddr2 + 6));
+						saddr += 8;
+						saddr2 += 8;
+						daddr += 16;
+					}
+				}
+				else
+				{
+					//CALDGEMM_44 GENERAL CASE ORIGINAL LIB
 #undef _mm_store_pd_use
 #define _mm_store_pd_use _mm_store_pd
-    		__m128d beta = _mm_set1_pd(Beta);
-    		for (int i = 0;i < count;i += 128)
-    		{
+					__m128d beta = _mm_set1_pd(Beta);
+					for (int i = 0;i < count;i += 128)
+					{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-//    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
-//    		    _mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-    	    	    _m_prefetchw(daddr + 50);
-//    	            _mm_prefetch(daddr + 50, _MM_HINT_NTA);
+						//    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
+						//    		    _mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+						_m_prefetchw(daddr + 50);
+						//    	            _mm_prefetch(daddr + 50, _MM_HINT_NTA);
 #endif
-    		    _mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
-    	    	    _mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-    		    _mm_store_pd_use(daddr + 8, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 8))));
-    	    	    _mm_store_pd_use(daddr + 12, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 12))));
-    		    _mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
-    	    	    _mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
-    		    _mm_store_pd_use(daddr + 10, _mm_add_pd(_mm_load_pd(saddr2 + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 10))));
-    	    	    _mm_store_pd_use(daddr + 14, _mm_add_pd(_mm_load_pd(saddr2 + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 14))));
-    		    saddr += 8;
-    		    saddr2 += 8;
-/*    		    paddr += 8;
-    		    paddr2 += 8;*/
-    	    	    daddr += 16;
-    	    	}
-    	    }
-    	}
-    	    
-	position[bank] += gpu_width / 2;
+						_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
+						_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
+						_mm_store_pd_use(daddr + 8, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 8))));
+						_mm_store_pd_use(daddr + 12, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 12))));
+						_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
+						_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
+						_mm_store_pd_use(daddr + 10, _mm_add_pd(_mm_load_pd(saddr2 + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 10))));
+						_mm_store_pd_use(daddr + 14, _mm_add_pd(_mm_load_pd(saddr2 + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 14))));
+						saddr += 8;
+						saddr2 += 8;
+						/*    		    paddr += 8;
+						paddr2 += 8;*/
+						daddr += 16;
+					}
+				}
+			}
+
+			position[bank] += gpu_width / 2;
 #else        
-        if (__fpclassify(Beta) == FP_ZERO)
-        {
-    	    //CALDGEMM_84 BETA=0
+			if (__fpclassify(Beta) == FP_ZERO)
+			{
+				//CALDGEMM_84 BETA=0
 #undef _mm_store_pd_use
 #define _mm_store_pd_use _mm_stream_pd
-    	    for (int i = 0;i < count;i += 64)
-    	    {
+				for (int i = 0;i < count;i += 64)
+				{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+					_mm_prefetch(saddr + 100, _MM_HINT_NTA);
 #endif
-    		_mm_store_pd_use(daddr, _mm_load_pd(saddr));
-    	        _mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 2));
-    		_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 4));
-    	        _mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 6));
-    		saddr += 8;
-    	        daddr += 8;
-    	    }
-        }
-        else
-        {
-    	    //CALDGEMM_82 General Case
+					_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+					_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 2));
+					_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 4));
+					_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 6));
+					saddr += 8;
+					daddr += 8;
+				}
+			}
+			else
+			{
+				//CALDGEMM_82 General Case
 #undef _mm_store_pd_use
 #define _mm_store_pd_use _mm_store_pd
-    	    __m128d beta = _mm_set1_pd(Beta);
-    	    for (int i = 0;i < count;i += 64)
-    	    {
+				__m128d beta = _mm_set1_pd(Beta);
+				for (int i = 0;i < count;i += 64)
+				{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-    		_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-    	        _m_prefetchw(daddr + 100);
+					_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+					_m_prefetchw(daddr + 100);
 #endif
-    		_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
-    	        _mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
-    		_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-    	        _mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
-    		saddr += 8;
-    	        daddr += 8;
-    	    }
-    	}
-    	
-        position[bank] += gpu_width;
-#endif //CALDGEMM_44
-    }
+					_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
+					_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
+					_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
+					_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
+					saddr += 8;
+					daddr += 8;
+				}
+			}
 
-    if (Info->DstMemory == 'c' && !Info->KeepBuffersMapped)
-    for (CALuint i = 0;i < cPartsNum;i++)
-    {
-        CHKERR(calResUnmap(src[i].res), "unmapping output buffer for merging");
-    }
-    delete[] position;
-    return(0);
+			position[bank] += gpu_width;
+#endif //CALDGEMM_44
+		}
+
+		if (Info->DstMemory == 'c' && !Info->KeepBuffersMapped)
+			for (CALuint i = 0;i < cPartsNum;i++)
+			{
+				CHKERR(calResUnmap(src[i].res), "unmapping output buffer for merging");
+			}
+			delete[] position;
+			return(0);
 }
 
 void caldgemm::checkCalPatch()
