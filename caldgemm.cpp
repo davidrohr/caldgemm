@@ -890,7 +890,6 @@ void* cblas_wrapper(void* arg)
 	const CBLAS_TRANSPOSE TransposeB = par->cls->TransposeB;
 	if (!Info->Quiet) printf("\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld, dynamic: %lld/%lld, cpu_k: %lld)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size, par->cpu_k);
 
-	par->cls->Timers.CPUTimer.Start();
 
 	int old_goto_threads = get_num_procs();
 	if (Info->Pin != -100)
@@ -902,8 +901,10 @@ void* cblas_wrapper(void* arg)
 	if (par->borders_done == CAL_FALSE && par->cls->ExecLinpack)
 	{
 	    if (!Info->Quiet) printf("\t\t\tDoint initial cblas runs to prepare Linpack factorization\n");
+	    par->cls->Timers.CPUTimer.Start();
 	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m + Info->Width, Info->Width, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B - Info->Width * B_pitch_use, B_pitch, Beta, C - Info->Width * (C_pitch + 1), C_pitch);
 	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->Width, Info->n, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Info->Width * C_pitch, C_pitch);
+	    par->cls->Timers.CPUTimer.Stop();
 	    if (!Info->Quiet) printf("\t\t\tStarting Linpack factorization\n");
 	    par->cls->Timers.LinpackTimer.Start();
 	    Info->linpack_factorize_function();
@@ -911,6 +912,7 @@ void* cblas_wrapper(void* arg)
 	    par->cls->Timers.LinpackTimer.Stop();
 	}
 
+	par->cls->Timers.CPUTimer.Start();
 	if (par->dynamic_run2)
 	{
 	    size_t blockm, blockn;
@@ -1314,7 +1316,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     {
 	if (Info->m >= Info->n)
 	{
-	    const size_t virtualm = Info->m + (Info->n % Info->Height) * Info->m / Info->n;
+	    size_t virtualm = Info->m + (Info->n % Info->Height) * Info->m / Info->n;
+	    if (ExecuteLinpackCallbacks) virtualm += Info->Width * (1.0 + (float) Info->m / Info->n);
 	    gpu_m = GPURatio * (float) virtualm + (Info->Height - 1);
 	    if (gpu_m > Info->m) gpu_m = Info->m;
 	    gpu_m -= gpu_m % Info->Height;
@@ -1325,7 +1328,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
         else
         {
-    	    const size_t virtualn = Info->n + (Info->m % Info->Height) * Info->n / Info->m;
+    	    size_t virtualn = Info->n + (Info->m % Info->Height) * Info->n / Info->m;
+	    if (ExecuteLinpackCallbacks) virtualn += Info->Width * (1.0 + (float) Info->n / Info->m);
 	    gpu_n = GPURatio * (float) virtualn + (Info->Height - 1);
 	    if (gpu_n > Info->n) gpu_n = Info->n;
 	    gpu_n -= gpu_n % Info->Height;
