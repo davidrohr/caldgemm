@@ -774,6 +774,16 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	}
     }
+    if (Info->MultiThread)
+    {
+	linpackParameters.terminate = CAL_FALSE;
+        for (int j = 0;j < 2;j++) pthread_mutex_init(&linpackParameters.linpackMutex[j], NULL);
+        if (pthread_mutex_lock(&linpackParameters.linpackMutex[1])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+    	pthread_t thr;
+	pthread_create(&thr, NULL, linpack_wrapper, this);
+	if (Info->Debug) printf("Waiting for linpack slave to start\n");
+	while (pthread_mutex_trylock(&linpackParameters.linpackMutex[1]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+    }
     
     if (Info->MemPolicy)
     {
@@ -864,6 +874,34 @@ void caldgemm::cal_init_constant_data(Data* &data, double alpha)
 	data[aPartsNum + bPartsNum].d_data[3] = alpha;
 }
 
+void* linpack_wrapper(void* arg)
+{
+    caldgemm* cls = (caldgemm*) arg;
+    volatile caldgemm::SampleInfo* Info = cls->Info;
+    if (Info->Debug) printf("Linpack helper thread started\n");
+    
+    if (Info->Pin != -100)
+    {
+	cpu_set_t linpack_mask;
+	CPU_ZERO(&linpack_mask);
+	CPU_SET(-Info->Pin, &linpack_mask);
+	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
+    }
+
+    if (pthread_mutex_lock(&cls->linpackParameters.linpackMutex[0])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+    while (pthread_mutex_lock(&cls->linpackParameters.linpackMutex[0]) == 0 && cls->linpackParameters.terminate == CAL_FALSE)
+    {
+	cls->Timers.LinpackTimer.Start();
+        Info->linpack_broadcast_function();
+	cls->Timers.LinpackTimer.Stop();
+        if (pthread_mutex_unlock(&cls->linpackParameters.linpackMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+    }
+
+    if (Info->Debug) printf("linpack slave terminating\n");
+    pthread_exit(NULL);
+    return(NULL);
+}
+
 void* cblas_wrapper(void* arg)
 {
     volatile caldgemm::cblasParameters* par = (caldgemm::cblasParameters*) arg;
@@ -894,8 +932,13 @@ void* cblas_wrapper(void* arg)
 	int old_goto_threads = get_num_procs();
 	if (Info->Pin != -100)
 	{
-	    goto_set_num_threads(old_goto_threads - (Info->Pin < 0 ? -Info->Pin : 1));
-	    caldgemm_goto_reserve_cpus(Info->Pin < 0 ? -Info->Pin : 1);
+	    int require_threads = (Info->Pin < 0 ? -Info->Pin : 1);
+	    if (par->borders_done == CAL_FALSE && par->cls->ExecLinpack)
+	    {
+		require_threads++;
+	    }
+	    goto_set_num_threads(old_goto_threads - require_threads);
+	    caldgemm_goto_reserve_cpus(require_threads);
 	}
 	
 	if (par->borders_done == CAL_FALSE && par->cls->ExecLinpack)
@@ -908,8 +951,17 @@ void* cblas_wrapper(void* arg)
 	    if (!Info->Quiet) printf("\t\t\tStarting Linpack factorization\n");
 	    par->cls->Timers.LinpackTimer.Start();
 	    Info->linpack_factorize_function();
-	    Info->linpack_broadcast_function();
 	    par->cls->Timers.LinpackTimer.Stop();
+	    if (Info->MultiThread)
+	    {
+		pthread_mutex_unlock(&par->cls->linpackParameters.linpackMutex[0]);
+	    }
+	    else
+	    {
+		par->cls->Timers.LinpackTimer.Start();
+		Info->linpack_broadcast_function();
+		par->cls->Timers.LinpackTimer.Stop();
+	    }
 	}
 
 	par->cls->Timers.CPUTimer.Start();
@@ -957,6 +1009,11 @@ void* cblas_wrapper(void* arg)
 		    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m % Info->Height, Info->n - par->cblas_size, Info->Width, Alpha, A + (Info->m - Info->m % Info->Height) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - Info->m % Info->Height) * C_pitch, C_pitch);
 		}
 	    }
+	}
+
+	if (par->borders_done == CAL_FALSE && par->cls->ExecLinpack && Info->MultiThread)
+	{
+	    pthread_mutex_lock(&par->cls->linpackParameters.linpackMutex[1]);
 	}
 	par->borders_done = CAL_TRUE;
 	goto_set_num_threads(old_goto_threads);
@@ -1767,6 +1824,13 @@ int caldgemm::ExitCALDGEMM()
     
     if (Info->MultiThread)
     {
+	if (Info->Debug) printf("Trying to terminate linpack slave\n");
+	linpackParameters.terminate = CAL_TRUE;
+        if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) printf("Error unlocking blas mutex 0 to terminate thread\n");
+	if (Info->Debug) printf("Waiting for linpack slave to terminate\n");
+    	while (pthread_mutex_trylock(&linpackParameters.linpackMutex[0]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) printf("Error unlocking blasMutex 1\n");
+	
 	if (Info->Debug) printf("Waiting for merge threads to terminate\n");
 	for (int i = 0;i < outputthreads;i++)
 	{

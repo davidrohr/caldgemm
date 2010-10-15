@@ -31,11 +31,13 @@ extern "C" {
 
 void* merge_wrapper(void* arg);
 void* cblas_wrapper(void* arg);
+void* linpack_wrapper(void* arg);
 
 class caldgemm : public calutil
 {
     friend void* merge_wrapper(void* arg);
     friend void* cblas_wrapper(void* arg);
+    friend void* linpack_wrapper(void* arg);
 
     public:
     
@@ -76,6 +78,12 @@ class caldgemm : public calutil
     };
     
     pthread_mutex_t obufferMutex[ctxcount];
+    
+    struct structLinpackParameters
+    {
+	pthread_mutex_t linpackMutex[2];
+	CALboolean terminate;
+    } linpackParameters;
     
     mergeParameters mParam[max_outputthreads];
         
