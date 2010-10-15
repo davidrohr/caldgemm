@@ -1298,6 +1298,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	GPURatio = Info->GPURatio;
     }
     
+    if (ExecuteLinpackCallbacks) GPURatio = 1.0 - (1.0 - GPURatio) * 0.75;
+    
     gpu_ratio_used = GPURatio;
     
     if (ExecuteLinpackCallbacks)
