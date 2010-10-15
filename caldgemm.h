@@ -83,7 +83,6 @@ class caldgemm : public calutil
     cpu_set_t gpumask;
     
     size_t gpu_m, gpu_n;
-    size_t ExecLinpack;
     
     bool caldgemm_initialized;
     

@@ -278,7 +278,7 @@ protected:
     
     struct TimerInfo
     {
-	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer, ATime;
+	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer, ATime, LinpackTimer;
 	int divideA, divideB;
     } Timers;
 
@@ -365,6 +365,7 @@ protected:
 
     //For Timing only
     bool CPUOnlyRun;
+    bool ExecLinpack;
     double gpu_ratio_used;
     double cpu_wait_time;
     

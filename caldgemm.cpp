@@ -904,8 +904,10 @@ void* cblas_wrapper(void* arg)
 	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m + Info->Width, Info->Width, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B - Info->Width * B_pitch_use, B_pitch, Beta, C - Info->Width * (C_pitch + 1), C_pitch);
 	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->Width, Info->n, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Info->Width * C_pitch, C_pitch);
 	    if (!Info->Quiet) printf("\t\t\tStarting Linpack factorization\n");
+	    par->cls->Timers.LinpackTimer.Start();
 	    Info->linpack_factorize_function();
 	    Info->linpack_broadcast_function();
+	    par->cls->Timers.LinpackTimer.Stop();
 	}
 
 	if (par->dynamic_run2)
@@ -1066,8 +1068,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     {
 	if (ExecuteLinpackCallbacks)
 	{
+	    Timers.LinpackTimer.Start();
 	    Info->linpack_factorize_function();
 	    Info->linpack_broadcast_function();
+	    Timers.LinpackTimer.Stop();
 	}
 	return(0);		//Do Nothing
     }
@@ -1222,8 +1226,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (ExecuteLinpackCallbacks)
 	{
 	    if (Info->Debug) printf("DGEMM was running on CPU only, executing linpack callback functions\n");
+	    Timers.LinpackTimer.Start();
     	    Info->linpack_factorize_function();
     	    Info->linpack_broadcast_function();
+	    Timers.LinpackTimer.Stop();
 	}
 	goto RunCALDGEMM_end;
     }
@@ -1604,8 +1610,10 @@ RunCALDGEMM_end:
     if (!Info->UseCPU && ExecuteLinpackCallbacks)
     {
 	if (!Info->Quiet) printf("CPU Was disabled, no asynchronous processing of linpack functions possible, executing linpack callback functions\n");
+        Timers.LinpackTimer.Start();
         Info->linpack_factorize_function();
         Info->linpack_broadcast_function();
+	Timers.LinpackTimer.Stop();
     }
 
     if (Info->Debug) printf("DGEMM Run Complete\n");
@@ -1810,6 +1818,7 @@ void caldgemm::ResetTimers()
     Timers.CPUTimer.Reset();
     Timers.GPUTimer.Reset();
     Timers.divideA = Timers.divideB = 0;
+    Timers.LinpackTimer.Reset();
 }
 
 #define MAX_HUGE_ADDRESSES 256
