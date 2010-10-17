@@ -515,12 +515,17 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 	{
 	    pitch_a = pitch_b = pitch_c = Info.n + Info.Width + (Info.n + Info.Width) % 2;
 	}
-	linpackmem = dgemm.AllocMemory(pitch_c * (Info.m + Info.Width + 1), mem_page_lock, mem_huge_table);
+	linpackmem = dgemm.AllocMemory(pitch_c * (Info.m + Info.Width + 1) + 8, mem_page_lock, mem_huge_table);
 	if (linpackmem == NULL) {printf("Memory Allocation Error\n"); return(1);}
 	
-	AA = linpackmem + Info.Width * pitch_c;
-	BB = linpackmem + Info.Width;
-	CC = linpackmem + Info.Width * (pitch_c + 1);
+	char* linpackmem2 = (char*) linpackmem;
+	if ((size_t) linpackmem2 % 64) linpackmem2 += 64 - ((size_t) linpackmem2) % 64;
+	double* linpackmem3 = (double*) linpackmem2;
+	
+	
+	AA = linpackmem3 + Info.Width * pitch_c;
+	BB = linpackmem3 + Info.Width;
+	CC = linpackmem3 + Info.Width * (pitch_c + 1);
     }
     else
     {
