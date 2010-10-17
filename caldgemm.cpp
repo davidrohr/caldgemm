@@ -1690,14 +1690,15 @@ RunCALDGEMM_end:
     {
 	printf("WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.CPUTimer.GetElapsedTime(), Info->m, Info->n);
     }
+    int retVal = 0;
     if( !AnalyzeResults(datas[0]) )
     {
-        return 1;
+        retVal = 1;
     }
     if (Info->Verify) delete[] D;
     
 
-    return(0);
+    return(retVal);
 }
 
 inline void caldgemm::DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn)
