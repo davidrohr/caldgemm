@@ -711,7 +711,8 @@ int main(CALint argc, CALchar** argv)
 	    CALboolean tmpquiet = Info.Quiet, tmpverify = Info.Verify;
     	    CALuint tmpiter = Info.Iterations;
     	    CALuint tmpm = Info.m, tmpn = Info.n;
-    	    Info.Quiet = Info.Verify = CAL_TRUE;
+    	    Info.Quiet = CAL_TRUE;
+    	    Info.Verify = CAL_FALSE;
     	    Info.Iterations = 2;
     	    if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
     	    if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
