@@ -703,10 +703,10 @@ int main(CALint argc, CALchar** argv)
     		fprintf(stdout, "Doing initial run... ");
     		fflush(stdout);
     	    }
-	    CALboolean tmpquiet = Info.Quiet;
+	    CALboolean tmpquiet = Info.Quiet, tmpverify = Info.Verify;
     	    CALuint tmpiter = Info.Iterations;
     	    CALuint tmpm = Info.m, tmpn = Info.n;
-    	    Info.Quiet = CAL_TRUE;
+    	    Info.Quiet = Info.Verify = CAL_TRUE;
     	    Info.Iterations = 2;
     	    if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
     	    if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
@@ -718,6 +718,7 @@ int main(CALint argc, CALchar** argv)
 	    Info.m = tmpm;
 	    Info.n = tmpn;
 	    Info.Quiet = tmpquiet;
+	    Info.Verify = tmpverify;
 	    Info.Iterations = tmpiter;
 	    if (!quietbench)
 	    {
