@@ -121,6 +121,7 @@ int reduced_height = -1;
 int reduced_width = -1;
 int iterations = 1;
 size_t pitch_a, pitch_b, pitch_c;
+bool linpackpitch = false;
 size_t height_a, height_b;
 
 bool mem_page_lock = true;;
@@ -177,6 +178,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(stderr, "\t-0        Write the output of divideBuffers directly to GPU instead of a seperate DMA transfer\n" );
     fprintf(stderr, "\t-A        Do the DMA transfer to GPU asynchronously\n" );
     fprintf(stderr, "\t-L        Memory Organisation like in HPL (LINPACK)\n" );
+    fprintf(stderr, "\t-P  <int> LDA=LDB=LDC = vel for HPL like memory\n" );
     fprintf(stderr, "\t-T        Allocate Memory using Huge Tables\n" );
     fprintf(stderr, "\t-B        Keep DMA Buffers mapped during kernel execution\n" );
     fprintf(stderr, "\t-x <file> Load Matrix\n" );
@@ -266,6 +268,17 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case 'L':
 		linpackmemory = true;
+                break;
+            case 'P':
+                if (++x < argc)
+                {
+            	    linpackpitch = true;
+                    sscanf(argv[x], "%lld", &pitch_c);
+                }
+                else
+                {
+                    return CAL_FALSE;
+                }
                 break;
             case 'T':
 		mem_huge_table = true;
@@ -494,7 +507,14 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 	transa = transb = false;
 	if (linpackmem) delete[] linpackmem;
     
-	pitch_a = pitch_b = pitch_c = Info.n + Info.Width + (Info.n + Info.Width) % 2;
+	if (linpackpitch)
+	{
+	    pitch_a = pitch_b = pitch_c;
+	}
+	else
+	{
+	    pitch_a = pitch_b = pitch_c = Info.n + Info.Width + (Info.n + Info.Width) % 2;
+	}
 	linpackmem = dgemm.AllocMemory(pitch_c * (Info.m + Info.Width + 1), mem_page_lock, mem_huge_table);
 	if (linpackmem == NULL) {printf("Memory Allocation Error\n"); return(1);}
 	
