@@ -65,6 +65,7 @@ class caldgemm : public calutil
     inline void DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn);
     void checkCalPatch();
     void cal_init_constant_data(Data* &data, double alpha);
+    virtual void print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2 = NULL);
 
     struct mergeParameters
     {

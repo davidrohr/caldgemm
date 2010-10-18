@@ -99,7 +99,7 @@ calutil::SampleInfo::SampleInfo()
     n = 0;
 }
 
-void calutil::print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2)
+void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2)
 {
     printf("Matrix %lld x %lld, Subblocks %lld x %lld, Strides: %lld / %lld\n", width, height, subx, suby, stridex, stridey);
     for (int j = 0;j < height;j += stridey)
@@ -111,12 +111,40 @@ void calutil::print_submatrices(double* M, size_t width, size_t height, size_t p
 		for (int ii = i;ii < i + subx && ii < width;ii++)
 		{
 		    if (M2 != NULL)
-			printf("%d%+ 10.3lf\t", (int) isDoubleEqual(M[jj * pitch + ii], M2[jj * pitch + ii]), M[jj * pitch + ii]);
+		    {
+			char tmpcolor[16] = "0";
+			
+			if (cParam.dynamic_run)
+			{
+	    		    if (gpu_m >= gpu_n)
+	    		    {
+	    			if (jj >= gpu_m - cParam.dynamic_run && ii >= gpu_n - cParam.dynamic_size) sprintf(tmpcolor, "01;34");
+			    }
+	    		    else
+	    		    {
+	    			if (jj >= gpu_m - cParam.dynamic_size && ii >= gpu_n - cParam.dynamic_run) sprintf(tmpcolor, "01;34");
+			    }
+			}
+	
+			if (Info->m >= Info->n)	//favor splitting m because of consecutive memory
+			{
+			    if (jj >= Info->m - cParam.cblas_size || ii >= Info->n - Info->n % Info->Height) sprintf(tmpcolor, "01;34");
+			}
+			else
+			{
+			    if (jj >= Info->m - Info->m & Info->Height || ii >= Info->n - cParam.cblas_size) sprintf(tmpcolor, "01;34");
+			}
+			
+			int ok = isDoubleEqual(M[jj * pitch + ii], M2[jj * pitch + ii]);
+			printf("\33[%sm%d\33[%sm%+ 10.3lf\t", ok ? "01;32" : "01;31", ok , tmpcolor, M[jj * pitch + ii]);
+		    }
 		    else
+		    {
 			printf(" %+ 10.3lf\t", M[jj * pitch + ii]);
+		    }
 		}
 	    }
-	    printf("\n");
+	    printf("\33[0m\n");
 	}
     }
     printf("Done\n");
@@ -1697,7 +1725,6 @@ RunCALDGEMM_end:
     }
     if (Info->Verify) delete[] D;
     
-
     return(retVal);
 }
 
