@@ -161,7 +161,8 @@ CALuint calutil::AnalyzeResults(Data* data)
     size_t total = 0;
 
     displayMatrixTiming("caldgemm");
-    if (Info->Verify) {
+    if (Info->Verify)
+    {
         printf("Verifying results can take a long time on large matrices.\n");
         CPerfCounter Timer;
         Timer.Reset();
@@ -169,6 +170,13 @@ CALuint calutil::AnalyzeResults(Data* data)
 	cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
         Timer.Stop();
         printf("CPU Time: %lf Gflops: %lf\n", Timer.GetElapsedTime(), (CALdouble)1e-09 * 2 * Info->m * Info->n * Info->Width / Timer.GetElapsedTime());
+        
+        int nblocksm = Info->m / Info->Height + 1;
+        int* errortiles = (int*) malloc((Info->n / Info->Height + 1) * nblocksm * sizeof(int));
+        memset(errortiles, 0, (Info->n / Info->Height + 1) * nblocksm * sizeof(int));
+        size_t errorsrel[3];
+        memset(errorsrel, 0, 3 * sizeof(size_t));
+        
         for (size_t i=0; i < Info->m; i++)
         {
             for (size_t j=0; j < Info->n; j++)
@@ -177,13 +185,21 @@ CALuint calutil::AnalyzeResults(Data* data)
                 {
             	    if (wrong < 1) printf("Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
                     ++wrong;
+                    errortiles[j / Info->Height * nblocksm + i / Info->Height]++;
+                    if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] > 0.05) errorsrel[0]++;
+                    else if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] < 0.0001) errorsrel[2]++;
+                    else errorsrel[1]++;
                 }
                 ++total;
             }
         }
         if (wrong)
         {
-            printf("%lld out of %lld elements were incorrect\n", wrong, total);
+            printf("%lld out of %lld elements were incorrect (Rel errors > 0.005: %lld, > 0.0001: %lld, rest: %lld)\n", wrong, total, errorsrel[0], errorsrel[1], errorsrel[2]);
+            if (errorsrel[0] == 0)
+            {
+        	printf("Passed with Warnings!!!\n");
+            }
         }
         else
         {
@@ -191,10 +207,26 @@ CALuint calutil::AnalyzeResults(Data* data)
         }
         if (wrong || Info->Debug)
         {
-    	    print_submatrices(C, Info->n, Info->m, C_pitch, 2, 2, Info->Height, Info->Height);
-    	    print_submatrices(D, Info->n, Info->m, C_pitch, 2, 2, Info->Height, Info->Height, C);
+    	    printf("GPU output matrix\n");
+    	    print_submatrices(C, Info->n, Info->m, C_pitch, 1, 1, Info->Height, Info->Height);
+    	    printf("Reference matrix\n");
+    	    print_submatrices(D, Info->n, Info->m, C_pitch, 1, 1, Info->Height, Info->Height, C);
         }
         
+        if (wrong)
+        {
+    	    printf("Number of errors in tiles\n");
+    	    for (int i = 0;i < Info->m;i += Info->Height)
+    	    {
+    		for (int j = 0;j < Info->n;j += Info->Height)
+    		{
+    		    printf("%8d\t", errortiles[j / Info->Height * nblocksm + i / Info->Height]);
+    		}
+    		printf("\n");
+    	    }
+        }
+        
+        free(errortiles);
     }
 
     return !wrong;
