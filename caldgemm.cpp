@@ -118,11 +118,11 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 			{
 	    		    if (gpu_m >= gpu_n)
 	    		    {
-	    			if (jj >= gpu_m - cParam.dynamic_run && ii >= gpu_n - cParam.dynamic_size) sprintf(tmpcolor, "01;34");
+	    			if (jj >= gpu_m - cParam.dynamic_run && ii >= gpu_n - cParam.dynamic_size) sprintf(tmpcolor, "01;33");
 			    }
 	    		    else
 	    		    {
-	    			if (jj >= gpu_m - cParam.dynamic_size && ii >= gpu_n - cParam.dynamic_run) sprintf(tmpcolor, "01;34");
+	    			if (jj >= gpu_m - cParam.dynamic_size && ii >= gpu_n - cParam.dynamic_run) sprintf(tmpcolor, "01;33");
 			    }
 			}
 	
@@ -135,6 +135,23 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 			    if (jj >= Info->m - Info->m & Info->Height || ii >= Info->n - cParam.cblas_size) sprintf(tmpcolor, "01;34");
 			}
 			
+			size_t k = gpu_m / Info->Height * gpu_n / Info->Height - 1;
+			for (int l = 0;l < cParam.dynamic_run2;l++)
+			{
+			    size_t cpublockm, cpublockn;
+			    DGEMM_getblocks(cParam.cpu_k, cpublockm, cpublockn);
+			    while ((gpu_m >= gpu_n ? (cpublockm * Info->Height >= gpu_m - cParam.dynamic_run && cpublockn * Info->Height >= gpu_n - cParam.dynamic_size) :
+				(cpublockn * Info->Height >= gpu_n - cParam.dynamic_run && cpublockm * Info->Height >= gpu_m - cParam.dynamic_size)))
+			    {
+				cParam.cpu_k--;
+				DGEMM_getblocks(cParam.cpu_k, cpublockm, cpublockn);
+			    }
+			    if (jj / Info->Height == cpublockm && ii / Info->Height == cpublockn)
+			    {
+				sprintf(tmpcolor, "01;35");
+			    }
+			}
+			    
 			int ok = isDoubleEqual(M[jj * pitch + ii], M2[jj * pitch + ii]);
 			printf("\33[%sm%d\33[%sm%+ 10.3lf\t", ok ? "01;32" : "01;31", ok , tmpcolor, M[jj * pitch + ii]);
 		    }
