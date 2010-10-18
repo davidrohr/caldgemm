@@ -508,8 +508,11 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
 						_mm_prefetch(saddr + 50, _MM_HINT_NTA);
 						_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+#ifndef _NO_AMD_CPU
 						_m_prefetchw(daddr + 50);
-						//    	            _mm_prefetch(daddr + 50, _MM_HINT_NTA);
+#else
+    			    	        	_mm_prefetch(daddr + 50, _MM_HINT_NTA);
+#endif
 #endif
 						_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
 						_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
@@ -558,8 +561,11 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
 						//    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
 						//    		    _mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+#ifndef _NO_AMD_CPU
 						_m_prefetchw(daddr + 50);
-						//    	            _mm_prefetch(daddr + 50, _MM_HINT_NTA);
+#else
+						_mm_prefetch(daddr + 50, _MM_HINT_NTA);
+#endif
 #endif
 						_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
 						_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
@@ -608,7 +614,9 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 				{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
 					_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+#ifndef _NO_AMD_CPU
 					_m_prefetchw(daddr + 100);
+#endif
 #endif
 					_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
 					_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
@@ -785,6 +793,8 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 
 	datas[i] = new Data[numInputs + numOutputs + numConstantBuffers];
 	resourceHandlers[i] = new CALresource[numInputs + numOutputs + numConstantBuffers];
+	memset(datas[i], 0, (numInputs + numOutputs + numConstantBuffers) * sizeof(Data));
+	memset(resourceHandlers[i], 0, (numInputs + numOutputs + numConstantBuffers) * sizeof(CALresource));
 	if (!SetupData(modules[i], resourceHandlers[i], datas[i], &device, &ctx_main, numInputs, numOutputs, numConstantBuffers, progNames[i], i))
 	{
 	    if (i < ctxcount)
@@ -1195,7 +1205,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	return(0);		//Do Nothing
     }
     
-    int retVal = 0;
 /*  //Disable output for all but one host in MPI rin
     if (strcmp(hostname, "gpu-dev05") != 0)
     {
@@ -1700,7 +1709,7 @@ OmitThirdRun:
 	    oldj = j;
     	    j = (j + 1) % ctxcount;
 	}
-	if(Info->Verify && i < Info->Iterations - 1 && !AnalyzeResults(datas[0])) retVal = 1;
+	if(Info->Verify && i < Info->Iterations - 1) AnalyzeResults(datas[0]);
     }
     Timers.GPUTimer.Stop();
     
@@ -1747,10 +1756,10 @@ RunCALDGEMM_end:
 	printf("WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.CPUTimer.GetElapsedTime(), Info->m, Info->n);
     }
     displayMatrixTiming("caldgemm");
-    if( !AnalyzeResults(datas[0])) retVal = 1;
+    AnalyzeResults(datas[0]);
     if (Info->Verify) delete[] D;
     
-    return(retVal);
+    return(0);
 }
 
 inline void caldgemm::DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn)
@@ -1865,7 +1874,25 @@ int caldgemm::ExitCALDGEMM()
 	}
     }
     
-    for (int i = 0;i < 1;i++) for (int j = 0;j < kernel_count;j++) delete[] progNames[i][j];
+    // Close the device
+    if (ctx_main) calCtxDestroy(ctx_main);
+    if (device)
+    {
+        if (calDeviceClose(device) != CAL_RESULT_OK )
+        {
+            fprintf(stderr, "There was an error closing the device.\n");
+            fprintf(stderr, "Error string is %s\n", calGetErrorString());
+        }
+    }
+
+    // Shutdown cal device
+    if (calShutdown() != CAL_RESULT_OK )
+    {
+        fprintf(stderr, "There was an error during cal shutdown.\n");
+        fprintf(stderr, "Error string is %s\n", calGetErrorString());
+    }
+    
+    for (int j = 0;j < kernel_count;j++) delete[] progNames[0][j];
     
     if (Info->UseCPU && Info->UseGPU)
     {
@@ -1908,23 +1935,6 @@ int caldgemm::ExitCALDGEMM()
 	for (int i = 0;i < outputthreads;i++) for (int j = 0;j < 2;j++) if (pthread_mutex_destroy(&mParam[i].mergeThreadMutex[j])) printf("Error destroying merge thread mutex %d/%d\n", i, j);
     }
 
-    // Close the device
-    if (ctx_main) calCtxDestroy(ctx_main);
-    if (device)
-    {
-        if (calDeviceClose(device) != CAL_RESULT_OK )
-        {
-            fprintf(stderr, "There was an error closing the device.\n");
-            fprintf(stderr, "Error string is %s\n", calGetErrorString());
-        }
-    }
-
-    // Shutdown cal device
-    if (calShutdown() != CAL_RESULT_OK )
-    {
-        fprintf(stderr, "There was an error during cal shutdown.\n");
-        fprintf(stderr, "Error string is %s\n", calGetErrorString());
-    }
 
     caldgemm_initialized = false;
     return(0);

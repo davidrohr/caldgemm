@@ -1025,11 +1025,13 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
     data.Width = tWidth;
     data.Height = tHeight;
     data.ComponentSize = CompSize;
+    bool allocated = false;
     if (tHeight > 1)
     {
 	data.CALMemory = CAL_TRUE;
 	if ((Info->DstMemory == 'g' || i < aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum) && (nContext < 2 || (Info->DstMemory == 'g' && i >= aPartsNum + bPartsNum + numConstantBuffers)))
 	{
+		allocated = true;
 		CHKERR(calResAllocRemote2D(&data.res, device, 1, tWidth, tHeight, getFormat(CompSize, data.DataSize, CAL_TRUE), flags), "allocattion of remote memory");
 		CHKERR(calCtxGetMem(&data.mem, *ctx, data.res), "getting remote memory for context");
 		CHKERR(calResMap(&data.v_data, &data.pitch, data.res, NULL), "mapping of remote memory");
@@ -1042,10 +1044,14 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
     }
     else
     {
-	if (nContext == 0) data.c_data = new CALchar[tWidth * DataSize * CompSize * tHeight];
+	if (nContext == 0)
+	{
+	    data.c_data = new CALchar[tWidth * DataSize * CompSize * tHeight];
+	    allocated = true;
+	}
 	data.CALMemory = CAL_FALSE;
     }
-    if (Info->Debug && nContext < 2 && (data.CALMemory == CAL_TRUE ? ((Info->DstMemory == 'g' || i <= aPartsNum + bPartsNum) && (Info->DivideToGPU == CAL_FALSE || i >= aPartsNum + bPartsNum)) : nContext == 0))
+    if (allocated)
     {
 	memset((void*)data.c_data, 0, tWidth * DataSize * CompSize * tHeight);
     }

@@ -234,7 +234,6 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 return CAL_FALSE;
             case 'e':
                 Info->Verify = CAL_TRUE;
-                Info->Iterations = 1;
                 break;
             case 'p':
                 Info->MemPolicy = CAL_TRUE;
@@ -718,7 +717,7 @@ int main(CALint argc, CALchar** argv)
     	    if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
     	    if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Info.m, Info.Width, Info.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
     	    {
-	        printf("Error running CALDGEMM\n");
+	        printf("Error running CALDGEMM\nexiting\n");
 		return(1);
 	    }
 	    Info.m = tmpm;
