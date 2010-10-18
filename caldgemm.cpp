@@ -673,6 +673,13 @@ void caldgemm::checkCalPatch()
 int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 {
     Info = pInfo;
+    
+    if (Info->Iterations > 1 && Info->UseCPU)
+    {
+	printf("ERROR: Multiple Iterations not supported with CPU enabled\n");
+	return(1);
+    }
+    
     gethostname(hostname, 255);
     sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);
     
@@ -1170,6 +1177,12 @@ int calutil::DumpMatrix(double* a, double* b, double* c, double alpha, double be
 
 int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB, bool ExecuteLinpackCallbacks)
 {
+    if (!caldgemm_initialized)
+    {
+	printf("Caldgemm not initialized, aborting DGEMM run\n");
+	return(1);
+    }
+
     if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0)
     {
 	if (ExecuteLinpackCallbacks)
@@ -1182,12 +1195,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	return(0);		//Do Nothing
     }
     
-    if (!caldgemm_initialized)
-    {
-	printf("Caldgemm not initialized, aborting DGEMM run\n");
-	return(1);
-    }
-
+    int retVal = 0;
 /*  //Disable output for all but one host in MPI rin
     if (strcmp(hostname, "gpu-dev05") != 0)
     {
@@ -1692,6 +1700,7 @@ OmitThirdRun:
 	    oldj = j;
     	    j = (j + 1) % ctxcount;
 	}
+	if(Info->Verify && i < Info->Iterations - 1 && !AnalyzeResults(datas[0])) retVal = 1;
     }
     Timers.GPUTimer.Stop();
     
@@ -1737,11 +1746,8 @@ RunCALDGEMM_end:
     {
 	printf("WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.CPUTimer.GetElapsedTime(), Info->m, Info->n);
     }
-    int retVal = 0;
-    if( !AnalyzeResults(datas[0]) )
-    {
-        retVal = 1;
-    }
+    displayMatrixTiming("caldgemm");
+    if( !AnalyzeResults(datas[0])) retVal = 1;
     if (Info->Verify) delete[] D;
     
     return(retVal);

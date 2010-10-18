@@ -160,16 +160,15 @@ CALuint calutil::AnalyzeResults(Data* data)
     size_t wrong = 0;
     size_t total = 0;
 
-    displayMatrixTiming("caldgemm");
     if (Info->Verify)
     {
-        printf("Verifying results can take a long time on large matrices.\n");
+        if (!Info->Quiet) printf("Verifying results can take a long time on large matrices.\n");
         CPerfCounter Timer;
         Timer.Reset();
         Timer.Start();
 	cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
         Timer.Stop();
-        printf("CPU Time: %lf Gflops: %lf\n", Timer.GetElapsedTime(), (CALdouble)1e-09 * 2 * Info->m * Info->n * Info->Width / Timer.GetElapsedTime());
+        if (!Info->Quiet) printf("CPU Time: %lf Gflops: %lf\n", Timer.GetElapsedTime(), (CALdouble)1e-09 * 2 * Info->m * Info->n * Info->Width / Timer.GetElapsedTime());
         
         int nblocksm = Info->m / Info->Height + 1;
         int* errortiles = (int*) malloc((Info->n / Info->Height + 1) * nblocksm * sizeof(int));
@@ -200,12 +199,16 @@ CALuint calutil::AnalyzeResults(Data* data)
             {
         	printf("Passed with Warnings!!!\n");
             }
+            else
+            {
+        	printf("FAILED\n");
+    	    }
         }
         else
         {
             printf("Passed!\n");
         }
-        if (wrong || Info->Debug)
+        if (!Info->Quiet && (wrong || Info->Debug))
         {
     	    printf("GPU output matrix\n");
     	    print_submatrices(C, Info->n, Info->m, C_pitch, 1, 1, Info->Height, Info->Height);
@@ -213,7 +216,7 @@ CALuint calutil::AnalyzeResults(Data* data)
     	    print_submatrices(D, Info->n, Info->m, C_pitch, 1, 1, Info->Height, Info->Height, C);
         }
         
-        if (wrong)
+        if (!Info->Quiet && wrong)
         {
     	    printf("Number of errors in tiles\n");
     	    for (int i = 0;i < Info->m;i += Info->Height)
