@@ -195,7 +195,7 @@ CALuint calutil::AnalyzeResults(Data* data)
         }
         if (wrong)
         {
-            printf("%lld out of %lld elements were incorrect (Rel errors > 0.005: %lld, > 0.0001: %lld, rest: %lld)\n", wrong, total, errorsrel[0], errorsrel[1], errorsrel[2]);
+            printf("%lld out of %lld elements were incorrect (Rel errors > 0.05: %lld, > 0.0001: %lld, rest: %lld)\n", wrong, total, errorsrel[0], errorsrel[1], errorsrel[2]);
             if (errorsrel[0] == 0)
             {
         	printf("Passed with Warnings!!!\n");
