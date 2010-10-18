@@ -1486,7 +1486,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	
 	if (!Info->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers) printf("WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
 	
-	cParam.cpu_k = nBlocks;
+	size_t test_cpu_k = cParam.cpu_k = nBlocks;
 	if (gpu_n && gpu_m)
 	for (size_t k = 0;k <= nBlocks;k++)
 	{
@@ -1529,7 +1529,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		blockm = newblockm;
 		if (Info->Debug) printf("Iteration k = %lld, m = %lld, n = %lld (Context %d)\n", k, blockm, blockn, j);
 		
-		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && (double) k >= 0.70f * GPURatio * nBlocks && k < cParam.cpu_k - 2)
+		if (Info->UseCPU && Info->MultiThread && Info->DynamicSched && (double) k >= 0.70f * GPURatio * nBlocks && k < test_cpu_k - 2)
 		{
 		    if (pthread_mutex_trylock(&cParam.cblasMutex[0]) == 0)
 		    {
@@ -1566,26 +1566,27 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     			else
     			{
 TryThirdRun:
-			    if (cParam.cpu_k <= 0) goto OmitThirdRun;
-    			    cParam.cpu_k--;
+			    if (test_cpu_k <= 0) goto OmitThirdRun;
+    			    test_cpu_k--;
 			    size_t cpublockm, cpublockn;
-			    DGEMM_getblocks(cParam.cpu_k, cpublockm, cpublockn);
-			    while (cParam.cpu_k > k && (gpu_m >= gpu_n ? (cpublockm * Info->Height >= gpu_m - cParam.dynamic_run && cpublockn * Info->Height >= gpu_n - cParam.dynamic_size) :
+			    DGEMM_getblocks(test_cpu_k, cpublockm, cpublockn);
+			    while (test_cpu_k > k && (gpu_m >= gpu_n ? (cpublockm * Info->Height >= gpu_m - cParam.dynamic_run && cpublockn * Info->Height >= gpu_n - cParam.dynamic_size) :
 				(cpublockn * Info->Height >= gpu_n - cParam.dynamic_run && cpublockm * Info->Height >= gpu_m - cParam.dynamic_size)))
 			    {
-				cParam.cpu_k--;
-				DGEMM_getblocks(cParam.cpu_k, cpublockm, cpublockn);
+				test_cpu_k--;
+				DGEMM_getblocks(test_cpu_k, cpublockm, cpublockn);
 			    }
-			    if (k < cParam.cpu_k - 1)
+			    if (k < test_cpu_k - 1)
 			    {
-				if (!Info->Quiet) printf("Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", cParam.cpu_k, cpublockm, cpublockn);
+				if (!Info->Quiet) printf("Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", test_cpu_k, cpublockm, cpublockn);
 				cParam.dynamic_run2++;
+				cParam.cpu_k = test_cpu_k;
 				if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 			    }
 			    else
 			    {
 OmitThirdRun:
-				cParam.cpu_k = 0;
+				test_cpu_k = 0;
 				if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 			    }
     			}
