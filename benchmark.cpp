@@ -748,7 +748,7 @@ int main(CALint argc, CALchar** argv)
         {
     	    for (int iter = 0;iter < iterations;iter++)
     	    {
-    		if (iterations > 1) printf("\nDGEMM Call Iteration %d\n\n", iter);
+    		if (iterations > 1 && !quietbench) printf("\nDGEMM Call Iteration %d\n\n", iter);
 #ifdef TESTMODE
 		if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #else
