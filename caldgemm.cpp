@@ -135,16 +135,17 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 			    if (jj >= Info->m - Info->m & Info->Height || ii >= Info->n - cParam.cblas_size) sprintf(tmpcolor, "01;34");
 			}
 			
-			size_t k = gpu_m / Info->Height * gpu_n / Info->Height - 1;
+			size_t k = gpu_m / Info->Height * gpu_n / Info->Height;
 			for (int l = 0;l < cParam.dynamic_run2;l++)
 			{
+			    k--;
 			    size_t cpublockm, cpublockn;
-			    DGEMM_getblocks(cParam.cpu_k, cpublockm, cpublockn);
+			    DGEMM_getblocks(k, cpublockm, cpublockn);
 			    while ((gpu_m >= gpu_n ? (cpublockm * Info->Height >= gpu_m - cParam.dynamic_run && cpublockn * Info->Height >= gpu_n - cParam.dynamic_size) :
 				(cpublockn * Info->Height >= gpu_n - cParam.dynamic_run && cpublockm * Info->Height >= gpu_m - cParam.dynamic_size)))
 			    {
-				cParam.cpu_k--;
-				DGEMM_getblocks(cParam.cpu_k, cpublockm, cpublockn);
+				k--;
+				DGEMM_getblocks(k, cpublockm, cpublockn);
 			    }
 			    if (jj / Info->Height == cpublockm && ii / Info->Height == cpublockn)
 			    {
