@@ -161,7 +161,6 @@ CALvoid Usage(const CALchar* name)
     fprintf(STD_OUT, "\t-c        Use CPU\n" );
     fprintf(STD_OUT, "\t-g        Use GPU\n" );
     fprintf(STD_OUT, "\t-f        Fast Init (Empty Matrices)\n" );
-    fprintf(STD_OUT, "\t-t  <int> Pin to a CPU core (-100 for no pinning, -x to use cpu 0 to x - 1)\n" );
     fprintf(STD_OUT, "\t-j  <dbl> GPU to CPU ratio\n" );
     fprintf(STD_OUT, "\t-s        Dynamic CPU GPU scheduling\n" );
     fprintf(STD_OUT, "\t-p        Interleaving Memory Policy\n" );
@@ -201,7 +200,6 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->MemPolicy = CAL_FALSE;
     Info->Disassemble = CAL_FALSE;
     Info->PrintILKernel = CAL_FALSE;
-    //Info->Pin = -3;
     Info->MultiThread = CAL_FALSE;
     //Info->DeviceNum = 0;
     //Info->Width = 1024;
@@ -472,11 +470,6 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                     return CAL_FALSE;
                 }
                 break;
-                
-    
-	    case 't':
-		Info->Pin = argc > x + 1 ? atoi(argv[++x]) : 0;
-		break;
         };
     }
     

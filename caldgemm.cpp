@@ -95,8 +95,6 @@ calutil::SampleInfo::SampleInfo()
     AsyncDMA = CAL_TRUE;
     KeepBuffersMapped = CAL_TRUE;
     NoPerformanceWarnings = CAL_FALSE;
-    Pin = MultiThread ? -2 : 0;		//1 Output Thread
-    Pin_HackedLibUnavailable = MultiThread ? -4 : 0;  //3 Output Threads
     m = 0;
     n = 0;
 }
@@ -663,21 +661,6 @@ void caldgemm::checkCalPatch()
     {
 	fprintf(STD_OUT, "Patched CAL library found, KeepBuffersMapped available\n");
     }
-
-    if (Info->KeepBuffersMapped == CAL_FALSE && (Info->Pin = Info->Pin_HackedLibUnavailable) != -100)
-    {
-        CPU_ZERO(&gpumask);
-        if (Info->Pin < 0)
-        {
-            for (int i = 0;i < -Info->Pin;i++) CPU_SET(i, &gpumask);
-        }
-        else
-        {
-            CPU_SET(Info->Pin, &gpumask);
-        }
-	if (Info->Debug) fprintf(STD_OUT, "Setting affinitiy to restrict on CPU %d\n", Info->Pin);
-	sched_setaffinity(0, sizeof(gpumask), &gpumask);
-    }
 }
 
 int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
@@ -693,23 +676,14 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     gethostname(hostname, 255);
     sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);
     
-    if (Info->Pin != -100)
+    CPU_ZERO(&gpumask);
+    CPU_SET(0, &gpumask);
+    
+    if (Info->Debug) fprintf(STD_OUT, "Setting CPU affinity\n");
+    if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
     {
-        CPU_ZERO(&gpumask);
-        if (Info->Pin < 0)
-        {
-            for (int i = 0;i < -Info->Pin;i++) CPU_SET(i, &gpumask);
-        }
-        else
-        {
-            CPU_SET(Info->Pin, &gpumask);
-        }
-	if (Info->Debug) fprintf(STD_OUT, "Setting affinitiy to restrict on CPU %d\n", Info->Pin);
-	if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
-	{
-    	    fprintf(STD_OUT, "Error setting CPU affinity\n");
-    	    return(1);
-    	}
+        fprintf(STD_OUT, "Error setting CPU affinity\n");
+        return(1);
     }
 
     if(!ValidateCALRuntime())
@@ -779,7 +753,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     	    fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
 	}
     }
-    outputthreads = Info->KeepBuffersMapped ? 1 : 3;
+    outputthreads = Info->KeepBuffersMapped ? CALDGEMM_OUTPUT_THREADS : CALDGEMM_OUTPUT_THREADS_SLOW;
                                                                     
     for (int i = 0;i < max_bbuffers;i++)
     {
@@ -812,7 +786,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	    pthread_mutex_init(&obufferMutex[i], NULL);
 	}
 	
-	if (i < outputthreads && Info->MultiThread)
+	if (i < max_outputthreads && Info->MultiThread)
 	{
 	    mParam[i].cls = this;
 	    mParam[i].terminate = CAL_FALSE;
@@ -868,7 +842,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     }*/
     //setpriority(PRIO_PROCESS, 0, -20);
 
-    if (Info->Pin != -100) sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
+    sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
     
     caldgemm_initialized = true;
 
@@ -946,14 +920,11 @@ void* linpack_wrapper(void* arg)
     volatile caldgemm::SampleInfo* Info = cls->Info;
     if (Info->Debug) fprintf(STD_OUT, "Linpack helper thread started\n");
     
-    if (Info->Pin != -100)
-    {
-	cpu_set_t linpack_mask;
-	CPU_ZERO(&linpack_mask);
-	CPU_SET(0, &linpack_mask);
-	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
-    }
-
+    cpu_set_t linpack_mask;
+    CPU_ZERO(&linpack_mask);
+    CPU_SET(0, &linpack_mask);
+    sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
+    
     if (pthread_mutex_lock(&cls->linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
     while (pthread_mutex_lock(&cls->linpackParameters.linpackMutex[0]) == 0 && cls->linpackParameters.terminate == CAL_FALSE)
     {
@@ -1070,16 +1041,14 @@ void* cblas_wrapper(void* arg)
 
 
 	int old_goto_threads = get_num_procs();
-	if (Info->Pin != -100)
+
+	int require_threads = par->cls->outputthreads + 1;
+	if (par->cls->ExecLinpack)
 	{
-	    int require_threads = (Info->Pin < 0 ? -Info->Pin : 1);
-	    if (par->cls->ExecLinpack)
-	    {
-		require_threads++;
-	    }
-	    goto_set_num_threads(old_goto_threads - require_threads);
-	    caldgemm_goto_reserve_cpus(require_threads);
+	    require_threads++;
 	}
+	goto_set_num_threads(old_goto_threads - require_threads);
+	caldgemm_goto_reserve_cpus(require_threads);
 	
 	if (par->cls->ExecLinpack)
 	{
@@ -1181,36 +1150,10 @@ void* merge_wrapper(void* arg)
     
     if (par->cls->Info->Debug) fprintf(STD_OUT, "Merger Thread %d started\n", par->nMergeThread);
     
-    if (par->cls->Info->Pin != -100)
-    {
-	if (-par->cls->Info->Pin == par->cls->outputthreads + 1)
-	{
-	    cpu_set_t merge_mask;
-	    CPU_ZERO(&merge_mask);
-	    CPU_SET(par->nMergeThread + 1, &merge_mask);
-	    sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
-	}
-	else
-	{
-#ifdef CALDGEMM_UNEQUAL_PINNING
-	    cpu_set_t merge_mask;
-	    CPU_ZERO(&merge_mask);
-	    if (par->cls->ctxcount % (-par->cls->Info->Pin - 1) == 0)
-	    {
-		int merge_cpu = 1 + (par->nMergeThread % (-par->cls->Info->Pin - 1));
-		if (par->cls->Info->Debug) fprintf(STD_OUT, "Merge CPU for Thread %d: %d\n", par->nMergeThread, merge_cpu);
-		CPU_SET(merge_cpu, &merge_mask);
-	    }
-	    else
-	    {
-		for (int i = 1;i < -par->cls->Info->Pin;i++) CPU_SET(i, &merge_mask);
-	    }
-	    sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
-#else
-	    sched_setaffinity(0, sizeof(cpu_set_t), &par->cls->gpumask);
-#endif
-	}
-    }
+    cpu_set_t merge_mask;
+    CPU_ZERO(&merge_mask);
+    CPU_SET(par->nMergeThread + 1, &merge_mask);
+    sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
     
     if (pthread_mutex_lock(&par->mergeThreadMutex[0])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
     while (pthread_mutex_lock(&par->mergeThreadMutex[0]) == 0 && par->terminate == CAL_FALSE)
@@ -1438,31 +1381,17 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
     CPUOnlyRun = false;
     
-    if (Info->Pin != -100)
+    cpu_set_t divide_mask;
+    CPU_ZERO(&divide_mask);
+    if (ExecuteLinpackCallbacks)
     {
-#ifndef CALDGEMM_UNEQUAL_PINNING
-	if (-Info->Pin == outputthreads + 1)
-	{
-#endif
-	    cpu_set_t divide_mask;
-	    CPU_ZERO(&divide_mask);
-	    if (ExecuteLinpackCallbacks)
-	    {
-		CPU_SET(-Info->Pin, &divide_mask);
-	    }
-	    else
-	    {
-		CPU_SET(0, &divide_mask);
-	    }
-	    sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
-#ifndef CALDGEMM_UNEQUAL_PINNING
-	}
-	else
-	{
-	    sched_setaffinity(0, sizeof(cpu_set_t), &gpumask);
-	}
-#endif
+	CPU_SET(outputthreads + 1, &divide_mask);
     }
+    else
+    {
+	CPU_SET(0, &divide_mask);
+    }
+    sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
     
     if (forceReinit)
     {
@@ -1758,7 +1687,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     }
     Timers.GPUTimer.Stop();
     
-    if (Info->Pin != -100) sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
+    sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
     if (Info->UseCPU)
     {
@@ -1919,7 +1848,7 @@ int caldgemm::ExitCALDGEMM()
 	{
 	    return 1;
 	}
-	if (i < outputthreads && Info->MultiThread)
+	if (i < max_outputthreads && Info->MultiThread)
 	{
 	    if (Info->Debug) fprintf(STD_OUT, "Trying to terminate merge slave %d\n", i);
 	    mParam[i].terminate = CAL_TRUE;
@@ -1965,7 +1894,7 @@ int caldgemm::ExitCALDGEMM()
 	if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "Error unlocking blasMutex 1\n");
 	
 	if (Info->Debug) fprintf(STD_OUT, "Waiting for merge threads to terminate\n");
-	for (int i = 0;i < outputthreads;i++)
+	for (int i = 0;i < max_outputthreads;i++)
 	{
 	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	    if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) fprintf(STD_OUT, "Error unlocking mergeMutex %d/1\n", i);
@@ -1985,7 +1914,7 @@ int caldgemm::ExitCALDGEMM()
     if (Info->MultiThread)
     {
 	for (int i = 0;i < ctxcount;i++) if (pthread_mutex_destroy(&obufferMutex[i])) fprintf(STD_OUT, "Error destroying obuffermutex %d\n", i);
-	for (int i = 0;i < outputthreads;i++) for (int j = 0;j < 2;j++) if (pthread_mutex_destroy(&mParam[i].mergeThreadMutex[j])) fprintf(STD_OUT, "Error destroying merge thread mutex %d/%d\n", i, j);
+	for (int i = 0;i < max_outputthreads;i++) for (int j = 0;j < 2;j++) if (pthread_mutex_destroy(&mParam[i].mergeThreadMutex[j])) fprintf(STD_OUT, "Error destroying merge thread mutex %d/%d\n", i, j);
 	if (pthread_mutex_destroy(&scheduleMutex)) fprintf(STD_OUT, "Error destroying schedule mutex\n");
     }
 

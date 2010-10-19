@@ -28,3 +28,6 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 //#define CALDGEMM_UNALIGNED_ADDRESSES
 //#define CALDGEMM_UNEQUAL_PINNING
 #define STD_OUT stderr
+#define CALDGEMM_OUTPUT_THREADS 1
+#define CALDGEMM_OUTPUT_THREADS_SLOW 3
+#define CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK 1
