@@ -107,10 +107,8 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 
 CALvoid calutil::displayMatrixTiming(const CALchar* name)
 {
-    if (!Info->Quiet || Info->DisplayTiming)
-    {
         CALdouble gflops_CPU = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Timers.System.GetElapsedTime();
-        printf("Program: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", name, 
+        if (!Info->Quiet || Info->DisplayTiming) printf("Program: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", name, 
                 Info->m, Info->Width, Info->Width, Info->n, Info->m, Info->n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
         if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
         {
@@ -130,15 +128,20 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
     		flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->m + (Info->m % Info->Height) * (Info->n - cParam.cblas_size) + cParam.dynamic_run2 * Info->Height * Info->Height) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
     		flopsg = (double) 1e-09 * ((Info->n - cParam.cblas_size) * (Info->m - Info->m % Info->Height) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Info->Height * Info->Height) * (2 * Info->Width + 2) * Info->Iterations / Timers.GPUTimer.GetElapsedTime();
     	    }
-    	    printf("GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)", Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
-    	    if (ExecLinpack) printf("     Linpack Time: %2.4lf (%d)        Total CPU Time: %2.4lf", Timers.LinpackTimer.GetElapsedTime(), ExecLinpack, Timers.CPUTimer.GetElapsedTime() + Timers.LinpackTimer.GetElapsedTime());
-    	    if (Info->TabularTiming)
+    	    
+    	    if (!Info->Quiet || Info->DisplayTiming)
     	    {
-    		printf("            GPU Ratio - Real: %2.3lf%% Guessed: %2.3lf%%, m*n: %E, CPU Wait Time: %2.3lf", (100.0 * flopsg / (flopsc + flopsg)), 100.0 * gpu_ratio_used, (double) (Info->m * Info->n), cpu_wait_time);
+    		printf("GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)", Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
+    	        if (ExecLinpack) printf("     Linpack Time: %2.4lf (%d)        Total CPU Time: %2.4lf", Timers.LinpackTimer.GetElapsedTime(), ExecLinpack, Timers.CPUTimer.GetElapsedTime() + Timers.LinpackTimer.GetElapsedTime());
+    		if (Info->TabularTiming)
+    		{
+    		    printf("            GPU Ratio - Real: %2.3lf%% Guessed: %2.3lf%%, m*n: %E, CPU Wait Time: %2.3lf", (100.0 * flopsg / (flopsc + flopsg)), 100.0 * gpu_ratio_used, (double) (Info->m * Info->n), cpu_wait_time);
+    		}
+    		printf("\n");
     	    }
-    	    printf("\n");
+    	    gpu_ratio_used = flopsg / (flopsc * Timers.GPUTimer.GetElapsedTime() / Timers.GPUTimer.GetElapsedTime() + flopsg);
         }
-	if (Info->VerboseTiming)
+	if ((!Info->Quiet || Info->DisplayTiming) && Info->VerboseTiming)
 	{
 	    CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width) * (CALdouble)Info->Iterations / Timers.Kernel.GetElapsedTime();
 	    CALdouble copyto = Info->DivideToGPU ? 0 : ((CALdouble) 1e-09 * (Info->Height * Timers.divideA + Info->Height * Timers.divideB) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterCopyTo.GetElapsedTime());
@@ -152,7 +155,6 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
     		printf("TIMES:\tw\t%lld\th\t%lld\tkernel\t%2.4lf\tdivide\t%2.4lf\tmerge\t%2.4lf\tcopyto\t%2.4lf\tcopyfr\t%2.4lf\n", Info->Width, Info->Height, gflops, copyDivide, copyMerge, copyto, copyfrom);
     	    }
     	}
-    }
 }
 
 CALuint calutil::AnalyzeResults(Data* data)

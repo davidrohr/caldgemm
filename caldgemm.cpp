@@ -1498,8 +1498,19 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	GPURatio = Info->GPURatio;
     }
     
-    if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.75;
-    else if (ExecuteLinpackCallbacks) GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
+    if (ExecuteLinpackCallbacks)
+    {
+	if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.75;
+	else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
+	if ((((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn) / linpack_last_mn < 0.3 && linpackGPURatios[ExecuteLinpackCallbacks] > 0.0001)
+	{
+	    GPURatio = linpackGPURatios[ExecuteLinpackCallbacks];
+	}
+	else
+	{
+	    linpackGPURatios[ExecuteLinpackCallbacks] = GPURatio;
+	}
+    }
     
     gpu_ratio_used = GPURatio;
     
@@ -1763,6 +1774,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 RunCALDGEMM_end:
     Timers.System.Stop();
     
+    
     if (!Info->UseCPU && ExecuteLinpackCallbacks)
     {
 	if (!Info->Quiet) printf("CPU Was disabled, no asynchronous processing of linpack functions possible, executing linpack callback functions\n");
@@ -1785,6 +1797,13 @@ RunCALDGEMM_end:
     displayMatrixTiming("caldgemm");
     AnalyzeResults(datas[0]);
     if (Info->Verify) delete[] D;
+
+    if (ExecuteLinpackCallbacks)
+    {
+	const double tmpratio = 0.5;
+	linpackGPURatios[ExecuteLinpackCallbacks] = tmpratio * linpackGPURatios[ExecuteLinpackCallbacks] + (1.0 - tmpratio) * gpu_ratio_used;
+	linpack_last_mn = (double) Info->m * (double) Info->n;
+    }
     
     return(0);
 }
