@@ -66,6 +66,7 @@ class caldgemm : public calutil
     void checkCalPatch();
     void cal_init_constant_data(Data* &data, double alpha);
     virtual void print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2 = NULL);
+    int cpuScheduler();
 
     struct mergeParameters
     {
@@ -94,6 +95,9 @@ class caldgemm : public calutil
     size_t gpu_m, gpu_n;
     
     bool caldgemm_initialized;
+    
+    pthread_mutex_t scheduleMutex;
+    volatile long long int gpu_k_barrier, cpu_k_barrier;
     
 #if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
     static const bool buffersSwitchable = true;
