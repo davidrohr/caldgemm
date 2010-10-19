@@ -950,7 +950,7 @@ void* linpack_wrapper(void* arg)
     {
 	cpu_set_t linpack_mask;
 	CPU_ZERO(&linpack_mask);
-	CPU_SET(-Info->Pin, &linpack_mask);
+	CPU_SET(0, &linpack_mask);
 	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
     }
 
