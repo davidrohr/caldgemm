@@ -1263,7 +1263,7 @@ int calutil::DumpMatrix(double* a, double* b, double* c, double alpha, double be
     return(0);
 }
 
-int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB, bool ExecuteLinpackCallbacks)
+int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB, int ExecuteLinpackCallbacks)
 {
     if (!caldgemm_initialized)
     {
@@ -1496,7 +1496,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	GPURatio = Info->GPURatio;
     }
     
-    if (ExecuteLinpackCallbacks) GPURatio = 1.0 - (1.0 - GPURatio) * 0.75;
+    if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.75;
+    else if (ExecuteLinpackCallbacks) GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
     
     gpu_ratio_used = GPURatio;
     

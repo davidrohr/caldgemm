@@ -366,7 +366,7 @@ protected:
 
     //For Timing only
     bool CPUOnlyRun;
-    bool ExecLinpack;
+    int ExecLinpack;
     double gpu_ratio_used;
     double cpu_wait_time;
     
