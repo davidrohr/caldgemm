@@ -1047,6 +1047,7 @@ void* cblas_wrapper(void* arg)
 	{
 	    require_threads++;
 	}
+	if (Info->Debug) fprintf(stderr, "Reserving %d threads for gpu (/ Linpack)\n", require_threads);
 	goto_set_num_threads(old_goto_threads - require_threads);
 	caldgemm_goto_reserve_cpus(require_threads);
 	
@@ -1239,6 +1240,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     bool forceCPU = false;
     bool forceReinit = false;
     double GPURatio;
+    int old_outputthreads = outputthreads;
     
     size_t MaxGpuM, MaxGpuN; //Maximal values of m and n that can be given to GPU, This is below m,n if ExecuteLinpackCallback = true
     
@@ -1380,6 +1382,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	goto RunCALDGEMM_end;
     }
     CPUOnlyRun = false;
+    
+    if (ExecuteLinpackCallbacks)
+    {
+	outputthreads = mymin(CALDGEMM_OUTPUT_THREADS_SLOW, outputthreads + CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK);
+    }
     
     cpu_set_t divide_mask;
     CPU_ZERO(&divide_mask);
@@ -1709,6 +1716,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 RunCALDGEMM_end:
     Timers.System.Stop();
+    outputthreads = old_outputthreads;
     
     
     if (!Info->UseCPU && ExecuteLinpackCallbacks)
