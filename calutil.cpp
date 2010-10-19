@@ -139,7 +139,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
     		}
     		fprintf(STD_OUT, "\n");
     	    }
-    	    gpu_ratio_used = flopsg / (flopsc * Timers.GPUTimer.GetElapsedTime() / Timers.GPUTimer.GetElapsedTime() + flopsg);
+    	    gpu_ratio_used = flopsg / (flopsc * Timers.CPUTimer.GetElapsedTime() / Timers.System.GetElapsedTime() + flopsg);
         }
 	if ((!Info->Quiet || Info->DisplayTiming) && Info->VerboseTiming)
 	{
