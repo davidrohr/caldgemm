@@ -1073,7 +1073,7 @@ void* cblas_wrapper(void* arg)
 	if (Info->Pin != -100)
 	{
 	    int require_threads = (Info->Pin < 0 ? -Info->Pin : 1);
-	    if (par->borders_done == CAL_FALSE && par->cls->ExecLinpack)
+	    if (par->cls->ExecLinpack)
 	    {
 		require_threads++;
 	    }
@@ -1081,7 +1081,7 @@ void* cblas_wrapper(void* arg)
 	    caldgemm_goto_reserve_cpus(require_threads);
 	}
 	
-	if (par->borders_done == CAL_FALSE && par->cls->ExecLinpack)
+	if (par->cls->ExecLinpack)
 	{
 	    if (!Info->Quiet) fprintf(STD_OUT, "\t\t\tDoint initial cblas runs to prepare Linpack factorization\n");
 	    par->cls->Timers.CPUTimer.Start();
@@ -1156,7 +1156,7 @@ void* cblas_wrapper(void* arg)
 	} while (par->cls->cpuScheduler());
 	par->cls->Timers.CPUTimer.Stop();
 
-	if (par->borders_done == CAL_FALSE && par->cls->ExecLinpack && Info->MultiThread)
+	if (par->cls->ExecLinpack && Info->MultiThread)
 	{
 	    pthread_mutex_lock(&par->cls->linpackParameters.linpackMutex[1]);
 	}
