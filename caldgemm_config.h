@@ -27,3 +27,4 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 //#define TEST_PARAMETERS
 //#define CALDGEMM_UNALIGNED_ADDRESSES
 //#define CALDGEMM_UNEQUAL_PINNING
+#define STD_OUT stderr

@@ -102,13 +102,13 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 
 #include "calutil.h"
 
-#define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
-#define WAITFOREVENT(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
+#define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {fprintf(STD_OUT, "Error '%s' while " text "\n", calGetErrorString());return(1);}
+#define WAITFOREVENT(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
 CALvoid calutil::displayMatrixTiming(const CALchar* name)
 {
         CALdouble gflops_CPU = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Timers.System.GetElapsedTime();
-        if (!Info->Quiet || Info->DisplayTiming) printf("Program: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", name, 
+        if (!Info->Quiet || Info->DisplayTiming) fprintf(STD_OUT, "Program: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", name, 
                 Info->m, Info->Width, Info->Width, Info->n, Info->m, Info->n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
         if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
         {
@@ -131,13 +131,13 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
     	    
     	    if (!Info->Quiet || Info->DisplayTiming)
     	    {
-    		printf("GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)", Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
-    	        if (ExecLinpack) printf("     Linpack Time: %2.4lf (%d)        Total CPU Time: %2.4lf", Timers.LinpackTimer.GetElapsedTime(), ExecLinpack, Timers.CPUTimer.GetElapsedTime() + Timers.LinpackTimer.GetElapsedTime());
+    		fprintf(STD_OUT, "GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)", Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
+    	        if (ExecLinpack) fprintf(STD_OUT, "     Linpack Time: %2.4lf (%d)        Total CPU Time: %2.4lf", Timers.LinpackTimer.GetElapsedTime(), ExecLinpack, Timers.CPUTimer.GetElapsedTime() + Timers.LinpackTimer.GetElapsedTime());
     		if (Info->TabularTiming)
     		{
-    		    printf("            GPU Ratio - Real: %2.3lf%% Guessed: %2.3lf%%, m*n: %E, CPU Wait Time: %2.3lf", (100.0 * flopsg / (flopsc + flopsg)), 100.0 * gpu_ratio_used, (double) (Info->m * Info->n), cpu_wait_time);
+    		    fprintf(STD_OUT, "            GPU Ratio - Real: %2.3lf%% Guessed: %2.3lf%%, m*n: %E, CPU Wait Time: %2.3lf", (100.0 * flopsg / (flopsc + flopsg)), 100.0 * gpu_ratio_used, (double) (Info->m * Info->n), cpu_wait_time);
     		}
-    		printf("\n");
+    		fprintf(STD_OUT, "\n");
     	    }
     	    gpu_ratio_used = flopsg / (flopsc * Timers.GPUTimer.GetElapsedTime() / Timers.GPUTimer.GetElapsedTime() + flopsg);
         }
@@ -148,11 +148,11 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
     	    CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterCopyFrom.GetElapsedTime()) : 0;
     	    CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterMerge.GetElapsedTime());
     	    CALdouble copyDivide = (CALdouble) 1e-09 * (Info->Height * Timers.divideA + Info->Height * Timers.divideB) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterDivide.GetElapsedTime();
-    	    printf("Times:  Kernel                    Divide (%d,%d)            Merge                   Copy To                 Copy From\n", Timers.divideA, Timers.divideB);
-    	    printf("        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
+    	    fprintf(STD_OUT, "Times:  Kernel                    Divide (%d,%d)            Merge                   Copy To                 Copy From\n", Timers.divideA, Timers.divideB);
+    	    fprintf(STD_OUT, "        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
     	    if (Info->TabularTiming)
     	    {
-    		printf("TIMES:\tw\t%lld\th\t%lld\tkernel\t%2.4lf\tdivide\t%2.4lf\tmerge\t%2.4lf\tcopyto\t%2.4lf\tcopyfr\t%2.4lf\n", Info->Width, Info->Height, gflops, copyDivide, copyMerge, copyto, copyfrom);
+    		fprintf(STD_OUT, "TIMES:\tw\t%lld\th\t%lld\tkernel\t%2.4lf\tdivide\t%2.4lf\tmerge\t%2.4lf\tcopyto\t%2.4lf\tcopyfr\t%2.4lf\n", Info->Width, Info->Height, gflops, copyDivide, copyMerge, copyto, copyfrom);
     	    }
     	}
 }
@@ -164,13 +164,13 @@ CALuint calutil::AnalyzeResults(Data* data)
 
     if (Info->Verify)
     {
-        if (!Info->Quiet) printf("Verifying results can take a long time on large matrices.\n");
+        if (!Info->Quiet) fprintf(STD_OUT, "Verifying results can take a long time on large matrices.\n");
         CPerfCounter Timer;
         Timer.Reset();
         Timer.Start();
 	cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
         Timer.Stop();
-        if (!Info->Quiet) printf("CPU Time: %lf Gflops: %lf\n", Timer.GetElapsedTime(), (CALdouble)1e-09 * 2 * Info->m * Info->n * Info->Width / Timer.GetElapsedTime());
+        if (!Info->Quiet) fprintf(STD_OUT, "CPU Time: %lf Gflops: %lf\n", Timer.GetElapsedTime(), (CALdouble)1e-09 * 2 * Info->m * Info->n * Info->Width / Timer.GetElapsedTime());
         
         int nblocksm = Info->m / Info->Height + 1;
         int* errortiles = (int*) malloc((Info->n / Info->Height + 1) * nblocksm * sizeof(int));
@@ -184,7 +184,7 @@ CALuint calutil::AnalyzeResults(Data* data)
             {
                 if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
                 {
-            	    if (wrong < 1) printf("Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
+            	    if (wrong < 1) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
                     ++wrong;
                     errortiles[j / Info->Height * nblocksm + i / Info->Height]++;
                     if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] > 0.05) errorsrel[0]++;
@@ -196,38 +196,38 @@ CALuint calutil::AnalyzeResults(Data* data)
         }
         if (wrong)
         {
-            printf("%lld out of %lld elements were incorrect (Rel errors > 0.05: %lld, > 0.0001: %lld, rest: %lld)\n", wrong, total, errorsrel[0], errorsrel[1], errorsrel[2]);
+            fprintf(STD_OUT, "%lld out of %lld elements were incorrect (Rel errors > 0.05: %lld, > 0.0001: %lld, rest: %lld)\n", wrong, total, errorsrel[0], errorsrel[1], errorsrel[2]);
             if (errorsrel[0] == 0)
             {
-        	printf("Passed with Warnings!!!\n");
+        	fprintf(STD_OUT, "Passed with Warnings!!!\n");
             }
             else
             {
-        	printf("FAILED\n");
+        	fprintf(STD_OUT, "FAILED\n");
     	    }
         }
         else
         {
-            printf("Passed!\n");
+            fprintf(STD_OUT, "Passed!\n");
         }
         if (!Info->Quiet && (wrong || Info->Debug))
         {
-    	    printf("GPU output matrix\n");
+    	    fprintf(STD_OUT, "GPU output matrix\n");
     	    print_submatrices(C, Info->n, Info->m, C_pitch, 1, 1, Info->Height, Info->Height);
-    	    printf("Reference matrix\n");
+    	    fprintf(STD_OUT, "Reference matrix\n");
     	    print_submatrices(D, Info->n, Info->m, C_pitch, 1, 1, Info->Height, Info->Height, C);
         }
         
         if (!Info->Quiet && wrong)
         {
-    	    printf("Number of errors in tiles\n");
+    	    fprintf(STD_OUT, "Number of errors in tiles\n");
     	    for (int i = 0;i < Info->m;i += Info->Height)
     	    {
     		for (int j = 0;j < Info->n;j += Info->Height)
     		{
-    		    printf("%8d\t", errortiles[j / Info->Height * nblocksm + i / Info->Height]);
+    		    fprintf(STD_OUT, "%8d\t", errortiles[j / Info->Height * nblocksm + i / Info->Height]);
     		}
-    		printf("\n");
+    		fprintf(STD_OUT, "\n");
     	    }
         }
         
@@ -319,7 +319,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
         }
         else
         {
-            fprintf(stderr, "Error: Path that should be unreachable is reached\n");
+            fprintf(STD_OUT, "Error: Path that should be unreachable is reached\n");
             return 0;
         }
         if (AllocateMemory(data[i], device, ctx, tWidth, tHeight, mComponents, sizeof(CALdouble), flag, i, nContext)) return(1);
@@ -330,8 +330,8 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     //  setup the program's inputs and outputs
     //
     if (!AllocateResources(ctx, device, _Res, bStop, fStop, cStop, data, nContext)) {
-        if (nContext < ctxcount) fprintf(stderr, "There was an error in allocating resources and binding them to memory\n");
-        else if (Info->Debug) printf("No more memory available for bbuffers\n");
+        if (nContext < ctxcount) fprintf(STD_OUT, "There was an error in allocating resources and binding them to memory\n");
+        else if (Info->Debug) fprintf(STD_OUT, "No more memory available for bbuffers\n");
         return 0;
     }
     
@@ -340,7 +340,7 @@ CALint calutil::SetupData ( CALmodule *module, CALresource* &_Res, Data* &data, 
     {
 	if (!BindIONames(ctx, &module[i], bStop, fStop, cStop, data, ctxProgNames[i]))
 	{
-    	    fprintf(stderr, "There was an error in binding the memory to I/O names (context %d, kernel %d).\n", nContext, i);
+    	    fprintf(STD_OUT, "There was an error in binding the memory to I/O names (context %d, kernel %d).\n", nContext, i);
     	    return 0;
     	}
     }
@@ -423,31 +423,31 @@ double CPerfCounter::GetElapsedTime(void)
 
 static void __logger(const CALchar *msg)
 {
-    fprintf(stderr, msg);
+    fprintf(STD_OUT, msg);
 }
 
 CALint calutil::Initialize(CALdevice *device, CALcontext *ctx, CALuint deviceNum )
 {
     if (calInit() != CAL_RESULT_OK )
     {
-        fprintf(stderr, "There was an error initializing CAL.\n");
-        fprintf(stderr, "Error string is %s\n", calGetErrorString());
+        fprintf(STD_OUT, "There was an error initializing CAL.\n");
+        fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
         return 0;
     }
 
     // Open the first device
     if (calDeviceOpen(device, deviceNum) != CAL_RESULT_OK )
     {
-        fprintf(stderr, "There was an error opening the device %d.\n", deviceNum);
-        fprintf(stderr, "Error string is %s\n", calGetErrorString());
+        fprintf(STD_OUT, "There was an error opening the device %d.\n", deviceNum);
+        fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
         return 0;
     }
 
     // Create a CAL context
     if (calCtxCreate(&ctx_main, *device) != CAL_RESULT_OK )
     {
-        fprintf(stderr, "There was an error creatint the context.\n");
-	fprintf(stderr, "Error string is %s\n", calGetErrorString());
+        fprintf(STD_OUT, "There was an error creatint the context.\n");
+	fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
 	return 0;
     }
     return 1;
@@ -464,34 +464,34 @@ CALint calutil::SetupKernel(const CALchar* ILKernel, CALmodule* module, CALconte
     attribs.struct_size = sizeof(CALdeviceattribs);
     if (calDeviceGetAttribs(&attribs, Info->DeviceNum) != CAL_RESULT_OK)
     {
-        fprintf(stderr, "There was an error getting device attribs.\n");
-        fprintf(stderr, "Error string is %s\n", calGetErrorString());
+        fprintf(STD_OUT, "There was an error getting device attribs.\n");
+        fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
         return 0;
     }
     
     // Compile IL kernel into object
     CALobject obj;
-    if (Info->PrintILKernel && (module == modules[0] || module == &modules[0][1])) printf("Kernel:\n%s\n", ILKernel);
+    if (Info->PrintILKernel && (module == modules[0] || module == &modules[0][1])) fprintf(STD_OUT, "Kernel:\n%s\n", ILKernel);
     if (calclCompile(&obj, CAL_LANGUAGE_IL, ILKernel, attribs.target) != CAL_RESULT_OK)
     {
-        fprintf(stderr, "There was an error compiling the program.\n");
-        fprintf(stderr, "Kernel: %s\n", ILKernel);
-        fprintf(stderr, "Error string is %s\n", calclGetErrorString());
+        fprintf(STD_OUT, "There was an error compiling the program.\n");
+        fprintf(STD_OUT, "Kernel: %s\n", ILKernel);
+        fprintf(STD_OUT, "Error string is %s\n", calclGetErrorString());
         return 0;
     }
 
     // Link object into an image
     if (calclLink(&image, &obj, 1) != CAL_RESULT_OK)
     {
-        fprintf(stderr, "There was an error linking the program.\n");
-        fprintf(stderr, "Error string is %s\n", calclGetErrorString());
+        fprintf(STD_OUT, "There was an error linking the program.\n");
+        fprintf(STD_OUT, "Error string is %s\n", calclGetErrorString());
         return 0;
     }
 
     if (calclFreeObject(obj) != CAL_RESULT_OK)
     {
-        fprintf(stderr, "There was an error freeing the compiler object.\n");
-        fprintf(stderr, "Error string: %s\n", calclGetErrorString());
+        fprintf(STD_OUT, "There was an error freeing the compiler object.\n");
+        fprintf(STD_OUT, "Error string: %s\n", calclGetErrorString());
         return 0;
     }
     if (disassemble == CAL_TRUE)
@@ -502,15 +502,15 @@ CALint calutil::SetupKernel(const CALchar* ILKernel, CALmodule* module, CALconte
     // Load module into the context
     if (calModuleLoad(module, *ctx, image) != CAL_RESULT_OK)
     {
-        fprintf(stderr, "There was an error loading the program module.\n");
-        fprintf(stderr, "Error string is %s\n", calGetErrorString());
+        fprintf(STD_OUT, "There was an error loading the program module.\n");
+        fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
         return 0;
     }
 
     if (calclFreeImage(image) != CAL_RESULT_OK)
     {
-        fprintf(stderr, "There was an error freeing the program image.\n");
-        fprintf(stderr, "Error string is %s\n", calGetErrorString());
+        fprintf(STD_OUT, "There was an error freeing the program image.\n");
+        fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
         return 0;
     }
 
@@ -523,8 +523,8 @@ CALint calutil::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, CA
     CALresult r = CAL_RESULT_ERROR;
     if (calModuleGetEntry(&func, *ctx, *module, "main") != CAL_RESULT_OK)
     {
-        fprintf(stderr, "There was an error finding the program entry point.\n");
-        fprintf(stderr, "Error string is %s\n", calGetErrorString());
+        fprintf(STD_OUT, "There was an error finding the program entry point.\n");
+        fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
         return 0;
     }
 
@@ -540,8 +540,8 @@ CALint calutil::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, CA
     r = calCtxRunProgram(event, *ctx, func, &rect);
     if (r != CAL_RESULT_OK)
     {
-	fprintf(stderr, "There was an error running the program, Error code: %d.\n", r);
-	fprintf(stderr, "Error string is %s\n", calGetErrorString());
+	fprintf(STD_OUT, "There was an error running the program, Error code: %d.\n", r);
+	fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
 	return 0;
     }
 
@@ -550,7 +550,7 @@ CALint calutil::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, CA
     {
 	if (event) WAITFOREVENT(*ctx, *event);
 	Timers.Kernel.Stop();
-	if (Info->Debug) printf("\tTotal Kernel Time: %2.4lf\n", Timers.Kernel.GetElapsedTime());
+	if (Info->Debug) fprintf(STD_OUT, "\tTotal Kernel Time: %2.4lf\n", Timers.Kernel.GetElapsedTime());
     }
 
     return 1;
@@ -595,13 +595,13 @@ CALint calutil::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data
 		}
         	if (calCtxReleaseMem(*ctx, data[i].dstMem) != CAL_RESULT_OK )
                 {
-                    fprintf(stderr, "There was an error releasing memory handle %d.\n", i);
-                    fprintf(stderr, "Error string is %s\n", calGetErrorString());
+                    fprintf(STD_OUT, "There was an error releasing memory handle %d.\n", i);
+                    fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
                 }
                 if (calResFree(resourceHandler[i]) != CAL_RESULT_OK )
                 {
-                    fprintf(stderr, "There was an error releasing resource handle %d.\n", i);
-                    fprintf(stderr, "Error string is %s\n", calGetErrorString());
+                    fprintf(STD_OUT, "There was an error releasing resource handle %d.\n", i);
+                    fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
                 }
             }
         }
@@ -621,8 +621,8 @@ CALint calutil::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, C
 	{
     	    if (calModuleUnload(*ctx, module[i]) != CAL_RESULT_OK )
     	    {
-    		printf("Error unloading module\n");
-        	fprintf(stderr, "Error string is %s\n", calGetErrorString());
+    		fprintf(STD_OUT, "Error unloading module\n");
+        	fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
     	    }
     	}
     }
@@ -731,23 +731,23 @@ CALint calutil::CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, Data* data, 
     {
 	if (data[i].CALMemory)
 	{
-	    //if (Info->Debug) printf("GPUHandle: %d, CPUHandle: %d\n", data[i].dstMem, data[i].mem);
+	    //if (Info->Debug) fprintf(STD_OUT, "GPUHandle: %d, CPUHandle: %d\n", data[i].dstMem, data[i].mem);
 	    CHKERR(calMemCopy(event, *ctx, data[i].dstMem, data[i].mem, NULL), "copying data from gpu");
 	    continue;
 	}
         r = calResMap((CALvoid**)&ptr, &pitch, _Res[i], 0);
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
-            fprintf(stderr, "Error string is %s\n",calGetErrorString());
+            fprintf(STD_OUT, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
+            fprintf(STD_OUT, "Error string is %s\n",calGetErrorString());
             return 1;
         }
         copyFrom(ptr, data[i], pitch);
         r = calResUnmap(_Res[i]);
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
-            fprintf(stderr, "Error string is %s\n",calGetErrorString());
+            fprintf(STD_OUT, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
+            fprintf(STD_OUT, "Error string is %s\n",calGetErrorString());
             return 1;
         }
     }
@@ -803,23 +803,23 @@ CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CA
         r = calResMap((CALvoid**)&ptr, &pitch, _Res[i], 0);
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
-            fprintf(stderr, "Error string is %s\n",calGetErrorString());
+            fprintf(STD_OUT, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
+            fprintf(STD_OUT, "Error string is %s\n",calGetErrorString());
             return 1;
         }
         copyTo(ptr, data[i], pitch);
         r = calResUnmap(_Res[i]);
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
-            fprintf(stderr, "Error string is %s\n",calGetErrorString());
+            fprintf(STD_OUT, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
+            fprintf(STD_OUT, "Error string is %s\n",calGetErrorString());
             return 1;
         }
     }
     if (Info->AsyncTiming && constants == CAL_FALSE)
     {
 	Timers.ATime.Stop();
-	printf("\t\tCopyToGPU: Time until command issued: %2.4lf\n", Timers.ATime.GetElapsedTime());
+	fprintf(STD_OUT, "\t\tCopyToGPU: Time until command issued: %2.4lf\n", Timers.ATime.GetElapsedTime());
 	Timers.ATime.Start();
     }
     if (Info->VerboseTiming && constants == CAL_FALSE) WAITFOREVENT(*ctx, *event);
@@ -828,7 +828,7 @@ CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CA
     {
 	WAITFOREVENT(*ctx, *event);
 	Timers.ATime.Stop();
-	printf("\t\tCopyToGPU: Time until event done: %2.4lf\n", Timers.ATime.GetElapsedTime());
+	fprintf(STD_OUT, "\t\tCopyToGPU: Time until event done: %2.4lf\n", Timers.ATime.GetElapsedTime());
     }
     return 0;
 }
@@ -880,43 +880,43 @@ CALint calutil::BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, C
         }
         else
         {
-            fprintf(stderr, "Error: Path that should be unreachable is reached\n");
+            fprintf(STD_OUT, "Error: Path that should be unreachable is reached\n");
             return 0;
         }
         r = calModuleGetName(&ctxProgNames[i], *ctx, *module, buffer);
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
-            fprintf(stderr, "Error string is %s\n",calGetErrorString());
-            fprintf(stderr, "Failing name binding was %s\n", buffer);
+            fprintf(STD_OUT, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
+            fprintf(STD_OUT, "Error string is %s\n",calGetErrorString());
+            fprintf(STD_OUT, "Failing name binding was %s\n", buffer);
             return 0;
         }
-        //if (Info->Debug) printf("Setting Kernel Memory Resource: Memory Handle: %d, CALname handle: %d\n", data[i].dstMem, ctxProgNames[i]);
+        //if (Info->Debug) fprintf(STD_OUT, "Setting Kernel Memory Resource: Memory Handle: %d, CALname handle: %d\n", data[i].dstMem, ctxProgNames[i]);
         if (i >= iStop && i < cStop)
         {
     	    r = calCtxSetMem(*ctx, ctxProgNames[i], data[i].dstMem);
     	    if (r != CAL_RESULT_OK)
     	    {
-    		fprintf(stderr, "Error setting memory buffer %d\n", i);
-    		fprintf(stderr, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
-        	fprintf(stderr, "Error string is %s\n",calGetErrorString());
-        	fprintf(stderr, "Memory Handle: %d, CALname handle: %d\n", data[i].dstMem, ctxProgNames[i]);
+    		fprintf(STD_OUT, "Error setting memory buffer %d\n", i);
+    		fprintf(STD_OUT, "%s:%d - An error occured: %d\n",__FILE__, __LINE__, r);
+        	fprintf(STD_OUT, "Error string is %s\n",calGetErrorString());
+        	fprintf(STD_OUT, "Memory Handle: %d, CALname handle: %d\n", data[i].dstMem, ctxProgNames[i]);
         	return 0;
     	    }
         }
 
 /*	CALresult CALAPIENTRY (*calCtxSetSamplerParams) (CALcontext ctx, CALname name, CALsamplerParameter param, CALvoid* vals);
 	r = calExtGetProc((CALextproc*) &calCtxSetSamplerParams, (CALextid) CAL_EXT_SAMPLER, "calCtxSetSamplerParams");
-	if (r != CAL_RESULT_OK) printf("Error getting sampler extension\n");
+	if (r != CAL_RESULT_OK) fprintf(STD_OUT, "Error getting sampler extension\n");
 	else
 	{
     	    CALsamplerParamWrapMode wrapMode = CAL_SAMPLER_WRAP_REPEAT;
     	    r = calCtxSetSamplerParams(*ctx, progName, CAL_SAMPLER_PARAM_WRAP_S, &wrapMode);
-    	    if (r != CAL_RESULT_OK) printf("Error setting wrapping mode\n");
+    	    if (r != CAL_RESULT_OK) fprintf(STD_OUT, "Error setting wrapping mode\n");
     	    r = calCtxSetSamplerParams(*ctx, progName, CAL_SAMPLER_PARAM_WRAP_T, &wrapMode);
-    	    if (r != CAL_RESULT_OK) printf("Error setting wrapping mode\n");
+    	    if (r != CAL_RESULT_OK) fprintf(STD_OUT, "Error setting wrapping mode\n");
     	    r = calCtxSetSamplerParams(*ctx, progName, CAL_SAMPLER_PARAM_WRAP_R, &wrapMode);
-    	    if (r != CAL_RESULT_OK) printf("Error setting wrapping mode\n");
+    	    if (r != CAL_RESULT_OK) fprintf(STD_OUT, "Error setting wrapping mode\n");
     	}*/
     }
     return 1;
@@ -974,19 +974,19 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
     	    }
     	    if (nContext < ctxcount || Info->Debug)
     	    {
-        	fprintf(stderr, "%s:%d - An error occured while allocating memory (context %d, i %d): %d\n", __FILE__, __LINE__, nContext, i, r);
-        	fprintf(stderr, "Error string is %s\n",calGetErrorString());
+        	fprintf(STD_OUT, "%s:%d - An error occured while allocating memory (context %d, i %d): %d\n", __FILE__, __LINE__, nContext, i, r);
+        	fprintf(STD_OUT, "Error string is %s\n",calGetErrorString());
     	    }
             return 0;
         }
         r = calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]);
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured while binding the allocated memory to the context: %d\n",__FILE__, __LINE__, r);
-            fprintf(stderr, "Error string is %s\n",calGetErrorString());
+            fprintf(STD_OUT, "%s:%d - An error occured while binding the allocated memory to the context: %d\n",__FILE__, __LINE__, r);
+            fprintf(STD_OUT, "Error string is %s\n",calGetErrorString());
             return 0;
         }
-        //if (Info->Debug) printf("Memory Handle Context %d Buffer %d Handle %d\n", nContext, i, data[i].dstMem);
+        //if (Info->Debug) fprintf(STD_OUT, "Memory Handle Context %d Buffer %d Handle %d\n", nContext, i, data[i].dstMem);
         if ((Info->DstMemory == 'c' && i >= cStop) || (Info->DivideToGPU && i < iStop))
         {
     	    data[i].mem = data[i].dstMem;
@@ -1006,15 +1006,15 @@ CALint calutil::AllocateResources(CALcontext* ctx, CALdevice* device, CALresourc
         r = calResAllocRemote1D(&_Res[i], device, 1, cWidth, getFormat(data[i].ComponentSize,data[i].DataSize), 0);
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured while allocating constant memory: %d\n",__FILE__, __LINE__, r);
-            fprintf(stderr, "Error string is %s\n",calGetErrorString());
+            fprintf(STD_OUT, "%s:%d - An error occured while allocating constant memory: %d\n",__FILE__, __LINE__, r);
+            fprintf(STD_OUT, "Error string is %s\n",calGetErrorString());
             return 0;
         }
         r = calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]);
         if (r != CAL_RESULT_OK)
         {
-            fprintf(stderr, "%s:%d - An error occured while binding the allocated constant memory to the context: %d\n",__FILE__, __LINE__, r);
-            fprintf(stderr, "Error string is %s\n",calGetErrorString());
+            fprintf(STD_OUT, "%s:%d - An error occured while binding the allocated constant memory to the context: %d\n",__FILE__, __LINE__, r);
+            fprintf(STD_OUT, "Error string is %s\n",calGetErrorString());
             return 0;
         }
     }
@@ -1039,7 +1039,7 @@ int calutil::AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALu
 		CHKERR(calResMap(&data.v_data, &data.pitch, data.res, NULL), "mapping of remote memory");
 		if (((size_t) data.v_data) & (vcpysize - 1))
 		{
-			printf("Memory not aligned correctly\n");
+			fprintf(STD_OUT, "Memory not aligned correctly\n");
 			return(1);
 		}
 	}
@@ -1069,7 +1069,7 @@ CALint calutil::QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList)
     attribs.struct_size = sizeof(CALdeviceattribs);
     if (calDeviceGetAttribs(&attribs, DeviceNum) != CAL_RESULT_OK)
     {
-		fprintf(stderr, "Could not get device attributes.\n");
+		fprintf(STD_OUT, "Could not get device attributes.\n");
 		capable = CAL_FALSE;
         return capable;
     }
@@ -1108,7 +1108,7 @@ CALint calutil::QueryCALVersion(CALVersion required, const CALchar* comparison, 
 {
 	CALVersion available;
 	calGetVersion(&available.major, &available.minor, &available.imp);
-	if (Info->Debug && !silent) printf("Found CAL Runtime Version: %d.%d.%d\n", available.major, available.minor, available.imp);
+	if (Info->Debug && !silent) fprintf(STD_OUT, "Found CAL Runtime Version: %d.%d.%d\n", available.major, available.minor, available.imp);
 
 	if( strcmp(comparison,">") == 0 )
 	{
@@ -1160,7 +1160,7 @@ CALint calutil::QueryCALVersion(CALVersion required, const CALchar* comparison, 
 	}
 	else 
 	{
-		fprintf(stderr, "Error. Invalid comparison operator: %s (QueryCALVersion)\n", comparison);
+		fprintf(STD_OUT, "Error. Invalid comparison operator: %s (QueryCALVersion)\n", comparison);
 	}
 
 	return 0;
@@ -1171,7 +1171,7 @@ CALvoid calutil::SupportedCALVersion(CALVersion *calVersion)
     calVersion->major = 1;
     calVersion->minor = 3;
     calVersion->imp = 185;
-    if (Info->Debug) printf("Supported CAL Runtime Version: %d.%d.%d\n", calVersion->major, calVersion->minor, calVersion->imp);
+    if (Info->Debug) fprintf(STD_OUT, "Supported CAL Runtime Version: %d.%d.%d\n", calVersion->major, calVersion->minor, calVersion->imp);
 }
 
 CALint calutil::ValidateCALRuntime()
@@ -1183,7 +1183,7 @@ CALint calutil::ValidateCALRuntime()
 	supportedCALRuntime.imp = 815;
 	if (QueryCALVersion(supportedCALRuntime, ">=", true) == 0)
 	{
-	    if (Info->AsyncDMA && !Info->NoPerformanceWarnings) printf("WARNING: Asynchronous DMA not supported by CAL Runtime Version\n");
+	    if (Info->AsyncDMA && !Info->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Asynchronous DMA not supported by CAL Runtime Version\n");
 	    Info->AsyncDMA = CAL_FALSE;
 	}
 

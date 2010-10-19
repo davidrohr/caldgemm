@@ -52,8 +52,8 @@ extern "C" {
 template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
 template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 
-#define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {printf("Error '%s' while " text "\n", calGetErrorString());return(1);}
-#define WAITFOREVENT(ctx, eventnr) { CALresult r; if (Info->Debug) {printf("\tWaiting for event from context %d...\n", eventnr); fflush(stdout);} do { r = calCtxIsEventDone(ctx, events[eventnr]); if (r == CAL_RESULT_ERROR) { printf("Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
+#define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {fprintf(STD_OUT, "Error '%s' while " text "\n", calGetErrorString());return(1);}
+#define WAITFOREVENT(ctx, eventnr) { CALresult r; if (Info->Debug) fprintf(STD_OUT, "\tWaiting for event from context %d...\n", eventnr); do { r = calCtxIsEventDone(ctx, events[eventnr]); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
 caldgemm::caldgemm()
 {
@@ -103,7 +103,7 @@ calutil::SampleInfo::SampleInfo()
 
 void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2)
 {
-    printf("Matrix %lld x %lld, Subblocks %lld x %lld, Strides: %lld / %lld\n", width, height, subx, suby, stridex, stridey);
+    fprintf(STD_OUT, "Matrix %lld x %lld, Subblocks %lld x %lld, Strides: %lld / %lld\n", width, height, subx, suby, stridex, stridey);
     for (int j = 0;j < height;j += stridey)
     {
 	for (int jj = j;jj < j + suby && jj < height;jj++)
@@ -156,18 +156,18 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 			}
 			    
 			int ok = isDoubleEqual(M[jj * pitch + ii], M2[jj * pitch + ii]);
-			printf("\33[%sm%d\33[%sm%+ 10.3lf\t", ok ? "01;32" : "01;31", ok , tmpcolor, M[jj * pitch + ii]);
+			fprintf(STD_OUT, "\33[%sm%d\33[%sm%+ 10.3lf\t", ok ? "01;32" : "01;31", ok , tmpcolor, M[jj * pitch + ii]);
 		    }
 		    else
 		    {
-			printf(" %+ 10.3lf\t", M[jj * pitch + ii]);
+			fprintf(STD_OUT, " %+ 10.3lf\t", M[jj * pitch + ii]);
 		    }
 		}
 	    }
-	    printf("\33[0m\n");
+	    fprintf(STD_OUT, "\33[0m\n");
 	}
     }
-    printf("Done\n");
+    fprintf(STD_OUT, "Done\n");
 }
 
 #ifdef CALDGEMM_UNALIGNED_ADDRESSES
@@ -181,7 +181,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 
 int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers, bool transpose)
 {
-	if (Info->Debug) printf("\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
+	if (Info->Debug) fprintf(STD_OUT, "\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
 
 	if (Info->DivideToGPU)
 		for (CALuint i = 0;i < numBuffers;i++)
@@ -189,7 +189,7 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
 			CHKERR(calResMap(&dst[i].v_data, &dst[i].pitch, dst[i].res, 0), "mapping input buffer for buffer division");
 			if (((size_t) dst[i].v_data) & (vcpysize - 1))
 			{
-				printf("Invalid alignment\n");
+				fprintf(STD_OUT, "Invalid alignment\n");
 				return(1);
 			}
 		}
@@ -456,7 +456,7 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 			CHKERR(calResMap(&src[i].v_data, &src[i].pitch, src[i].res, 0), "mapping output buffer for merging");
 			if (((size_t) src[i].v_data) & (vcpysize - 1))
 			{
-				printf("Invalid alignment\n");
+				fprintf(STD_OUT, "Invalid alignment\n");
 				return(1);
 			}
 		}
@@ -646,22 +646,22 @@ void caldgemm::checkCalPatch()
 {
     unsigned char *RunProgPTL = (unsigned char *)(&calCtxRunProgram);
     unsigned char **RunProgWrapperFunc = *(unsigned char ***)((size_t)(*(unsigned int *)(RunProgPTL + 2)) + RunProgPTL + 6);
-    //printf("RunProgWrapperFunc = %p, ddi_interface[?] = %p\n", RunProgWrapperFunc, RunProgWrapperFunc + (0x10f588 - 0x4220)/sizeof(void*));
+    //fprintf(STD_OUT, "RunProgWrapperFunc = %p, ddi_interface[?] = %p\n", RunProgWrapperFunc, RunProgWrapperFunc + (0x10f588 - 0x4220)/sizeof(void*));
     unsigned char *RunProgFunc = *(RunProgWrapperFunc + (0x10f588 - 0x4220) / sizeof(void*));
     unsigned char *patchpos = RunProgFunc + 0x7fffe591b631 - 0x7fffe591b560;
     if (*patchpos == 0x74)
     {
-	if (Info->KeepBuffersMapped && !Info->NoPerformanceWarnings) printf("WARNING: CAL library not patched, KeepBuffersMapped unavailable\n");
+	if (Info->KeepBuffersMapped && !Info->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: CAL library not patched, KeepBuffersMapped unavailable\n");
 	Info->KeepBuffersMapped = CAL_FALSE;
     }
     else if (*patchpos != 0xEB)
     {
-	if (!Info->NoPerformanceWarnings) printf("WARNING: Unknown CAL Library found, KeepBuffersMapped unavailable\n");
+	if (!Info->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Unknown CAL Library found, KeepBuffersMapped unavailable\n");
 	Info->KeepBuffersMapped = CAL_FALSE;
     }
     else if (Info->Debug)
     {
-	printf("Patched CAL library found, KeepBuffersMapped available\n");
+	fprintf(STD_OUT, "Patched CAL library found, KeepBuffersMapped available\n");
     }
 
     if (Info->KeepBuffersMapped == CAL_FALSE && (Info->Pin = Info->Pin_HackedLibUnavailable) != -100)
@@ -675,7 +675,7 @@ void caldgemm::checkCalPatch()
         {
             CPU_SET(Info->Pin, &gpumask);
         }
-	if (Info->Debug) printf("Setting affinitiy to restrict on CPU %d\n", Info->Pin);
+	if (Info->Debug) fprintf(STD_OUT, "Setting affinitiy to restrict on CPU %d\n", Info->Pin);
 	sched_setaffinity(0, sizeof(gpumask), &gpumask);
     }
 }
@@ -686,7 +686,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     
     if (Info->Iterations > 1 && Info->UseCPU)
     {
-	printf("ERROR: Multiple Iterations not supported with CPU enabled\n");
+	fprintf(STD_OUT, "ERROR: Multiple Iterations not supported with CPU enabled\n");
 	return(1);
     }
     
@@ -704,41 +704,41 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
         {
             CPU_SET(Info->Pin, &gpumask);
         }
-	if (Info->Debug) printf("Setting affinitiy to restrict on CPU %d\n", Info->Pin);
+	if (Info->Debug) fprintf(STD_OUT, "Setting affinitiy to restrict on CPU %d\n", Info->Pin);
 	if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
 	{
-    	    printf("Error setting CPU affinity\n");
+    	    fprintf(STD_OUT, "Error setting CPU affinity\n");
     	    return(1);
     	}
     }
 
     if(!ValidateCALRuntime())
     {
-        fprintf(stdout, "Error. Could not find a compatible CAL runtime.\n");
+        fprintf(stderr, "Error. Could not find a compatible CAL runtime.\n");
 	return 0;
     }
 
 #ifdef CALDGEMM_44
     if (Info->Width % 8)
     {
-        fprintf(stderr, "Only width of multiples of 8 are computable.\n");
+        fprintf(STD_OUT, "Only width of multiples of 8 are computable.\n");
         return(0);
     }
     else if (Info->Width % 64)
     {
 	Info->Width += 64 - Info->Width % 64;
-	fprintf(stderr, "Cannot allocate buffers of size that is not multiple of 64, increasing buffer size to %lld\n", Info->Width);
+	fprintf(STD_OUT, "Cannot allocate buffers of size that is not multiple of 64, increasing buffer size to %lld\n", Info->Width);
     }
 #else
     if (Info->Width % 64)
     {
-        fprintf(stderr, "Only width of size 64 are computable.\n");
+        fprintf(STD_OUT, "Only width of size 64 are computable.\n");
         return(0);
     }
 #endif
     if (Info->Height & 0x7)
     {
-        fprintf(stderr, "Only heights with multiple of 8 are computable.\n" );
+        fprintf(STD_OUT, "Only heights with multiple of 8 are computable.\n" );
         return(0);
     }
     
@@ -747,7 +747,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     numConstantBuffers = 1;
     device = 0;
 
-    if (Info->Debug) printf("Initializing CAL\n");
+    if (Info->Debug) fprintf(STD_OUT, "Initializing CAL\n");
     if (!Initialize(&device, &ctx_main, Info->DeviceNum))
     {
         return 1;
@@ -757,26 +757,26 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
     attribs.struct_size = sizeof(CALdeviceattribs);
     if (calDeviceGetAttribs(&attribs, Info->DeviceNum) != CAL_RESULT_OK)
     {
-	printf("Error getting device attributes\n");
+	fprintf(STD_OUT, "Error getting device attributes\n");
         return 1;
     }
 
     Features.DoublePrecision = CAL_TRUE;
     if(QueryDeviceCaps(Info->DeviceNum, &Features) != CAL_TRUE)
     {
-	printf("The Device Number is invalid or this device is not capable of running this sample.");
+	fprintf(STD_OUT, "The Device Number is invalid or this device is not capable of running this sample.");
 	return 1;
     }
     
     if (Info->KeepBuffersMapped)
     {
 	if (!SetupKernel(ILFakeKernel, &fakeModule, &ctx_main, CAL_FALSE)) return(1);
-	if (!RunProgram(&ctx_main, &fakeModule, 0, 0, events)) {printf("Error running test kernel on GPU\n"); return(1);}
+	if (!RunProgram(&ctx_main, &fakeModule, 0, 0, events)) {fprintf(STD_OUT, "Error running test kernel on GPU\n"); return(1);}
 	if (Info->KeepBuffersMapped) checkCalPatch();
 	if (calModuleUnload(ctx_main, fakeModule) != CAL_RESULT_OK )
 	{
-    	    printf("Error unloading test module\n");
-    	    fprintf(stderr, "Error string is %s\n", calGetErrorString());
+    	    fprintf(STD_OUT, "Error unloading test module\n");
+    	    fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
 	}
     }
     outputthreads = Info->KeepBuffersMapped ? 1 : 3;
@@ -821,33 +821,33 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	    pthread_t thr;
 	    pthread_create(&thr, NULL, merge_wrapper, &mParam[i]);
 	    
-	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	}
     }
-    if (Info->Debug) printf("Was able to allocate %d bbuffers\n", bbuffers);
+    if (Info->Debug) fprintf(STD_OUT, "Was able to allocate %d bbuffers\n", bbuffers);
     if (Info->UseCPU)
     {
 	cParam.cls = this;
 	cParam.terminate = CAL_FALSE;
         for (int j = 0;j < 2;j++) pthread_mutex_init(&cParam.cblasMutex[j], NULL);
-        if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+        if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
         if (Info->MultiThread)
         {
     	    pthread_t thr;
 	    pthread_create(&thr, NULL, cblas_wrapper, &cParam);
-	    if (Info->Debug) printf("Waiting for cblas slave to start\n");
-	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	    if (Info->Debug) fprintf(STD_OUT, "Waiting for cblas slave to start\n");
+	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	}
     }
     if (Info->MultiThread)
     {
 	linpackParameters.terminate = CAL_FALSE;
         for (int j = 0;j < 2;j++) pthread_mutex_init(&linpackParameters.linpackMutex[j], NULL);
-        if (pthread_mutex_lock(&linpackParameters.linpackMutex[1])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+        if (pthread_mutex_lock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
     	pthread_t thr;
 	pthread_create(&thr, NULL, linpack_wrapper, this);
-	if (Info->Debug) printf("Waiting for linpack slave to start\n");
-	while (pthread_mutex_trylock(&linpackParameters.linpackMutex[1]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	if (Info->Debug) fprintf(STD_OUT, "Waiting for linpack slave to start\n");
+	while (pthread_mutex_trylock(&linpackParameters.linpackMutex[1]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	pthread_mutex_init(&scheduleMutex, NULL);
     }
     
@@ -857,13 +857,13 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	syscall(SYS_set_mempolicy, MPOL_INTERLEAVE, &nodemask, sizeof(nodemask) * 8);
     }
     
-    /*printf("Setting FIFO scheduler\n");
+    /*fprintf(STD_OUT, "Setting FIFO scheduler\n");
     sched_param param;
     sched_getparam( 0, &param );
     param.sched_priority = 1;
     if ( 0 != sched_setscheduler( 0, SCHED_FIFO, &param ) )
     {
-	printf("Error setting scheduler\n");
+	fprintf(STD_OUT, "Error setting scheduler\n");
 	return(1);
     }*/
     //setpriority(PRIO_PROCESS, 0, -20);
@@ -944,7 +944,7 @@ void* linpack_wrapper(void* arg)
 {
     caldgemm* cls = (caldgemm*) arg;
     volatile caldgemm::SampleInfo* Info = cls->Info;
-    if (Info->Debug) printf("Linpack helper thread started\n");
+    if (Info->Debug) fprintf(STD_OUT, "Linpack helper thread started\n");
     
     if (Info->Pin != -100)
     {
@@ -954,16 +954,16 @@ void* linpack_wrapper(void* arg)
 	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
     }
 
-    if (pthread_mutex_lock(&cls->linpackParameters.linpackMutex[0])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+    if (pthread_mutex_lock(&cls->linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
     while (pthread_mutex_lock(&cls->linpackParameters.linpackMutex[0]) == 0 && cls->linpackParameters.terminate == CAL_FALSE)
     {
 	cls->Timers.LinpackTimer.Start();
         Info->linpack_broadcast_function();
 	cls->Timers.LinpackTimer.Stop();
-        if (pthread_mutex_unlock(&cls->linpackParameters.linpackMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+        if (pthread_mutex_unlock(&cls->linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
     }
 
-    if (Info->Debug) printf("linpack slave terminating\n");
+    if (Info->Debug) fprintf(STD_OUT, "linpack slave terminating\n");
     pthread_exit(NULL);
     return(NULL);
 }
@@ -1001,12 +1001,12 @@ int caldgemm::cpuScheduler()
 		    {
 			cParam.dynamic_run -= Info->Height;
 			cParam.dynamic_size = mymin(gpu_m, gpu_n);
-			if (Info->Debug) printf("cParam dynamic size reduced to: %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
+			if (Info->Debug) fprintf(STD_OUT, "cParam dynamic size reduced to: %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
 		    }
 		
 		    if (nBlocks >= 256 && nBlocks - k - 1 > 16 && cParam.dynamic_run == Info->Height && cParam.dynamic_size < mymin(gpu_m, gpu_n)) cParam.dynamic_size += Info->Height;
     			    
-    		    if (!Info->Quiet) printf("Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
+    		    if (!Info->Quiet) fprintf(STD_OUT, "Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
     		    retVal = 1;
     		}
     		else
@@ -1029,7 +1029,7 @@ TryThirdRun:
 		}
 		if (test_cpu_k && k < test_cpu_k - 1)
 		{
-		    if (!Info->Quiet) printf("Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", test_cpu_k, cpublockm, cpublockn);
+		    if (!Info->Quiet) fprintf(STD_OUT, "Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", test_cpu_k, cpublockm, cpublockn);
 		    cParam.dynamic_run2++;
 		    cParam.cpu_k = test_cpu_k;
 		    cpu_k_barrier = test_cpu_k;
@@ -1047,11 +1047,11 @@ void* cblas_wrapper(void* arg)
     volatile caldgemm::cblasParameters* par = (caldgemm::cblasParameters*) arg;
     volatile caldgemm::SampleInfo* Info = par->cls->Info;
     
-    if (Info->Debug) printf("Cblas helper thread started\n");
+    if (Info->Debug) fprintf(STD_OUT, "Cblas helper thread started\n");
     
     sched_setaffinity(0, sizeof(par->cls->oldcpumask), &par->cls->oldcpumask);
     
-    if (Info->MultiThread) if (pthread_mutex_lock(&par->cls->cParam.cblasMutex[1])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+    if (Info->MultiThread) if (pthread_mutex_lock(&par->cls->cParam.cblasMutex[1])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
     while (pthread_mutex_lock(&par->cls->cParam.cblasMutex[1]) == 0 && par->terminate == CAL_FALSE)
     {
 	const CALdouble Alpha = par->cls->Alpha;
@@ -1066,7 +1066,7 @@ void* cblas_wrapper(void* arg)
 	const size_t B_pitch_use = (par->cls->TransposeB == CblasTrans ? B_pitch : 1);
 	const CBLAS_TRANSPOSE TransposeA = par->cls->TransposeA;
 	const CBLAS_TRANSPOSE TransposeB = par->cls->TransposeB;
-	if (!Info->Quiet) printf("\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld, dynamic: %lld/%lld, cpu_k: %lld)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size, par->cpu_k);
+	if (!Info->Quiet) fprintf(STD_OUT, "\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld, dynamic: %lld/%lld, cpu_k: %lld)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size, par->cpu_k);
 
 
 	int old_goto_threads = get_num_procs();
@@ -1083,12 +1083,12 @@ void* cblas_wrapper(void* arg)
 	
 	if (par->borders_done == CAL_FALSE && par->cls->ExecLinpack)
 	{
-	    if (!Info->Quiet) printf("\t\t\tDoint initial cblas runs to prepare Linpack factorization\n");
+	    if (!Info->Quiet) fprintf(STD_OUT, "\t\t\tDoint initial cblas runs to prepare Linpack factorization\n");
 	    par->cls->Timers.CPUTimer.Start();
 	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m + Info->Width, Info->Width, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B - Info->Width * B_pitch_use, B_pitch, Beta, C - Info->Width * (C_pitch + 1), C_pitch);
 	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->Width, Info->n, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Info->Width * C_pitch, C_pitch);
 	    par->cls->Timers.CPUTimer.Stop();
-	    if (!Info->Quiet) printf("\t\t\tStarting Linpack factorization\n");
+	    if (!Info->Quiet) fprintf(STD_OUT, "\t\t\tStarting Linpack factorization\n");
 	    par->cls->Timers.LinpackTimer.Start();
 	    Info->linpack_factorize_function();
 	    par->cls->Timers.LinpackTimer.Stop();
@@ -1163,11 +1163,11 @@ void* cblas_wrapper(void* arg)
 	goto_set_num_threads(old_goto_threads);
 	caldgemm_goto_reserve_cpus(0);
 
-        if (Info->Debug) printf("\t\tUnlocking cblasmutex 0\n");
-        if (pthread_mutex_unlock(&par->cls->cParam.cblasMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+        if (Info->Debug) fprintf(STD_OUT, "\t\tUnlocking cblasmutex 0\n");
+        if (pthread_mutex_unlock(&par->cls->cParam.cblasMutex[0])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
         if (!Info->MultiThread) break;
     }
-    if (Info->Debug) printf("blas slave terminating\n");
+    if (Info->Debug) fprintf(STD_OUT, "blas slave terminating\n");
     if (Info->MultiThread)
     {
 	pthread_exit(NULL);
@@ -1179,7 +1179,7 @@ void* merge_wrapper(void* arg)
 {
     caldgemm::mergeParameters* par = (caldgemm::mergeParameters*) arg;
     
-    if (par->cls->Info->Debug) printf("Merger Thread %d started\n", par->nMergeThread);
+    if (par->cls->Info->Debug) fprintf(STD_OUT, "Merger Thread %d started\n", par->nMergeThread);
     
     if (par->cls->Info->Pin != -100)
     {
@@ -1198,7 +1198,7 @@ void* merge_wrapper(void* arg)
 	    if (par->cls->ctxcount % (-par->cls->Info->Pin - 1) == 0)
 	    {
 		int merge_cpu = 1 + (par->nMergeThread % (-par->cls->Info->Pin - 1));
-		if (par->cls->Info->Debug) printf("Merge CPU for Thread %d: %d\n", par->nMergeThread, merge_cpu);
+		if (par->cls->Info->Debug) fprintf(STD_OUT, "Merge CPU for Thread %d: %d\n", par->nMergeThread, merge_cpu);
 		CPU_SET(merge_cpu, &merge_mask);
 	    }
 	    else
@@ -1212,16 +1212,16 @@ void* merge_wrapper(void* arg)
 	}
     }
     
-    if (pthread_mutex_lock(&par->mergeThreadMutex[0])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+    if (pthread_mutex_lock(&par->mergeThreadMutex[0])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
     while (pthread_mutex_lock(&par->mergeThreadMutex[0]) == 0 && par->terminate == CAL_FALSE)
     {
-	if (par->cls->Info->Debug) printf("\t\tSlave thread %d starting merge process for context %d\n", par->nMergeThread, par->nContext);
+	if (par->cls->Info->Debug) fprintf(STD_OUT, "\t\tSlave thread %d starting merge process for context %d\n", par->nMergeThread, par->nContext);
         par->cls->mergeBuffers(par->dst, par->src, par->cls->Info->Height, par->cls->Info->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch, par->cls->cPartsNum);
-        if (par->cls->Info->Debug) printf("\t\tUnlocking mutex obuffer %d (Slavethread %d)\n", par->nContext, par->nMergeThread);
-        if (pthread_mutex_unlock(&par->cls->obufferMutex[par->nContext])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-        if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+        if (par->cls->Info->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex obuffer %d (Slavethread %d)\n", par->nContext, par->nMergeThread);
+        if (pthread_mutex_unlock(&par->cls->obufferMutex[par->nContext])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+        if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
     }
-    if (par->cls->Info->Debug) printf("merge slave %d terminating\n", par->nMergeThread);
+    if (par->cls->Info->Debug) fprintf(STD_OUT, "merge slave %d terminating\n", par->nMergeThread);
     pthread_exit(NULL);
     return(NULL);
 }
@@ -1269,7 +1269,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 {
     if (!caldgemm_initialized)
     {
-	printf("Caldgemm not initialized, aborting DGEMM run\n");
+	fprintf(STD_OUT, "Caldgemm not initialized, aborting DGEMM run\n");
 	return(1);
     }
 
@@ -1324,12 +1324,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	tmpt = TransA;TransA = TransB;TransB = tmpt;
     }
     
-    if (!Info->Quiet) printf("Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C, ((size_t) C - (size_t) A) / sizeof(double), ((size_t) C - (size_t) B) / sizeof(double) / Info->Width);
+    if (!Info->Quiet) fprintf(STD_OUT, "Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C, ((size_t) C - (size_t) A) / sizeof(double), ((size_t) C - (size_t) B) / sizeof(double) / Info->Width);
 
     //Check for double == 1.0 is unsafe and causes compiler warning
     const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
     const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
-    if (kernel_num && Info->Debug) printf("Using Kernel for ALPHA = 1\n");
+    if (kernel_num && Info->Debug) fprintf(STD_OUT, "Using Kernel for ALPHA = 1\n");
 
     TransposeA = TransA;
     TransposeB = TransB;    
@@ -1340,7 +1340,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	D = new CALdouble[(size_t) Info->m * (size_t) C_pitch];
 	if (D == NULL)
 	{
-	    printf("Memory allocation error\n");
+	    fprintf(STD_OUT, "Memory allocation error\n");
 	    return(1);
 	}
 	memcpy(D, C, Info->m * C_pitch * sizeof(CALdouble));
@@ -1378,7 +1378,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
 	A_pitch & (vcpysize / sizeof(CALdouble) - 1) || B_pitch & (vcpysize / sizeof(CALdouble) - 1) || C_pitch & (vcpysize / sizeof(CALdouble) - 1))
     {
-	printf("Input addresses not aligned correctly: A 0x%llX B 0x%llX C 0x%llX Pitch 0x%llX 0x%llX 0x%llX\n", A, B, C, A_pitch, B_pitch, C_pitch);
+	fprintf(STD_OUT, "Input addresses not aligned correctly: A 0x%llX B 0x%llX C 0x%llX Pitch 0x%llX 0x%llX 0x%llX\n", A, B, C, A_pitch, B_pitch, C_pitch);
 	forceCPU = true;
     }
 #endif
@@ -1405,7 +1405,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 	    Info->Height = 4096;
 	}
-	if ((Info->Height != BufferHeight && !Info->Quiet) || Info->Debug)  printf("Using Height %lld of max %lld\n", Info->Height, BufferHeight);
+	if ((Info->Height != BufferHeight && !Info->Quiet) || Info->Debug)  fprintf(STD_OUT, "Using Height %lld of max %lld\n", Info->Height, BufferHeight);
     }
     
     if (Info->Width > BufferWidth || Info->Height > BufferHeight) forceReinit = true;
@@ -1415,20 +1415,20 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 /*  //Run on CPU on all but one node in MPIRUN
     if (strcmp(hostname, "gpu-dev05") != 0)
     {
-	printf("Hostname not 5 but %s\n", hostname);
+	fprintf(STD_OUT, "Hostname not 5 but %s\n", hostname);
 	forceCPU = true;
     }*/
 
     if (forceCPU)
     {
-	if (Info->Debug) printf("Running CPU only DGEMM\n");
+	if (Info->Debug) fprintf(STD_OUT, "Running CPU only DGEMM\n");
 	Timers.CPUTimer.Start();
 	cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 	Timers.CPUTimer.Stop();
 	CPUOnlyRun = true;
 	if (ExecuteLinpackCallbacks)
 	{
-	    if (Info->Debug) printf("DGEMM was running on CPU only, executing linpack callback functions\n");
+	    if (Info->Debug) fprintf(STD_OUT, "DGEMM was running on CPU only, executing linpack callback functions\n");
 	    Timers.LinpackTimer.Start();
     	    Info->linpack_factorize_function();
     	    Info->linpack_broadcast_function();
@@ -1459,7 +1459,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (forceReinit)
     {
-	if (!Info->NoPerformanceWarnings) printf("WARNING: Reinit for increased buffer width / height\n");
+	if (!Info->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Reinit for increased buffer width / height\n");
 	for (int i = 0;i < bbuffers;i++)
 	{
     	    CleanupData(&ctx_main, resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers, i);
@@ -1467,14 +1467,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
     }
 
-    if (Info->Debug) printf("Initiliazing GPU Constant Buffers...");
+    if (Info->Debug) fprintf(STD_OUT, "Initiliazing GPU Constant Buffers...");
     for (int i = 0;i < 1;i++)
     {
-	if (Info->Debug) printf("%d", i);
+	if (Info->Debug) fprintf(STD_OUT, "%d", i);
 	cal_init_constant_data(datas[i], alpha);
 	if (CopyDataToGPU(&ctx_main, resourceHandlers[i] + numInputs, datas[i] + numInputs, numConstantBuffers, CAL_TRUE, &events[i])) return(1);
     }
-    if (Info->Debug) printf("   Done\n");
+    if (Info->Debug) fprintf(STD_OUT, "   Done\n");
     
     if (Info->GPURatio < 0)
     {
@@ -1491,7 +1491,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	else GPURatio = 0.50;
 	GPURatio *= (double) Info->Width / (double) 1024;
 	if (Info->Height < 1024) GPURatio *= (double) Info->Height / (double) 1024 * (double) Info->Height / (double) 1024;
-	if (Info->Debug) printf("GPURatio automatically set to %1.2lf\n", GPURatio);
+	if (Info->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.2lf\n", GPURatio);
     }
     else
     {
@@ -1538,7 +1538,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    cParam.cblas_size = Info->m - gpu_m;
 	    gpu_n = Info->n;
 	    gpu_n -= gpu_n % Info->Height;
-	    if (Info->Debug) printf("Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", gpu_m, gpu_n, Info->m - gpu_m, gpu_n);
+	    if (Info->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", gpu_m, gpu_n, Info->m - gpu_m, gpu_n);
 	}
         else
         {
@@ -1550,21 +1550,21 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    cParam.cblas_size = Info->n - gpu_n;
 	    gpu_m = Info->m;
 	    gpu_m -= gpu_m % Info->Height;
-	    if (Info->Debug) printf("Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", gpu_m, gpu_n, Info->m, Info->n - gpu_n);
+	    if (Info->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", gpu_m, gpu_n, Info->m, Info->n - gpu_n);
 	}
 	/*if (cParam.cblas_size == 0 && Info->DynamicSched == CAL_TRUE)
 	{
 	    cParam.dynamic_size = Info->Height;
 	    cParam.dynamic_run = (1.0f - GPURatio) * (float) mymax(gpu_m, gpu_n);
 	    cParam.dynamic_run -= cParam.dynamic_run % Info->Height;
-	    if (!Info->Quiet) printf("Scheduling initial dynamic run over %lldx%lld blocks\n", cParam.dynamic_run, cParam.dynamic_size);
+	    if (!Info->Quiet) fprintf(STD_OUT, "Scheduling initial dynamic run over %lldx%lld blocks\n", cParam.dynamic_run, cParam.dynamic_size);
 	}*/
     }
     else
     {
 	if (Info->n % Info->Height || Info->m % Info->Height)
 	{
-	    printf("Invalid matrix size for GPU only\n");
+	    fprintf(STD_OUT, "Invalid matrix size for GPU only\n");
 	    return(1);
 	}
 	gpu_n = Info->n;
@@ -1577,7 +1577,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 	    cblas_wrapper((void*) &cParam);
 	}
-	if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
     }
 
     Timers.GPUTimer.Start();
@@ -1593,7 +1593,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	size_t blockm, blockn, lastm, lastn;
 	size_t nBlocks = mb * nb;
 	
-	if (!Info->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers) printf("WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
+	if (!Info->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers) fprintf(STD_OUT, "WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
 	
 	cParam.cpu_k = nBlocks;
 	gpu_k_barrier = -1;
@@ -1612,7 +1612,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		    {
 			if (newblockm * Info->Height >= gpu_m - cParam.dynamic_run && newblockn * Info->Height >= gpu_n - cParam.dynamic_size)
 			{
-			    if (Info->Debug) printf("GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", k);
+			    if (Info->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", k);
 			    continue;
 			}
 		    }
@@ -1620,7 +1620,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		    {
 			if (newblockn * Info->Height >= gpu_n - cParam.dynamic_run && newblockm * Info->Height >= gpu_m - cParam.dynamic_size)
 			{
-			    if (Info->Debug) printf("GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", k);
+			    if (Info->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", k);
 			    continue;
 			}
 		    }
@@ -1633,7 +1633,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		}
 		else
 		{
-		    if (Info->Debug) printf("gpu_k %lld reached cpu_k_barrier %lld, skipping remaining k (Dynamic Run 3rd Phase", k, cpu_k_barrier);
+		    if (Info->Debug) fprintf(STD_OUT, "gpu_k %lld reached cpu_k_barrier %lld, skipping remaining k (Dynamic Run 3rd Phase", k, cpu_k_barrier);
 		    k = nBlocks;
 		}
 		pthread_mutex_unlock(&scheduleMutex);
@@ -1645,7 +1645,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    {
 		blockn = newblockn;
 		blockm = newblockm;
-		if (Info->Debug) printf("Iteration k = %lld, m = %lld, n = %lld (Context %d)\n", k, blockm, blockn, j);
+		if (Info->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (Context %d)\n", k, blockm, blockn, j);
 		
 
 		if (k <= 1 || ctxcount == 1 || Info->AsyncDMA == CAL_FALSE) DGEMM_prepare(k, j);
@@ -1668,21 +1668,21 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	        if (Info->MultiThread)
 	        {
-		    if (Info->Debug) printf("\tLocking mutex %d\n", j);
+		    if (Info->Debug) fprintf(STD_OUT, "\tLocking mutex %d\n", j);
 		    if (Info->AsyncTiming)
 		    {
 			Timers.ATime.Reset();
 			Timers.ATime.Start();
 		    }
-		    if (pthread_mutex_lock(&obufferMutex[j])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+		    if (pthread_mutex_lock(&obufferMutex[j])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
 		    if (Info->AsyncTiming)
 		    {
 			Timers.ATime.Stop();
-			printf("\t\tWait Time for merge thread: %1.5lf\n", Timers.ATime.GetElapsedTime());
+			fprintf(STD_OUT, "\t\tWait Time for merge thread: %1.5lf\n", Timers.ATime.GetElapsedTime());
 		    }
 		}
 		WAITFOREVENT(ctx_main, j);
-	        if (Info->Debug) printf("\tExecuting MM kernel\n");
+	        if (Info->Debug) fprintf(STD_OUT, "\tExecuting MM kernel\n");
 	        if (gpu_m < gpu_n && buffersSwitchable && bbuffers >= mb)
 	        {
 		    for (int l = 0;l < aPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[blockm][aPartsNum + l].dstMem), "setting kernel memory A");
@@ -1694,7 +1694,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		    for (int l = aPartsNum;l < aPartsNum + bPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[nb > bbuffers ? (blockn % 2) : blockn][l].dstMem), "setting kernel memory B");
 		}
 	        for (int l = 0;l < cPartsNum;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][numInputs + numConstantBuffers + l], datas[j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
-		if (!RunProgram(&ctx_main, &modules[0][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {printf("Error running program\n"); return 1;}
+		if (!RunProgram(&ctx_main, &modules[0][kernel_num], Info->Height / TILING_X, Info->Height / TILING_Y, &events[j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
 		calCtxFlush(ctx_main);
     	    }
     	    if (ctxcount == 1)
@@ -1709,8 +1709,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     		if (Info->DstMemory == 'g')
     		{
     	    	    if (Info->VerboseTiming) Timers.CounterCopyFrom.Start();
-    	    	    if (Info->Debug == CAL_TRUE) printf("\tFething part of C from GPU (m = %lld, n = %lld)\n", lastm, lastn);
-    		    if (CopyDataFromGPU(&ctx_main, resourceHandlers[oldj] + numInputs + numConstantBuffers, datas[oldj] + numInputs + numConstantBuffers, numOutputs, &events[oldj])) {printf("Error copying from GPU\n"); return(1);}
+    	    	    if (Info->Debug == CAL_TRUE) fprintf(STD_OUT, "\tFething part of C from GPU (m = %lld, n = %lld)\n", lastm, lastn);
+    		    if (CopyDataFromGPU(&ctx_main, resourceHandlers[oldj] + numInputs + numConstantBuffers, datas[oldj] + numInputs + numConstantBuffers, numOutputs, &events[oldj])) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
     	    	    if (Info->VerboseTiming) Timers.CounterCopyFrom.Stop();
     		    WAITFOREVENT(ctx_main, oldj);
     	    	}
@@ -1718,27 +1718,27 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		if (k == nBlocks || Info->MultiThread == CAL_FALSE)
 		{
-    		    if (Info->Debug) printf("\tMerging buffer (context %d, main thread)\n", oldj);
-	    	    if (mergeBuffers(C + lastn * Info->Height + lastm * C_pitch * Info->Height, datas[oldj] + numInputs + numConstantBuffers, Info->Height, Info->Height, BufferHeight, BufferHeight, C_pitch, cPartsNum)) {printf("Error merging\n"); return(1);}
+    		    if (Info->Debug) fprintf(STD_OUT, "\tMerging buffer (context %d, main thread)\n", oldj);
+	    	    if (mergeBuffers(C + lastn * Info->Height + lastm * C_pitch * Info->Height, datas[oldj] + numInputs + numConstantBuffers, Info->Height, Info->Height, BufferHeight, BufferHeight, C_pitch, cPartsNum)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
 	    	    if (Info->MultiThread)
 	    	    {
-	    		if (pthread_mutex_unlock(&obufferMutex[oldj])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	    		if (pthread_mutex_unlock(&obufferMutex[oldj])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	    		for (int l = 1;l < ctxcount;l++)
 	    		{
-	    		    if (Info->Debug) fprintf(stderr, "Waiting for context %d to finish merge process\n", (oldj + l) % ctxcount);
-	    		    if (pthread_mutex_lock(&obufferMutex[(oldj + l) % ctxcount])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
-	    		    if (pthread_mutex_unlock(&obufferMutex[(oldj + l) % ctxcount])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	    		    if (Info->Debug) fprintf(STD_OUT, "Waiting for context %d to finish merge process\n", (oldj + l) % ctxcount);
+	    		    if (pthread_mutex_lock(&obufferMutex[(oldj + l) % ctxcount])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+	    		    if (pthread_mutex_unlock(&obufferMutex[(oldj + l) % ctxcount])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	    		}
 	    	    }
 	    	}
 	    	else
 	    	{
-		    if (pthread_mutex_lock(&mParam[iMergeThread].mergeThreadMutex[1])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
-		    if (Info->Debug) printf("\t\tUnlocking outputthread mutex %d to process context %d\n", iMergeThread, oldj);
+		    if (pthread_mutex_lock(&mParam[iMergeThread].mergeThreadMutex[1])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+		    if (Info->Debug) fprintf(STD_OUT, "\t\tUnlocking outputthread mutex %d to process context %d\n", iMergeThread, oldj);
 	    	    mParam[iMergeThread].nContext = oldj;
 		    mParam[iMergeThread].dst = C + (lastn * Info->Height + lastm * C_pitch * Info->Height);
 		    mParam[iMergeThread].src = datas[oldj] + numInputs + numConstantBuffers;
-		    if (pthread_mutex_unlock(&mParam[iMergeThread].mergeThreadMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+		    if (pthread_mutex_unlock(&mParam[iMergeThread].mergeThreadMutex[0])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 		    iMergeThread = (iMergeThread + 1) % outputthreads;
 		}
 
@@ -1760,14 +1760,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    Timers.ATime.Reset();
 	    Timers.ATime.Start();
 	}
-	if (Info->Debug) fprintf(stderr, "Waiting for CPU DGEMM to finish\n");
-	if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(stderr, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+	if (Info->Debug) fprintf(STD_OUT, "Waiting for CPU DGEMM to finish\n");
+	if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
 	if (!Info->NoPerformanceWarnings && Info->MultiThread)
 	{
 	    Timers.ATime.Stop();
 	    cpu_wait_time = Timers.ATime.GetElapsedTime();
-	    if (!Info->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15) printf("WARNING: CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
-	    else if (Info->Debug) printf("CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
+	    if (!Info->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15) fprintf(STD_OUT, "WARNING: CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
+	    else if (Info->Debug) fprintf(STD_OUT, "CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
 	}
     }
 
@@ -1777,14 +1777,14 @@ RunCALDGEMM_end:
     
     if (!Info->UseCPU && ExecuteLinpackCallbacks)
     {
-	if (!Info->Quiet) printf("CPU Was disabled, no asynchronous processing of linpack functions possible, executing linpack callback functions\n");
+	if (!Info->Quiet) fprintf(STD_OUT, "CPU Was disabled, no asynchronous processing of linpack functions possible, executing linpack callback functions\n");
         Timers.LinpackTimer.Start();
         Info->linpack_factorize_function();
         Info->linpack_broadcast_function();
 	Timers.LinpackTimer.Stop();
     }
 
-    if (Info->Debug) printf("DGEMM Run Complete\n");
+    if (Info->Debug) fprintf(STD_OUT, "DGEMM Run Complete\n");
     
 #ifdef TESTMODE
     print_submatrices(C, 12, 24, Info->n, 1, 1, 1, 1);
@@ -1792,7 +1792,7 @@ RunCALDGEMM_end:
     
     if (!Info->NoPerformanceWarnings && Info->UseCPU && Info->UseGPU && !CPUOnlyRun && fabs(Timers.CPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()) > 1.0)
     {
-	printf("WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.CPUTimer.GetElapsedTime(), Info->m, Info->n);
+	fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.CPUTimer.GetElapsedTime(), Info->m, Info->n);
     }
     displayMatrixTiming("caldgemm");
     AnalyzeResults(datas[0]);
@@ -1844,7 +1844,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
     if (Info->VerboseTiming) Timers.CounterDivide.Start();
     if (blockn == 0 || (gpu_m < gpu_n && !buffersSufficiant)) 
     {
-	if (Info->Debug) printf("\tDividing Buffer A (k = %lld)\n", k);
+	if (Info->Debug) fprintf(STD_OUT, "\tDividing Buffer A (k = %lld)\n", k);
 	Timers.divideA++;
 #ifdef CALDGEMM_TRANSPOSED_A
 	if (divideBuffer(Info->DivideToGPU && gpu_m < gpu_n && buffersSufficiant ? (datas[blockm] + aPartsNum) : datas[blockm % 2], A + blockm * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, BufferHeight, BufferWidth, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
@@ -1854,7 +1854,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
     }
     if (blockm == 0 || (gpu_m >= gpu_n && !buffersSufficiant))
     {
-	if (Info->Debug) printf("\tDividing Buffer B (k = %lld)\n", k);
+	if (Info->Debug) fprintf(STD_OUT, "\tDividing Buffer B (k = %lld)\n", k);
 	Timers.divideB++;
 #ifdef CALDGEMM_TRANSPOSED_B
 	divideBuffer(Info->DivideToGPU && buffersSufficiant ? (datas[blockn] + (gpu_m >= gpu_n ? aPartsNum : 0)) : (datas[blockn % 2] + aPartsNum), B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, BufferWidth, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
@@ -1869,27 +1869,27 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
     {
 	if (blockn == 0 || (gpu_m < gpu_n && !buffersSufficiant))
 	{
-	    if (Info->Debug) printf("\tCopying part of A to GPU (k = %lld)\n", k);
+	    if (Info->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld)\n", k);
 	    if (gpu_m < gpu_n && buffersSufficiant)
 	    {
-    		if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[blockm % 2], aPartsNum, CAL_FALSE, &events[j], datas[blockm] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
+    		if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[blockm % 2], aPartsNum, CAL_FALSE, &events[j], datas[blockm] + aPartsNum)) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
     	    }
 	    else
 	    {
-    		if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[blockm % 2], aPartsNum, CAL_FALSE, &events[j])) {printf("Error copying to GPU\n"); return(1);}
+    		if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[blockm % 2], aPartsNum, CAL_FALSE, &events[j])) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
     	    }
     	}
     	
     	if (blockm == 0 || (gpu_m >= gpu_n && !buffersSufficiant))
     	{
-    	    if (Info->Debug) printf("\tCopying part of B to GPU (k = %lld)\n", k);
+    	    if (Info->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld)\n", k);
 	    if (gpu_m < gpu_n && buffersSufficiant)
 	    {
-		if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[blockn % 2])) {printf("Error copying to GPU\n"); return(1);}
+		if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[blockn % 2])) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
 	    }
 	    else
 	    {
-    		if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[buffersSufficiant ? blockn : (blockn % 2)] + aPartsNum)) {printf("Error copying to GPU\n"); return(1);}
+    		if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[buffersSufficiant ? blockn : (blockn % 2)] + aPartsNum)) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
     	    }
     	}
     }
@@ -1901,22 +1901,22 @@ int caldgemm::ExitCALDGEMM()
 {
     if (!caldgemm_initialized)
     {
-	printf("CALDGEMM not initialized, cannot uninitialize!\n");
+	fprintf(STD_OUT, "CALDGEMM not initialized, cannot uninitialize!\n");
 	return(1);
     }
-    if (Info->Debug) printf("Uninitializing CALDGEMM\n");
+    if (Info->Debug) fprintf(STD_OUT, "Uninitializing CALDGEMM\n");
     for (int i = 0;i < bbuffers;i++)
     {
-	//if (Info->Debug) printf("Running Cleanup for Context/bbuffer %d\n", i);
+	//if (Info->Debug) fprintf(STD_OUT, "Running Cleanup for Context/bbuffer %d\n", i);
 	if (!Cleanup(&device, &ctx_main, modules[i], resourceHandlers[i], datas[i], numInputs + numOutputs + numConstantBuffers, i))
 	{
 	    return 1;
 	}
 	if (i < outputthreads && Info->MultiThread)
 	{
-	    if (Info->Debug) printf("Trying to terminate merge slave %d\n", i);
+	    if (Info->Debug) fprintf(STD_OUT, "Trying to terminate merge slave %d\n", i);
 	    mParam[i].terminate = CAL_TRUE;
-	    if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) printf("Error unlocking mergemutex %d/1 to terminate slave\n", i);
+	    if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) fprintf(STD_OUT, "Error unlocking mergemutex %d/1 to terminate slave\n", i);
 	}
     }
     
@@ -1926,60 +1926,60 @@ int caldgemm::ExitCALDGEMM()
     {
         if (calDeviceClose(device) != CAL_RESULT_OK )
         {
-            fprintf(stderr, "There was an error closing the device.\n");
-            fprintf(stderr, "Error string is %s\n", calGetErrorString());
+            fprintf(STD_OUT, "There was an error closing the device.\n");
+            fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
         }
     }
 
     // Shutdown cal device
     if (calShutdown() != CAL_RESULT_OK )
     {
-        fprintf(stderr, "There was an error during cal shutdown.\n");
-        fprintf(stderr, "Error string is %s\n", calGetErrorString());
+        fprintf(STD_OUT, "There was an error during cal shutdown.\n");
+        fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
     }
     
     for (int j = 0;j < kernel_count;j++) delete[] progNames[0][j];
     
     if (Info->UseCPU && Info->UseGPU)
     {
-	if (Info->Debug) printf("Trying to terminate blas slave\n");
+	if (Info->Debug) fprintf(STD_OUT, "Trying to terminate blas slave\n");
 	cParam.terminate = CAL_TRUE;
-        if (Info->MultiThread && pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blas mutex 1 to terminate thread\n");
-        if (pthread_mutex_unlock(&cParam.cblasMutex[0])) printf("Error unlocking blas mutex 0 to terminate thread\n");
+        if (Info->MultiThread && pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "Error unlocking blas mutex 1 to terminate thread\n");
+        if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "Error unlocking blas mutex 0 to terminate thread\n");
     }
     
     if (Info->MultiThread)
     {
-	if (Info->Debug) printf("Trying to terminate linpack slave\n");
+	if (Info->Debug) fprintf(STD_OUT, "Trying to terminate linpack slave\n");
 	linpackParameters.terminate = CAL_TRUE;
-        if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) printf("Error unlocking blas mutex 0 to terminate thread\n");
-	if (Info->Debug) printf("Waiting for linpack slave to terminate\n");
-    	while (pthread_mutex_trylock(&linpackParameters.linpackMutex[0]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-	if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) printf("Error unlocking blasMutex 1\n");
+        if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "Error unlocking blas mutex 0 to terminate thread\n");
+	if (Info->Debug) fprintf(STD_OUT, "Waiting for linpack slave to terminate\n");
+    	while (pthread_mutex_trylock(&linpackParameters.linpackMutex[0]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "Error unlocking blasMutex 1\n");
 	
-	if (Info->Debug) printf("Waiting for merge threads to terminate\n");
+	if (Info->Debug) fprintf(STD_OUT, "Waiting for merge threads to terminate\n");
 	for (int i = 0;i < outputthreads;i++)
 	{
-	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-	    if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) printf("Error unlocking mergeMutex %d/1\n", i);
+	    while (pthread_mutex_trylock(&mParam[i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	    if (pthread_mutex_unlock(&mParam[i].mergeThreadMutex[0])) fprintf(STD_OUT, "Error unlocking mergeMutex %d/1\n", i);
 	}
 	if (Info->UseCPU && Info->UseGPU)
 	{
-	    if (Info->Debug) printf("Waiting for blas threads to terminate\n");
-    	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(stderr, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-	    if (pthread_mutex_unlock(&cParam.cblasMutex[1])) printf("Error unlocking blasMutex 1\n");
+	    if (Info->Debug) fprintf(STD_OUT, "Waiting for blas threads to terminate\n");
+    	    while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	    if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "Error unlocking blasMutex 1\n");
 	}
     }
     
     for (int j = 0;j < 2;j++)
     {
-	if (Info->UseCPU && Info->UseGPU) if (pthread_mutex_destroy(&cParam.cblasMutex[j])) printf("Error destroying blas mutex %d\n", j);
+	if (Info->UseCPU && Info->UseGPU) if (pthread_mutex_destroy(&cParam.cblasMutex[j])) fprintf(STD_OUT, "Error destroying blas mutex %d\n", j);
     }
     if (Info->MultiThread)
     {
-	for (int i = 0;i < ctxcount;i++) if (pthread_mutex_destroy(&obufferMutex[i])) printf("Error destroying obuffermutex %d\n", i);
-	for (int i = 0;i < outputthreads;i++) for (int j = 0;j < 2;j++) if (pthread_mutex_destroy(&mParam[i].mergeThreadMutex[j])) printf("Error destroying merge thread mutex %d/%d\n", i, j);
-	if (pthread_mutex_destroy(&scheduleMutex)) printf("Error destroying schedule mutex\n");
+	for (int i = 0;i < ctxcount;i++) if (pthread_mutex_destroy(&obufferMutex[i])) fprintf(STD_OUT, "Error destroying obuffermutex %d\n", i);
+	for (int i = 0;i < outputthreads;i++) for (int j = 0;j < 2;j++) if (pthread_mutex_destroy(&mParam[i].mergeThreadMutex[j])) fprintf(STD_OUT, "Error destroying merge thread mutex %d/%d\n", i, j);
+	if (pthread_mutex_destroy(&scheduleMutex)) fprintf(STD_OUT, "Error destroying schedule mutex\n");
     }
 
 
@@ -2013,24 +2013,24 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
     {
 	if (nHugeAddresses >= MAX_HUGE_ADDRESSES - 1)
 	{
-	    printf("No more huge_page memory available, increase MAX_HUGE_ADDRESSES\n");
+	    fprintf(STD_OUT, "No more huge_page memory available, increase MAX_HUGE_ADDRESSES\n");
 	    return(NULL);
 	}
 	int shmid;
 	void *address;
     
-	if (Info->Debug)  printf("Running Huge Maloc\n");
+	if (Info->Debug)  fprintf(STD_OUT, "Running Huge Maloc\n");
       
         if ((shmid = shmget(IPC_PRIVATE, (nDoubles * sizeof(double) + HUGE_PAGESIZE) & ~(HUGE_PAGESIZE - 1), SHM_HUGETLB | IPC_CREAT | 0600)) < 0)
         {
-    	    printf("Memory allocation error (shmget).\n");
+    	    fprintf(STD_OUT, "Memory allocation error (shmget).\n");
 	    return(NULL);
 	}
 	
 	ptr = (double*) shmat(shmid, NULL, SHM_RND);
 	if ((long long int) address == -1)
 	{
-	    printf("Memory allocation error (shmat).\n");
+	    fprintf(STD_OUT, "Memory allocation error (shmat).\n");
 	    return(NULL);
 	}
 	
@@ -2038,7 +2038,7 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
 
 	if (page_locked && shmctl(shmid, SHM_LOCK, NULL) == -1)
 	{
-	    printf("Error Locking HugePage Memory\n");
+	    fprintf(STD_OUT, "Error Locking HugePage Memory\n");
 	    shmdt((void*) ptr);
 	    return(NULL);
 	}
@@ -2053,7 +2053,7 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
     if (ptr == NULL) return(NULL);
     if (!huge_pages && page_locked && mlock(ptr, nDoubles * sizeof(double)))
     {
-	printf("Error locking Pages\n");
+	fprintf(STD_OUT, "Error locking Pages\n");
 	if (!huge_pages) delete[] ptr;
 	return(NULL);
     }
