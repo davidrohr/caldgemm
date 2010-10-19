@@ -58,6 +58,8 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 caldgemm::caldgemm()
 {
     caldgemm_initialized = false;
+    linpack_last_mn = 0;
+    memset(linpackGPURatios, 0, 3 * sizeof(double));
 }
 
 caldgemm::~caldgemm()
@@ -971,14 +973,18 @@ int caldgemm::cpuScheduler()
     int retVal = 0;
     if (Info->UseCPU && Info->MultiThread && Info->DynamicSched)
     {
-	    const size_t mb = gpu_m / Info->Height;
-	    const size_t nb = gpu_n / Info->Height;
-	    size_t nBlocks = mb * nb;
+	const size_t mb = gpu_m / Info->Height;
+	const size_t nb = gpu_n / Info->Height;
+	size_t nBlocks = mb * nb;
 	
-	    pthread_mutex_lock(&scheduleMutex);
-	    const size_t k = gpu_k_barrier == -1 ? 0 : gpu_k_barrier;
+	pthread_mutex_lock(&scheduleMutex);
+	const size_t k = gpu_k_barrier == -1 ? 0 : gpu_k_barrier;
+	    
+	if (gpu_k_barrier < nBlocks - 1)
+	{
 	    size_t blockm, blockn;
 	    DGEMM_getblocks(k, blockm, blockn);
+	
 	    if (cParam.dynamic_run == 0)
 	    {
 	        cParam.dynamic_size = ((1.0f - gpu_ratio_used) * (float) (nBlocks - k - 1) + 0.5) * Info->Height;
@@ -1021,7 +1027,7 @@ TryThirdRun:
 		    test_cpu_k--;
 		    DGEMM_getblocks(test_cpu_k, cpublockm, cpublockn);
 		}
-		if (k < test_cpu_k - 1)
+		if (test_cpu_k && k < test_cpu_k - 1)
 		{
 		    if (!Info->Quiet) printf("Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", test_cpu_k, cpublockm, cpublockn);
 		    cParam.dynamic_run2++;
@@ -1029,13 +1035,9 @@ TryThirdRun:
 		    cpu_k_barrier = test_cpu_k;
 		    retVal = 1;
 		}
-		else
-		{
-OmitThirdRun:
-		    test_cpu_k = 0;
-		}
     	    }
-	    pthread_mutex_unlock(&scheduleMutex);
+    	}
+	pthread_mutex_unlock(&scheduleMutex);
     }
     return(retVal);
 }
