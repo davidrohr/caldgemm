@@ -131,8 +131,8 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
     	    
     	    if (!Info->Quiet || Info->DisplayTiming)
     	    {
-    		fprintf(STD_OUT, "GPU Time %2.4lf (%2.4lf Gflops)     CPU Time %2.4lf (%2.4lf Gflops)", Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
-    	        if (ExecLinpack) fprintf(STD_OUT, "     Linpack Time: %2.4lf (%d)        Total CPU Time: %2.4lf", Timers.LinpackTimer.GetElapsedTime(), ExecLinpack, Timers.CPUTimer.GetElapsedTime() + Timers.LinpackTimer.GetElapsedTime());
+    		fprintf(STD_OUT, "GPU Time %2.4lf (%2.4lf Gflops)   CPU Time %2.4lf (%2.4lf Gflops)", Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
+    	        if (ExecLinpack) fprintf(STD_OUT, "   Linpack Time: %2.4lf (%d)   Total CPU Time: %2.4lf", Timers.LinpackTimer.GetElapsedTime(), ExecLinpack, Timers.CPUTimer.GetElapsedTime() + Timers.LinpackTimer.GetElapsedTime());
     		if (Info->TabularTiming)
     		{
     		    fprintf(STD_OUT, "            GPU Ratio - Real: %2.3lf%% Guessed: %2.3lf%%, m*n: %E, CPU Wait Time: %2.3lf", (100.0 * flopsg / (flopsc + flopsg)), 100.0 * gpu_ratio_used, (double) (Info->m * Info->n), cpu_wait_time);
