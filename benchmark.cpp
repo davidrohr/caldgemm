@@ -124,8 +124,9 @@ size_t pitch_a, pitch_b, pitch_c;
 bool linpackpitch = false;
 size_t height_a, height_b;
 
-bool mem_page_lock = true;;
+bool mem_page_lock = true;
 bool mem_huge_table = false;
+bool linpack_callbacks = false;
 
 char* matrixfile;
 
@@ -178,6 +179,7 @@ CALvoid Usage(const CALchar* name)
     fprintf(STD_OUT, "\t-0        Write the output of divideBuffers directly to GPU instead of a seperate DMA transfer\n" );
     fprintf(STD_OUT, "\t-A        Do the DMA transfer to GPU asynchronously\n" );
     fprintf(STD_OUT, "\t-L        Memory Organisation like in HPL (LINPACK)\n" );
+    fprintf(STD_OUT, "\t-C        Call fake LINPACK callback functions\n" );
     fprintf(STD_OUT, "\t-P  <int> LDA=LDB=LDC = vel for HPL like memory\n" );
     fprintf(STD_OUT, "\t-T        Allocate Memory using Huge Tables\n" );
     fprintf(STD_OUT, "\t-B        Keep DMA Buffers mapped during kernel execution\n" );
@@ -188,6 +190,8 @@ CALvoid Usage(const CALchar* name)
             " size. Cacheable memory is machine dependent, so use with\n"
             " caution.\n");
 }
+
+void linpack_fake() {}
 
 CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo* Info)
 {
@@ -216,6 +220,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
     Info->DivideToGPU = CAL_FALSE;
     Info->AsyncDMA = CAL_FALSE;
     Info->KeepBuffersMapped = CAL_FALSE;
+    
+    Info->linpack_factorize_function = linpack_fake;
+    Info->linpack_broadcast_function = linpack_fake;
 #endif
 
     for (CALuint x = 1; x < argc; ++x)
@@ -267,6 +274,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
                 break;
             case 'L':
 		linpackmemory = true;
+                break;
+            case 'C':
+		linpack_callbacks = true;
                 break;
             case 'P':
                 if (++x < argc)
@@ -746,7 +756,7 @@ int main(CALint argc, CALchar** argv)
 #ifdef TESTMODE
 		if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #else
-		if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, Info.m, Info.Width, Info.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+		if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, Info.m, Info.Width, Info.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans, linpack_callbacks))
 #endif
 		{
 		    fprintf(STD_OUT, "Error running CALDGEMM\n");
