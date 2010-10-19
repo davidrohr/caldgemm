@@ -1446,7 +1446,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 #endif
 	    cpu_set_t divide_mask;
 	    CPU_ZERO(&divide_mask);
-	    CPU_SET(0, &divide_mask);
+	    if (ExecuteLinpackCallbacks)
+	    {
+		CPU_SET(-Info->Pin, &divide_mask);
+	    }
+	    else
+	    {
+		CPU_SET(0, &divide_mask);
+	    }
 	    sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
 #ifndef CALDGEMM_UNEQUAL_PINNING
 	}
