@@ -1443,7 +1443,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     
     if (ExecuteLinpackCallbacks)
     {
-	if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.75;
+	if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.70;
 	else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
 	if ((((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn) / linpack_last_mn < 0.3 && linpackGPURatios[ExecuteLinpackCallbacks] > 0.0001)
 	{
