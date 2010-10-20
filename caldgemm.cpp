@@ -1058,6 +1058,7 @@ void* cblas_wrapper(void* arg)
 	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m + Info->Width, Info->Width, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B - Info->Width * B_pitch_use, B_pitch, Beta, C - Info->Width * (C_pitch + 1), C_pitch);
 	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->Width, Info->n, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Info->Width * C_pitch, C_pitch);
 	    par->cls->Timers.CPUTimer.Stop();
+#ifndef NO_ASYNC_LINPACK
 	    if (!Info->Quiet) fprintf(STD_OUT, "\t\t\tStarting Linpack factorization\n");
 	    par->cls->Timers.LinpackTimer.Start();
 	    Info->linpack_factorize_function();
@@ -1072,6 +1073,7 @@ void* cblas_wrapper(void* arg)
 		Info->linpack_broadcast_function();
 		par->cls->Timers.LinpackTimer.Stop();
 	    }
+#endif
 	}
 
 	par->cls->Timers.CPUTimer.Start();
@@ -1126,10 +1128,12 @@ void* cblas_wrapper(void* arg)
 	} while (par->cls->cpuScheduler());
 	par->cls->Timers.CPUTimer.Stop();
 
+#ifndef NO_ASYNC_LINPACK
 	if (par->cls->ExecLinpack && Info->MultiThread)
 	{
 	    pthread_mutex_lock(&par->cls->linpackParameters.linpackMutex[1]);
 	}
+#endif
 	goto_set_num_threads(old_goto_threads);
 	caldgemm_goto_reserve_cpus(0);
 
@@ -1371,6 +1375,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 	Timers.CPUTimer.Stop();
 	CPUOnlyRun = true;
+#ifndef NO_ASYNC_LINPACK
 	if (ExecuteLinpackCallbacks)
 	{
 	    if (Info->Debug) fprintf(STD_OUT, "DGEMM was running on CPU only, executing linpack callback functions\n");
@@ -1379,6 +1384,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     	    Info->linpack_broadcast_function();
 	    Timers.LinpackTimer.Stop();
 	}
+#endif
 	goto RunCALDGEMM_end;
     }
     CPUOnlyRun = false;
@@ -1718,10 +1724,13 @@ RunCALDGEMM_end:
     Timers.System.Stop();
     outputthreads = old_outputthreads;
     
-    
+#ifndef NO_ASYNC_LINPACK
     if (!Info->UseCPU && ExecuteLinpackCallbacks)
+#else
+    if (ExecuteLinpackCallbacks)
+#endif
     {
-	if (!Info->Quiet) fprintf(STD_OUT, "CPU Was disabled, no asynchronous processing of linpack functions possible, executing linpack callback functions\n");
+	if (!Info->Quiet) fprintf(STD_OUT, "No asynchronous processing of linpack functions possible, executing linpack callback functions\n");
         Timers.LinpackTimer.Start();
         Info->linpack_factorize_function();
         Info->linpack_broadcast_function();
