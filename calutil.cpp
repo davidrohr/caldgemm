@@ -131,15 +131,16 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
     	    
     	    if (!Info->Quiet || Info->DisplayTiming)
     	    {
-				char timingoutput[1024];
+				char timingoutputbase[1024];
+				char *timingoutput = timingoutputbase;
     		sprintf(timingoutput, "GPU Time %2.4lf (%2.4lf Gflops)   CPU Time %2.4lf (%2.4lf Gflops)", Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
-    	        if (ExecLinpack) sprintf(timingoutput, "   Linpack Time: %2.4lf (%d, %2.4lf)   Total CPU Time: %2.4lf", Timers.LinpackTimer1.GetElapsedTime(), ExecLinpack, Timers.LinpackTimer2.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime());
+    	        if (ExecLinpack) timingoutput += sprintf(timingoutput, "   Linpack Time: %2.4lf (%d, %2.4lf)   Total CPU Time: %2.4lf", Timers.LinpackTimer1.GetElapsedTime(), ExecLinpack, Timers.LinpackTimer2.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime());
     		if (Info->TabularTiming)
     		{
-    		    sprintf(timingoutput, " --- GPU Ratio - Real: %2.3lf%% Guessed: %2.3lf%%, m*n: %.1E, CPU Wait Time: %2.3lf", (100.0 * flopsg / (flopsc + flopsg)), 100.0 * gpu_ratio_used, (double) (Info->m * Info->n), cpu_wait_time);
+    		    timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.3lf%% Guessed: %2.3lf%%, m*n: %.1E, CPU Wait Time: %2.3lf", (100.0 * flopsg / (flopsc + flopsg)), 100.0 * gpu_ratio_used, (double) (Info->m * Info->n), cpu_wait_time);
     		}
-    		sprintf(timingoutput, "\n");
-				fprintf(STD_OUT, timingoutput);
+    		timingoutput += sprintf(timingoutput, "\n");
+				fprintf(STD_OUT, timingoutputbase);
     	    }
     	    gpu_ratio_used = flopsg / (flopsc * Timers.CPUTimer.GetElapsedTime() / Timers.System.GetElapsedTime() + flopsg);
         }
