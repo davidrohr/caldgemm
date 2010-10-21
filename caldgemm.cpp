@@ -928,9 +928,9 @@ void* linpack_wrapper(void* arg)
     if (pthread_mutex_lock(&cls->linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
     while (pthread_mutex_lock(&cls->linpackParameters.linpackMutex[0]) == 0 && cls->linpackParameters.terminate == CAL_FALSE)
     {
-	cls->Timers.LinpackTimer.Start();
+	cls->Timers.LinpackTimer2.Start();
         Info->linpack_broadcast_function();
-	cls->Timers.LinpackTimer.Stop();
+	cls->Timers.LinpackTimer2.Stop();
         if (pthread_mutex_unlock(&cls->linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
     }
 
@@ -1051,6 +1051,7 @@ void* cblas_wrapper(void* arg)
 	goto_set_num_threads(old_goto_threads - require_threads);
 	caldgemm_goto_reserve_cpus(require_threads);
 	
+	par->cls->Timers.TotalCPUTimer.Start();
 	if (par->cls->ExecLinpack)
 	{
 	    if (!Info->Quiet) fprintf(STD_OUT, "\t\t\tDoint initial cblas runs to prepare Linpack factorization\n");
@@ -1060,18 +1061,18 @@ void* cblas_wrapper(void* arg)
 	    par->cls->Timers.CPUTimer.Stop();
 #ifndef NO_ASYNC_LINPACK
 	    if (!Info->Quiet) fprintf(STD_OUT, "\t\t\tStarting Linpack factorization\n");
-	    par->cls->Timers.LinpackTimer.Start();
+	    par->cls->Timers.LinpackTimer1.Start();
 	    Info->linpack_factorize_function();
-	    par->cls->Timers.LinpackTimer.Stop();
+	    par->cls->Timers.LinpackTimer1.Stop();
 	    if (Info->MultiThread)
 	    {
 		pthread_mutex_unlock(&par->cls->linpackParameters.linpackMutex[0]);
 	    }
 	    else
 	    {
-		par->cls->Timers.LinpackTimer.Start();
+		par->cls->Timers.LinpackTimer1.Start();
 		Info->linpack_broadcast_function();
-		par->cls->Timers.LinpackTimer.Stop();
+		par->cls->Timers.LinpackTimer1.Stop();
 	    }
 #endif
 	}
@@ -1134,6 +1135,7 @@ void* cblas_wrapper(void* arg)
 	    pthread_mutex_lock(&par->cls->linpackParameters.linpackMutex[1]);
 	}
 #endif
+	par->cls->Timers.TotalCPUTimer.Stop();
 	goto_set_num_threads(old_goto_threads);
 	caldgemm_goto_reserve_cpus(0);
 
@@ -1225,10 +1227,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     {
 	if (ExecuteLinpackCallbacks)
 	{
-	    Timers.LinpackTimer.Start();
+	    Timers.LinpackTimer1.Start();
 	    Info->linpack_factorize_function();
 	    Info->linpack_broadcast_function();
-	    Timers.LinpackTimer.Stop();
+	    Timers.LinpackTimer1.Stop();
 	}
 	return(0);		//Do Nothing
     }
@@ -1379,10 +1381,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (ExecuteLinpackCallbacks)
 	{
 	    if (Info->Debug) fprintf(STD_OUT, "DGEMM was running on CPU only, executing linpack callback functions\n");
-	    Timers.LinpackTimer.Start();
+	    Timers.LinpackTimer1.Start();
     	    Info->linpack_factorize_function();
     	    Info->linpack_broadcast_function();
-	    Timers.LinpackTimer.Stop();
+	    Timers.LinpackTimer1.Stop();
 	}
 #endif
 	goto RunCALDGEMM_end;
@@ -1731,10 +1733,10 @@ RunCALDGEMM_end:
 #endif
     {
 	if (!Info->Quiet) fprintf(STD_OUT, "No asynchronous processing of linpack functions possible, executing linpack callback functions\n");
-        Timers.LinpackTimer.Start();
+        Timers.LinpackTimer1.Start();
         Info->linpack_factorize_function();
         Info->linpack_broadcast_function();
-	Timers.LinpackTimer.Stop();
+	Timers.LinpackTimer1.Stop();
     }
 
     if (Info->Debug) fprintf(STD_OUT, "DGEMM Run Complete\n");
@@ -1950,9 +1952,11 @@ void caldgemm::ResetTimers()
     Timers.CounterCopyTo.Reset();
     Timers.CounterCopyFrom.Reset();
     Timers.CPUTimer.Reset();
+	Timers.TotalCPUTimer.Reset();
     Timers.GPUTimer.Reset();
     Timers.divideA = Timers.divideB = 0;
-    Timers.LinpackTimer.Reset();
+    Timers.LinpackTimer1.Reset();
+	Timers.LinpackTimer2.Reset();
 }
 
 #define MAX_HUGE_ADDRESSES 256

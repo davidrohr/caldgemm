@@ -277,7 +277,7 @@ protected:
     
     struct TimerInfo
     {
-	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer, ATime, LinpackTimer;
+	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer, TotalCPUTimer, ATime, LinpackTimer1, LinpackTimer2;
 	int divideA, divideB;
     } Timers;
 
