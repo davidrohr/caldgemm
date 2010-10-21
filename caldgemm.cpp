@@ -1745,9 +1745,9 @@ RunCALDGEMM_end:
     print_submatrices(C, 12, 24, Info->n, 1, 1, 1, 1);
 #endif
     
-    if (!Info->NoPerformanceWarnings && Info->UseCPU && Info->UseGPU && !CPUOnlyRun && fabs(Timers.CPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()) > 1.0)
+    if (!Info->NoPerformanceWarnings && Info->UseCPU && Info->UseGPU && !CPUOnlyRun && fabs(Timers.TotalCPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()) > 1.0)
     {
-	fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.CPUTimer.GetElapsedTime(), Info->m, Info->n);
+	fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime(), Info->m, Info->n);
     }
     displayMatrixTiming("caldgemm");
     AnalyzeResults(datas[0]);
