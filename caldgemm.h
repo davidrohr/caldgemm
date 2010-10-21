@@ -99,8 +99,10 @@ class caldgemm : public calutil
     pthread_mutex_t scheduleMutex;
     volatile long long int gpu_k_barrier, cpu_k_barrier;
     
-    double linpack_last_mn;
-    double linpackGPURatios[3];
+    static const int max_linpack_callback_types = 3;
+    
+    double linpack_last_mn[max_linpack_callback_types];
+    double linpackGPURatios[max_linpack_callback_types];
     
 #if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
     static const bool buffersSwitchable = true;

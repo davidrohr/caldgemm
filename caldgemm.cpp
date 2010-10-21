@@ -58,7 +58,7 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 caldgemm::caldgemm()
 {
     caldgemm_initialized = false;
-    linpack_last_mn = 0;
+    memset(linpack_last_mn, 0, max_linpack_callback_types * sizeof(double));
     memset(linpackGPURatios, 0, 3 * sizeof(double));
 }
 
@@ -1453,13 +1453,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     {
 	if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.70;
 	else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
-	if ((((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn) / linpack_last_mn < 0.3 && linpackGPURatios[ExecuteLinpackCallbacks] > 0.0001)
+	if ((((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecuteLinpackCallbacks]) / linpack_last_mn[ExecuteLinpackCallbacks] < 0.3 && linpackGPURatios[ExecuteLinpackCallbacks] > 0.0001)
 	{
 	    GPURatio = linpackGPURatios[ExecuteLinpackCallbacks];
+	    if (Info->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.1lf\n", ExecuteLinpackCallbacks, 100 * GPURatio);
 	}
 	else
 	{
 	    linpackGPURatios[ExecuteLinpackCallbacks] = GPURatio;
+	    if (Info->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.1lf\n", ExecuteLinpackCallbacks, 100 * GPURatio);
 	}
     }
     
@@ -1756,8 +1758,11 @@ RunCALDGEMM_end:
     if (ExecuteLinpackCallbacks)
     {
 	const double tmpratio = 0.5;
-	linpackGPURatios[ExecuteLinpackCallbacks] = tmpratio * linpackGPURatios[ExecuteLinpackCallbacks] + (1.0 - tmpratio) * gpu_ratio_used;
-	linpack_last_mn = (double) Info->m * (double) Info->n;
+	const double newratio = tmpratio * linpackGPURatios[ExecuteLinpackCallbacks] + (1.0 - tmpratio) * gpu_ratio_used;
+	if (Info->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.1lf, new: %2.1lf, factor: %2.1lf) => %2.1lf\n", ExecuteLinpackCallbacks, 100 * linpackGPURatios[ExecuteLinpackCallbacks], 100 * gpu_ratio_used, tmpratio, 100 * newratio);
+
+	linpackGPURatios[ExecuteLinpackCallbacks] = newratio;
+	linpack_last_mn[ExecuteLinpackCallbacks] = (double) Info->m * (double) Info->n;
     }
     
     return(0);
