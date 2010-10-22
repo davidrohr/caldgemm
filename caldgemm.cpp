@@ -2026,3 +2026,5 @@ void caldgemm::FreeMemory(double* ptr)
     }
     delete[] ptr;
 }
+
+// vim: ts=4 sw=4 noet sts=4 tw=100
