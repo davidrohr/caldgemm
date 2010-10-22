@@ -512,7 +512,7 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 	}
 	else
 	{
-	    pitch_a = pitch_b = pitch_c = Info.n + Info.Width + (Info.n + Info.Width) % 2;
+	    pitch_a = pitch_b = pitch_c = Info.n + Info.Width + (Info.n + Info.Width) % 8;
 	}
 	linpackmem = dgemm.AllocMemory(pitch_c * (Info.m + Info.Width + 1) + 8, mem_page_lock, mem_huge_table);
 	if (linpackmem == NULL) {printf("Memory Allocation Error\n"); return(1);}
@@ -530,26 +530,34 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     {
 	if (transa)
 	{
-	    pitch_a = Info.m + (Info.m % 2);
+	    pitch_a = Info.m + (Info.m % 8);
 	    height_a = Info.Width;
 	}
 	else
 	{
-    	    pitch_a = Info.Width + (Info.Width % 2);
+	    pitch_a = Info.Width + (Info.Width % 8);
 	    height_a = Info.m;
+	}
+	if (((pitch_a / 8) & 1) == 0)
+	{
+		pitch_a += 8;
 	}
 	if (transb)
 	{
-	    pitch_b = Info.Width + (Info.Width % 2);
+	    pitch_b = Info.Width + (Info.Width % 8);
 	    height_b = Info.n;
 	}
 	else
 	{
 	    height_b = Info.Width;
-	    pitch_b = Info.n + (Info.n % 2);
+	    pitch_b = Info.n + (Info.n % 8);
 	}
-        pitch_c = Info.n + (Info.n % 2);
-        if (Info.n % 2) printf("Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", Info.n, pitch_b);
+	if (((pitch_b / 8) & 1) == 0)
+	{
+		pitch_b += 8;
+	}
+        pitch_c = Info.n + (Info.n % 8);
+        if (Info.n % 8) printf("Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", Info.n, pitch_b);
 
 	if (AA) dgemm.FreeMemory(AA);
         if (BB) dgemm.FreeMemory(BB);
