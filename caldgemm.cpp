@@ -459,185 +459,185 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 			}
 		}
 
-		for (CALint y=0; y < height; y++)
+	for (CALint y=0; y < height; y++)
+	{
+		//CALDGEMM_44 Init
+#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
+		CALint bank = y % 4;
+		double* saddr2 = src[bank + 4].d_data + position[bank];
+		double* paddr2 = src[(y + 1) % 4 + 4].d_data + position[(y + 1) % 4];
+#else
+		CALint bank = y % numBuffers;
+#endif
+
+		double* daddr = dst + (y * pitch);
+		double* saddr = src[bank].d_data + position[bank];
+		double* paddr = src[(y + 1) % 4].d_data + position[(y + 1) % 4];
+		int count = src[bank].DataSize * width;
+
+#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
+
+		if (Info->KeepBuffersMapped)
 		{
-			//CALDGEMM_44 Init
-#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
-			CALint bank = y % 4;
-			double* saddr2 = src[bank + 4].d_data + position[bank];
-			double* paddr2 = src[(y + 1) % 4 + 4].d_data + position[(y + 1) % 4];
-#else
-			CALint bank = y % numBuffers;
-#endif
-
-			double* daddr = dst + (y * pitch);
-			double* saddr = src[bank].d_data + position[bank];
-			double* paddr = src[(y + 1) % 4].d_data + position[(y + 1) % 4];
-			int count = src[bank].DataSize * width;
-
-#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
-
-			if (Info->KeepBuffersMapped)
-			{
-				if (__fpclassify(Beta) == FP_ZERO)
-				{
-					//CALDGEMM_44 BETA=ZERO HACKED LIB
-					for (int i = 0;i < count;i += 64)
-					{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-						_mm_prefetch(saddr + 50, _MM_HINT_NTA);
-						_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-#endif
-						_mm_store_pd_use(daddr, _mm_load_pd(saddr));
-						_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
-						_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
-						_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
-						saddr += 4;
-						saddr2 += 4;
-						daddr += 8;
-					}
-				}
-				else
-				{
-					//CALDGEMM_44 GENERAL CASE ORIGINAL LIB
-#undef _mm_store_pd_use
-#define _mm_store_pd_use _mm_store_pd
-					__m128d beta = _mm_set1_pd(Beta);
-					for (int i = 0;i < count;i += 64)
-					{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-						_mm_prefetch(saddr + 50, _MM_HINT_NTA);
-						_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-#ifndef _NO_AMD_CPU
-						_m_prefetchw(daddr + 50);
-#else
-    			    	        	_mm_prefetch(daddr + 50, _MM_HINT_NTA);
-#endif
-#endif
-						_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
-						_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-						_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
-						_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
-						saddr += 4;
-						saddr2 += 4;
-						paddr += 4;
-						paddr2 += 4;
-						daddr += 8;
-					}
-				}
-			}
-			else
-			{
-				if (__fpclassify(Beta) == FP_ZERO)
-				{
-					//CALDGEMM_44 BETA=ZERO ORIGINAL LIB
-					for (int i = 0;i < count;i += 128)
-					{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-						_mm_prefetch(saddr + 50, _MM_HINT_NTA);
-						_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-#endif
-						_mm_store_pd_use(daddr, _mm_load_pd(saddr));
-						_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
-						_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
-						_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
-						_mm_store_pd_use(daddr + 8, _mm_load_pd(saddr + 4));
-						_mm_store_pd_use(daddr + 10, _mm_load_pd(saddr2 + 4));
-						_mm_store_pd_use(daddr + 12, _mm_load_pd(saddr + 6));
-						_mm_store_pd_use(daddr + 14, _mm_load_pd(saddr2 + 6));
-						saddr += 8;
-						saddr2 += 8;
-						daddr += 16;
-					}
-				}
-				else
-				{
-					//CALDGEMM_44 GENERAL CASE ORIGINAL LIB
-#undef _mm_store_pd_use
-#define _mm_store_pd_use _mm_store_pd
-					__m128d beta = _mm_set1_pd(Beta);
-					for (int i = 0;i < count;i += 128)
-					{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-						//    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
-						//    		    _mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-#ifndef _NO_AMD_CPU
-						_m_prefetchw(daddr + 50);
-#else
-						_mm_prefetch(daddr + 50, _MM_HINT_NTA);
-#endif
-#endif
-						_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
-						_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-						_mm_store_pd_use(daddr + 8, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 8))));
-						_mm_store_pd_use(daddr + 12, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 12))));
-						_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
-						_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
-						_mm_store_pd_use(daddr + 10, _mm_add_pd(_mm_load_pd(saddr2 + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 10))));
-						_mm_store_pd_use(daddr + 14, _mm_add_pd(_mm_load_pd(saddr2 + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 14))));
-						saddr += 8;
-						saddr2 += 8;
-						/*    		    paddr += 8;
-						paddr2 += 8;*/
-						daddr += 16;
-					}
-				}
-			}
-
-			position[bank] += gpu_width / 2;
-#else        
 			if (__fpclassify(Beta) == FP_ZERO)
 			{
-				//CALDGEMM_84 BETA=0
-#undef _mm_store_pd_use
-#define _mm_store_pd_use _mm_stream_pd
+				//CALDGEMM_44 BETA=ZERO HACKED LIB
 				for (int i = 0;i < count;i += 64)
 				{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+					_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+					_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
 #endif
 					_mm_store_pd_use(daddr, _mm_load_pd(saddr));
-					_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 2));
-					_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 4));
-					_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 6));
-					saddr += 8;
+					_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
+					_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
+					_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
+					saddr += 4;
+					saddr2 += 4;
 					daddr += 8;
 				}
 			}
 			else
 			{
-				//CALDGEMM_82 General Case
+				//CALDGEMM_44 GENERAL CASE ORIGINAL LIB
 #undef _mm_store_pd_use
 #define _mm_store_pd_use _mm_store_pd
 				__m128d beta = _mm_set1_pd(Beta);
 				for (int i = 0;i < count;i += 64)
 				{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+					_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+					_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
 #ifndef _NO_AMD_CPU
-					_m_prefetchw(daddr + 100);
+					_m_prefetchw(daddr + 50);
+#else
+					_mm_prefetch(daddr + 50, _MM_HINT_NTA);
 #endif
 #endif
 					_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
-					_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
-					_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-					_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
-					saddr += 8;
+					_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
+					_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
+					_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
+					saddr += 4;
+					saddr2 += 4;
+					paddr += 4;
+					paddr2 += 4;
 					daddr += 8;
 				}
 			}
-
-			position[bank] += gpu_width;
-#endif //CALDGEMM_44
+		}
+		else
+		{
+			if (__fpclassify(Beta) == FP_ZERO)
+			{
+				//CALDGEMM_44 BETA=ZERO ORIGINAL LIB
+				for (int i = 0;i < count;i += 128)
+				{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+					_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+					_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+#endif
+					_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+					_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
+					_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
+					_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
+					_mm_store_pd_use(daddr + 8, _mm_load_pd(saddr + 4));
+					_mm_store_pd_use(daddr + 10, _mm_load_pd(saddr2 + 4));
+					_mm_store_pd_use(daddr + 12, _mm_load_pd(saddr + 6));
+					_mm_store_pd_use(daddr + 14, _mm_load_pd(saddr2 + 6));
+					saddr += 8;
+					saddr2 += 8;
+					daddr += 16;
+				}
+			}
+			else
+			{
+				//CALDGEMM_44 GENERAL CASE ORIGINAL LIB
+#undef _mm_store_pd_use
+#define _mm_store_pd_use _mm_store_pd
+				__m128d beta = _mm_set1_pd(Beta);
+				for (int i = 0;i < count;i += 128)
+				{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+					//    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
+					//    		    _mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+#ifndef _NO_AMD_CPU
+					_m_prefetchw(daddr + 50);
+#else
+					_mm_prefetch(daddr + 50, _MM_HINT_NTA);
+#endif
+#endif
+					_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
+					_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
+					_mm_store_pd_use(daddr + 8, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 8))));
+					_mm_store_pd_use(daddr + 12, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 12))));
+					_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
+					_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
+					_mm_store_pd_use(daddr + 10, _mm_add_pd(_mm_load_pd(saddr2 + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 10))));
+					_mm_store_pd_use(daddr + 14, _mm_add_pd(_mm_load_pd(saddr2 + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 14))));
+					saddr += 8;
+					saddr2 += 8;
+					/*    		    paddr += 8;
+									paddr2 += 8;*/
+					daddr += 16;
+				}
+			}
 		}
 
-		if (Info->DstMemory == 'c' && !Info->KeepBuffersMapped)
-			for (CALuint i = 0;i < cPartsNum;i++)
+		position[bank] += gpu_width / 2;
+#else        
+		if (__fpclassify(Beta) == FP_ZERO)
+		{
+			//CALDGEMM_84 BETA=0
+#undef _mm_store_pd_use
+#define _mm_store_pd_use _mm_stream_pd
+			for (int i = 0;i < count;i += 64)
 			{
-				CHKERR(calResUnmap(src[i].res), "unmapping output buffer for merging");
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+				_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+#endif
+				_mm_store_pd_use(daddr, _mm_load_pd(saddr));
+				_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 2));
+				_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 4));
+				_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 6));
+				saddr += 8;
+				daddr += 8;
 			}
-			delete[] position;
-			return(0);
+		}
+		else
+		{
+			//CALDGEMM_82 General Case
+#undef _mm_store_pd_use
+#define _mm_store_pd_use _mm_store_pd
+			__m128d beta = _mm_set1_pd(Beta);
+			for (int i = 0;i < count;i += 64)
+			{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+				_mm_prefetch(saddr + 100, _MM_HINT_NTA);
+#ifndef _NO_AMD_CPU
+				_m_prefetchw(daddr + 100);
+#endif
+#endif
+				_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
+				_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
+				_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
+				_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
+				saddr += 8;
+				daddr += 8;
+			}
+		}
+
+		position[bank] += gpu_width;
+#endif //CALDGEMM_44
+	}
+
+	if (Info->DstMemory == 'c' && !Info->KeepBuffersMapped)
+		for (CALuint i = 0;i < cPartsNum;i++)
+		{
+			CHKERR(calResUnmap(src[i].res), "unmapping output buffer for merging");
+		}
+	delete[] position;
+	return(0);
 }
 
 void caldgemm::checkCalPatch()
