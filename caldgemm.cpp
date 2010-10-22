@@ -262,48 +262,48 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
 			}
 			else
 #endif
-				for (CALint y=0; y < width; y += 2)
+#if !(defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B))
+#error "divideBuffer not implemented!"
+#endif
+				assert((height & 3) == 0);
+				const int height_4 = height / 4;
+
+				for (CALint y=0; y < width; y += 4)
 				{
-					double* saddr = src + (y * pitch);
-					double* saddr2 = src + ((y + 1) * pitch);
+					const double *__restrict__ saddr0 = &src[(y + 0) * pitch];
+					const double *__restrict__ saddr2 = &src[(y + 2) * pitch];
 
-					for (int i = 0;i < height;i += 2)
+					double *__restrict__ dstBank0 = &dst[0].d_data[y * 2];
+					double *__restrict__ dstBank1 = &dst[1].d_data[y * 2];
+
+					for (int i = 0; i < height_4; ++i)
 					{
-#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
-						CALint bank = (i / 2) % 2;
-						double* daddr = dst[bank].d_data + (i / 4) * gpu_width * 2 + y * 2;
-						double* daddr2 = dst[bank].d_data + (i / 4) * gpu_width * 2 + y * 2 + 2;
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-						//Col Interleaved Storage, Numbuffers is either 2 or 4, might be optimized in 2 branches
-						CALint bank = (y / 2) % numBuffers;
-#ifdef CALDGEMM_DIAGONAL_TEXTURE
-						double* daddr = dst[bank].d_data + i * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (gpu_width / 2);
-						double* daddr2 = dst[bank].d_data + (i + 1) * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (gpu_width / 2);
-#else
-						double* daddr = dst[bank].d_data + (i * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
-						double* daddr2 = dst[bank].d_data + ((i + 1) * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
-#endif
-#else
-						//Standard Storage
-						CALint bank = (i) % numBuffers;
-						CALint bank2 = (i + 1) % numBuffers;
-						double* daddr = dst[bank].d_data + (i / numBuffers) * gpu_width + y;
-						double* daddr2 = dst[bank2].d_data + (i / numBuffers) * gpu_width + y;
-#endif
+						double *__restrict__ daddr0 = &dstBank0[i * gpu_width * 2];
+						double *__restrict__ daddr1 = &dstBank1[i * gpu_width * 2];
 
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-						_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-						_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
-#endif
-						__m128d x1, x2, x3, x4;
-						x1 = _mm_load_pd_use(saddr);
-						x2 = _mm_load_pd_use(saddr2);
-						x3 = _mm_unpacklo_pd(x1, x2);
-						x4 = _mm_unpackhi_pd(x1, x2);
-						_mm_store_pd_use(daddr, x3);
-						_mm_store_pd_use(daddr2, x4);
-						saddr += 2;
+						const __m128d x0 = _mm_load_pd_use(&saddr0[0]);
+						const __m128d x1 = _mm_load_pd_use(&saddr0[pitch]);
+						const __m128d x2 = _mm_load_pd_use(&saddr2[0]);
+						const __m128d x3 = _mm_load_pd_use(&saddr2[pitch]);
+						saddr0 += 2;
 						saddr2 += 2;
+
+						const __m128d x4 = _mm_load_pd_use(&saddr0[0]);
+						const __m128d x5 = _mm_load_pd_use(&saddr0[pitch]);
+						const __m128d x6 = _mm_load_pd_use(&saddr2[0]);
+						const __m128d x7 = _mm_load_pd_use(&saddr2[pitch]);
+						saddr0 += 2;
+						saddr2 += 2;
+
+						_mm_stream_pd(&daddr0[0], _mm_unpacklo_pd(x0, x1));
+						_mm_stream_pd(&daddr0[2], _mm_unpackhi_pd(x0, x1));
+						_mm_stream_pd(&daddr0[4], _mm_unpacklo_pd(x2, x3));
+						_mm_stream_pd(&daddr0[6], _mm_unpackhi_pd(x2, x3));
+
+						_mm_stream_pd(&daddr1[0], _mm_unpacklo_pd(x4, x5));
+						_mm_stream_pd(&daddr1[2], _mm_unpackhi_pd(x4, x5));
+						_mm_stream_pd(&daddr1[4], _mm_unpacklo_pd(x6, x7));
+						_mm_stream_pd(&daddr1[6], _mm_unpackhi_pd(x6, x7));
 					}
 				}
 		}
