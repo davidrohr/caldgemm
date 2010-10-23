@@ -197,6 +197,7 @@ public:
 		CALboolean KeepBuffersMapped;
 		CALboolean NoPerformanceWarnings;			//Suppress also performance warnings, will usually be shown even in quiet mode
 		size_t     m, n;							//height of A, width of B, must be multiple of height
+		int        LinpackNodes;
 		void (*linpack_factorize_function)();
 		void (*linpack_broadcast_function)();
 	};

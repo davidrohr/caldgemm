@@ -99,6 +99,7 @@ calutil::SampleInfo::SampleInfo()
 	NoPerformanceWarnings = CAL_FALSE;
 	m = 0;
 	n = 0;
+	LinpackNodes = 0;
 }
 
 int caldgemm::getcpumask(cpu_set_t* set)
@@ -981,7 +982,8 @@ void* linpack_wrapper(void* arg)
 
 	cpu_set_t linpack_mask;
 	CPU_ZERO(&linpack_mask);
-	CPU_SET(0, &linpack_mask);
+	//CPU_SET(0, &linpack_mask);
+	CPU_SET(cls->outputthreads + 1, &linpack_mask);
 	if (Info->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", cls->getcpumask(&linpack_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
 
@@ -1104,7 +1106,7 @@ void* cblas_wrapper(void* arg)
 		int old_goto_threads = get_num_procs();
 
 		int require_threads = par->cls->outputthreads + 1;
-		if (par->cls->ExecLinpack)
+		if (par->cls->ExecLinpack && par->cls->Info->LinpackNodes > 1)
 		{
 			require_threads++;
 		}
@@ -1127,15 +1129,18 @@ void* cblas_wrapper(void* arg)
 			par->cls->Timers.LinpackTimer1.Stop();
 			goto_set_num_threads(old_goto_threads - require_threads);
 
-			if (Info->MultiThread)
+			if (par->cls->Info->LinpackNodes > 1)
 			{
-				pthread_mutex_unlock(&par->cls->linpackParameters.linpackMutex[0]);
-			}
-			else
-			{
-				par->cls->Timers.LinpackTimer1.Start();
-				Info->linpack_broadcast_function();
-				par->cls->Timers.LinpackTimer1.Stop();
+				if (Info->MultiThread)
+				{
+					pthread_mutex_unlock(&par->cls->linpackParameters.linpackMutex[0]);
+				}
+				else
+				{
+					par->cls->Timers.LinpackTimer1.Start();
+					Info->linpack_broadcast_function();
+					par->cls->Timers.LinpackTimer1.Stop();
+				}
 			}
 #endif
 		}
@@ -1166,7 +1171,7 @@ void* cblas_wrapper(void* arg)
 
 				size_t cblas2;
 #ifdef RERESERVE_LINPACK_CPUS
-				if (par->cls->ExecLinpack && Info->MultiThread && (((double) Info->m * (double) Info->n) - par->cls->linpack_last_mn[par->cls->ExecLinpack]) / par->cls->linpack_last_mn[par->cls->ExecLinpack] < 0.3 && par->cls->linpackCPUDGEMMTime[par->cls->ExecLinpack] - par->cls->linpackBcastTime[par->cls->ExecLinpack] > 5.0)
+				if (par->cls->ExecLinpack && par->cls->Info->LinpackNodes > 1 && Info->MultiThread && (((double) Info->m * (double) Info->n) - par->cls->linpack_last_mn[par->cls->ExecLinpack]) / par->cls->linpack_last_mn[par->cls->ExecLinpack] < 0.3 && par->cls->linpackCPUDGEMMTime[par->cls->ExecLinpack] - par->cls->linpackBcastTime[par->cls->ExecLinpack] > 5.0)
 				{
 					cblas2 = (double) (par->cls->DGEMM_split_m ? Info->n : Info->m) * (par->cls->linpackBcastTime[par->cls->ExecLinpack] + 3.0) / par->cls->linpackCPUDGEMMTime[par->cls->ExecLinpack];
 					if (!Info->Quiet) fprintf(STD_OUT, "Splitting CPU DGEMM for later enabling additional cores, cblas2=%lld\n", cblas2);
@@ -1244,7 +1249,7 @@ void* cblas_wrapper(void* arg)
 		par->cls->Timers.CPUTimer.Stop();
 
 #ifndef NO_ASYNC_LINPACK
-		if (linpackfinished == false && par->cls->ExecLinpack && Info->MultiThread)
+		if (linpackfinished == false && par->cls->ExecLinpack && Info->MultiThread && par->cls->Info->LinpackNodes > 1)
 		{
 			pthread_mutex_lock(&par->cls->linpackParameters.linpackMutex[1]);
 		}
@@ -1527,7 +1532,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	CPU_ZERO(&divide_mask);
 	if (ExecuteLinpackCallbacks)
 	{
-		CPU_SET(outputthreads + 1, &divide_mask);
+		//CPU_SET(outputthreads + 1, &divide_mask);
+		CPU_SET(0, &divide_mask);
 	}
 	else
 	{
