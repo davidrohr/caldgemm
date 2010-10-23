@@ -123,9 +123,9 @@ extern "C" {
 #include <pthread.h>
 
 #ifdef ATI_OS_VISTA //define ATI_OS_WIN if ATI_OS_VISTA is defined.
-	#ifndef ATI_OS_WIN
-		#define ATI_OS_WIN
-	#endif //ATI_OS_WIN
+#ifndef ATI_OS_WIN
+#define ATI_OS_WIN
+#endif //ATI_OS_WIN
 #endif //ATI_OS_VISTA
 
 #ifdef ATI_OS_WIN
@@ -146,227 +146,227 @@ typedef long long i64;
 class CPerfCounter {
 
 public:
-    CPerfCounter();
-    ~CPerfCounter();
-    void Start(void);
-    void Stop(void);
-    void Reset(void);
-    double GetElapsedTime(void);
+	CPerfCounter();
+	~CPerfCounter();
+	void Start(void);
+	void Stop(void);
+	void Reset(void);
+	double GetElapsedTime(void);
 
 private:
 
-    double _freq;
-    double _clocks;
-    double _start;
+	double _freq;
+	double _clocks;
+	double _start;
 };
 
 class caldgemm;
 
 class calutil
 {
-    public:
-    class SampleInfo		//Run Parameters
-    {
+public:
+	class SampleInfo		//Run Parameters
+	{
 	public:
-	SampleInfo();
-    
-	CALboolean Verify;
-	CALboolean Disassemble;
-	CALboolean PrintILKernel;
-	CALboolean Quiet;
-	CALboolean DisplayTiming;	//Display Final Timing Information even when quiet
-	CALuint    DeviceNum;
-	size_t     Width;		//k for matrix multiply
-	size_t     Height;		//height of subblock od A, width of subblock of B
-	CALboolean AutoHeight;		//Automatically adjust height
-	CALuint    Iterations;
-	CALchar	   DstMemory;
-	CALboolean VerboseTiming;
-	CALboolean AsyncTiming;
-	CALboolean TabularTiming;
-	CALboolean Debug;
-	CALboolean MultiThread;
-	CALboolean UseGPU;
-	CALboolean UseCPU;
-	CALdouble  GPURatio;
-	CALboolean DynamicSched;
-	CALboolean MemPolicy;
-	CALboolean DumpMatrix;
-	CALboolean DivideToGPU;
-	CALboolean AsyncDMA;
-	CALboolean KeepBuffersMapped;
-	CALboolean NoPerformanceWarnings;	//Suppress also performance warnings, will usually be shown even in quiet mode
-	size_t     m, n;		//height of A, width of B, must be multiple of height
-	void (*linpack_factorize_function)();
-	void (*linpack_broadcast_function)();
-    };
+		SampleInfo();
+
+		CALboolean Verify;
+		CALboolean Disassemble;
+		CALboolean PrintILKernel;
+		CALboolean Quiet;
+		CALboolean DisplayTiming;	//Display Final Timing Information even when quiet
+		CALuint    DeviceNum;
+		size_t     Width;		//k for matrix multiply
+		size_t     Height;		//height of subblock od A, width of subblock of B
+		CALboolean AutoHeight;		//Automatically adjust height
+		CALuint    Iterations;
+		CALchar	   DstMemory;
+		CALboolean VerboseTiming;
+		CALboolean AsyncTiming;
+		CALboolean TabularTiming;
+		CALboolean Debug;
+		CALboolean MultiThread;
+		CALboolean UseGPU;
+		CALboolean UseCPU;
+		CALdouble  GPURatio;
+		CALboolean DynamicSched;
+		CALboolean MemPolicy;
+		CALboolean DumpMatrix;
+		CALboolean DivideToGPU;
+		CALboolean AsyncDMA;
+		CALboolean KeepBuffersMapped;
+		CALboolean NoPerformanceWarnings;	//Suppress also performance warnings, will usually be shown even in quiet mode
+		size_t     m, n;		//height of A, width of B, must be multiple of height
+		void (*linpack_factorize_function)();
+		void (*linpack_broadcast_function)();
+	};
 
 protected:
-    typedef struct DataRec
-    {
-	union
+	typedef struct DataRec
 	{
-    	    CALfloat*  f_data;
-	    CALuint*   u_data;
-    	    CALint*    i_data;
-	    CALdouble* d_data;
-    	    CALchar*   c_data;
-    	    CALvoid*   v_data;
-	};
-	CALuint Width;	//width of matrix
-	CALuint Height;	//height of matrix
-	CALuint ComponentSize;	//number of components in vector
-	CALuint DataSize;	//size of data element (e.g. sizeof(CALfloat)
-    
-	CALboolean CALMemory;
-	CALresource res;
-	CALmem mem;
-        CALmem dstMem;
-        CALuint pitch;
-    } Data;
+		union
+		{
+			CALfloat*  f_data;
+			CALuint*   u_data;
+			CALint*    i_data;
+			CALdouble* d_data;
+			CALchar*   c_data;
+			CALvoid*   v_data;
+		};
+		CALuint Width;	//width of matrix
+		CALuint Height;	//height of matrix
+		CALuint ComponentSize;	//number of components in vector
+		CALuint DataSize;	//size of data element (e.g. sizeof(CALfloat)
 
-    typedef struct SampleFeaturesRec
-    {
-	SampleFeaturesRec()
+		CALboolean CALMemory;
+		CALresource res;
+		CALmem mem;
+		CALmem dstMem;
+		CALuint pitch;
+	} Data;
+
+	typedef struct SampleFeaturesRec
 	{
-		DoublePrecision = CAL_FALSE; 
-		ComputeShaders = CAL_FALSE;
-		LocalDataShares = CAL_FALSE;
-		MemExport = CAL_FALSE;
-		GlobalDataShares = CAL_FALSE;
-	}
+		SampleFeaturesRec()
+		{
+			DoublePrecision = CAL_FALSE; 
+			ComputeShaders = CAL_FALSE;
+			LocalDataShares = CAL_FALSE;
+			MemExport = CAL_FALSE;
+			GlobalDataShares = CAL_FALSE;
+		}
 
-	CALboolean DoublePrecision;
-	CALboolean ComputeShaders;
-	CALboolean LocalDataShares;
-	CALboolean MemExport;
-	CALboolean GlobalDataShares;
-    } SampleFeatures;
+		CALboolean DoublePrecision;
+		CALboolean ComputeShaders;
+		CALboolean LocalDataShares;
+		CALboolean MemExport;
+		CALboolean GlobalDataShares;
+	} SampleFeatures;
 
-    typedef struct DeviceInfoRec DeviceInfo;
+	typedef struct DeviceInfoRec DeviceInfo;
 
-    typedef struct float4Rec { CALfloat x, y, z, w; } float4;
-    typedef struct float2Rec { CALfloat x, y; } float2;
-    typedef struct CALVersionRec {
-	CALuint major;
-	CALuint minor;
-	CALuint imp;
-    } CALVersion;
+	typedef struct float4Rec { CALfloat x, y, z, w; } float4;
+	typedef struct float2Rec { CALfloat x, y; } float2;
+	typedef struct CALVersionRec {
+		CALuint major;
+		CALuint minor;
+		CALuint imp;
+	} CALVersion;
 
-    CALint Initialize (CALdevice *device, CALcontext *ctx, CALuint deviceNum);
-    CALint SetupKernel(const CALchar* ILKernel, CALmodule* module, CALcontext* ctx, CALboolean disassemble = CAL_FALSE);
-    CALint RunProgram(CALcontext* ctx, CALmodule* module, CALuint Width, CALuint Height, CALevent* event);
-    CALint CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext);
-    CALint Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext);
-    CALformat getFormat(CALuint formatSize, CALuint dataSize, CALboolean isInt = CAL_FALSE);
-    CALuint AnalyzeResults(Data* data);
-    CALint SetupData(CALmodule* module, CALresource* &_Res, Data* &data, CALdevice* device, CALcontext* ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames, int nContext);
-    CALint CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALevent* event);
-    CALint CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event, Data* dest_data = NULL);
-    CALint BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, CALname* ctxProgNames);
-    CALint AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, int nContext);
-    int AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i, int nContext);
-    CALint QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList);
-    CALvoid SupportedCALVersion(CALVersion *calVersion); 
-    CALint QueryCALVersion(CALVersion required, const CALchar *comparison, bool silent = false);
-    CALint ValidateCALRuntime();
-    CALvoid displayMatrixTiming(const CALchar* name);
-    void copyFrom(CALchar* ptr, Data& data, CALuint pitch);
-    void copyTo(CALchar* ptr, Data& data, CALuint pitch);
-    bool isDoubleEqual(CALdouble a, CALdouble b);
-    
-    struct TimerInfo
-    {
-	CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer, TotalCPUTimer, ATime, LinpackTimer1, LinpackTimer2;
-	int divideA, divideB;
-    } Timers;
+	CALint Initialize (CALdevice *device, CALcontext *ctx, CALuint deviceNum);
+	CALint SetupKernel(const CALchar* ILKernel, CALmodule* module, CALcontext* ctx, CALboolean disassemble = CAL_FALSE);
+	CALint RunProgram(CALcontext* ctx, CALmodule* module, CALuint Width, CALuint Height, CALevent* event);
+	CALint CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext);
+	CALint Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, Data* &data, CALuint numHandles, int nContext);
+	CALformat getFormat(CALuint formatSize, CALuint dataSize, CALboolean isInt = CAL_FALSE);
+	CALuint AnalyzeResults(Data* data);
+	CALint SetupData(CALmodule* module, CALresource* &_Res, Data* &data, CALdevice* device, CALcontext* ctx, CALuint numInputs, CALuint numOutputs, CALuint numConstantBuffers, CALname** ctxProgNames, int nContext);
+	CALint CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALevent* event);
+	CALint CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event, Data* dest_data = NULL);
+	CALint BindIONames(CALcontext* ctx, CALmodule* module, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, CALname* ctxProgNames);
+	CALint AllocateResources(CALcontext* ctx, CALdevice* device, CALresource* &_Res, CALuint iStop, CALuint cStop, CALuint oStop, Data* data, int nContext);
+	int AllocateMemory(Data& data, CALdevice *device, CALcontext *ctx, CALuint tWidth, CALuint tHeight, CALuint CompSize, CALuint DataSize, CALresallocflags flags, CALuint i, int nContext);
+	CALint QueryDeviceCaps(CALuint DeviceNum, SampleFeatures *FeatureList);
+	CALvoid SupportedCALVersion(CALVersion *calVersion); 
+	CALint QueryCALVersion(CALVersion required, const CALchar *comparison, bool silent = false);
+	CALint ValidateCALRuntime();
+	CALvoid displayMatrixTiming(const CALchar* name);
+	void copyFrom(CALchar* ptr, Data& data, CALuint pitch);
+	void copyTo(CALchar* ptr, Data& data, CALuint pitch);
+	bool isDoubleEqual(CALdouble a, CALdouble b);
 
-    virtual void print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2 = NULL) = 0;
-    int DumpMatrix(double* A, double* B, double* C, double alpha, double beta, int m, int k, int n, int Apitch, int Bpitch, int Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB);
+	struct TimerInfo
+	{
+		CPerfCounter System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer, TotalCPUTimer, ATime, LinpackTimer1, LinpackTimer2;
+		int divideA, divideB;
+	} Timers;
 
-    CALdouble* A;
-    CALdouble* B;
-    CALdouble* C;
-    
-    CALdouble Alpha, Beta;
-    
-    size_t A_pitch, B_pitch, C_pitch;
-    CBLAS_TRANSPOSE TransposeA;
-    CBLAS_TRANSPOSE TransposeB;
+	virtual void print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2 = NULL) = 0;
+	int DumpMatrix(double* A, double* B, double* C, double alpha, double beta, int m, int k, int n, int Apitch, int Bpitch, int Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB);
+
+	CALdouble* A;
+	CALdouble* B;
+	CALdouble* C;
+
+	CALdouble Alpha, Beta;
+
+	size_t A_pitch, B_pitch, C_pitch;
+	CBLAS_TRANSPOSE TransposeA;
+	CBLAS_TRANSPOSE TransposeB;
 
 #ifdef CALDGEMM_44
 #if !defined(CALDGEMM_48)
-    static const CALuint aPartsNum = 2;
+	static const CALuint aPartsNum = 2;
 #else
-    static const CALuint aPartsNum = 4;
+	static const CALuint aPartsNum = 4;
 #endif
 #if !defined(CALDGEMM_84)
-    static const CALuint bPartsNum = 2;
+	static const CALuint bPartsNum = 2;
 #else
-    static const CALuint bPartsNum = 4;
+	static const CALuint bPartsNum = 4;
 #endif
 #else //CALDGEMM_44
 #ifdef CALDGEMM_TRANSPOSED_A
-    static const CALuint aPartsNum = 2;
+	static const CALuint aPartsNum = 2;
 #else
-    static const CALuint aPartsNum = 8;
+	static const CALuint aPartsNum = 8;
 #endif
-    static const CALuint bPartsNum = 2;
+	static const CALuint bPartsNum = 2;
 #endif //CALDGEMM_44
 
 #ifdef CALDGEMM_USE_MEMEXPORT
-    static const CALuint cPartsNum = 1;
+	static const CALuint cPartsNum = 1;
 #else
-    static const CALuint cPartsNum = 8;
+	static const CALuint cPartsNum = 8;
 #endif
-    static const int ctxcount = 3;		//Not cal context count but number of copies of data buffers etc.
-    static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
-    static const int vcpysize = 16;
-    static const int kernel_count = 2;
-    static const int max_bbuffers = 20;
-    int bbuffers;
-    int outputthreads;
-    
-    size_t BufferHeight;			//Height to which the buffers were originally initialized
-    size_t BufferWidth;				//Same for width
-    
-    SampleInfo* Info;
-    SampleFeatures Features;
+	static const int ctxcount = 3;		//Not cal context count but number of copies of data buffers etc.
+	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
+	static const int vcpysize = 16;
+	static const int kernel_count = 2;
+	static const int max_bbuffers = 20;
+	int bbuffers;
+	int outputthreads;
 
-    Data* datas[max_bbuffers];
-    CALuint numInputs, numOutputs, numConstantBuffers;
-    CALdevice device;
-    CALcontext ctx_main;
-    CALresource* resourceHandlers[max_bbuffers];
-    CALmodule modules[1][kernel_count];
-    CALmodule fakeModule;
-    CALname *progNames[1][kernel_count];
-    CALevent events[ctxcount];
+	size_t BufferHeight;			//Height to which the buffers were originally initialized
+	size_t BufferWidth;				//Same for width
 
-    static const char *ILKernel, *ILKernelALPHA1, *ILFakeKernel;
+	SampleInfo* Info;
+	SampleFeatures Features;
 
-    struct cblasParameters
-    {
-        caldgemm* cls;
-        size_t cblas_size;
-        size_t dynamic_run;     //Do an extra dynamic cblas run?, works also as m for the dynamic run
-	size_t dynamic_size;    //n for dynamic run
-	size_t cpu_k;		//k that cpu will take over from gpu in 3rd phase dynamic run
-	size_t dynamic_run2;
-        CALboolean borders_done;
-        CALboolean terminate;
-        pthread_mutex_t cblasMutex[2];
-    };
+	Data* datas[max_bbuffers];
+	CALuint numInputs, numOutputs, numConstantBuffers;
+	CALdevice device;
+	CALcontext ctx_main;
+	CALresource* resourceHandlers[max_bbuffers];
+	CALmodule modules[1][kernel_count];
+	CALmodule fakeModule;
+	CALname *progNames[1][kernel_count];
+	CALevent events[ctxcount];
 
-    cblasParameters cParam;
-    //For Verfify only
-    CALdouble* D;
+	static const char *ILKernel, *ILKernelALPHA1, *ILFakeKernel;
 
-    //For Timing only
-    bool CPUOnlyRun;
-    int ExecLinpack;
-    double gpu_ratio_used;
-    double cpu_wait_time;
-    
-    char hostname[256]; //Store hostname of node for host dependant debug code
+	struct cblasParameters
+	{
+		caldgemm* cls;
+		size_t cblas_size;
+		size_t dynamic_run;     //Do an extra dynamic cblas run?, works also as m for the dynamic run
+		size_t dynamic_size;    //n for dynamic run
+		size_t cpu_k;		//k that cpu will take over from gpu in 3rd phase dynamic run
+		size_t dynamic_run2;
+		CALboolean borders_done;
+		CALboolean terminate;
+		pthread_mutex_t cblasMutex[2];
+	};
+
+	cblasParameters cParam;
+	//For Verfify only
+	CALdouble* D;
+
+	//For Timing only
+	bool CPUOnlyRun;
+	int ExecLinpack;
+	double gpu_ratio_used;
+	double cpu_wait_time;
+
+	char hostname[256]; //Store hostname of node for host dependant debug code
 };
