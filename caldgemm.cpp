@@ -897,34 +897,34 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 void caldgemm::cal_init_constant_data(Data* &data, double alpha)
 {
 	// Setup the constants for the kernel
-	data[aPartsNum + bPartsNum].f_data[0] = (float) TILING_Y / Info->Height;  //Scale factor for normalized y pos
-	data[aPartsNum + bPartsNum].f_data[2] = (float) TILING_X / Info->Height;  //Scale factor for normalized x pos
+	data[aPartsNum + bPartsNum].f_data[0] = (float) TILING_Y / Info->Height;			//Scale factor for normalized y pos
+	data[aPartsNum + bPartsNum].f_data[2] = (float) TILING_X / Info->Height;			//Scale factor for normalized x pos
 #ifdef CALDGEMM_44
-	data[aPartsNum + bPartsNum].f_data[1] = 1.f / Info->Width;  //Step in K direction
-	data[aPartsNum + bPartsNum].f_data[4] = static_cast<CALfloat>(Info->Width);				//Iterations of loop in IL Kernel
+	data[aPartsNum + bPartsNum].f_data[1] = 1.f / Info->Width;							//Step in K direction
+	data[aPartsNum + bPartsNum].f_data[4] = static_cast<CALfloat>(Info->Width);			//Iterations of loop in IL Kernel
 #else //CALDGEMM_44
-	data[aPartsNum + bPartsNum].f_data[1] = 2.f / Info->Width;  //Step in K direction
+	data[aPartsNum + bPartsNum].f_data[1] = 2.f / Info->Width;							//Step in K direction
 	data[aPartsNum + bPartsNum].f_data[4] = static_cast<CALfloat>(Info->Width / (bPartsNum << 2));	//Iterations of loop in IL Kernel
 #endif //CALDGEMM_44
 	data[aPartsNum + bPartsNum].f_data[3] = 0.f;
-	data[aPartsNum + bPartsNum].f_data[5] = (float) aPartsNum / Info->Height;  //For transposed matrix finer y resolution is needed
+	data[aPartsNum + bPartsNum].f_data[5] = (float) aPartsNum / Info->Height;			//For transposed matrix finer y resolution is needed
 	data[aPartsNum + bPartsNum].f_data[8] = 0.5f - 0.5f / (float) (TILING_Y / aPartsNum);
 
 	//Constants for Memexport
-	data[aPartsNum + bPartsNum].i_data[9] = TILING_Y * Info->Height / 2;		//2 for double2
-	data[aPartsNum + bPartsNum].i_data[10] = TILING_X / 2;				//x tiling in double2
+	data[aPartsNum + bPartsNum].i_data[9] = TILING_Y * Info->Height / 2;				//2 for double2
+	data[aPartsNum + bPartsNum].i_data[10] = TILING_X / 2;								//x tiling in double2
 #if defined(CALDGEMM_84)
-	data[aPartsNum + bPartsNum].i_data[12] = 0 + 0 * Info->Height / 2;			//8 consecutive entries in x
+	data[aPartsNum + bPartsNum].i_data[12] = 0 + 0 * Info->Height / 2;					//8 consecutive entries in x
 	data[aPartsNum + bPartsNum].i_data[13] = 1 + 0 * Info->Height / 2;
 	data[aPartsNum + bPartsNum].i_data[14] = 2 + 0 * Info->Height / 2;
 	data[aPartsNum + bPartsNum].i_data[15] = 3 + 0 * Info->Height / 2;
 
-	data[aPartsNum + bPartsNum].i_data[16] = 0 + 1 * Info->Height / 2;			//Next row
+	data[aPartsNum + bPartsNum].i_data[16] = 0 + 1 * Info->Height / 2;					//Next row
 	data[aPartsNum + bPartsNum].i_data[17] = 0 + 1 * Info->Height / 2;
 	data[aPartsNum + bPartsNum].i_data[18] = 0 + 1 * Info->Height / 2;
 	data[aPartsNum + bPartsNum].i_data[19] = 0 + 1 * Info->Height / 2;
 
-	data[aPartsNum + bPartsNum].i_data[20] = 0 + 2 * Info->Height / 2;			//Proceed by two rows
+	data[aPartsNum + bPartsNum].i_data[20] = 0 + 2 * Info->Height / 2;					//Proceed by two rows
 	data[aPartsNum + bPartsNum].i_data[21] = 0 + 2 * Info->Height / 2;
 	data[aPartsNum + bPartsNum].i_data[22] = 0 + 2 * Info->Height / 2;
 	data[aPartsNum + bPartsNum].i_data[23] = 0 + 2 * Info->Height / 2;
@@ -938,7 +938,7 @@ void caldgemm::cal_init_constant_data(Data* &data, double alpha)
 	data[aPartsNum + bPartsNum].i_data[18] = 0 + 3 * Info->Height / 2;
 	data[aPartsNum + bPartsNum].i_data[19] = 1 + 3 * Info->Height / 2;
 #ifdef CALDGEMM_48
-	data[aPartsNum + bPartsNum].i_data[20] = 0 + 4 * Info->Height / 2;			//Proceed by 4 rows
+	data[aPartsNum + bPartsNum].i_data[20] = 0 + 4 * Info->Height / 2;					//Proceed by 4 rows
 	data[aPartsNum + bPartsNum].i_data[21] = 0 + 4 * Info->Height / 2;
 	data[aPartsNum + bPartsNum].i_data[22] = 0 + 4 * Info->Height / 2;
 	data[aPartsNum + bPartsNum].i_data[23] = 0 + 4 * Info->Height / 2;
@@ -954,7 +954,7 @@ void caldgemm::cal_init_constant_data(Data* &data, double alpha)
 	data[aPartsNum + bPartsNum].i_data[19] = 0 + 7 * Info->Height / 2;
 #endif
 #ifdef CALDGEMM_DIAGONAL_TEXTURE
-	data[aPartsNum + bPartsNum].f_data[11] = 8.f / Info->Height;  //Offset for diagonal texture read
+	data[aPartsNum + bPartsNum].f_data[11] = 8.f / Info->Height;						//Offset for diagonal texture read
 #endif
 	data[aPartsNum + bPartsNum].d_data[3] = alpha;
 }

@@ -165,7 +165,7 @@ class caldgemm;
 class calutil
 {
 public:
-	class SampleInfo		//Run Parameters
+	class SampleInfo								//Run Parameters
 	{
 	public:
 		SampleInfo();
@@ -174,11 +174,11 @@ public:
 		CALboolean Disassemble;
 		CALboolean PrintILKernel;
 		CALboolean Quiet;
-		CALboolean DisplayTiming;	//Display Final Timing Information even when quiet
+		CALboolean DisplayTiming;					//Display Final Timing Information even when quiet
 		CALuint    DeviceNum;
-		size_t     Width;		//k for matrix multiply
-		size_t     Height;		//height of subblock od A, width of subblock of B
-		CALboolean AutoHeight;		//Automatically adjust height
+		size_t     Width;							//k for matrix multiply
+		size_t     Height;							//height of subblock od A, width of subblock of B
+		CALboolean AutoHeight;						//Automatically adjust height
 		CALuint    Iterations;
 		CALchar	   DstMemory;
 		CALboolean VerboseTiming;
@@ -195,8 +195,8 @@ public:
 		CALboolean DivideToGPU;
 		CALboolean AsyncDMA;
 		CALboolean KeepBuffersMapped;
-		CALboolean NoPerformanceWarnings;	//Suppress also performance warnings, will usually be shown even in quiet mode
-		size_t     m, n;		//height of A, width of B, must be multiple of height
+		CALboolean NoPerformanceWarnings;			//Suppress also performance warnings, will usually be shown even in quiet mode
+		size_t     m, n;							//height of A, width of B, must be multiple of height
 		void (*linpack_factorize_function)();
 		void (*linpack_broadcast_function)();
 	};
@@ -213,10 +213,10 @@ protected:
 			CALchar*   c_data;
 			CALvoid*   v_data;
 		};
-		CALuint Width;	//width of matrix
-		CALuint Height;	//height of matrix
-		CALuint ComponentSize;	//number of components in vector
-		CALuint DataSize;	//size of data element (e.g. sizeof(CALfloat)
+		CALuint Width;								//width of matrix
+		CALuint Height;								//height of matrix
+		CALuint ComponentSize;						//number of components in vector
+		CALuint DataSize;							//size of data element (e.g. sizeof(CALfloat)
 
 		CALboolean CALMemory;
 		CALresource res;
@@ -319,7 +319,7 @@ protected:
 #else
 	static const CALuint cPartsNum = 8;
 #endif
-	static const int ctxcount = 3;		//Not cal context count but number of copies of data buffers etc.
+	static const int ctxcount = 3;				//Not cal context count but number of copies of data buffers etc.
 	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
 	static const int vcpysize = 16;
 	static const int kernel_count = 2;
@@ -327,8 +327,8 @@ protected:
 	int bbuffers;
 	int outputthreads;
 
-	size_t BufferHeight;			//Height to which the buffers were originally initialized
-	size_t BufferWidth;				//Same for width
+	size_t BufferHeight;						//Height to which the buffers were originally initialized
+	size_t BufferWidth;							//Same for width
 
 	SampleInfo* Info;
 	SampleFeatures Features;
@@ -349,9 +349,9 @@ protected:
 	{
 		caldgemm* cls;
 		size_t cblas_size;
-		size_t dynamic_run;     //Do an extra dynamic cblas run?, works also as m for the dynamic run
-		size_t dynamic_size;    //n for dynamic run
-		size_t cpu_k;		//k that cpu will take over from gpu in 3rd phase dynamic run
+		size_t dynamic_run;						//Do an extra dynamic cblas run?, works also as m for the dynamic run
+		size_t dynamic_size;					//n for dynamic run
+		size_t cpu_k;							//k that cpu will take over from gpu in 3rd phase dynamic run
 		size_t dynamic_run2;
 		CALboolean borders_done;
 		CALboolean terminate;
@@ -368,5 +368,5 @@ protected:
 	double gpu_ratio_used;
 	double cpu_wait_time;
 
-	char hostname[256]; //Store hostname of node for host dependant debug code
+	char hostname[256];							//Store hostname of node for host dependant debug code
 };
