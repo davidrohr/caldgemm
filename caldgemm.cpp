@@ -99,6 +99,16 @@ calutil::SampleInfo::SampleInfo()
 	n = 0;
 }
 
+int caldgemm::getcpumask(cpu_set_t* set)
+{
+    int retVal = 0;
+    for (int i = 0;i < 24;i++)
+    {
+	if (CPU_ISSET(i, set)) retVal |= (1 << i);
+    }
+    return(retVal);
+}
+
 void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2)
 {
 	fprintf(STD_OUT, "Matrix %lld x %lld, Subblocks %lld x %lld, Strides: %lld / %lld\n", width, height, subx, suby, stridex, stridey);
@@ -724,7 +734,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	CPU_ZERO(&gpumask);
 	CPU_SET(0, &gpumask);
 
-	if (Info->Debug) fprintf(STD_OUT, "Setting CPU affinity\n");
+	if (Info->Debug) fprintf(STD_OUT, "Init Caldgemm, setting CPU mask %X\n", getcpumask(&gpumask));
 	if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
 	{
 		fprintf(STD_OUT, "Error setting CPU affinity\n");
@@ -887,6 +897,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	}*/
 	//setpriority(PRIO_PROCESS, 0, -20);
 
+	if (Info->Debug) fprintf(STD_OUT, "Caldgemm Init complete, setting CPU mask %X\n", getcpumask(&oldcpumask));
 	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
 	caldgemm_initialized = true;
@@ -968,6 +979,7 @@ void* linpack_wrapper(void* arg)
 	cpu_set_t linpack_mask;
 	CPU_ZERO(&linpack_mask);
 	CPU_SET(0, &linpack_mask);
+	if (Info->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", cls->getcpumask(&linpack_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
 
 	if (pthread_mutex_lock(&cls->linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1065,6 +1077,7 @@ void* cblas_wrapper(void* arg)
 
 	if (Info->Debug) fprintf(STD_OUT, "Cblas helper thread started\n");
 
+	if (Info->Debug) fprintf(STD_OUT, "Cblas thread Thread, setting CPU mask %X\n", par->cls->getcpumask(&par->cls->oldcpumask));
 	sched_setaffinity(0, sizeof(par->cls->oldcpumask), &par->cls->oldcpumask);
 
 	if (Info->MultiThread) if (pthread_mutex_lock(&par->cls->cParam.cblasMutex[1])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1204,6 +1217,7 @@ void* merge_wrapper(void* arg)
 	cpu_set_t merge_mask;
 	CPU_ZERO(&merge_mask);
 	CPU_SET(par->nMergeThread + 1, &merge_mask);
+	if (par->cls->Info->Debug) fprintf(STD_OUT, "Merge Thread %d, setting CPU mask %X\n", par->nMergeThread, par->cls->getcpumask(&merge_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
 
 	if (pthread_mutex_lock(&par->mergeThreadMutex[0])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1448,6 +1462,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 		CPU_SET(0, &divide_mask);
 	}
+	if (Info->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&divide_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
 
 	if (forceReinit)
@@ -1754,6 +1769,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
 	Timers.GPUTimer.Stop();
 
+	if (Info->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&oldcpumask));
 	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
 	if (Info->UseCPU)
