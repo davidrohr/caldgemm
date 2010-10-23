@@ -747,7 +747,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 
 	if(!ValidateCALRuntime())
 	{
-		fprintf(stderr, "Error. Could not find a compatible CAL runtime.\n");
+		fprintf(STD_OUT, "Error. Could not find a compatible CAL runtime.\n");
 		return 0;
 	}
 
@@ -1110,7 +1110,7 @@ void* cblas_wrapper(void* arg)
 		{
 			require_threads++;
 		}
-		if (Info->Debug) fprintf(stderr, "Reserving %d threads for gpu (/ Linpack)\n", require_threads);
+		if (Info->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu (/ Linpack)\n", require_threads);
 		goto_set_num_threads(old_goto_threads - require_threads);
 		caldgemm_goto_reserve_cpus(require_threads);
 
@@ -1200,7 +1200,7 @@ void* cblas_wrapper(void* arg)
 							else
 							{
 								int require_threads_new = par->cls->outputthreads + 1;
-								if (Info->Debug) fprintf(stderr, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
+								if (Info->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
 								goto_set_num_threads(old_goto_threads - require_threads_new);
 								caldgemm_goto_reserve_cpus(require_threads_new);
 								linpackfinished = true;
@@ -1229,7 +1229,7 @@ void* cblas_wrapper(void* arg)
 							else
 							{
 								int require_threads_new = par->cls->outputthreads + 1;
-								fprintf(stderr, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
+								if (Info->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
 								goto_set_num_threads(old_goto_threads - require_threads_new);
 								caldgemm_goto_reserve_cpus(require_threads_new);
 								linpackfinished = true;
