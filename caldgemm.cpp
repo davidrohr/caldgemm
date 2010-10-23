@@ -575,6 +575,7 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 					_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
 					_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
 					_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
+
 					saddr += 4;
 					saddr2 += 4;
 					paddr += 4;
@@ -1137,6 +1138,7 @@ void* cblas_wrapper(void* arg)
 		}
 
 		par->cls->Timers.CPUTimer.Start();
+		bool linpackfinished = false;
 		do
 		{
 			if (par->dynamic_run2)
@@ -1160,15 +1162,20 @@ void* cblas_wrapper(void* arg)
 				}
 
 				size_t cblas2;
-				if (par->cls->ExecLinpack && Info->MultiThread && (((double) Info->m * (double) Info->n) - par->cls->linpack_last_mn[par->cls->ExecLinpack]) / par->cls->linpack_last_mn[par->cls->ExecLinpack] < 0.3 && par->cls->linpackCPUDGEMMTime[par->cls->ExecLinpack] - par->cls->linpackBcastTime[par->cls->ExecLinpack] > 4.0)
+#ifdef RERESERVE_LINPACK_CPUS
+				if (par->cls->ExecLinpack && Info->MultiThread && (((double) Info->m * (double) Info->n) - par->cls->linpack_last_mn[par->cls->ExecLinpack]) / par->cls->linpack_last_mn[par->cls->ExecLinpack] < 0.3 && par->cls->linpackCPUDGEMMTime[par->cls->ExecLinpack] - par->cls->linpackBcastTime[par->cls->ExecLinpack] > 5.0)
 				{
-					cblas2 = (double) (par->cls->DGEMM_split_m ? Info->n : Info->m) * (par->cls->linpackBcastTime[par->cls->ExecLinpack] + 2.0) / par->cls->linpackCPUDGEMMTime[par->cls->ExecLinpack];
-					fprintf(STD_OUT, "Splitting CPU DGEMM for later enabling additional cores, cblas2=%lld\n", cblas2);
+					cblas2 = (double) (par->cls->DGEMM_split_m ? Info->n : Info->m) * (par->cls->linpackBcastTime[par->cls->ExecLinpack] + 3.0) / par->cls->linpackCPUDGEMMTime[par->cls->ExecLinpack];
+					if (!Info->Quiet) fprintf(STD_OUT, "Splitting CPU DGEMM for later enabling additional cores, cblas2=%lld\n", cblas2);
 				}
 				else
 				{
 					cblas2 = 0;
 				}
+				if (cblas2 % 8) cblas2 += 8 - cblas2 % 8;
+#else
+				cblas2 = 0;
+#endif
 
 				if (par->cls->DGEMM_split_m)	//favor splitting m because of consecutive memory
 				{
@@ -1188,7 +1195,7 @@ void* cblas_wrapper(void* arg)
 								if (Info->Debug) fprintf(stderr, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
 								goto_set_num_threads(old_goto_threads - require_threads_new);
 								caldgemm_goto_reserve_cpus(require_threads_new);
-								pthread_mutex_unlock(&par->cls->linpackParameters.linpackMutex[1]);
+								linpackfinished = true;
 							}
 						}
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, Info->n - cblas2, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch_use, A_pitch, B + cblas2 * B_pitch_use, B_pitch, Beta, C + (Info->m - par->cblas_size) * C_pitch + cblas2, C_pitch);
@@ -1214,10 +1221,10 @@ void* cblas_wrapper(void* arg)
 							else
 							{
 								int require_threads_new = par->cls->outputthreads + 1;
-								if (Info->Debug) fprintf(stderr, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
+								fprintf(stderr, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
 								goto_set_num_threads(old_goto_threads - require_threads_new);
 								caldgemm_goto_reserve_cpus(require_threads_new);
-								pthread_mutex_unlock(&par->cls->linpackParameters.linpackMutex[1]);
+								linpackfinished = true;
 							}
 						}
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m - cblas2, par->cblas_size, Info->Width, Alpha, A + cblas2 * A_pitch_use, A_pitch, B + (Info->n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + cblas2 * C_pitch + Info->n - par->cblas_size, C_pitch);
@@ -1234,7 +1241,7 @@ void* cblas_wrapper(void* arg)
 		par->cls->Timers.CPUTimer.Stop();
 
 #ifndef NO_ASYNC_LINPACK
-		if (par->cls->ExecLinpack && Info->MultiThread)
+		if (linpackfinished == false && par->cls->ExecLinpack && Info->MultiThread)
 		{
 			pthread_mutex_lock(&par->cls->linpackParameters.linpackMutex[1]);
 		}
