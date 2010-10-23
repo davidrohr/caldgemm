@@ -533,34 +533,41 @@ int SetupUserData(caldgemm::SampleInfo &Info)
     {
 	if (transa)
 	{
-	    pitch_a = Info.m + (Info.m % 8);
+	    pitch_a = Info.m;
 	    height_a = Info.Width;
 	}
 	else
 	{
-	    pitch_a = Info.Width + (Info.Width % 8);
+	    pitch_a = Info.Width;
 	    height_a = Info.m;
 	}
+	if (pitch_a % 8) pitch_a += (8 - pitch_a % 8);
 	if (((pitch_a / 8) & 1) == 0)
 	{
 		pitch_a += 8;
 	}
 	if (transb)
 	{
-	    pitch_b = Info.Width + (Info.Width % 8);
+	    pitch_b = Info.Width;
 	    height_b = Info.n;
 	}
 	else
 	{
 	    height_b = Info.Width;
-	    pitch_b = Info.n + (Info.n % 8);
+	    pitch_b = Info.n;
 	}
+	if (pitch_b % 8) pitch_b += (8 - pitch_b % 8);
 	if (((pitch_b / 8) & 1) == 0)
 	{
 		pitch_b += 8;
 	}
-    pitch_c = Info.n + (Info.n % 8);
+    pitch_c = Info.n;
+	if (pitch_c % 8) pitch_c += (8 - pitch_c % 8);
     if (Info.n % 8) fprintf(STD_OUT, "Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", Info.n, pitch_b);
+	if (((pitch_c / 8) & 1) == 0)
+	{
+		pitch_c += 8;
+	}
 
 	if (AA) dgemm.FreeMemory(AA);
         if (BB) dgemm.FreeMemory(BB);
