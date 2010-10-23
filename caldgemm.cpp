@@ -1160,9 +1160,9 @@ void* cblas_wrapper(void* arg)
 				}
 
 				size_t cblas2;
-				if (par->cls->ExecLinpack && Info->MultiThread (((double) Info->m * (double) Info->n) - par->cls->linpack_last_mn[ExecuteLinpackCallbacks]) / par->cls->linpack_last_mn[ExecuteLinpackCallbacks] < 0.3 && par->cls->linpackCPUDGEMMTime[ExecuteLinpackCallbacks] - par->cls->linpackBcastTime[ExecuteLinpackCallbacks] > 4.0)
+				if (par->cls->ExecLinpack && Info->MultiThread && (((double) Info->m * (double) Info->n) - par->cls->linpack_last_mn[par->cls->ExecLinpack]) / par->cls->linpack_last_mn[par->cls->ExecLinpack] < 0.3 && par->cls->linpackCPUDGEMMTime[par->cls->ExecLinpack] - par->cls->linpackBcastTime[par->cls->ExecLinpack] > 4.0)
 				{
-					cblas2 = (double) (DGEMM_split_m ? Info->n : Info->m) * (par->cls->linpackBcastTime[ExecuteLinpackCallbacks] + 2.0) / par->cls->linpackCPUDGEMMTime[ExecuteLinpackCallbacks];
+					cblas2 = (double) (par->cls->DGEMM_split_m ? Info->n : Info->m) * (par->cls->linpackBcastTime[par->cls->ExecLinpack] + 2.0) / par->cls->linpackCPUDGEMMTime[par->cls->ExecLinpack];
 					fprintf(STD_OUT, "Splitting CPU DGEMM for later enabling additional cores, cblas2=%lld\n", cblas2);
 				}
 				else
@@ -1170,7 +1170,7 @@ void* cblas_wrapper(void* arg)
 					cblas2 = 0;
 				}
 
-				if (DGEMM_split_m)	//favor splitting m because of consecutive memory
+				if (par->cls->DGEMM_split_m)	//favor splitting m because of consecutive memory
 				{
 					if (par->dynamic_run == 0)
 					{
@@ -1877,7 +1877,7 @@ RunCALDGEMM_end:
 
 		linpackGPURatios[ExecuteLinpackCallbacks] = newratio;
 		linpackCPUDGEMMTime[ExecuteLinpackCallbacks] = Timers.CPUTimer.GetElapsedTime();
-		linpackBcaseTime[ExecuteLinpackCallbacks] = Timers.LinpackTimer2.GetElapsedTime();
+		linpackBcastTime[ExecuteLinpackCallbacks] = Timers.LinpackTimer2.GetElapsedTime();
 		linpack_last_mn[ExecuteLinpackCallbacks] = (double) Info->m * (double) Info->n;
 	}
 
