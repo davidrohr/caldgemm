@@ -1101,7 +1101,6 @@ void* cblas_wrapper(void* arg)
 	{
 	    if (!Info->Quiet) fprintf(STD_OUT, "\t\t\tDoint initial cblas runs to prepare Linpack factorization\n");
 	    par->cls->Timers.CPUTimer.Start();
-	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m + Info->Width, Info->Width, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B - Info->Width * B_pitch_use, B_pitch, Beta, C - Info->Width * (C_pitch + 1), C_pitch);
 	    cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->Width, Info->n, Info->Width, Alpha, A - Info->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Info->Width * C_pitch, C_pitch);
 	    par->cls->Timers.CPUTimer.Stop();
 #ifndef NO_ASYNC_LINPACK
@@ -1348,22 +1347,20 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
     if (ExecuteLinpackCallbacks)
     {
-	if (Info->m < Info->Width || Info->n < Info->Width)
+	if (Info->m < Info->Width)
 	{
 	    MaxGpuM = 0;
-	    MaxGpuN = 0;
 	}
 	else
 	{
 	    MaxGpuM = Info->m - Info->Width;
-	    MaxGpuN = Info->n - Info->Width;
 	}
     }
     else
     {
 	MaxGpuM = Info->m;
-	MaxGpuN = Info->n;
     }
+    MaxGpuN = Info->n;
     
 #ifndef TESTMODE    
     //Check if the GPU can/shall process the required dgemm task
@@ -1515,10 +1512,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
     if (ExecuteLinpackCallbacks)
     {
 	Info->m -= Info->Width;
-	Info->n -= Info->Width;
 	A += Info->Width * (TransposeA == CblasTrans ? 1 : A_pitch);
-	B += Info->Width * (TransposeB == CblasTrans ? B_pitch : 1);
-	C += Info->Width * (C_pitch + 1);
+	C += Info->Width * (C_pitch);
     }
     
     cParam.dynamic_run = 0;
