@@ -1121,9 +1121,12 @@ void* cblas_wrapper(void* arg)
 			par->cls->Timers.CPUTimer.Stop();
 #ifndef NO_ASYNC_LINPACK
 			if (!Info->Quiet) fprintf(STD_OUT, "\t\t\tStarting Linpack factorization\n");
+			goto_set_num_threads(8);
 			par->cls->Timers.LinpackTimer1.Start();
 			Info->linpack_factorize_function();
 			par->cls->Timers.LinpackTimer1.Stop();
+			goto_set_num_threads(old_goto_threads - require_threads);
+
 			if (Info->MultiThread)
 			{
 				pthread_mutex_unlock(&par->cls->linpackParameters.linpackMutex[0]);
