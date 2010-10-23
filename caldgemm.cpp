@@ -1686,7 +1686,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						if (Info->AsyncTiming)
 						{
 							Timers.ATime.Stop();
-							fprintf(STD_OUT, "\t\tWait Time for output buffer: %1.5lf\n", Timers.ATime.GetElapsedTime());
+							if (!Info->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001 || Info->Debug) fprintf(STD_OUT, "\t\tWait Time for output buffer: %1.5lf\n", Timers.ATime.GetElapsedTime());
 						}
 					}
 					WAITFOREVENT(ctx_main, j);
@@ -1750,7 +1750,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						if (Info->AsyncTiming)
 						{
 							Timers.ATime.Stop();
-							fprintf(STD_OUT, "\t\tWait Time for merge thread: %1.5lf\n", Timers.ATime.GetElapsedTime());
+							if (!Info->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001 || Info->Debug) fprintf(STD_OUT, "\t\tWARNING: Wait Time for merge thread: %1.5lf\n", Timers.ATime.GetElapsedTime());
 						}
 						if (Info->Debug) fprintf(STD_OUT, "\t\tUnlocking outputthread mutex %d to process context %d\n", iMergeThread, oldj);
 						mParam[iMergeThread].nContext = oldj;
