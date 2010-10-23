@@ -787,11 +787,6 @@ void calutil::copyTo(CALchar* ptr, Data& data, CALuint pitch)
 CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CALuint num, CALboolean constants, CALevent* event, Data* dest_data)
 {
 	if (dest_data == NULL) dest_data = data;
-	if (Info->AsyncTiming)
-	{
-		Timers.ATime.Reset();
-		Timers.ATime.Start();
-	}
 	CALuint pitch;
 	CALresult r;
 	CALchar* ptr;
@@ -819,20 +814,8 @@ CALint calutil::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, Data* data, CA
 			return 1;
 		}
 	}
-	if (Info->AsyncTiming && constants == CAL_FALSE)
-	{
-		Timers.ATime.Stop();
-		fprintf(STD_OUT, "\t\tCopyToGPU: Time until command issued: %2.4lf\n", Timers.ATime.GetElapsedTime());
-		Timers.ATime.Start();
-	}
 	if (Info->VerboseTiming && constants == CAL_FALSE) WAITFOREVENT(*ctx, *event);
 
-	if (Info->AsyncTiming && constants == CAL_FALSE)
-	{
-		WAITFOREVENT(*ctx, *event);
-		Timers.ATime.Stop();
-		fprintf(STD_OUT, "\t\tCopyToGPU: Time until event done: %2.4lf\n", Timers.ATime.GetElapsedTime());
-	}
 	return 0;
 }
 
