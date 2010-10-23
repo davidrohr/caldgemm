@@ -104,6 +104,8 @@ private:
 
 	double linpack_last_mn[max_linpack_callback_types];
 	double linpackGPURatios[max_linpack_callback_types];
+	double linpackBcastTime[max_linpack_callback_types];
+	double linpackCPUDGEMMTime[max_linpack_callback_types];
 
 #if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
 	static const bool buffersSwitchable = true;

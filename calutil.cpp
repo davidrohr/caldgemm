@@ -118,7 +118,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
 			flopsc = (double) 1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = 0.0;
 		}
-		else if (Info->m >= Info->n)
+		else if (DGEMM_split_m)
 		{
 			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->n + (Info->n % Info->Height) * (Info->m - cParam.cblas_size) + cParam.dynamic_run2 * Info->Height * Info->Height) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = (double) 1e-09 * ((Info->m - cParam.cblas_size) * (Info->n - Info->n % Info->Height) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Info->Height * Info->Height) * (2 * Info->Width + 2) * Info->Iterations / Timers.GPUTimer.GetElapsedTime();

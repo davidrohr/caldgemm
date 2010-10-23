@@ -60,6 +60,8 @@ caldgemm::caldgemm()
 	caldgemm_initialized = false;
 	memset(linpack_last_mn, 0, max_linpack_callback_types * sizeof(double));
 	memset(linpackGPURatios, 0, 3 * sizeof(double));
+	memset(linpackCPUDGEMMTime, 0, 3 * sizeof(double));
+	memset(linpackBcastTime, 0, 3 * sizeof(double));
 }
 
 caldgemm::~caldgemm()
@@ -126,7 +128,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 
 						if (cParam.dynamic_run)
 						{
-							if (gpu_m >= gpu_n)
+							if (DGEMM_favor_m)
 							{
 								if (jj >= gpu_m - cParam.dynamic_run && ii >= gpu_n - cParam.dynamic_size) sprintf(tmpcolor, "01;33");
 							}
@@ -136,7 +138,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 							}
 						}
 
-						if (Info->m >= Info->n)	//favor splitting m because of consecutive memory
+						if (DGEMM_split_m)	//favor splitting m because of consecutive memory
 						{
 							if (jj >= Info->m - cParam.cblas_size || ii >= Info->n - Info->n % Info->Height) sprintf(tmpcolor, "01;34");
 						}
@@ -151,7 +153,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 							k--;
 							size_t cpublockm, cpublockn;
 							DGEMM_getblocks(k, cpublockm, cpublockn);
-							while ((gpu_m >= gpu_n ? (cpublockm * Info->Height >= gpu_m - cParam.dynamic_run && cpublockn * Info->Height >= gpu_n - cParam.dynamic_size) :
+							while ((DGEMM_favor_m ? (cpublockm * Info->Height >= gpu_m - cParam.dynamic_run && cpublockn * Info->Height >= gpu_n - cParam.dynamic_size) :
 								(cpublockn * Info->Height >= gpu_n - cParam.dynamic_run && cpublockm * Info->Height >= gpu_m - cParam.dynamic_size)))
 							{
 								k--;
@@ -1024,7 +1026,7 @@ int caldgemm::cpuScheduler()
 					cParam.dynamic_size -= cParam.dynamic_size % Info->Height;
 					cParam.dynamic_run *= Info->Height;
 
-					while (gpu_m >= gpu_n ? (blockm * Info->Height >= gpu_m - cParam.dynamic_run && blockn * Info->Height >= gpu_n - cParam.dynamic_size) :
+					while (DGEMM_favor_m ? (blockm * Info->Height >= gpu_m - cParam.dynamic_run && blockn * Info->Height >= gpu_n - cParam.dynamic_size) :
 						(blockn * Info->Height >= gpu_n - cParam.dynamic_run && blockm * Info->Height >= gpu_m - cParam.dynamic_size))
 					{
 						cParam.dynamic_run -= Info->Height;
@@ -1049,7 +1051,7 @@ TryThirdRun:
 				size_t test_cpu_k = cpu_k_barrier - 1;
 				size_t cpublockm, cpublockn;
 				DGEMM_getblocks(test_cpu_k, cpublockm, cpublockn);
-				while (test_cpu_k > k && (gpu_m >= gpu_n ? (cpublockm * Info->Height >= gpu_m - cParam.dynamic_run && cpublockn * Info->Height >= gpu_n - cParam.dynamic_size) :
+				while (test_cpu_k > k && (DGEMM_favor_m ? (cpublockm * Info->Height >= gpu_m - cParam.dynamic_run && cpublockn * Info->Height >= gpu_n - cParam.dynamic_size) :
 					(cpublockn * Info->Height >= gpu_n - cParam.dynamic_run && cpublockm * Info->Height >= gpu_m - cParam.dynamic_size)))
 				{
 					test_cpu_k--;
@@ -1157,11 +1159,39 @@ void* cblas_wrapper(void* arg)
 					}
 				}
 
-				if (Info->m >= Info->n)	//favor splitting m because of consecutive memory
+				size_t cblas2;
+				if (par->cls->ExecLinpack && Info->MultiThread (((double) Info->m * (double) Info->n) - par->cls->linpack_last_mn[ExecuteLinpackCallbacks]) / par->cls->linpack_last_mn[ExecuteLinpackCallbacks] < 0.3 && par->cls->linpackCPUDGEMMTime[ExecuteLinpackCallbacks] - par->cls->linpackBcastTime[ExecuteLinpackCallbacks] > 4.0)
+				{
+					cblas2 = (double) (DGEMM_split_m ? Info->n : Info->m) * (par->cls->linpackBcastTime[ExecuteLinpackCallbacks] + 2.0) / par->cls->linpackCPUDGEMMTime[ExecuteLinpackCallbacks];
+					fprintf(STD_OUT, "Splitting CPU DGEMM for later enabling additional cores, cblas2=%lld\n", cblas2);
+				}
+				else
+				{
+					cblas2 = 0;
+				}
+
+				if (DGEMM_split_m)	//favor splitting m because of consecutive memory
 				{
 					if (par->dynamic_run == 0)
 					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, Info->n, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - par->cblas_size) * C_pitch, C_pitch);
+						if (cblas2)
+						{
+							cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, cblas2, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Info->m - par->cblas_size) * C_pitch, C_pitch);
+
+							if (pthread_mutex_trylock(&par->cls->linpackParameters.linpackMutex[1]) == EBUSY)
+							{
+								if (!Info->NoPerformanceWarnings) printf("Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
+							}
+							else
+							{
+								int require_threads_new = par->cls->outputthreads + 1;
+								if (Info->Debug) fprintf(stderr, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
+								goto_set_num_threads(old_goto_threads - require_threads_new);
+								caldgemm_goto_reserve_cpus(require_threads_new);
+								pthread_mutex_unlock(&par->cls->linpackParameters.linpackMutex[1]);
+							}
+						}
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, Info->n - cblas2, Info->Width, Alpha, A + (Info->m - par->cblas_size) * A_pitch_use, A_pitch, B + cblas2 * B_pitch_use, B_pitch, Beta, C + (Info->m - par->cblas_size) * C_pitch + cblas2, C_pitch);
 					}
 
 					if (Info->n % Info->Height && par->borders_done == CAL_FALSE)
@@ -1173,7 +1203,24 @@ void* cblas_wrapper(void* arg)
 				{
 					if (par->dynamic_run == 0)
 					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, par->cblas_size, Info->Width, Alpha, A, A_pitch, B + (Info->n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + Info->n - par->cblas_size, C_pitch);
+						if (cblas2)
+						{
+							cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, cblas2, par->cblas_size, Info->Width, Alpha, A, A_pitch, B + (Info->n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + Info->n - par->cblas_size, C_pitch);
+							
+							if (pthread_mutex_trylock(&par->cls->linpackParameters.linpackMutex[1]) == EBUSY)
+							{
+								if (!Info->NoPerformanceWarnings) printf("Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
+							}
+							else
+							{
+								int require_threads_new = par->cls->outputthreads + 1;
+								if (Info->Debug) fprintf(stderr, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
+								goto_set_num_threads(old_goto_threads - require_threads_new);
+								caldgemm_goto_reserve_cpus(require_threads_new);
+								pthread_mutex_unlock(&par->cls->linpackParameters.linpackMutex[1]);
+							}
+						}
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m - cblas2, par->cblas_size, Info->Width, Alpha, A + cblas2 * A_pitch_use, A_pitch, B + (Info->n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + cblas2 * C_pitch + Info->n - par->cblas_size, C_pitch);
 					}
 
 					if (Info->m % Info->Height && par->borders_done == CAL_FALSE)
@@ -1536,7 +1583,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	cParam.borders_done = CAL_FALSE;
 	if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
 	{
-		if (Info->m >= Info->n)
+		if (DGEMM_split_m = (Info->m >= Info->n))
 		{
 			size_t virtualm = Info->m + (Info->n % Info->Height) * Info->m / Info->n;
 			if (ExecuteLinpackCallbacks) virtualm += Info->Width * (1.0 + (float) Info->m / Info->n);
@@ -1578,6 +1625,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		gpu_n = Info->n;
 		gpu_m = Info->m;
 	}
+	DGEMM_favor_m = gpu_m >= gpu_n;
 
 	if (Info->UseCPU)
 	{
@@ -1616,7 +1664,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 					if (cParam.dynamic_run)
 					{
-						if (gpu_m >= gpu_n)
+						if (DGEMM_favor_m)
 						{
 							if (newblockm * Info->Height >= gpu_m - cParam.dynamic_run && newblockn * Info->Height >= gpu_n - cParam.dynamic_size)
 							{
@@ -1664,7 +1712,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						DGEMM_getblocks(nextk, nextblockm, nextblockn);
 						if (cParam.dynamic_run)
 						{
-							while (gpu_m >= gpu_n ? (nextk < nBlocks && nextblockm * Info->Height >= gpu_m - cParam.dynamic_run && nextblockn * Info->Height >= gpu_n - cParam.dynamic_size) :
+							while (DGEMM_favor_m ? (nextk < nBlocks && nextblockm * Info->Height >= gpu_m - cParam.dynamic_run && nextblockn * Info->Height >= gpu_n - cParam.dynamic_size) :
 								(nextk < nBlocks && nextblockn * Info->Height >= gpu_n - cParam.dynamic_run && nextblockm * Info->Height >= gpu_m - cParam.dynamic_size))
 							{
 								nextk++;
@@ -1828,6 +1876,8 @@ RunCALDGEMM_end:
 		if (Info->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.1lf, new: %2.1lf, factor: %2.1lf) => %2.1lf\n", ExecuteLinpackCallbacks, 100 * linpackGPURatios[ExecuteLinpackCallbacks], 100 * gpu_ratio_used, tmpratio, 100 * newratio);
 
 		linpackGPURatios[ExecuteLinpackCallbacks] = newratio;
+		linpackCPUDGEMMTime[ExecuteLinpackCallbacks] = Timers.CPUTimer.GetElapsedTime();
+		linpackBcaseTime[ExecuteLinpackCallbacks] = Timers.LinpackTimer2.GetElapsedTime();
 		linpack_last_mn[ExecuteLinpackCallbacks] = (double) Info->m * (double) Info->n;
 	}
 
@@ -1836,7 +1886,7 @@ RunCALDGEMM_end:
 
 inline void caldgemm::DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn)
 {
-	if (gpu_m >= gpu_n)
+	if (DGEMM_favor_m)
 	{
 		const int nb = gpu_n / Info->Height;
 		blockn = k % nb;
@@ -1858,7 +1908,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 	DGEMM_getblocks(k, blockm, blockn);
 
 	bool buffersSufficiant;
-	if (gpu_m >= gpu_n)
+	if (DGEMM_favor_m)
 	{
 		buffersSufficiant = (bbuffers >= nb);
 	}
@@ -1878,14 +1928,14 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 		if (divideBuffer(Info->DivideToGPU && gpu_m < gpu_n && buffersSufficiant ? (datas[blockm] + aPartsNum) : datas[blockm % 2], A + blockm * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Width, Info->Height, BufferWidth, BufferHeight, A_pitch, aPartsNum, TransposeA == CblasTrans)) return(1);
 #endif
 	}
-	if (blockm == 0 || (gpu_m >= gpu_n && !buffersSufficiant))
+	if (blockm == 0 || (DGEMM_favor_m && !buffersSufficiant))
 	{
 		if (Info->Debug) fprintf(STD_OUT, "\tDividing Buffer B (k = %lld)\n", k);
 		Timers.divideB++;
 #ifdef CALDGEMM_TRANSPOSED_B
-		divideBuffer(Info->DivideToGPU && buffersSufficiant ? (datas[blockn] + (gpu_m >= gpu_n ? aPartsNum : 0)) : (datas[blockn % 2] + aPartsNum), B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, BufferWidth, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
+		divideBuffer(Info->DivideToGPU && buffersSufficiant ? (datas[blockn] + (DGEMM_favor_m ? aPartsNum : 0)) : (datas[blockn % 2] + aPartsNum), B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, BufferWidth, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
 #else
-		divideBuffer(Info->DivideToGPU && buffersSufficiant ? (datas[blockn] + (gpu_m >= gpu_n ? aPartsNum : 0)) : (datas[blockn % 2] + aPartsNum), B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, BufferWidth, B_pitch, bPartsNum, TransposeB == CblasTrans);
+		divideBuffer(Info->DivideToGPU && buffersSufficiant ? (datas[blockn] + (DGEMM_favor_m ? aPartsNum : 0)) : (datas[blockn % 2] + aPartsNum), B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Height, Info->Width, BufferHeight, BufferWidth, B_pitch, bPartsNum, TransposeB == CblasTrans);
 #endif
 	}
 	if (Info->VerboseTiming) Timers.CounterDivide.Stop();
@@ -1906,7 +1956,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 			}
 		}
 
-		if (blockm == 0 || (gpu_m >= gpu_n && !buffersSufficiant))
+		if (blockm == 0 || (DGEMM_favor_m && !buffersSufficiant))
 		{
 			if (Info->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld)\n", k);
 			if (gpu_m < gpu_n && buffersSufficiant)

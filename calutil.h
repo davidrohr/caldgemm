@@ -368,5 +368,8 @@ protected:
 	double gpu_ratio_used;
 	double cpu_wait_time;
 
+	bool DGEMM_split_m;							//Splitting direction for CPU/GPU
+	bool DGEMM_favor_m;							//Direction of C matrix primary tiling
+
 	char hostname[256];							//Store hostname of node for host dependant debug code
 };
