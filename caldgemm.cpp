@@ -1082,7 +1082,7 @@ void* cblas_wrapper(void* arg)
 
 	if (Info->Debug) fprintf(STD_OUT, "Cblas thread Thread, setting CPU mask %X\n", par->cls->getcpumask(&par->cls->oldcpumask));
 	sched_setaffinity(0, sizeof(par->cls->oldcpumask), &par->cls->oldcpumask);
-
+	
 	if (Info->MultiThread) if (pthread_mutex_lock(&par->cls->cParam.cblasMutex[1])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
 	while (pthread_mutex_lock(&par->cls->cParam.cblasMutex[1]) == 0 && par->terminate == CAL_FALSE)
 	{
@@ -1274,11 +1274,23 @@ void* merge_wrapper(void* arg)
 	if (par->cls->Info->Debug) fprintf(STD_OUT, "Merge Thread %d, setting CPU mask %X\n", par->nMergeThread, par->cls->getcpumask(&merge_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
 
+	CPerfCounter mergeTimer;
+
 	if (pthread_mutex_lock(&par->mergeThreadMutex[0])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
 	while (pthread_mutex_lock(&par->mergeThreadMutex[0]) == 0 && par->terminate == CAL_FALSE)
 	{
 		if (par->cls->Info->Debug) fprintf(STD_OUT, "\t\tSlave thread %d starting merge process for context %d\n", par->nMergeThread, par->nContext);
+		if (par->cls->Info->Debug)
+		{
+		    mergeTimer.Reset();
+		    mergeTimer.Start();
+		}
 		par->cls->mergeBuffers(par->dst, par->src, par->cls->Info->Height, par->cls->Info->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch, par->cls->cPartsNum);
+		if (par->cls->Info->Debug)
+		{
+		    mergeTimer.Stop();
+		    fprintf(STD_OUT, "Merge time: %2.3lf\n", mergeTimer.GetElapsedTime());
+		}
 		if (par->cls->Info->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex obuffer %d (Slavethread %d)\n", par->nContext, par->nMergeThread);
 		if (pthread_mutex_unlock(&par->cls->obufferMutex[par->nContext])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 		if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
