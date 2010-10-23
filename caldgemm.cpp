@@ -1412,6 +1412,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	TransposeA = TransA;
 	TransposeB = TransB;    
 	ExecLinpack = ExecuteLinpackCallbacks;
+	orig_m = Info->m;
+	orig_n = Info->n;
 
 	if (Info->Verify)
 	{

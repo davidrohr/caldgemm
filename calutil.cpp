@@ -107,25 +107,25 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 
 CALvoid calutil::displayMatrixTiming(const CALchar* name)
 {
-	CALdouble gflops_CPU = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Timers.System.GetElapsedTime();
+	CALdouble gflops_CPU = (CALdouble) 1e-09 * orig_m * orig_n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Timers.System.GetElapsedTime();
 	if (!Info->Quiet || Info->DisplayTiming) fprintf(STD_OUT, "Program: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", name, 
-		Info->m, Info->Width, Info->Width, Info->n, Info->m, Info->n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
+		orig_m, Info->Width, Info->Width, orig_n, orig_m, orig_n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
 	if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
 	{
 		double flopsc, flopsg;
 		if (CPUOnlyRun)
 		{
-			flopsc = (double) 1e-09 * Info->m * Info->n * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * orig_m * orig_n * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = 0.0;
 		}
 		else if (DGEMM_split_m)
 		{
-			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->n + (Info->n % Info->Height) * (Info->m - cParam.cblas_size) + cParam.dynamic_run2 * Info->Height * Info->Height) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->n + (Info->n % Info->Height) * (Info->m - cParam.cblas_size) + cParam.dynamic_run2 * Info->Height * Info->Height + (ExecLinpack ? Info->Width * Info->n : 0)) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = (double) 1e-09 * ((Info->m - cParam.cblas_size) * (Info->n - Info->n % Info->Height) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Info->Height * Info->Height) * (2 * Info->Width + 2) * Info->Iterations / Timers.GPUTimer.GetElapsedTime();
 		}
 		else
 		{
-			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->m + (Info->m % Info->Height) * (Info->n - cParam.cblas_size) + cParam.dynamic_run2 * Info->Height * Info->Height) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->m + (Info->m % Info->Height) * (Info->n - cParam.cblas_size) + cParam.dynamic_run2 * Info->Height * Info->Height + (ExecLinpack ? Info->Width * Info->n : 0) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = (double) 1e-09 * ((Info->n - cParam.cblas_size) * (Info->m - Info->m % Info->Height) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Info->Height * Info->Height) * (2 * Info->Width + 2) * Info->Iterations / Timers.GPUTimer.GetElapsedTime();
 		}
 

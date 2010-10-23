@@ -371,5 +371,7 @@ protected:
 	bool DGEMM_split_m;							//Splitting direction for CPU/GPU
 	bool DGEMM_favor_m;							//Direction of C matrix primary tiling
 
+	size_t orig_m, orig_n;
+
 	char hostname[256];							//Store hostname of node for host dependant debug code
 };
