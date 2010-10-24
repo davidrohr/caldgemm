@@ -288,7 +288,11 @@ const char *calutil::ILKernelName =
 #else
 "    add r0.w, r0.w, l1.y\n"
 #endif
+#ifdef CALDGEMM_LINPACK_KERNEL
+"    ge r13.z, r0.w, l1.x\n"				//cmp with width
+#else
 "    ge r13.z, r0.w, cb0[1].x\n"				//cmp with width
+#endif
 #endif
 
 #if defined(CALDGEMM_44)
