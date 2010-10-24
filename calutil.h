@@ -323,7 +323,7 @@ protected:
 	static const int ctxcount = 3;				//Not cal context count but number of copies of data buffers etc.
 	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
 	static const int vcpysize = 16;
-	static const int kernel_count = 2;
+	static const int kernel_count = 3;
 	static const int max_bbuffers = 20;
 	int bbuffers;
 	int outputthreads;
@@ -344,7 +344,7 @@ protected:
 	CALname *progNames[1][kernel_count];
 	CALevent events[ctxcount];
 
-	static const char *ILKernel, *ILKernelALPHA1, *ILFakeKernel;
+	static const char *ILKernel, *ILKernelALPHA1, *ILKernelLinpack, *ILFakeKernel;
 
 	struct cblasParameters
 	{

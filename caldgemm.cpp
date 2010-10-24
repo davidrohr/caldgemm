@@ -21,7 +21,13 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 #define ILKernelName ILKernelALPHA1
 #define CALDGEMM_ALPHA1
 #include "caldgemm.il"
+#undef ILKernelName
+
+#define ILKernelName ILKernelLinpack
 #undef CALDGEMM_ALPHA1
+#define CALDGEMM_LINPACK_KERNEL
+#include "caldgemm.il"
+#undef CALDGEMM_LINPACK_KERNEL
 #undef ILKernelName
 
 const char* calutil::ILFakeKernel =
@@ -819,7 +825,8 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 		if (i < 1)
 		{
 			if (!SetupKernel(ILKernel, &modules[i][0], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)) ||
-				!SetupKernel(ILKernelALPHA1, &modules[i][1], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)))
+				!SetupKernel(ILKernelALPHA1, &modules[i][1], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)) ||
+				!SetupKernel(ILKernelLinpack, &modules[i][2], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)))
 			{
 				return 1;
 			}
@@ -1411,8 +1418,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	//Check for double == 1.0 is unsafe and causes compiler warning
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
-	const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
-	if (kernel_num && Info->Debug) fprintf(STD_OUT, "Using Kernel for ALPHA = 1\n");
+	const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one) ? (Info->Width == 1024 ? 2 : 1) : (Info->Width == 1024 ? 2 : 0);
+	/*if (Info->Debug)*/ fprintf(STD_OUT, "Using Kernel %d\n", kernel_num);
 
 	TransposeA = TransA;
 	TransposeB = TransB;    
