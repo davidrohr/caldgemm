@@ -190,7 +190,9 @@ CALvoid Usage(const CALchar* name)
 		" caution.\n");
 }
 
-void linpack_fake() {}
+void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
+void linpack_fake2() {fprintf(STD_OUT, "Linpack fake 2 called\n");}
+void linpack_fake3() {fprintf(STD_OUT, "Linpack fake 3 called\n");}
 
 CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo* Info)
 {
@@ -219,9 +221,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 	Info->AsyncDMA = CAL_FALSE;
 	Info->KeepBuffersMapped = CAL_FALSE;
 
-	Info->linpack_factorize_function = linpack_fake;
-	Info->linpack_broadcast_function = linpack_fake;
-	Info->linpack_swap_function = linpack_fake;
+	Info->linpack_factorize_function = linpack_fake1;
+	Info->linpack_broadcast_function = linpack_fake2;
+	Info->linpack_swap_function = linpack_fake3;
 #endif
 
 	for (CALuint x = 1; x < argc; ++x)
