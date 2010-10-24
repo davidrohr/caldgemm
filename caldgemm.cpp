@@ -1167,7 +1167,7 @@ void* cblas_wrapper(void* arg)
 			{
 				if (par->dynamic_run)
 				{
-					if (par->cls->gpu_m >= par->cls->gpu_n)
+					if (par->cls->DGEMM_favor_m)
 					{
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Info->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_run) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_run) * C_pitch + par->cls->gpu_n - par->dynamic_size, C_pitch);
 					}
@@ -1422,7 +1422,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	//Check for double == 1.0 is unsafe and causes compiler warning
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
 	const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one) ? (Info->Width == 1024 ? 2 : 1) : (Info->Width == 1024 ? 2 : 0);
-	/*if (Info->Debug)*/ fprintf(STD_OUT, "Using Kernel %d\n", kernel_num);
+	if (Info->Debug) fprintf(STD_OUT, "Using Kernel %d\n", kernel_num);
 
 	TransposeA = TransA;
 	TransposeB = TransB;    
