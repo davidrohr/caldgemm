@@ -1363,6 +1363,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		return(1);
 	}
 
+	if (Info->LinpackSwapN != NULL) Info->linpack_swap_function();
+
 	if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0)
 	{
 		if (ExecuteLinpackCallbacks)
