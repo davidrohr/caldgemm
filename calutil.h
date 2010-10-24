@@ -198,8 +198,10 @@ public:
 		CALboolean NoPerformanceWarnings;			//Suppress also performance warnings, will usually be shown even in quiet mode
 		size_t     m, n;							//height of A, width of B, must be multiple of height
 		int        LinpackNodes;
+		size_t*    LinpackSwapN;
 		void (*linpack_factorize_function)();
 		void (*linpack_broadcast_function)();
+		void (*linpack_swap_function)();
 	};
 
 protected:
