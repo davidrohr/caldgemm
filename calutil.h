@@ -375,6 +375,7 @@ protected:
 	bool DGEMM_favor_m;							//Direction of C matrix primary tiling
 
 	size_t orig_m, orig_n;
+	double *orig_a, *orig_b, *orig_c;
 
 	char hostname[256];							//Store hostname of node for host dependant debug code
 };

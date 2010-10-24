@@ -1429,6 +1429,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	ExecLinpack = ExecuteLinpackCallbacks;
 	orig_m = Info->m;
 	orig_n = Info->n;
+	orig_a = A;
+	orig_b = B;
+	orig_c = C;
 
 	if (Info->Verify)
 	{
@@ -1906,6 +1909,11 @@ RunCALDGEMM_end:
 		fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime(), Info->m, Info->n);
 	}
 	displayMatrixTiming("caldgemm");
+	A = orig_a;
+	B = orig_b;
+	C = orig_c;
+	Info->m = orig_m;
+	Info->n = orig_n;
 	AnalyzeResults(datas[0]);
 	if (Info->Verify) delete[] D;
 
