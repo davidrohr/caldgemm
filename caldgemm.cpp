@@ -1123,6 +1123,10 @@ void* cblas_wrapper(void* arg)
 		caldgemm_goto_reserve_cpus(require_threads);
 
 		par->cls->Timers.TotalCPUTimer.Start();
+		par->cls->Timers.LinpackTimer3.Start();
+		if (Info->LinpackSwapN != NULL) Info->linpack_swap_function();
+		par->cls->Timers.LinpackTimer3.Stop();
+
 		if (par->cls->ExecLinpack)
 		{
 			if (!Info->Quiet) fprintf(STD_OUT, "\t\t\tDoint initial cblas runs to prepare Linpack factorization\n");
@@ -1355,6 +1359,18 @@ int calutil::DumpMatrix(double* a, double* b, double* c, double alpha, double be
 	return(0);
 }
 
+void caldgemm::WaitForLASWP(size_t n)
+{
+	if (Info->LinpackSwapN != NULL)
+	{
+		while (*Info->LinpackSwapN < (n + 1) * Info->Height + (ExecLinpack ? Info->Width : 0))
+		{
+			if (Info->Debug) fprintf(STD_OUT, "Waiting for LASWP / DTRSM... %lld of %lld\n", *Info->LinpackSwapN, (n + 1) * Info->Height);
+			usleep(10000);
+		}
+	}
+}
+
 int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB, int ExecuteLinpackCallbacks)
 {
 	if (!caldgemm_initialized)
@@ -1363,10 +1379,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		return(1);
 	}
 
-	if (Info->LinpackSwapN != NULL) Info->linpack_swap_function();
-
 	if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0)
 	{
+		if (Info->LinpackSwapN != NULL)
+		{
+		    Info->linpack_swap_function();
+		    Info->LinpackSwapN = 0;
+		}
+
 		if (ExecuteLinpackCallbacks)
 		{
 			Timers.LinpackTimer1.Start();
@@ -1518,6 +1538,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (forceCPU)
 	{
 		if (Info->Debug) fprintf(STD_OUT, "Running CPU only DGEMM\n");
+		if (Info->LinpackSwapN != NULL) Info->linpack_swap_function();
 		Timers.CPUTimer.Start();
 		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Info->m, Info->n, Info->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 		Timers.CPUTimer.Stop();
@@ -1678,6 +1699,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		}
 		if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	}
+	else if (Info->LinpackSwapN != NULL)
+	{
+	    Info->linpack_swap_function();
+	}
 
 	Timers.GPUTimer.Start();
 
@@ -1746,8 +1771,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					blockm = newblockm;
 					if (Info->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (Context %d)\n", k, blockm, blockn, j);
 
-
-					if (k <= 1 || ctxcount == 1 || Info->AsyncDMA == CAL_FALSE) DGEMM_prepare(k, j);
+					if (k <= 1 || ctxcount == 1 || Info->AsyncDMA == CAL_FALSE)
+					{
+						WaitForLASWP(blockm);
+						DGEMM_prepare(k, j);
+					}
 					if (ctxcount > 1 && k >= 1 && Info->AsyncDMA)
 					{
 						size_t nextk = k + 1;
@@ -1762,7 +1790,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 								DGEMM_getblocks(nextk, nextblockm, nextblockn);
 							}
 						}
-						if (nextk < nBlocks) DGEMM_prepare(nextk, (j + 1) % ctxcount);
+						if (nextk < nBlocks)
+						{
+							WaitForLASWP(nextblockm);
+							DGEMM_prepare(nextk, (j + 1) % ctxcount);
+						}
 					}
 
 					if (Info->MultiThread)
@@ -1882,7 +1914,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
 
 RunCALDGEMM_end:
-	Timers.System.Stop();
+	if (Info->LinpackSwapN != NULL) *Info->LinpackSwapN = 0;
 	outputthreads = old_outputthreads;
 
 #ifndef NO_ASYNC_LINPACK
@@ -1898,6 +1930,7 @@ RunCALDGEMM_end:
 		Timers.LinpackTimer1.Stop();
 	}
 
+	Timers.System.Stop();
 	if (Info->Debug) fprintf(STD_OUT, "DGEMM Run Complete\n");
 
 #ifdef TESTMODE
@@ -2126,6 +2159,7 @@ void caldgemm::ResetTimers()
 	Timers.divideA = Timers.divideB = 0;
 	Timers.LinpackTimer1.Reset();
 	Timers.LinpackTimer2.Reset();
+	Timers.LinpackTimer3.Reset();
 }
 
 #define MAX_HUGE_ADDRESSES 256
