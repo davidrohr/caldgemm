@@ -474,7 +474,7 @@ CALint calutil::SetupKernel(const CALchar* ILKernel, CALmodule* module, CALconte
 
 	// Compile IL kernel into object
 	CALobject obj;
-	if (Info->PrintILKernel && (module == modules[0] || module == &modules[0][1])) fprintf(STD_OUT, "Kernel:\n%s\n", ILKernel);
+	if (Info->PrintILKernel) fprintf(STD_OUT, "Kernel:\n%s\n", ILKernel);
 	if (calclCompile(&obj, CAL_LANGUAGE_IL, ILKernel, attribs.target) != CAL_RESULT_OK)
 	{
 		fprintf(STD_OUT, "There was an error compiling the program.\n");
