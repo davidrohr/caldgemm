@@ -1207,7 +1207,7 @@ void* cblas_wrapper(void* arg)
 
 							if (pthread_mutex_trylock(&par->cls->linpackParameters.linpackMutex[1]) == EBUSY)
 							{
-								if (!Info->NoPerformanceWarnings) printf("Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
+								if (!Info->NoPerformanceWarnings) printf("WARNING: Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
 							}
 							else
 							{
