@@ -1668,7 +1668,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		gpu_n = Info->n;
 		gpu_m = Info->m;
 	}
-	DGEMM_favor_m = Info->LinpackSwapN == NULL ? (gpu_m >= gpu_n) : false;
+	DGEMM_favor_m = (gpu_m >= gpu_n);
 
 	if (Info->UseCPU)
 	{
