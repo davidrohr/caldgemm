@@ -1124,7 +1124,12 @@ void* cblas_wrapper(void* arg)
 
 		par->cls->Timers.TotalCPUTimer.Start();
 		par->cls->Timers.LinpackTimer3.Start();
-		if (Info->LinpackSwapN != NULL) Info->linpack_swap_function();
+		if (Info->LinpackSwapN != NULL)
+		{
+			goto_set_num_threads(8);
+			Info->linpack_swap_function();
+			goto_set_num_threads(old_goto_threads - require_threads);
+		}
 		par->cls->Timers.LinpackTimer3.Stop();
 
 		if (par->cls->ExecLinpack)
