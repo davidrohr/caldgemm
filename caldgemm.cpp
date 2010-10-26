@@ -1565,25 +1565,52 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (Info->AutoHeight)
 	{
-		if (MaxGpuM < 1024 || MaxGpuN < 1024)
+		if (ExecuteLinpackCallbacks >= 2)
 		{
-			Info->Height = 512;
-		}
-		else if (MaxGpuM < 2048 || MaxGpuN < 2048 || MaxGpuM * MaxGpuN < 16 * 1024 * 1024)
-		{
-			Info->Height = 1024;
-		}
-		else if (MaxGpuM < 3072 || MaxGpuN < 3072 || MaxGpuM * MaxGpuN < 120 * 1024 * 1024)
-		{
-			Info->Height = 2048;
-		}
-		else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < 400 * 1024 * 1024)
-		{
-			Info->Height = 3072;
+			if (MaxGpuM < 1024 || MaxGpuN < 1024)
+			{
+				Info->Height = 512;
+			}
+			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || (MaxGpuM * MaxGpuN < 13 * 14 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 2048 >= 1024) || (MaxGpuM * MaxGpuN < 16 * 1024 * 1024))
+			{
+				Info->Height = 1024;
+			}
+			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || (MaxGpuM * MaxGpuN < 20 * 21 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 3072 >= 2048) || (MaxGpuM * MaxGpuN < 120 * 1024 * 1024))
+			{
+				Info->Height = 2048;
+			}
+			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < 27 * 28 * 1024 * 1024)
+			{
+				Info->Height = 3072;
+			}
+			else
+			{
+				Info->Height = 4096;
+			}
+		
 		}
 		else
 		{
-			Info->Height = 4096;
+			if (MaxGpuM < 1024 || MaxGpuN < 1024)
+			{
+				Info->Height = 512;
+			}
+			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || MaxGpuM * MaxGpuN < 16 * 1024 * 1024)
+			{
+				Info->Height = 1024;
+			}
+			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || MaxGpuM * MaxGpuN < 120 * 1024 * 1024)
+			{
+				Info->Height = 2048;
+			}
+			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < 400 * 1024 * 1024)
+			{
+				Info->Height = 3072;
+			}
+			else
+			{
+				Info->Height = 4096;
+			}
 		}
 		if ((Info->Height != BufferHeight && !Info->Quiet) || Info->Debug)  fprintf(STD_OUT, "Using Height %lld of max %lld\n", Info->Height, BufferHeight);
 	}
@@ -2016,7 +2043,6 @@ RunCALDGEMM_end:
 
 	if (ExecuteLinpackCallbacks)
 	{
-		fprintf(STD_OUT, "Initial gpu_used: %1.3lf\n", gpu_ratio_used);
 		if (Timers.CPUTimer.GetElapsedTime() < 2.0)
 		{
 		    gpu_ratio_used = 1 - 0.6 * (1 - gpu_ratio_used);
@@ -2025,7 +2051,6 @@ RunCALDGEMM_end:
 		{
 		    gpu_ratio_used = 1 - 0.6 * (1 - gpu_ratio_used);
 		}
-		fprintf(STD_OUT, "Final gpu_used: %1.3lf\n", gpu_ratio_used);
 		const double tmpratio = cpu_wait_time > 0.15 ? 0.0 : 0.5;
 		const double newratio = tmpratio * linpackGPURatios[ExecuteLinpackCallbacks] + (1.0 - tmpratio) * gpu_ratio_used;
 		if (Info->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.1lf, new: %2.1lf, factor: %2.1lf) => %2.1lf\n", ExecuteLinpackCallbacks, 100 * linpackGPURatios[ExecuteLinpackCallbacks], 100 * gpu_ratio_used, tmpratio, 100 * newratio);
