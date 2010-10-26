@@ -551,8 +551,8 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 #endif
 #endif
 					_mm_store_pd_use(daddr, _mm_sub_pd(_mm_load_pd(daddr), _mm_load_pd(saddr)));
-					_mm_store_pd_use(daddr + 2, _mm_sub_pd(_mm_load_pd(daddr + 2), _mm_load_pd(saddr2)));
 					_mm_store_pd_use(daddr + 4, _mm_sub_pd(_mm_load_pd(daddr + 4), _mm_load_pd(saddr + 2)));
+					_mm_store_pd_use(daddr + 2, _mm_sub_pd(_mm_load_pd(daddr + 2), _mm_load_pd(saddr2)));
 					_mm_store_pd_use(daddr + 6, _mm_sub_pd(_mm_load_pd(daddr + 6), _mm_load_pd(saddr2 + 2)));
 
 					saddr += 4;
