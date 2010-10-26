@@ -1050,6 +1050,8 @@ void* linpack_wrapper(void* arg)
 		cls->Timers.LinpackTimer2.Start();
 		Info->linpack_broadcast_function();
 		cls->Timers.LinpackTimer2.Stop();
+		cls->Timers.BcastTimer.Start();
+
 		if (pthread_mutex_unlock(&cls->linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	}
 
@@ -1157,7 +1159,7 @@ void* cblas_wrapper(void* arg)
 		const size_t B_pitch_use = (par->cls->TransposeB == CblasTrans ? B_pitch : 1);
 		const CBLAS_TRANSPOSE TransposeA = par->cls->TransposeA;
 		const CBLAS_TRANSPOSE TransposeB = par->cls->TransposeB;
-		if (!Info->Quiet) fprintf(STD_OUT, "\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld, dynamic: %lld/%lld, cpu_k: %lld)\n", Info->m, Info->n, par->cblas_size, par->dynamic_run, par->dynamic_size, par->cpu_k);
+		if (!Info->Quiet) fprintf(STD_OUT, "\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld (%lld), dynamic: %lld/%lld, cpu_k: %lld)\n", Info->m, Info->n, par->cblas_size, Info->Height, par->dynamic_run, par->dynamic_size, par->cpu_k);
 
 
 		int old_goto_threads = get_num_procs();
@@ -1265,6 +1267,9 @@ void* cblas_wrapper(void* arg)
 							}
 							else
 							{
+								par->cls->Timers.BcastTimer.Stop();
+								if (!Info->NoPerformanceWarnings && par->cls->Timers.BcastTimer.GetElapsedTime() > 1.0) fprintf(STD_OUT, "Bcast core idle for %2.4lf seconds\n", par->cls->Timers.BcastTimer.GetElapsedTime());
+
 								int require_threads_new = par->cls->outputthreads + 1;
 								if (Info->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
 								goto_set_num_threads(old_goto_threads - require_threads_new);
@@ -1678,7 +1683,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (ExecuteLinpackCallbacks)
 	{
-		if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.70;
+		if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80;
 		else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
 		if ((((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecuteLinpackCallbacks]) / linpack_last_mn[ExecuteLinpackCallbacks] < 0.3 && linpackGPURatios[ExecuteLinpackCallbacks] > 0.0001)
 		{
@@ -1956,18 +1961,18 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (Info->UseCPU)
 	{
-		if (!Info->NoPerformanceWarnings && Info->MultiThread)
+		if (Info->MultiThread)
 		{
 			Timers.ATime.Reset();
 			Timers.ATime.Start();
 		}
 		if (Info->Debug) fprintf(STD_OUT, "Waiting for CPU DGEMM to finish\n");
 		if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
-		if (!Info->NoPerformanceWarnings && Info->MultiThread)
+		if (Info->MultiThread)
 		{
 			Timers.ATime.Stop();
 			cpu_wait_time = Timers.ATime.GetElapsedTime();
-			if (!Info->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15) fprintf(STD_OUT, "WARNING: CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
+			if (!Info->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15 && cParam.cblas_size > 0) fprintf(STD_OUT, "WARNING: CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
 			else if (Info->Debug) fprintf(STD_OUT, "CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
 		}
 	}
@@ -2011,7 +2016,17 @@ RunCALDGEMM_end:
 
 	if (ExecuteLinpackCallbacks)
 	{
-		const double tmpratio = 0.5;
+		fprintf(STD_OUT, "Initial gpu_used: %1.3lf\n", gpu_ratio_used);
+		if (Timers.CPUTimer.GetElapsedTime() < 2.0)
+		{
+		    gpu_ratio_used = 1 - 0.6 * (1 - gpu_ratio_used);
+		}
+		if (ExecuteLinpackCallbacks >= 2 && Timers.GPUTimer.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() < 1.0)
+		{
+		    gpu_ratio_used = 1 - 0.6 * (1 - gpu_ratio_used);
+		}
+		fprintf(STD_OUT, "Final gpu_used: %1.3lf\n", gpu_ratio_used);
+		const double tmpratio = cpu_wait_time > 0.15 ? 0.0 : 0.5;
 		const double newratio = tmpratio * linpackGPURatios[ExecuteLinpackCallbacks] + (1.0 - tmpratio) * gpu_ratio_used;
 		if (Info->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.1lf, new: %2.1lf, factor: %2.1lf) => %2.1lf\n", ExecuteLinpackCallbacks, 100 * linpackGPURatios[ExecuteLinpackCallbacks], 100 * gpu_ratio_used, tmpratio, 100 * newratio);
 
@@ -2219,6 +2234,7 @@ void caldgemm::ResetTimers()
 	Timers.LinpackTimer1.Reset();
 	Timers.LinpackTimer2.Reset();
 	Timers.LinpackTimer3.Reset();
+	Timers.BcastTimer.Reset();
 }
 
 #define MAX_HUGE_ADDRESSES 256
