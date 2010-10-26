@@ -187,7 +187,7 @@ CALuint calutil::AnalyzeResults(Data* data)
 			{
 				if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
 				{
-					if (wrong < 1) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
+					if (wrong < 1000) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
 					++wrong;
 					errortiles[j / Info->Height * nblocksm + i / Info->Height]++;
 					if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] > 0.05) errorsrel[0]++;

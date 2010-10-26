@@ -22,12 +22,11 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 #define CALDGEMM_ALPHA1
 #include "caldgemm.il"
 #undef ILKernelName
-
 #define ILKernelName ILKernelLinpack
-#undef CALDGEMM_ALPHA1
 #define CALDGEMM_LINPACK_KERNEL
 #include "caldgemm.il"
 #undef CALDGEMM_LINPACK_KERNEL
+#undef CALDGEMM_ALPHA1
 #undef ILKernelName
 
 const char* calutil::ILFakeKernel =
@@ -509,11 +508,8 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
 
 int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers)
 {
-	// Array to store the position from which data will be pulled in from the input buffers
-	CALint* position = new CALint[numBuffers];
-	memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
-
 	if (Info->DstMemory == 'c' && !Info->KeepBuffersMapped)
+	{
 		for (CALuint i = 0;i < cPartsNum;i++)
 		{
 			CHKERR(calResMap(&src[i].v_data, &src[i].pitch, src[i].res, 0), "mapping output buffer for merging");
@@ -523,6 +519,56 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 				return(1);
 			}
 		}
+	}
+		
+#if defined(CALDGEMM_44) && !defined(CALDGEMM_USE_MEMEXPORT)
+	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
+	const unsigned long long int double_minus_one = 0xBFF0000000000000;
+
+	if (Info->Width == 1024 && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one)
+	{
+		//Special Linpack Function
+		for (CALint y=0; y < height; y++)
+		{
+			CALint bank = y % 4;
+			double* saddr = src[bank].d_data + (y / 4) * (gpu_width / 2);
+			double* saddr2 = src[bank + 4].d_data + (y / 4) * (gpu_width / 2);
+			double* daddr = dst + (y * pitch);
+			int count = src[bank].DataSize * width;
+
+
+#undef _mm_store_pd_use
+#define _mm_store_pd_use _mm_store_pd
+				for (int i = 0;i < width;i += 8)
+				{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+					_mm_prefetch(saddr + 50, _MM_HINT_NTA);
+					_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
+#ifndef _NO_AMD_CPU
+					_m_prefetchw(daddr + 50);
+#else
+					_mm_prefetch(daddr + 50, _MM_HINT_NTA);
+#endif
+#endif
+					_mm_store_pd_use(daddr, _mm_sub_pd(_mm_load_pd(daddr), _mm_load_pd(saddr)));
+					_mm_store_pd_use(daddr + 2, _mm_sub_pd(_mm_load_pd(daddr + 2), _mm_load_pd(saddr2)));
+					_mm_store_pd_use(daddr + 4, _mm_sub_pd(_mm_load_pd(daddr + 4), _mm_load_pd(saddr + 2)));
+					_mm_store_pd_use(daddr + 6, _mm_sub_pd(_mm_load_pd(daddr + 6), _mm_load_pd(saddr2 + 2)));
+
+					saddr += 4;
+					saddr2 += 4;
+					daddr += 8;
+				}
+			
+				
+		}
+	}
+	else
+#endif
+	{
+	// Array to store the position from which data will be pulled in from the input buffers
+	CALint* position = new CALint[numBuffers];
+	memset((CALvoid*) position, 0, numBuffers * sizeof(CALint));
 
 	for (CALint y=0; y < height; y++)
 	{
@@ -697,12 +743,15 @@ int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint heigh
 #endif //CALDGEMM_44
 	}
 
+	delete[] position;
+	}
 	if (Info->DstMemory == 'c' && !Info->KeepBuffersMapped)
+	{
 		for (CALuint i = 0;i < cPartsNum;i++)
 		{
 			CHKERR(calResUnmap(src[i].res), "unmapping output buffer for merging");
 		}
-	delete[] position;
+	}
 	return(0);
 }
 
@@ -1446,8 +1495,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	//Check for double == 1.0 is unsafe and causes compiler warning
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
-	const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one) ? (Info->Width == 1024 ? 2 : 1) : (Info->Width == 1024 ? 2 : 0);
-	if (Info->Debug) fprintf(STD_OUT, "Using Kernel %d\n", kernel_num);
+	const unsigned long long int double_minus_one = 0xBFF0000000000000;
+#if defined(CALDGEMM_44) && !defined(CALDGEMM_USE_MEMEXPORT)
+	const int kernel_num = (Info->Width == 1024 && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one) ? 2 : (reinterpret_cast<long long int &>(Alpha) == double_one);
+#else
+	const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
+#endif
+	if (Info->Debug) fprintf(STD_OUT, "Using Kernel %d (alpha=0x%lX (%2.3lf), width = %lld)\n", kernel_num, (reinterpret_cast<long long int &>(Alpha)), Alpha, Info->Width);
 
 	TransposeA = TransA;
 	TransposeB = TransB;    
