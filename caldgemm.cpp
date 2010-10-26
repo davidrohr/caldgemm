@@ -1425,7 +1425,7 @@ void caldgemm::WaitForLASWP(size_t n)
 		while (*Info->LinpackSwapN < (n + 1) * Info->Height + (ExecLinpack ? Info->Width : 0))
 		{
 			if (Info->Debug) fprintf(STD_OUT, "Waiting for LASWP / DTRSM... %lld of %lld\n", *Info->LinpackSwapN, (n + 1) * Info->Height);
-			usleep(10000);
+			usleep(1000);
 		}
 	}
 }
