@@ -760,14 +760,21 @@ void caldgemm::checkCalPatch()
 	unsigned char *RunProgPTL = (unsigned char *)(&calCtxRunProgram);
 	unsigned char **RunProgWrapperFunc = *(unsigned char ***)((size_t)(*(unsigned int *)(RunProgPTL + 2)) + RunProgPTL + 6);
 	//fprintf(STD_OUT, "RunProgWrapperFunc = %p, ddi_interface[?] = %p\n", RunProgWrapperFunc, RunProgWrapperFunc + (0x10f588 - 0x4220)/sizeof(void*));
-	unsigned char *RunProgFunc = *(RunProgWrapperFunc + (0x10f588 - 0x4220) / sizeof(void*));
-	unsigned char *patchpos = RunProgFunc + 0x7fffe591b631 - 0x7fffe591b560;
-	if (*patchpos == 0x74)
+	
+	//10.9 ATI Driver
+	unsigned char *RunProgFunc9 = *(RunProgWrapperFunc + (0x10f588 - 0x4220) / sizeof(void*));
+	unsigned char *patchpos9 = RunProgFunc9 + 0x7fffe591b631 - 0x7fffe591b560;
+	
+	//10.10 ATI Driver
+	unsigned char *RunProgFunc10 = *(RunProgWrapperFunc + (0x7ffff7fcc588 - 0x7ffff7ec1220) / sizeof(void*));
+	unsigned char *patchpos10 = RunProgFunc10 + 0x7ffff5933cdf - 0x7ffff5933bd0;
+		
+	if (*patchpos9 == 0x74 || *patchpos10 == 0x74)
 	{
 		if (Info->KeepBuffersMapped && !Info->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: CAL library not patched, KeepBuffersMapped unavailable\n");
 		Info->KeepBuffersMapped = CAL_FALSE;
 	}
-	else if (*patchpos != 0xEB)
+	else if (*patchpos9 != 0xEB && *patchpos10 != 0xEB)
 	{
 		if (!Info->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Unknown CAL Library found, KeepBuffersMapped unavailable\n");
 		Info->KeepBuffersMapped = CAL_FALSE;
