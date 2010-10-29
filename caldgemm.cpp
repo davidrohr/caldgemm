@@ -1038,6 +1038,11 @@ void caldgemm::cal_init_constant_data(Data* &data, double alpha)
 	data[aPartsNum + bPartsNum].d_data[3] = alpha;
 }
 
+int caldgemm::broadcastcore()
+{
+	return(outputthreads + 1);
+}
+
 void* linpack_wrapper(void* arg)
 {
 	caldgemm* cls = (caldgemm*) arg;
@@ -1456,7 +1461,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			Timers.LinpackTimer1.Start();
 			Info->linpack_factorize_function();
-			Info->linpack_broadcast_function();
+			if (Info->LinpackNodes > 1) Info->linpack_broadcast_function();
 			Timers.LinpackTimer1.Stop();
 		}
 		return(0);		//Do Nothing
@@ -1646,7 +1651,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			if (Info->Debug) fprintf(STD_OUT, "DGEMM was running on CPU only, executing linpack callback functions\n");
 			Timers.LinpackTimer1.Start();
 			Info->linpack_factorize_function();
-			Info->linpack_broadcast_function();
+			if (Info->LinpackNodes > 1) Info->linpack_broadcast_function();
 			Timers.LinpackTimer1.Stop();
 		}
 #endif
@@ -2023,7 +2028,7 @@ RunCALDGEMM_end:
 		if (!Info->Quiet) fprintf(STD_OUT, "No asynchronous processing of linpack functions possible, executing linpack callback functions\n");
 		Timers.LinpackTimer1.Start();
 		Info->linpack_factorize_function();
-		Info->linpack_broadcast_function();
+		if (Info->LinpackNodes > 1) Info->linpack_broadcast_function();
 		Timers.LinpackTimer1.Stop();
 	}
 
