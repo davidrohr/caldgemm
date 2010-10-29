@@ -76,6 +76,8 @@ caldgemm::~caldgemm()
 
 calutil::SampleInfo::SampleInfo()
 {
+	static const char* EmptyOut = "";
+
 	Verify = CAL_FALSE;
 	Disassemble = CAL_FALSE;
 	PrintILKernel = CAL_FALSE;
@@ -106,6 +108,8 @@ calutil::SampleInfo::SampleInfo()
 	n = 0;
 	LinpackNodes = 0;
 	LinpackSwapN = NULL;
+	MPIRank = -1;
+	PreOut = EmptyOut;
 }
 
 int caldgemm::getcpumask(cpu_set_t* set)

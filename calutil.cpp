@@ -108,7 +108,7 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 CALvoid calutil::displayMatrixTiming(const CALchar* name)
 {
 	CALdouble gflops_CPU = (CALdouble) 1e-09 * orig_m * orig_n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Timers.System.GetElapsedTime();
-	if (!Info->Quiet || Info->DisplayTiming) fprintf(STD_OUT, "Program: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", name, 
+	if (!Info->Quiet || Info->DisplayTiming) fprintf(STD_OUT, "%sProgram: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", Info->PreOut, name, 
 		orig_m, Info->Width, Info->Width, orig_n, orig_m, orig_n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
 	if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
 	{
@@ -133,7 +133,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
 		{
 			char timingoutputbase[1024];
 			char *timingoutput = timingoutputbase;
-			timingoutput += sprintf(timingoutput, "GPU Time %2.4lf (%2.4lf Gflops)   CPU Time %2.4lf (%2.4lf Gflops)", Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
+			timingoutput += sprintf(timingoutput, "%sGPU Time %2.4lf (%2.4lf Gflops)   CPU Time %2.4lf (%2.4lf Gflops)", Info->PreOut, Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
 			if (ExecLinpack) timingoutput += sprintf(timingoutput, "   Linpack Time: %2.4lf (%d, %2.4lf, %2.4lf)  Total CPU Time: %2.4lf", Timers.LinpackTimer1.GetElapsedTime(), ExecLinpack, Timers.LinpackTimer2.GetElapsedTime(), Timers.LinpackTimer3.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime());
 			if (Info->TabularTiming)
 			{
