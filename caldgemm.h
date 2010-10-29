@@ -55,6 +55,7 @@ public:
 	double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages);
 	void FreeMemory(double* ptr);
 	void ResetTimers();
+	int broadcastcore();
 
 private:
 
