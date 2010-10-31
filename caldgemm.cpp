@@ -110,6 +110,7 @@ calutil::SampleInfo::SampleInfo()
 	LinpackSwapN = NULL;
 	MPIRank = -1;
 	PreOut = EmptyOut;
+	GPUClock = 0;
 }
 
 int caldgemm::getcpumask(cpu_set_t* set)
@@ -2283,6 +2284,9 @@ int nHugeAddresses = 0;
 
 double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages)
 {
+#ifdef WASTE_MEMORY
+	nDoubles += 40 * 1024 * 1024;
+#endif
 	double* ptr;
 	if (huge_pages)
 	{
@@ -2326,6 +2330,10 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
 		ptr = new double[nDoubles];
 	}
 	if (ptr == NULL) return(NULL);
+#ifdef WASTE_MEMORY
+	nDoubles -= 40 * 1024 * 1024;
+	ptr += 20 * 1024 * 1024;
+#endif
 	if (!huge_pages && page_locked && mlock(ptr, nDoubles * sizeof(double)))
 	{
 		fprintf(STD_OUT, "Error locking Pages\n");
@@ -2337,6 +2345,9 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
 
 void caldgemm::FreeMemory(double* ptr)
 {
+#ifdef WASTE_MEMORY
+	ptr -= 20 * 1024 * 1024;
+#endif
 	for (int i = 0;i < nHugeAddresses;i++)
 	{
 		if (huge_page_addresses[i] == ptr)

@@ -200,6 +200,7 @@ public:
 		int        LinpackNodes;
 		const char* PreOut;
 		int        MPIRank;
+		int	   GPUClock;
 		volatile size_t *LinpackSwapN;
 		void (*linpack_factorize_function)();
 		void (*linpack_broadcast_function)();

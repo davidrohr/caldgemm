@@ -128,6 +128,11 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
 			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Info->m + (Info->m % Info->Height) * (Info->n - cParam.cblas_size) + cParam.dynamic_run2 * Info->Height * Info->Height + (ExecLinpack ? Info->Width * Info->n : 0)) * (2 * Info->Width + 2) * Info->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = (double) 1e-09 * ((Info->n - cParam.cblas_size) * (Info->m - Info->m % Info->Height) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Info->Height * Info->Height) * (2 * Info->Width + 2) * Info->Iterations / Timers.GPUTimer.GetElapsedTime();
 		}
+		
+		if (Info->GPUClock && Info->m * Info->n >= 24 * 24 * 1024 * 1024 && flopsg <= (double) 460 * (double) Info->GPUClock / (double) 850 - (double) 30)
+		{
+			fprintf(STD_OUT, "Throttling: %s (%2.3lf GFlops)\n", hostname, flopsg);
+		}
 
 		if (!Info->Quiet || (Info->DisplayTiming && Info->m * Info->n >= 16 * 24 * 1024 * 1024))
 		{

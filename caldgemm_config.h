@@ -33,3 +33,4 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 #define CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK 0
 #define RERESERVE_LINPACK_CPUS
 //#define NO_ASYNC_LINPACK
+#define WASTE_MEMORY
