@@ -128,6 +128,8 @@ bool mem_page_lock = true;
 bool mem_huge_table = false;
 bool linpack_callbacks = false;
 
+int torture = 0;
+
 char* matrixfile;
 
 long seedused;
@@ -183,11 +185,7 @@ CALvoid Usage(const CALchar* name)
 	fprintf(STD_OUT, "\t-T        Allocate Memory using Huge Tables\n" );
 	fprintf(STD_OUT, "\t-B        Keep DMA Buffers mapped during kernel execution\n" );
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
-
-	fprintf(STD_OUT, "*The cacheable memory flags may cause failures if the amount\n"
-		" of cacheable memory is smaller than the requested memory\n"
-		" size. Cacheable memory is machine dependent, so use with\n"
-		" caution.\n");
+	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n" );
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -284,6 +282,23 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			{
 				linpackpitch = true;
 				sscanf(argv[x], "%lld", &pitch_c);
+			}
+			else
+			{
+				return CAL_FALSE;
+			}
+			break;
+		case '-':
+			if (++x < argc)
+			{
+				Info->AsyncDMA = Info->KeepBuffersMapped = CAL_TRUE;
+				Info->m = Info->n = 86016;
+				Info->MemPolicy = CAL_TRUE;
+				Info->MultiThread = CAL_TRUE;
+				Info->UseCPU = CAL_FALSE;
+				Info->UseGPU = CAL_TRUE;
+				sscanf(argv[x], "%d", &torture);
+				iterations = torture;
 			}
 			else
 			{
@@ -484,9 +499,12 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 
 void SetupUserDataC(caldgemm::SampleInfo &Info)
 {
-	if (fastinit)
+	if (fastinit || torture)
+	{
 		memset(CC, 0, Info.m * pitch_c * sizeof(double));
+	}
 	else
+	{
 		for (size_t i = 0;i < Info.m;i++)
 		{
 			for (size_t j = 0;j < Info.n;j++)
@@ -498,6 +516,7 @@ void SetupUserDataC(caldgemm::SampleInfo &Info)
 #endif
 			}
 		}
+	}
 }
 
 int SetupUserData(caldgemm::SampleInfo &Info)
@@ -775,8 +794,28 @@ int main(CALint argc, CALchar** argv)
 					fprintf(STD_OUT, "Error running CALDGEMM\n");
 					return(1);
 				}
+				if (torture)
+				{
+					dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 1.0, Info.m, Info.Width, Info.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans, linpack_callbacks);
+				}
 			}
 		} while (benchmark && (Info.n += Info.Height) < 70000 && (Info.m += Info.Height) < 70000 && SetupUserData(Info) == 0);
+		
+	}
+	
+	if (torture)
+	{
+		for (size_t i = 0;i < Info.m * pitch_c;i++)
+		{
+			if (CC[i] > 10E-10)
+			{
+				fprintf(STD_OUT, "Torture Test FAILED\n");
+				if (!quietbench) fprintf(STD_OUT, "Entry %lld is %lf\n", i, CC[i]);
+				torture = 0;
+				break;
+			}
+		}
+		if (torture) fprintf(STD_OUT, "Torture Test PASSED\n");
 	}
 
 	if (verifylarge)
