@@ -196,6 +196,7 @@ public:
 		CALboolean AsyncDMA;
 		CALboolean KeepBuffersMapped;
 		CALboolean NoPerformanceWarnings;			//Suppress also performance warnings, will usually be shown even in quiet mode
+		CALboolean Torture;
 		size_t     m, n;							//height of A, width of B, must be multiple of height
 		int        LinpackNodes;
 		const char* PreOut;
@@ -206,6 +207,9 @@ public:
 		void (*linpack_broadcast_function)();
 		void (*linpack_swap_function)();
 	};
+	
+	double avggflops;
+	int avgngflops;
 
 protected:
 	typedef struct DataRec
@@ -328,7 +332,7 @@ protected:
 	static const int ctxcount = 3;				//Not cal context count but number of copies of data buffers etc.
 	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
 	static const int vcpysize = 16;
-	static const int kernel_count = 3;
+	static const int kernel_count = 4;
 	static const int max_bbuffers = 21;
 	int bbuffers;
 	int outputthreads;
@@ -349,7 +353,7 @@ protected:
 	CALname *progNames[1][kernel_count];
 	CALevent events[ctxcount];
 
-	static const char *ILKernel, *ILKernelALPHA1, *ILKernelLinpack, *ILFakeKernel;
+	static const char *ILKernel, *ILKernelALPHA1, *ILKernelLinpack, *ILFakeKernel, *ILKernelTorture;
 
 	struct cblasParameters
 	{

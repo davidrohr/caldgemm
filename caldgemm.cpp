@@ -25,6 +25,11 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 #define ILKernelName ILKernelLinpack
 #define CALDGEMM_LINPACK_KERNEL
 #include "caldgemm.il"
+#undef ILKernelName
+#define ILKernelName ILKernelTorture
+#define CALDGEMM_TORTURE_KERNEL
+#include "caldgemm.il"
+#undef CALDGEMM_TORTURE_KERNEL
 #undef CALDGEMM_LINPACK_KERNEL
 #undef CALDGEMM_ALPHA1
 #undef ILKernelName
@@ -67,6 +72,9 @@ caldgemm::caldgemm()
 	memset(linpackGPURatios, 0, 3 * sizeof(double));
 	memset(linpackCPUDGEMMTime, 0, 3 * sizeof(double));
 	memset(linpackBcastTime, 0, 3 * sizeof(double));
+
+	avggflops = 0;
+	avgngflops = 0;
 }
 
 caldgemm::~caldgemm()
@@ -104,6 +112,7 @@ calutil::SampleInfo::SampleInfo()
 	AsyncDMA = CAL_TRUE;
 	KeepBuffersMapped = CAL_TRUE;
 	NoPerformanceWarnings = CAL_FALSE;
+	Torture = CAL_FALSE;
 	m = 0;
 	n = 0;
 	LinpackNodes = 0;
@@ -888,7 +897,8 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 		{
 			if (!SetupKernel(ILKernel, &modules[i][0], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)) ||
 				!SetupKernel(ILKernelALPHA1, &modules[i][1], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)) ||
-				!SetupKernel(ILKernelLinpack, &modules[i][2], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)))
+				!SetupKernel(ILKernelLinpack, &modules[i][2], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)) ||
+				!SetupKernel(ILKernelTorture, &modules[i][3], &ctx_main, (CALboolean) (Info->Disassemble && i == 0)))
 			{
 				return 1;
 			}
@@ -1518,9 +1528,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
 	const unsigned long long int double_minus_one = 0xBFF0000000000000;
 #if defined(CALDGEMM_44) && !defined(CALDGEMM_USE_MEMEXPORT)
-	const int kernel_num = (Info->Width == 1024 && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one) ? 2 : (reinterpret_cast<long long int &>(Alpha) == double_one);
+	const int kernel_num = Info->Torture ? 3 : ((Info->Width == 1024 && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one) ? 2 : (reinterpret_cast<long long int &>(Alpha) == double_one));
 #else
-	const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
+	const int kernel_num = Info->Torture = 3 : ((reinterpret_cast<long long int &>(Alpha) == double_one));
 #endif
 	if (Info->Debug) fprintf(STD_OUT, "Using Kernel %d (alpha=0x%lX (%2.3lf), width = %lld)\n", kernel_num, (reinterpret_cast<long long int &>(Alpha)), Alpha, Info->Width);
 

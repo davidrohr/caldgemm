@@ -108,6 +108,8 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 CALvoid calutil::displayMatrixTiming(const CALchar* name)
 {
 	CALdouble gflops_CPU = (CALdouble) 1e-09 * orig_m * orig_n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Timers.System.GetElapsedTime();
+	avggflops = ((double) avgngflops * avggflops + gflops_CPU) / (double) (avgngflops + 1);
+	avgngflops++;
 	if (!Info->Quiet || (Info->DisplayTiming && Info->m * Info->n >= 16 * 24 * 1024 * 1024)) fprintf(STD_OUT, "%sProgram: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", Info->PreOut, name, 
 		orig_m, Info->Width, Info->Width, orig_n, orig_m, orig_n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
 	if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)

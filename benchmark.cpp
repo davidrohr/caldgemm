@@ -186,6 +186,7 @@ CALvoid Usage(const CALchar* name)
 	fprintf(STD_OUT, "\t-B        Keep DMA Buffers mapped during kernel execution\n" );
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
 	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n" );
+	fprintf(STD_OUT, "\t-*        Enable special torture kernel\n" );
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -287,6 +288,9 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			{
 				return CAL_FALSE;
 			}
+			break;
+		case '*':
+			Info->Torture = CAL_TRUE;
 			break;
 		case '-':
 			if (++x < argc)
@@ -738,7 +742,7 @@ int main(CALint argc, CALchar** argv)
 
 		//Initial run to negate cache effects
 #ifndef TESTMODE
-		if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE && initialrun)
+		if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE && initialrun && !torture)
 		{
 			if (!quietbench)
 			{
@@ -815,7 +819,7 @@ int main(CALint argc, CALchar** argv)
 				break;
 			}
 		}
-		if (torture) fprintf(STD_OUT, "Torture Test PASSED\n");
+		if (torture) fprintf(STD_OUT, "Torture Test PASSED (%2.3lf gflops)\n", dgemm.avggflops);
 	}
 
 	if (verifylarge)
