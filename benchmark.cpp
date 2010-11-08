@@ -186,7 +186,7 @@ CALvoid Usage(const CALchar* name)
 	fprintf(STD_OUT, "\t-B        Keep DMA Buffers mapped during kernel execution\n" );
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
 	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n" );
-	fprintf(STD_OUT, "\t-*        Enable special torture kernel\n" );
+	fprintf(STD_OUT, "\t-*        Enable special torture kernel, extreme core stress but no memory stress\n" );
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
