@@ -110,7 +110,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
 	CALdouble gflops_CPU = (CALdouble) 1e-09 * orig_m * orig_n * (2 * Info->Width + 2) * (CALdouble) Info->Iterations / Timers.System.GetElapsedTime();
 	avggflops = ((double) avgngflops * avggflops + gflops_CPU) / (double) (avgngflops + 1);
 	avgngflops++;
-	if (!Info->Quiet || (Info->DisplayTiming && Info->m * Info->n >= 16 * 24 * 1024 * 1024)) fprintf(STD_OUT, "%sProgram: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", Info->PreOut, name, 
+	if (!Info->Quiet || (Info->DisplayTiming /*&& Info->m * Info->n >= 16 * 24 * 1024 * 1024*/)) fprintf(STD_OUT, "%sProgram: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", Info->PreOut, name, 
 		orig_m, Info->Width, Info->Width, orig_n, orig_m, orig_n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
 	if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
 	{
@@ -136,7 +136,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
 			fprintf(STD_OUT, "%sThrottling: %s (%2.3lf GFlops)\n", Info->PreOut, hostname, flopsg);
 		}
 
-		if (!Info->Quiet || (Info->DisplayTiming && Info->m * Info->n >= 16 * 24 * 1024 * 1024))
+		if (!Info->Quiet || (Info->DisplayTiming /*&& Info->m * Info->n >= 16 * 24 * 1024 * 1024*/))
 		{
 			char timingoutputbase[1024];
 			char *timingoutput = timingoutputbase;
@@ -151,7 +151,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
 		}
 		gpu_ratio_used = flopsg / (flopsc * Timers.CPUTimer.GetElapsedTime() / Timers.System.GetElapsedTime() + flopsg);
 	}
-	if ((!Info->Quiet || (Info->DisplayTiming && Info->n * Info->m >= 16 * 24 * 1024 * 1024)) && Info->VerboseTiming)
+	if ((!Info->Quiet || (Info->DisplayTiming /*&& Info->n * Info->m >= 16 * 24 * 1024 * 1024*/)) && Info->VerboseTiming)
 	{
 		CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width) * (CALdouble)Info->Iterations / Timers.Kernel.GetElapsedTime();
 		CALdouble copyto = Info->DivideToGPU ? 0 : ((CALdouble) 1e-09 * (Info->Height * Timers.divideA + Info->Height * Timers.divideB) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterCopyTo.GetElapsedTime());
