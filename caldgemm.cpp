@@ -522,6 +522,9 @@ int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint heigh
 
 int caldgemm::mergeBuffers(CALdouble* dst, Data* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers)
 {
+#ifdef CALDGEMM_BENCHMARK_KERNEL
+	return(0);
+#endif
 	if (Info->DstMemory == 'c' && !Info->KeepBuffersMapped)
 	{
 		for (CALuint i = 0;i < cPartsNum;i++)
@@ -1530,7 +1533,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 #if defined(CALDGEMM_44) && !defined(CALDGEMM_USE_MEMEXPORT)
 	const int kernel_num = Info->Torture ? 3 : ((Info->Width == 1024 && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one) ? 2 : (reinterpret_cast<long long int &>(Alpha) == double_one));
 #else
-	const int kernel_num = Info->Torture = 3 : ((reinterpret_cast<long long int &>(Alpha) == double_one));
+	const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
 #endif
 	if (Info->Debug) fprintf(STD_OUT, "Using Kernel %d (alpha=0x%lX (%2.3lf), width = %lld)\n", kernel_num, (reinterpret_cast<long long int &>(Alpha)), Alpha, Info->Width);
 
@@ -1629,7 +1632,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 				Info->Height = 2048;
 			}
-			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < 400 * 1024 * 1024)
+			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < (size_t) 60 * 60 * 1024 * 1024)
 			{
 				Info->Height = 3072;
 			}
@@ -1732,6 +1735,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		GPURatio = GPURatio / (GPURatio + (1.0 - GPURatio) / (double) (24 - require_threads) * (double) (get_num_procs() - require_threads));
 		
 		if (Info->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.2lf\n", GPURatio);
+		if ((Info->n + 4) % 4096 < 8) GPURatio = 1. - 0.95 * (1. - GPURatio);
 	}
 	else
 	{
@@ -2112,12 +2116,16 @@ inline void caldgemm::DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn)
 
 int caldgemm::DGEMM_prepare(size_t k, int j)
 {
+#ifdef CALDGEMM_BENCHMARK_KERNEL
+	return(0);
+#endif
 	const size_t nb = gpu_n / Info->Height;
 	const size_t mb = gpu_m / Info->Height;
 	size_t blockm, blockn;
 	DGEMM_getblocks(k, blockm, blockn);
 
 	bool buffersSufficiant;
+#ifdef REUSE_BBUFFERS
 	if (DGEMM_favor_m)
 	{
 		buffersSufficiant = (bbuffers >= nb);
@@ -2126,6 +2134,9 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 	{
 		buffersSufficiant = (bbuffers >= mb && buffersSwitchable);
 	}
+#else
+	buffersSufficiant = false;
+#endif
 
 	if (Info->VerboseTiming) Timers.CounterDivide.Start();
 	if (blockn == 0 || (!DGEMM_favor_m && !buffersSufficiant)) 

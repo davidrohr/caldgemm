@@ -153,7 +153,10 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
 	}
 	if ((!Info->Quiet || (Info->DisplayTiming /*&& Info->n * Info->m >= 16 * 24 * 1024 * 1024*/)) && Info->VerboseTiming)
 	{
-		CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width) * (CALdouble)Info->Iterations / Timers.Kernel.GetElapsedTime();
+		CALdouble gflops = (CALdouble)1e-09 * Info->m * Info->n * (2 * Info->Width - 1) * (CALdouble)Info->Iterations / Timers.Kernel.GetElapsedTime();
+#ifdef CALDGEMM_BENCHMARK_KERNEL
+		gflops *= (double) CALDGEMM_BENCHMARK_KERNEL;
+#endif
 		CALdouble copyto = Info->DivideToGPU ? 0 : ((CALdouble) 1e-09 * (Info->Height * Timers.divideA + Info->Height * Timers.divideB) * Info->Width * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterCopyTo.GetElapsedTime());
 		CALdouble copyfrom = Info->DstMemory == 'g' ? ((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterCopyFrom.GetElapsedTime()) : 0;
 		CALdouble copyMerge = Info->MultiThread ? 0 :((CALdouble) 1e-09 * Info->m * Info->n * sizeof(CALdouble) * (CALdouble)Info->Iterations / Timers.CounterMerge.GetElapsedTime());
@@ -482,13 +485,22 @@ CALint calutil::SetupKernel(const CALchar* ILKernel, CALmodule* module, CALconte
 	// Compile IL kernel into object
 	CALobject obj;
 	if (Info->PrintILKernel) fprintf(STD_OUT, "Kernel:\n%s\n", ILKernel);
-	if (calclCompile(&obj, CAL_LANGUAGE_IL, ILKernel, attribs.target) != CAL_RESULT_OK)
+#ifdef CALDGEMM_BENCHMARK_KERNEL
+	CALchar* ILKernelUse = (CALchar*) malloc(strlen(ILKernel) + 1024);
+	sprintf(ILKernelUse, ILKernel, Info->Width);
+#else
+	const CALchar* ILKernelUse = ILKernel;
+#endif
+	if (calclCompile(&obj, CAL_LANGUAGE_IL, ILKernelUse, attribs.target) != CAL_RESULT_OK)
 	{
 		fprintf(STD_OUT, "There was an error compiling the program.\n");
 		fprintf(STD_OUT, "Kernel: %s\n", ILKernel);
 		fprintf(STD_OUT, "Error string is %s\n", calclGetErrorString());
 		return 0;
 	}
+#ifdef CALDGEMM_BENCHMARK_KERNEL
+	free(ILKernelUse);
+#endif
 
 	// Link object into an image
 	if (calclLink(&image, &obj, 1) != CAL_RESULT_OK)
@@ -547,6 +559,9 @@ CALint calutil::RunProgram(CALcontext *ctx, CALmodule *module, CALuint Width, CA
 
 	// Execute the program iterations number of times
 	if (Info->VerboseTiming) Timers.Kernel.Start();
+#ifdef CALDGEMM_BENCHMARK_KERNEL
+	for (int i = 0;i < CALDGEMM_BENCHMARK_KERNEL;i++)
+#endif
 	r = calCtxRunProgram(event, *ctx, func, &rect);
 	if (r != CAL_RESULT_OK)
 	{

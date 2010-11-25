@@ -333,7 +333,11 @@ protected:
 	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
 	static const int vcpysize = 16;
 	static const int kernel_count = 4;
+#ifdef REUSE_BBUFFERS
 	static const int max_bbuffers = 21;
+#else
+	static const int max_bbuffers = 3;
+#endif	
 	int bbuffers;
 	int outputthreads;
 

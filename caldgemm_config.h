@@ -32,5 +32,7 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 #define CALDGEMM_OUTPUT_THREADS_SLOW 2
 #define CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK 0
 #define RERESERVE_LINPACK_CPUS
+#define REUSE_BBUFFERS
 //#define NO_ASYNC_LINPACK
-#define WASTE_MEMORY
+//#define WASTE_MEMORY
+//#define CALDGEMM_BENCHMARK_KERNEL 1
