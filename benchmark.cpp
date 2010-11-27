@@ -511,59 +511,60 @@ size_t fastrand_size;
 
 void* fastmatgen_slave(void* arg)
 {
-   int num = (int) (size_t) arg;
-   
+	int num = (int) (size_t) arg;
 
-   cpu_set_t mask;
-   CPU_ZERO(&mask);
-   CPU_SET(num, &mask);
-   sched_setaffinity(0, sizeof(cpu_set_t), &mask);
+	cpu_set_t mask;
+	CPU_ZERO(&mask);
+	CPU_SET(num, &mask);
+	sched_setaffinity(0, sizeof(cpu_set_t), &mask);
 
-   size_t fastrand_num = fastrand_seed + 65537 * num;
-   const size_t fastrand_mul = 84937482743;
-   const size_t fastrand_add = 138493846343;
-   const size_t fastrand_mod = 538948374763;
-   
-   size_t sizeperthread = fastrand_size / FASTRAND_THREADS;
-   
-   double* A = fastrand_A + num * sizeperthread;
-   size_t size = (num == FASTRAND_THREADS - 1) ? (fastrand_size - (FASTRAND_THREADS - 1) * sizeperthread) : sizeperthread;
-   
-   for (size_t i = 0;i < size;i++)
-   {
-	fastrand_num = (fastrand_num * fastrand_mul + fastrand_add) % fastrand_mod;
-	A[i] = (double) 0.5 + (double) fastrand_num / (double)fastrand_mod;
-   }
-   
-   
-   fastrand_done[num] = 1;
-   return(NULL);
+	size_t fastrand_num = fastrand_seed + 65537 * num;
+	const size_t fastrand_mul = 84937482743;
+	const size_t fastrand_add = 138493846343;
+	const size_t fastrand_mod = 538948374763;
+
+	size_t sizeperthread = fastrand_size / FASTRAND_THREADS;
+
+	double* A = fastrand_A + num * sizeperthread;
+	size_t size = (num == FASTRAND_THREADS - 1) ? (fastrand_size - (FASTRAND_THREADS - 1) * sizeperthread) : sizeperthread;
+
+	for (size_t i = 0;i < size;i++)
+	{
+		double randval = 0;
+		for (int k = 0;k < 100;k++)
+		{
+			fastrand_num = (fastrand_num * fastrand_mul + fastrand_add) % fastrand_mod;
+			randval += (double) -0.5 + (double) fastrand_num / (double)fastrand_mod;
+		}
+		A[i] = randval;
+	}
+
+	fastrand_done[num] = 1;
+	return(NULL);
 }
 
 void fastmatgen(int SEED, double* A, size_t size)
 {
-    fastrand_seed = SEED;
-    fastrand_A = A;
-    fastrand_size = size;
-    memset((void*) fastrand_done, 0, FASTRAND_THREADS * sizeof(int));
-    
-    cpu_set_t oldmask;
-    sched_getaffinity(0, sizeof(cpu_set_t), &oldmask);
-    
-    for (int i = 0;i < FASTRAND_THREADS - 1;i++)
-    {
-	pthread_t thr;
-	pthread_create(&thr, NULL, fastmatgen_slave, (void*) (size_t) i);
-    }
-    fastmatgen_slave((void*) (size_t) (FASTRAND_THREADS - 1));
-        
-    for (int i = 0;i < FASTRAND_THREADS;i++)
-    {
-	while (fastrand_done[i] == 0)
+	fastrand_seed = SEED;
+	fastrand_A = A;
+	fastrand_size = size;
+	memset((void*) fastrand_done, 0, FASTRAND_THREADS * sizeof(int));
+
+	cpu_set_t oldmask;
+	sched_getaffinity(0, sizeof(cpu_set_t), &oldmask);
+
+	for (int i = 0;i < FASTRAND_THREADS - 1;i++)
 	{
+		pthread_t thr;
+		pthread_create(&thr, NULL, fastmatgen_slave, (void*) (size_t) i);
 	}
-    }
-    sched_setaffinity(0, sizeof(cpu_set_t), &oldmask);
+	fastmatgen_slave((void*) (size_t) (FASTRAND_THREADS - 1));
+
+	for (int i = 0;i < FASTRAND_THREADS;i++)
+	{
+		while (fastrand_done[i] == 0) {}
+	}
+	sched_setaffinity(0, sizeof(cpu_set_t), &oldmask);
 }
 
 void SetupUserDataC(caldgemm::SampleInfo &Info)
