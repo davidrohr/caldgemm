@@ -134,7 +134,7 @@ int caldgemm::getcpumask(cpu_set_t* set)
 
 void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2)
 {
-	fprintf(STD_OUT, "Matrix %lld x %lld, Subblocks %lld x %lld, Strides: %lld / %lld\n", width, height, subx, suby, stridex, stridey);
+	fprintf(STD_OUT, "Matrix %lld x %lld, Subblocks %lld x %lld, Strides: %lld / %lld\n", (long long int) width, (long long int) height, (long long int) subx, (long long int) suby, (long long int) stridex, (long long int) stridey);
 	for (int j = 0;j < height;j += stridey)
 	{
 		for (int jj = j;jj < j + suby && jj < height;jj++)
@@ -187,11 +187,11 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 						}
 
 						int ok = isDoubleEqual(M[jj * pitch + ii], M2[jj * pitch + ii]);
-						fprintf(STD_OUT, "\33[%sm%d\33[%sm%+ 10.3lf\t", ok ? "01;32" : "01;31", ok , tmpcolor, M[jj * pitch + ii]);
+						fprintf(STD_OUT, "\33[%sm%d\33[%sm%+10.3lf\t", ok ? "01;32" : "01;31", ok , tmpcolor, M[jj * pitch + ii]);
 					}
 					else
 					{
-						fprintf(STD_OUT, " %+ 10.3lf\t", M[jj * pitch + ii]);
+						fprintf(STD_OUT, " %+10.3lf\t", M[jj * pitch + ii]);
 					}
 				}
 			}
@@ -212,7 +212,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 
 int caldgemm::divideBuffer(Data* dst, CALdouble* src, CALint width, CALint height, CALint gpu_width, CALint gpu_height, CALint pitch, CALint numBuffers, bool transpose)
 {
-	if (Info->Debug) fprintf(STD_OUT, "\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
+	if (Info->Debug) fprintf(STD_OUT, "\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", (long long int) src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
 
 	if (Info->DivideToGPU)
 		for (CALuint i = 0;i < numBuffers;i++)
@@ -840,7 +840,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	else if (Info->Width % 64)
 	{
 		Info->Width += 64 - Info->Width % 64;
-		fprintf(STD_OUT, "Cannot allocate buffers of size that is not multiple of 64, increasing buffer size to %lld\n", Info->Width);
+		fprintf(STD_OUT, "Cannot allocate buffers of size that is not multiple of 64, increasing buffer size to %lld\n", (long long int) Info->Width);
 	}
 #else
 	if (Info->Width % 64)
@@ -1123,12 +1123,12 @@ int caldgemm::cpuScheduler()
 					{
 						cParam.dynamic_run -= Info->Height;
 						cParam.dynamic_size = mymin(gpu_m, gpu_n);
-						if (Info->Debug) fprintf(STD_OUT, "cParam dynamic size reduced to: %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
+						if (Info->Debug) fprintf(STD_OUT, "cParam dynamic size reduced to: %lld blockrows, %lld blocks\n", (long long int) cParam.dynamic_run / Info->Height, (long long int) cParam.dynamic_size / Info->Height);
 					}
 
 					if (nBlocks >= 256 && nBlocks - k - 1 > 16 && cParam.dynamic_run == Info->Height && cParam.dynamic_size < mymin(gpu_m, gpu_n)) cParam.dynamic_size += Info->Height;
 
-					if (!Info->Quiet) fprintf(STD_OUT, "Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", cParam.dynamic_run / Info->Height, cParam.dynamic_size / Info->Height);
+					if (!Info->Quiet) fprintf(STD_OUT, "Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", (long long int) cParam.dynamic_run / Info->Height, (long long int) cParam.dynamic_size / Info->Height);
 					retVal = 1;
 				}
 				else
@@ -1151,7 +1151,7 @@ TryThirdRun:
 				}
 				if (test_cpu_k && k < test_cpu_k - 1)
 				{
-					if (!Info->Quiet) fprintf(STD_OUT, "Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", test_cpu_k, cpublockm, cpublockn);
+					if (!Info->Quiet) fprintf(STD_OUT, "Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", (long long int) test_cpu_k, (long long int) cpublockm, (long long int) cpublockn);
 					cParam.dynamic_run2++;
 					cParam.cpu_k = test_cpu_k;
 					cpu_k_barrier = test_cpu_k;
@@ -1189,7 +1189,7 @@ void* cblas_wrapper(void* arg)
 		const size_t B_pitch_use = (par->cls->TransposeB == CblasTrans ? B_pitch : 1);
 		const CBLAS_TRANSPOSE TransposeA = par->cls->TransposeA;
 		const CBLAS_TRANSPOSE TransposeB = par->cls->TransposeB;
-		if (!Info->Quiet) fprintf(STD_OUT, "\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld (%lld), dynamic: %lld/%lld, cpu_k: %lld)\n", Info->m, Info->n, par->cblas_size, Info->Height, par->dynamic_run, par->dynamic_size, par->cpu_k);
+		if (!Info->Quiet) fprintf(STD_OUT, "\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld (%lld), dynamic: %lld/%lld, cpu_k: %lld)\n", (long long int) Info->m, (long long int) Info->n, (long long int) par->cblas_size, (long long int) Info->Height, (long long int) par->dynamic_run, (long long int) par->dynamic_size, (long long int) par->cpu_k);
 
 
 		int old_goto_threads = get_num_procs();
@@ -1272,7 +1272,7 @@ void* cblas_wrapper(void* arg)
 				if (par->cls->ExecLinpack && par->cls->Info->LinpackNodes > 1 && Info->MultiThread && (((double) Info->m * (double) Info->n) - par->cls->linpack_last_mn[par->cls->ExecLinpack]) / par->cls->linpack_last_mn[par->cls->ExecLinpack] < 0.3 && par->cls->linpackCPUDGEMMTime[par->cls->ExecLinpack] - par->cls->linpackBcastTime[par->cls->ExecLinpack] > 5.0)
 				{
 					cblas2 = (double) (par->cls->DGEMM_split_m ? Info->n : Info->m) * (par->cls->linpackBcastTime[par->cls->ExecLinpack] + 3.0) / par->cls->linpackCPUDGEMMTime[par->cls->ExecLinpack];
-					if (!Info->Quiet) fprintf(STD_OUT, "Splitting CPU DGEMM for later enabling additional cores, cblas2=%lld\n", cblas2);
+					if (!Info->Quiet) fprintf(STD_OUT, "Splitting CPU DGEMM for later enabling additional cores, cblas2=%lld\n", (long long int) cblas2);
 				}
 				else
 				{
@@ -1454,7 +1454,7 @@ void caldgemm::WaitForLASWP(size_t n)
 	{
 		while (*Info->LinpackSwapN < (n + 1) * Info->Height + (ExecLinpack ? Info->Width : 0))
 		{
-			if (Info->Debug) fprintf(STD_OUT, "Waiting for LASWP / DTRSM... %lld of %lld\n", *Info->LinpackSwapN, (n + 1) * Info->Height);
+			if (Info->Debug) fprintf(STD_OUT, "Waiting for LASWP / DTRSM... %lld of %lld\n", (long long int) *Info->LinpackSwapN, (long long int) (n + 1) * Info->Height);
 		}
 	}
 }
@@ -1525,7 +1525,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		tmpt = TransA;TransA = TransB;TransB = tmpt;
 	}
 
-	if (!Info->Quiet) fprintf(STD_OUT, "Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", Info->m, Info->Width, Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), A, B, C, ((size_t) C - (size_t) A) / sizeof(double), ((size_t) C - (size_t) B) / sizeof(double) / Info->Width);
+	if (!Info->Quiet) fprintf(STD_OUT, "Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", (long long int) Info->m, (long long int) Info->Width, (long long int) Info->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), (long long int) A, (long long int) B, (long long int) C, (long long int) ((size_t) C - (size_t) A) / sizeof(double), (long long int) ((size_t) C - (size_t) B) / sizeof(double) / Info->Width);
 
 	//Check for double == 1.0 is unsafe and causes compiler warning
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
@@ -1535,7 +1535,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 #else
 	const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
 #endif
-	if (Info->Debug) fprintf(STD_OUT, "Using Kernel %d (alpha=0x%lX (%2.3lf), width = %lld)\n", kernel_num, (reinterpret_cast<long long int &>(Alpha)), Alpha, Info->Width);
+	if (Info->Debug) fprintf(STD_OUT, "Using Kernel %d (alpha=0x%llX (%2.3lf), width = %lld)\n", kernel_num, (reinterpret_cast<long long int &>(Alpha)), Alpha, (long long int) Info->Width);
 
 	TransposeA = TransA;
 	TransposeB = TransB;    
@@ -1587,7 +1587,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
 		A_pitch & (vcpysize / sizeof(CALdouble) - 1) || B_pitch & (vcpysize / sizeof(CALdouble) - 1) || C_pitch & (vcpysize / sizeof(CALdouble) - 1))
 	{
-		fprintf(STD_OUT, "Input addresses not aligned correctly: A 0x%llX B 0x%llX C 0x%llX Pitch 0x%llX 0x%llX 0x%llX\n", A, B, C, A_pitch, B_pitch, C_pitch);
+		fprintf(STD_OUT, "Input addresses not aligned correctly: A 0x%llX B 0x%llX C 0x%llX Pitch 0x%llX 0x%llX 0x%llX\n", (long long int) A, (long long int) B, (long long int) C, (long long int) A_pitch, (long long int) B_pitch, (long long int) C_pitch);
 		forceCPU = true;
 	}
 #endif
@@ -1641,7 +1641,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				Info->Height = 4096;
 			}
 		}
-		if ((Info->Height != BufferHeight && !Info->Quiet) || Info->Debug)  fprintf(STD_OUT, "Using Height %lld of max %lld\n", Info->Height, BufferHeight);
+		if ((Info->Height != BufferHeight && !Info->Quiet) || Info->Debug)  fprintf(STD_OUT, "Using Height %lld of max %lld\n", (long long int) Info->Height, (long long int) BufferHeight);
 	}
 
 	if (Info->Width > BufferWidth || Info->Height > BufferHeight) forceReinit = true;
@@ -1782,7 +1782,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			cParam.cblas_size = Info->m - gpu_m;
 			gpu_n = Info->n;
 			gpu_n -= gpu_n % Info->Height;
-			if (Info->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", gpu_m, gpu_n, Info->m - gpu_m, gpu_n);
+			if (Info->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) Info->m - gpu_m, (long long int) gpu_n);
 		}
 		else
 		{
@@ -1794,7 +1794,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			cParam.cblas_size = Info->n - gpu_n;
 			gpu_m = Info->m;
 			gpu_m -= gpu_m % Info->Height;
-			if (Info->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", gpu_m, gpu_n, Info->m, Info->n - gpu_n);
+			if (Info->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) Info->m, (long long int) Info->n - gpu_n);
 		}
 		/*if (cParam.cblas_size == 0 && Info->DynamicSched == CAL_TRUE)
 		{
@@ -1861,7 +1861,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						{
 							if (newblockm * Info->Height >= gpu_m - cParam.dynamic_run && newblockn * Info->Height >= gpu_n - cParam.dynamic_size)
 							{
-								if (Info->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", k);
+								if (Info->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", (long long int) k);
 								continue;
 							}
 						}
@@ -1869,7 +1869,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						{
 							if (newblockn * Info->Height >= gpu_n - cParam.dynamic_run && newblockm * Info->Height >= gpu_m - cParam.dynamic_size)
 							{
-								if (Info->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", k);
+								if (Info->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", (long long int) k);
 								continue;
 							}
 						}
@@ -1882,7 +1882,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					}
 					else
 					{
-						if (Info->Debug) fprintf(STD_OUT, "gpu_k %lld reached cpu_k_barrier %lld, skipping remaining k (Dynamic Run 3rd Phase", k, cpu_k_barrier);
+						if (Info->Debug) fprintf(STD_OUT, "gpu_k %lld reached cpu_k_barrier %lld, skipping remaining k (Dynamic Run 3rd Phase", (long long int) k, (long long int) cpu_k_barrier);
 						k = nBlocks;
 					}
 					pthread_mutex_unlock(&scheduleMutex);
@@ -1894,7 +1894,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				{
 					blockn = newblockn;
 					blockm = newblockm;
-					if (Info->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (Context %d)\n", k, blockm, blockn, j);
+					if (Info->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (Context %d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, j);
 
 					if (k <= 1 || ctxcount == 1 || Info->AsyncDMA == CAL_FALSE)
 					{
@@ -1965,7 +1965,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					if (Info->DstMemory == 'g')
 					{
 						if (Info->VerboseTiming) Timers.CounterCopyFrom.Start();
-						if (Info->Debug == CAL_TRUE) fprintf(STD_OUT, "\tFething part of C from GPU (m = %lld, n = %lld)\n", lastm, lastn);
+						if (Info->Debug == CAL_TRUE) fprintf(STD_OUT, "\tFething part of C from GPU (m = %lld, n = %lld)\n", (long long int) lastm, (long long int) lastn);
 						if (CopyDataFromGPU(&ctx_main, resourceHandlers[oldj] + numInputs + numConstantBuffers, datas[oldj] + numInputs + numConstantBuffers, numOutputs, &events[oldj])) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 						if (Info->VerboseTiming) Timers.CounterCopyFrom.Stop();
 						WAITFOREVENT(ctx_main, oldj);
@@ -2064,7 +2064,7 @@ RunCALDGEMM_end:
 
 	if (!Info->NoPerformanceWarnings && Info->UseCPU && Info->UseGPU && !CPUOnlyRun && fabs(Timers.TotalCPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()) > 1.0)
 	{
-		fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime(), Info->m, Info->n);
+		fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime(), (long long int) Info->m, (long long int) Info->n);
 	}
 	displayMatrixTiming("caldgemm");
 	A = orig_a;
@@ -2141,7 +2141,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 	if (Info->VerboseTiming) Timers.CounterDivide.Start();
 	if (blockn == 0 || (!DGEMM_favor_m && !buffersSufficiant)) 
 	{
-		if (Info->Debug) fprintf(STD_OUT, "\tDividing Buffer A (k = %lld)\n", k);
+		if (Info->Debug) fprintf(STD_OUT, "\tDividing Buffer A (k = %lld)\n", (long long int) k);
 		Timers.divideA++;
 #ifdef CALDGEMM_TRANSPOSED_A
 		if (divideBuffer(Info->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[blockm] + aPartsNum) : datas[blockm % 2], A + blockm * Info->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Info->Height, Info->Width, BufferHeight, BufferWidth, A_pitch, aPartsNum, TransposeA == CblasNoTrans)) return(1);
@@ -2151,7 +2151,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 	}
 	if (blockm == 0 || (DGEMM_favor_m && !buffersSufficiant))
 	{
-		if (Info->Debug) fprintf(STD_OUT, "\tDividing Buffer B (k = %lld)\n", k);
+		if (Info->Debug) fprintf(STD_OUT, "\tDividing Buffer B (k = %lld)\n", (long long int) k);
 		Timers.divideB++;
 #ifdef CALDGEMM_TRANSPOSED_B
 		divideBuffer(Info->DivideToGPU && buffersSufficiant ? (datas[blockn] + (DGEMM_favor_m ? aPartsNum : 0)) : (datas[blockn % 2] + aPartsNum), B + blockn * Info->Height * (TransposeB == CblasTrans ? B_pitch : 1), Info->Width, Info->Height, BufferWidth, BufferHeight, B_pitch, bPartsNum, TransposeB == CblasNoTrans);
@@ -2166,7 +2166,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 	{
 		if (blockn == 0 || (!DGEMM_favor_m && !buffersSufficiant))
 		{
-			if (Info->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld)\n", k);
+			if (Info->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld)\n", (long long int) k);
 			if (!DGEMM_favor_m && buffersSufficiant)
 			{
 				if (CopyDataToGPU(&ctx_main, resourceHandlers[j], datas[blockm % 2], aPartsNum, CAL_FALSE, &events[j], datas[blockm] + aPartsNum)) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
@@ -2179,7 +2179,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j)
 
 		if (blockm == 0 || (DGEMM_favor_m && !buffersSufficiant))
 		{
-			if (Info->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld)\n", k);
+			if (Info->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld)\n", (long long int) k);
 			if (!DGEMM_favor_m && buffersSufficiant)
 			{
 				if (CopyDataToGPU(&ctx_main, resourceHandlers[j] + aPartsNum, datas[blockn % 2] + aPartsNum, bPartsNum, CAL_FALSE, &events[j], datas[blockn % 2])) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}

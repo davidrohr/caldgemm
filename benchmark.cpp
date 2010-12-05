@@ -282,7 +282,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			if (++x < argc)
 			{
 				linpackpitch = true;
-				sscanf(argv[x], "%lld", &pitch_c);
+				sscanf(argv[x], "%lld", (long long int*) &pitch_c);
 			}
 			else
 			{
@@ -319,12 +319,12 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			verifylarge = true;
 			break;
 		case '6':
-			fprintf(STD_OUT, "Set m and n to %lld\n", Info->m = Info->n = Info->Height * atoi(argv[++x]));
+			fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (Info->m = Info->n = Info->Height * atoi(argv[++x])));
 			break;
 		case '4':
 			Info->m = atoi(argv[++x]);
 			Info->m -= Info->m % Info->Height;
-			fprintf(STD_OUT, "Set m and n to %lld\n", Info->n = Info->m);
+			fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (Info->n = Info->m));
 			break;
 		case '5':
 			quietbench = true;
@@ -371,7 +371,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 		case 'w':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%u", &Info->Width);
+				sscanf(argv[x], "%lld", (long long int*) &Info->Width);
 			}
 			else
 			{
@@ -391,7 +391,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 		case 'h':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%u", &Info->Height);
+				sscanf(argv[x], "%lld", (long long int*) &Info->Height);
 			}
 			else
 			{
@@ -411,7 +411,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 		case 'm':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%u", &Info->m);
+				sscanf(argv[x], "%lld", (long long int*) &Info->m);
 			}
 			else
 			{
@@ -421,7 +421,7 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 		case 'n':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%u", &Info->n);
+				sscanf(argv[x], "%lld", (long long int*) &Info->n);
 			}
 			else
 			{
@@ -655,7 +655,7 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 		}
 		pitch_c = Info.n;
 		if (pitch_c % 8) pitch_c += (8 - pitch_c % 8);
-		if (Info.n % 8) fprintf(STD_OUT, "Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", Info.n, pitch_b);
+		if (Info.n % 8) fprintf(STD_OUT, "Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", (long long int) Info.n, (long long int) pitch_b);
 		if (((pitch_c / 8) & 1) == 0)
 		{
 			pitch_c += 8;
@@ -737,12 +737,12 @@ int main(CALint argc, CALchar** argv)
 	}
 	if (reduced_height != -1)
 	{
-		fprintf(STD_OUT, "Using partial buffers %d / %lld\n", reduced_height, Info.Height);
+		fprintf(STD_OUT, "Using partial buffers %d / %lld\n", reduced_height, (long long int) Info.Height);
 		Info.Height = reduced_height;
 	}
 	if (reduced_width != -1)
 	{
-		fprintf(STD_OUT, "Using partial buffer width %d / %lld\n", reduced_width, Info.Width);
+		fprintf(STD_OUT, "Using partial buffer width %d / %lld\n", reduced_width, (long long int) Info.Width);
 		Info.Width = reduced_width;
 	}
 
@@ -754,23 +754,24 @@ int main(CALint argc, CALchar** argv)
 		double alpha, beta;
 		int tmp_m, tmp_k, tmp_n;
 		int Apitch, Bpitch, Cpitch;
+		size_t nread;
 
 		if ((fp = fopen(matrixfile, "rb")) == NULL)
 		{
 			fprintf(STD_OUT, "Error opening matrix dump\n");
 			return(1);
 		}
-		fread(&a, sizeof(a), 1, fp);
-		fread(&b, sizeof(b), 1, fp);
-		fread(&c, sizeof(c), 1, fp);
-		fread(&alpha, sizeof(alpha), 1, fp);
-		fread(&beta, sizeof(beta), 1, fp);
-		fread(&tmp_m, sizeof(tmp_m), 1, fp);
-		fread(&tmp_k, sizeof(tmp_k), 1, fp);
-		fread(&tmp_n, sizeof(tmp_n), 1, fp);
-		fread(&Apitch, sizeof(Apitch), 1, fp);
-		fread(&Bpitch, sizeof(Bpitch), 1, fp);
-		fread(&Cpitch, sizeof(Cpitch), 1, fp);
+		nread = fread(&a, sizeof(a), 1, fp);
+		nread = fread(&b, sizeof(b), 1, fp);
+		nread = fread(&c, sizeof(c), 1, fp);
+		nread = fread(&alpha, sizeof(alpha), 1, fp);
+		nread = fread(&beta, sizeof(beta), 1, fp);
+		nread = fread(&tmp_m, sizeof(tmp_m), 1, fp);
+		nread = fread(&tmp_k, sizeof(tmp_k), 1, fp);
+		nread = fread(&tmp_n, sizeof(tmp_n), 1, fp);
+		nread = fread(&Apitch, sizeof(Apitch), 1, fp);
+		nread = fread(&Bpitch, sizeof(Bpitch), 1, fp);
+		nread = fread(&Cpitch, sizeof(Cpitch), 1, fp);
 
 		Apitch = 1536;
 
@@ -780,11 +781,11 @@ int main(CALint argc, CALchar** argv)
 
 		for (int i = 0;i < tmp_m;i++)
 		{
-			fread(AA + i * Apitch, tmp_k, sizeof(double), fp);
+			nread = fread(AA + i * Apitch, tmp_k, sizeof(double), fp);
 		}
 		for (int i = 0;i < tmp_k;i++)
 		{
-			fread(BB + i * Bpitch, tmp_n, sizeof(double), fp);
+			nread = fread(BB + i * Bpitch, tmp_n, sizeof(double), fp);
 		}
 		fclose(fp);
 		memset(CC, 0, (size_t) tmp_m * (size_t) Cpitch * sizeof(double));
@@ -882,7 +883,7 @@ int main(CALint argc, CALchar** argv)
 			if (CC[i] > 10E-10)
 			{
 				fprintf(STD_OUT, "Torture Test FAILED\n");
-				if (!quietbench) fprintf(STD_OUT, "Entry %lld is %lf\n", i, CC[i]);
+				if (!quietbench) fprintf(STD_OUT, "Entry %lld is %lf\n", (long long int) i, CC[i]);
 				torture = 0;
 				break;
 			}
@@ -905,7 +906,7 @@ int main(CALint argc, CALchar** argv)
 		{
 			if (!isDoubleEqual(CC[i] * 1.0, (CALdouble) (i % 16)))
 			{
-				fprintf(STD_OUT, "Verification failed at i = %lld, m = %lld, n = %lld\n", i, i / pitch_c, i % pitch_c);
+				fprintf(STD_OUT, "Verification failed at i = %lld, m = %lld, n = %lld\n", (long long int) i, (long long int) i / pitch_c, (long long int) i % pitch_c);
 				verifyok = 0;
 				break;
 			}

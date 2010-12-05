@@ -111,7 +111,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
 	avggflops = ((double) avgngflops * avggflops + gflops_CPU) / (double) (avgngflops + 1);
 	avgngflops++;
 	if (!Info->Quiet || (Info->DisplayTiming /*&& Info->m * Info->n >= 16 * 24 * 1024 * 1024*/)) fprintf(STD_OUT, "%sProgram: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", Info->PreOut, name, 
-		orig_m, Info->Width, Info->Width, orig_n, orig_m, orig_n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
+		(long long int) orig_m, (long long int) Info->Width, (long long int) Info->Width, (long long int) orig_n, (long long int) orig_m, (long long int) orig_n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
 	if (Info->UseCPU == CAL_TRUE && Info->UseGPU == CAL_TRUE)
 	{
 		double flopsc, flopsg;
@@ -147,7 +147,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
 				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.2lf Guessed: %2.2lf , m*n: %.1E, CPU Wait Time: %2.3lf", (flopsg / (flopsc + flopsg)), gpu_ratio_used, (double) (Info->m * Info->n), cpu_wait_time);
 			}
 			sprintf(timingoutput, "\n");
-			fprintf(STD_OUT, timingoutputbase);
+			fwrite(timingoutputbase, 1, strlen(timingoutputbase), STD_OUT);
 		}
 		gpu_ratio_used = flopsg / (flopsc * Timers.CPUTimer.GetElapsedTime() / Timers.System.GetElapsedTime() + flopsg);
 	}
@@ -165,7 +165,7 @@ CALvoid calutil::displayMatrixTiming(const CALchar* name)
 		fprintf(STD_OUT, "        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
 		if (Info->TabularTiming)
 		{
-			fprintf(STD_OUT, "TIMES:\tw\t%lld\th\t%lld\tkernel\t%2.4lf\tdivide\t%2.4lf\tmerge\t%2.4lf\tcopyto\t%2.4lf\tcopyfr\t%2.4lf\n", Info->Width, Info->Height, gflops, copyDivide, copyMerge, copyto, copyfrom);
+			fprintf(STD_OUT, "TIMES:\tw\t%lld\th\t%lld\tkernel\t%2.4lf\tdivide\t%2.4lf\tmerge\t%2.4lf\tcopyto\t%2.4lf\tcopyfr\t%2.4lf\n", (long long int) Info->Width, (long long int) Info->Height, gflops, copyDivide, copyMerge, copyto, copyfrom);
 		}
 	}
 }
@@ -197,7 +197,7 @@ CALuint calutil::AnalyzeResults(Data* data)
 			{
 				if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
 				{
-					if (wrong < 1000) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le\n", i, j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
+					if (wrong < 1000) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
 					++wrong;
 					errortiles[j / Info->Height * nblocksm + i / Info->Height]++;
 					if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] > 0.05) errorsrel[0]++;
@@ -209,7 +209,7 @@ CALuint calutil::AnalyzeResults(Data* data)
 		}
 		if (wrong)
 		{
-			fprintf(STD_OUT, "%lld out of %lld elements were incorrect (Rel errors > 0.05: %lld, > 0.0001: %lld, rest: %lld)\n", wrong, total, errorsrel[0], errorsrel[1], errorsrel[2]);
+			fprintf(STD_OUT, "%lld out of %lld elements were incorrect (Rel errors > 0.05: %lld, > 0.0001: %lld, rest: %lld)\n", (long long int) wrong, (long long int) total, (long long int) errorsrel[0], (long long int) errorsrel[1], (long long int) errorsrel[2]);
 			if (errorsrel[0] == 0)
 			{
 				fprintf(STD_OUT, "Passed with Warnings!!!\n");
@@ -436,7 +436,7 @@ double CPerfCounter::GetElapsedTime(void)
 
 static void __logger(const CALchar *msg)
 {
-	fprintf(STD_OUT, msg);
+	fwrite(msg, 1, strlen(msg), STD_OUT);
 }
 
 CALint calutil::Initialize(CALdevice *device, CALcontext *ctx, CALuint deviceNum )
