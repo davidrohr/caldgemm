@@ -113,6 +113,7 @@ calutil::SampleInfo::SampleInfo()
 	KeepBuffersMapped = CAL_TRUE;
 	NoPerformanceWarnings = CAL_FALSE;
 	Torture = CAL_FALSE;
+	PinCPU = 0;
 	m = 0;
 	n = 0;
 	LinpackNodes = 0;
@@ -816,7 +817,7 @@ int caldgemm::InitCALDGEMM(SampleInfo* pInfo)
 	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
 	CPU_ZERO(&gpumask);
-	CPU_SET(0, &gpumask);
+	CPU_SET(Info->PinCPU, &gpumask);
 
 	if (Info->Debug) fprintf(STD_OUT, "Init Caldgemm, setting CPU mask %X\n", getcpumask(&gpumask));
 	if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
@@ -1070,7 +1071,7 @@ void* linpack_wrapper(void* arg)
 	cpu_set_t linpack_mask;
 	CPU_ZERO(&linpack_mask);
 	//CPU_SET(0, &linpack_mask);
-	CPU_SET(cls->outputthreads + 1, &linpack_mask);
+	CPU_SET(Info->PinCPU + cls->outputthreads + 1, &linpack_mask);
 	if (Info->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", cls->getcpumask(&linpack_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
 
@@ -1379,7 +1380,7 @@ void* merge_wrapper(void* arg)
 
 	cpu_set_t merge_mask;
 	CPU_ZERO(&merge_mask);
-	CPU_SET(par->nMergeThread + 1, &merge_mask);
+	CPU_SET(par->cls->Info->PinCPU + par->nMergeThread + 1, &merge_mask);
 	if (par->cls->Info->Debug) fprintf(STD_OUT, "Merge Thread %d, setting CPU mask %X\n", par->nMergeThread, par->cls->getcpumask(&merge_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
 
@@ -1687,11 +1688,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (ExecuteLinpackCallbacks)
 	{
 		//CPU_SET(outputthreads + 1, &divide_mask);
-		CPU_SET(0, &divide_mask);
+		CPU_SET(Info->PinCPU, &divide_mask);
 	}
 	else
 	{
-		CPU_SET(0, &divide_mask);
+		CPU_SET(Info->PinCPU, &divide_mask);
 	}
 	if (Info->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&divide_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);

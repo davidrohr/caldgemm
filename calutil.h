@@ -203,6 +203,7 @@ public:
 		int        MPIRank;
 		int	   GPUClock;
 		volatile size_t *LinpackSwapN;
+		int        PinCPU;
 		void (*linpack_factorize_function)();
 		void (*linpack_broadcast_function)();
 		void (*linpack_swap_function)();

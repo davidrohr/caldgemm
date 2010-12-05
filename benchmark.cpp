@@ -187,6 +187,7 @@ CALvoid Usage(const CALchar* name)
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
 	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n" );
 	fprintf(STD_OUT, "\t-*        Enable special torture kernel, extreme core stress but no memory stress\n" );
+	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n" );
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -382,6 +383,16 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			if (++x < argc)
 			{
 				sscanf(argv[x], "%d", &reduced_width);
+			}
+			else
+			{
+				return CAL_FALSE;
+			}
+			break;
+		case 't':
+			if (++x < argc)
+			{
+				sscanf(argv[x], "%d", &Info->PinCPU);
 			}
 			else
 			{
