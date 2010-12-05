@@ -177,3 +177,16 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
  # If you would like to know minute performance report of GotoBLAS.
  # FUNCTION_PROFILE = 1
  
+--- ./Makefile.system
++++ ./Makefile.system
+@@ -570,6 +570,10 @@ NO_AFFINITY = 1
+ endif
+ endif
+ 
++ifdef NO_MEMPOLICY
++CCOMMON_OPT    += -DNO_MEMPOLICY
++endif
++
+ ifdef NO_AFFINITY
+ CCOMMON_OPT    += -DNO_AFFINITY
+ endif
