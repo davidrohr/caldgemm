@@ -10,7 +10,7 @@
 # Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 
 --- ./common.h	2010-01-20 20:58:34.000000000 +0100
-+++ ./common.h	2010-08-18 14:55:20.000000000 +0200
++++ ../goto2/common.h	2010-08-18 14:55:20.000000000 +0200
 @@ -393,6 +393,7 @@
  #endif
  
@@ -20,7 +20,7 @@
  void gotoblas_affinity_init(void);
  void gotoblas_affinity_quit(void);
 --- ./common_thread.h	2009-12-16 02:22:38.000000000 +0100
-+++ ./common_thread.h	2010-08-18 15:45:36.000000000 +0200
++++ ../goto2/common_thread.h	2010-08-18 15:45:36.000000000 +0200
 @@ -30,6 +30,7 @@
  
  /* Global Parameter */
@@ -30,7 +30,7 @@
  extern int blas_omp_linked;
  
 --- ./driver/others/blas_server.c	2010-02-05 16:46:32.000000000 +0100
-+++ ./driver/others/blas_server.c	2010-08-18 16:29:28.000000000 +0200
++++ ../goto2/driver/others/blas_server.c	2010-08-18 16:29:28.000000000 +0200
 @@ -25,6 +25,10 @@
  #include <sys/resource.h>
  #endif
@@ -103,7 +103,7 @@
  int gotoblas_pthread(int numthreads, void *function, void *args, int stride) {
 diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
 --- ./driver/others/init.c	2010-08-18 21:58:56.176744600 +0200
-+++ ./driver/others/init.c	2010-08-18 16:29:18.000000000 +0200
++++ ../goto2/driver/others/init.c	2010-08-18 16:29:18.000000000 +0200
 @@ -63,7 +63,7 @@
  
  static cpu_set_t cpu_orig_mask[4];
@@ -118,9 +118,7 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
  #endif
      
 -    my_set_mempolicy(MPOL_INTERLEAVE, &lnodemask, sizeof(lnodemask) * 8);
-+#ifndef NO_MEMPOLICY
-+    my_set_mempolicy(MPOL_INTERLEAVE, &lnodemask, sizeof(lnodemask) * 8);
-+#endif
++    //my_set_mempolicy(MPOL_INTERLEAVE, &lnodemask, sizeof(lnodemask) * 8);
  
      numnodes = popcount(lnodemask);
    }
@@ -155,7 +153,7 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
  }
  
 --- ./driver/others/memory.c	2010-01-28 20:15:42.000000000 +0100
-+++ ./driver/others/memory.c	2010-08-18 14:56:30.000000000 +0200
++++ ../goto2/driver/others/memory.c	2010-08-18 14:56:30.000000000 +0200
 @@ -157,6 +157,7 @@
  #endif
  
@@ -164,7 +162,6 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
  int blas_num_threads = 0;
  
  int  goto_get_num_procs  (void) {
- 
 --- ./Makefile.rule
 +++ ./Makefile.rule
 @@ -59,6 +59,9 @@ VERSION = 1.13
