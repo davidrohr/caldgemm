@@ -140,9 +140,9 @@ long seedused;
 
 caldgemm dgemm;
 
-void Usage(const char* name)
+void PrintUsage()
 {
-	fprintf(STD_OUT,"Usage: %s", name);
+	fprintf(STD_OUT,"Command Line Arguments\n");
 	fprintf(STD_OUT, "\t-?        Display this help information\n" );
 	fprintf(STD_OUT, "\t-e        Verify Computational Correctness\n" );
 	fprintf(STD_OUT, "\t-q        Supress Display Output\n" );
@@ -197,7 +197,7 @@ void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
 void linpack_fake2() {fprintf(STD_OUT, "Linpack fake 2 called\n");}
 void linpack_fake3() {fprintf(STD_OUT, "Linpack fake 3 called\n");}
 
-bool ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config* Config)
+int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config* Config)
 {
 	Config->Quiet = false;
 #ifndef TEST_PARAMETERS
@@ -229,20 +229,20 @@ bool ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config
 	Config->linpack_swap_function = linpack_fake3;
 #endif
 
-	for (unsigned int x = 1; x < argc; ++x)
+	for (int x = 1; x < argc; ++x)
 	{
 		switch(argv[x][1])
 		{
 		default:
 			fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
-			Usage(argv[0]);
-			return false;
+			PrintUsage();
+			return(1);
 		case 'q':
 			Config->Quiet = true;
 			break;
 		case '?':
-			Usage(argv[0]);
-			return false;
+			PrintUsage();
+			return(1);
 		case 'e':
 			Config->Verify = true;
 			break;
@@ -283,32 +283,26 @@ bool ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config
 			linpack_callbacks = true;
 			break;
 		case 'P':
-			if (++x < argc)
-			{
-				linpackpitch = true;
-				sscanf(argv[x], "%lld", (long long int*) &pitch_c);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			linpackpitch = true;
+			sscanf(argv[x], "%lld", (long long int*) &pitch_c);
 			break;
 		case '-':
-			if (++x < argc)
+			if (argv[x][2])
 			{
-				Config->AsyncDMA = Config->KeepBuffersMapped = true;
-				Config->m = Config->n = 86016;
-				Config->MemPolicy = true;
-				Config->MultiThread = true;
-				Config->UseCPU = false;
-				Config->UseGPU = true;
-				sscanf(argv[x], "%d", &torture);
-				iterations = torture;
-			}
-			else
-			{
+				fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
+				PrintUsage();
 				return false;
 			}
+			if (++x >= argc) return(1);
+			Config->AsyncDMA = Config->KeepBuffersMapped = true;
+			Config->m = Config->n = 86016;
+			Config->MemPolicy = true;
+			Config->MultiThread = true;
+			Config->UseCPU = false;
+			Config->UseGPU = true;
+			sscanf(argv[x], "%d", &torture);
+			iterations = torture;
 			break;
 		case 'T':
 			mem_huge_table = true;
@@ -355,100 +349,46 @@ bool ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config
 			fastinit = true;
 			break;
 		case 'o':
-			if (++x < argc)
+			if (++x >= argc) return(1);
+			Config->DstMemory = argv[x][0];
+			if (Config->DstMemory != 'c' && Config->DstMemory != 'g')
 			{
-				Config->DstMemory = argv[x][0];
-				if (Config->DstMemory != 'c' && Config->DstMemory != 'g')
-				{
-					fprintf(STD_OUT, "Invalid destination memory type\n" );
-					return false;
-				}
-			}
-			else
-			{
-				return false;
+				fprintf(STD_OUT, "Invalid destination memory type\n" );
+				return(1);
 			}
 			break;
 		case 'w':
-			if (++x < argc)
-			{
-				sscanf(argv[x], "%lld", (long long int*) &Config->Width);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%lld", (long long int*) &Config->Width);
 			break;
 		case 'W':
-			if (++x < argc)
-			{
-				sscanf(argv[x], "%d", &reduced_width);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &reduced_width);
 			break;
 		case 't':
-			if (++x < argc)
-			{
-				sscanf(argv[x], "%d", &Config->PinCPU);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->PinCPU);
 			break;
 		case 'h':
-			if (++x < argc)
-			{
-				sscanf(argv[x], "%lld", (long long int*) &Config->Height);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%lld", (long long int*) &Config->Height);
 			break;
 		case 'H':
-			if (++x < argc)
-			{
-				sscanf(argv[x], "%d", &reduced_height);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &reduced_height);
 			break;
 		case 'm':
-			if (++x < argc)
-			{
-				sscanf(argv[x], "%lld", (long long int*) &Config->m);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%lld", (long long int*) &Config->m);
 			break;
 		case 'n':
-			if (++x < argc)
-			{
-				sscanf(argv[x], "%lld", (long long int*) &Config->n);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%lld", (long long int*) &Config->n);
 			break;
 		case 'x':
-			if (++x < argc)
-			{
-				loadmatrix = true;
-				matrixfile = argv[x];
-			}
-			else
-			{
-				return(false);
-			}
+			if (++x >= argc) return(1);
+			loadmatrix = true;
+			matrixfile = argv[x];
 			break;
 		case 'v':
 			Config->VerboseTiming = true;
@@ -463,45 +403,21 @@ bool ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config
 			Config->MultiThread = true;
 			break;
 		case 'r':
-			if (++x < argc)
-			{
-				sscanf(argv[x], "%u", &Config->Iterations);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%u", &Config->Iterations);
 			break;
 		case 'R':
-			if (++x < argc)
-			{
-				sscanf(argv[x], "%u", &iterations);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%u", &iterations);
 			break;
 		case 'y':
-			if (++x < argc)
-			{
-				sscanf(argv[x], "%u", &Config->DeviceNum);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%u", &Config->DeviceNum);
 			break;
 		case 'j':
-			if (++x < argc)
-			{
-				sscanf(argv[x], "%lf", &Config->GPURatio);
-				fprintf(STD_OUT, "Using GPU Ratio %lf\n", Config->GPURatio);
-			}
-			else
-			{
-				return false;
-			}
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%lf", &Config->GPURatio);
+			fprintf(STD_OUT, "Using GPU Ratio %lf\n", Config->GPURatio);
 			break;
 		};
 	}
@@ -509,7 +425,7 @@ bool ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config
 	if (!quietbench) fprintf(STD_OUT, "Use -? for help\n");
 	if (Config->UseCPU == false && Config->UseGPU == false) Config->UseGPU = true;
 
-	return true;
+	return(0);
 }
 
 int fastrand_seed;
@@ -711,7 +627,7 @@ int main(int argc, char** argv)
 {
 	caldgemm::caldgemm_config Config;
 
-	if (!ParseCommandLine(argc, argv, &Config))
+	if (ParseCommandLine(argc, argv, &Config))
 	{
 		return 1;
 	}
