@@ -9,10 +9,11 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 #include "caldgemm.h"
 #include <sys/mman.h>
 #include <common.h>
+#include <unistd.h>
 
 #include <pthread.h>
 
-#define FASTRAND_THREADS 24
+#define FASTRAND_THREADS_MAX 24
 
 double *AA = NULL, *BB = NULL, *CC = NULL;
 bool benchmark = false;
@@ -335,9 +336,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 }
 
 int fastrand_seed;
-volatile int fastrand_done[FASTRAND_THREADS];
+volatile int fastrand_done[FASTRAND_THREADS_MAX];
 double* fastrand_A;
 size_t fastrand_size;
+int nfastmatthreads;
 
 void* fastmatgen_slave(void* arg)
 {
@@ -352,11 +354,11 @@ void* fastmatgen_slave(void* arg)
 	const size_t fastrand_mul = 84937482743;
 	const size_t fastrand_add = 138493846343;
 	const size_t fastrand_mod = 538948374763;
-
-	size_t sizeperthread = fastrand_size / FASTRAND_THREADS;
+	
+	size_t sizeperthread = fastrand_size / nfastmatthreads;
 
 	double* A = fastrand_A + num * sizeperthread;
-	size_t size = (num == FASTRAND_THREADS - 1) ? (fastrand_size - (FASTRAND_THREADS - 1) * sizeperthread) : sizeperthread;
+	size_t size = (num == nfastmatthreads - 1) ? (fastrand_size - (nfastmatthreads - 1) * sizeperthread) : sizeperthread;
 
 	for (size_t i = 0;i < size;i++)
 	{
@@ -378,19 +380,24 @@ void fastmatgen(int SEED, double* A, size_t size)
 	fastrand_seed = SEED;
 	fastrand_A = A;
 	fastrand_size = size;
-	memset((void*) fastrand_done, 0, FASTRAND_THREADS * sizeof(int));
+	
+	nfastmatthreads = sysconf(_SC_NPROCESSORS_CONF);
+	if (nfastmatthreads < 1) nfastmatthreads = 1;
+	if (nfastmatthreads > FASTRAND_THREADS_MAX) nfastmatthreads = FASTRAND_THREADS_MAX;
+	
+	memset((void*) fastrand_done, 0, nfastmatthreads * sizeof(int));
 
 	cpu_set_t oldmask;
 	sched_getaffinity(0, sizeof(cpu_set_t), &oldmask);
 
-	for (int i = 0;i < FASTRAND_THREADS - 1;i++)
+	for (int i = 0;i < nfastmatthreads - 1;i++)
 	{
 		pthread_t thr;
 		pthread_create(&thr, NULL, fastmatgen_slave, (void*) (size_t) i);
 	}
-	fastmatgen_slave((void*) (size_t) (FASTRAND_THREADS - 1));
+	fastmatgen_slave((void*) (size_t) (nfastmatthreads - 1));
 
-	for (int i = 0;i < FASTRAND_THREADS;i++)
+	for (int i = 0;i < nfastmatthreads;i++)
 	{
 		while (fastrand_done[i] == 0) {}
 	}
@@ -494,8 +501,11 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		if (AA) dgemm.FreeMemory(AA);
 		if (BB) dgemm.FreeMemory(BB);
 		if (CC) dgemm.FreeMemory(CC);
+		if (!quietbench) fprintf(stderr, "...alloc A");
 		AA = dgemm.AllocMemory(height_a * pitch_a, mem_page_lock, mem_huge_table);
+		if (!quietbench) fprintf(stderr, "...alloc B");
 		BB = dgemm.AllocMemory(height_b * pitch_b, mem_page_lock, mem_huge_table);
+		if (!quietbench) fprintf(stderr, "...alloc C");
 		CC = dgemm.AllocMemory(Config.m * pitch_c, mem_page_lock, mem_huge_table);
 
 		if (AA == NULL || BB == NULL || CC == NULL)
@@ -512,10 +522,13 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 	}
 	else
 	{
+		if (!quietbench) fprintf(stderr, "...init A");
 		fastmatgen(rand() * 100, AA, height_a * pitch_a);
+		if (!quietbench) fprintf(stderr, "...init B");
 		fastmatgen(rand() * 100, BB, height_b * pitch_b);
 	}
 	if (Config.Debug) fprintf(STD_OUT, "User Data Initialized\n");
+	if (!quietbench) fprintf(stderr, "...");
 	return(0);
 }
 
