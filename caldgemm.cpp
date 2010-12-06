@@ -2611,6 +2611,7 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 			if ((Config->DstMemory == 'g' || i < dwBuffersA + dwBuffersB) && (Config->DivideToGPU == false || i >= dwBuffersA + dwBuffersB) && (nContext < 2 || (Config->DstMemory == 'g' && i >= dwBuffersA + dwBuffersB + numConstantBuffers)))
 			{
 				allocated = true;
+				if (Config->Debug) fprintf(STD_OUT, "Allocating Host buffer for context %d buffer %d\n", nContext, i);
 				CHKERR(calResAllocRemote2D(&data[i].res, device, 1, tWidth, tHeight, getFormat(mComponents, sizeof(double), true), flag), "allocattion of remote memory");
 				CHKERR(calCtxGetMem(&data[i].mem, *ctx, data[i].res), "getting remote memory for context");
 				CHKERR(calResMap(&data[i].ptr_void, &data[i].pitch, data[i].res, NULL), "mapping of remote memory");
@@ -2625,6 +2626,7 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 		{
 			if (nContext == 0)
 			{
+				if (Config->Debug) fprintf(STD_OUT, "Allocating Host memory for context %d buffer %d\n", nContext, i);
 				data[i].ptr_char = new char[tWidth * sizeof(double) * mComponents * tHeight];
 				allocated = true;
 			}
@@ -2635,9 +2637,6 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 			memset((void*)data[i].ptr_char, 0, tWidth * sizeof(double) * mComponents * tHeight);
 		}
 
-		if (nContext >= 2 && i < dwBuffersA) continue;
-		if (nContext >= ctxcount && (i < dwBuffersA || i >= dwBuffersA + dwBuffersB)) continue;
-		if (nContext >= 1 && i == dwBuffersA + dwBuffersB) continue;
 		flag = (CALresallocflags) NULL;
 		mem = 'g';
 		if (i >= fStop && i < cStop)
@@ -2656,6 +2655,7 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 			flag = (CALresallocflags) (flag | CAL_RESALLOC_GLOBAL_BUFFER);
 		}
 #endif
+		if (Config->Debug) fprintf(STD_OUT, "Allocating device buffer for context %d buffer %d\n", nContext, i);
 		switch(mem)
 		{
 		case 'g':
@@ -2698,6 +2698,7 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 	for (unsigned int i = bStop; i < fStop; ++i)
 	{
 		int cWidth = data[i].Width * data[i].Height;
+		if (Config->Debug) fprintf(STD_OUT, "Allocating Host Constant Buffer Context %d buffer %d\n", nContext, i);
 		CHKERR(calResAllocRemote1D(&_Res[i], device, 1, cWidth, getFormat(data[i].VectorSize,data[i].DataSize), 0), "allocating constant memory");
 		CHKERR(calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]), "binding constant memory to context");
 	}
@@ -2723,8 +2724,9 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 			{
 				sprintf(buffer,"cb%d", j - bStop);
 			}
-			printf("Getting module buffer name kernel %d buffer %d name %s\n", i, j, buffer);
-			CHKERR(calModuleGetName(&ctxProgNames[i][j], *ctx, *module, buffer), "getting buffer name");
+			if (Config->Debug) fprintf(STD_OUT, "Getting module buffer name for context %d kernel %d buffer %d name %s\n", nContext, i, j, buffer);
+			CHKERR(calModuleGetName(&ctxProgNames[i][j], *ctx, module[i], buffer), "getting buffer name");
+			printf("Name: %d\n", ctxProgNames[i][j]);
 			if (j >= bStop && j < fStop)
 			{
 				CHKERR(calCtxSetMem(*ctx, ctxProgNames[i][j], data[j].dstMem), "setting memory buffer to context");
