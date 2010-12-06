@@ -104,6 +104,10 @@ Matthias Kretz (kretz@compeng.uni-frankfurt.de)
 #include <sys/mman.h>
 #include <common.h>
 
+#include <pthread.h>
+
+#define FASTRAND_THREADS 24
+
 double *AA = NULL, *BB = NULL, *CC = NULL;
 bool benchmark = false;
 bool fastinit = false;
@@ -136,7 +140,7 @@ long seedused;
 
 caldgemm dgemm;
 
-CALvoid Usage(const CALchar* name)
+void Usage(const char* name)
 {
 	fprintf(STD_OUT,"Usage: %s", name);
 	fprintf(STD_OUT, "\t-?        Display this help information\n" );
@@ -186,7 +190,6 @@ CALvoid Usage(const CALchar* name)
 	fprintf(STD_OUT, "\t-B        Keep DMA Buffers mapped during kernel execution\n" );
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
 	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n" );
-	fprintf(STD_OUT, "\t-*        Enable special torture kernel, extreme core stress but no memory stress\n" );
 	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n" );
 }
 
@@ -194,66 +197,66 @@ void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
 void linpack_fake2() {fprintf(STD_OUT, "Linpack fake 2 called\n");}
 void linpack_fake3() {fprintf(STD_OUT, "Linpack fake 3 called\n");}
 
-CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo* Info)
+bool ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config* Config)
 {
-	Info->Quiet = CAL_FALSE;
+	Config->Quiet = false;
 #ifndef TEST_PARAMETERS
-	Info->Verify = CAL_FALSE;
-	Info->MemPolicy = CAL_FALSE;
-	Info->Disassemble = CAL_FALSE;
-	Info->PrintILKernel = CAL_FALSE;
-	Info->MultiThread = CAL_FALSE;
-	//Info->DeviceNum = 0;
-	//Info->Width = 1024;
-	//Info->Height = 4096;
-	Info->AutoHeight = CAL_FALSE;
-	Info->DynamicSched = CAL_FALSE;
-	Info->VerboseTiming = CAL_FALSE;
-	Info->TabularTiming = CAL_FALSE;
-	Info->Debug = CAL_FALSE;
-	Info->m = Info->n = 4096;
-	Info->Iterations = 1;
-	//Info->DstMemory = 'g';
-	Info->UseCPU = Info->UseGPU = CAL_FALSE;
-	//Info->GPURatio = -1;
-	Info->DumpMatrix = CAL_FALSE;
-	Info->DivideToGPU = CAL_FALSE;
-	Info->AsyncDMA = CAL_FALSE;
-	Info->KeepBuffersMapped = CAL_FALSE;
+	Config->Verify = false;
+	Config->MemPolicy = false;
+	Config->Disassemble = false;
+	Config->PrintILKernel = false;
+	Config->MultiThread = false;
+	//Config->DeviceNum = 0;
+	//Config->Width = 1024;
+	//Config->Height = 4096;
+	Config->AutoHeight = false;
+	Config->DynamicSched = false;
+	Config->VerboseTiming = false;
+	Config->TabularTiming = false;
+	Config->Debug = false;
+	Config->m = Config->n = 4096;
+	Config->Iterations = 1;
+	//Config->DstMemory = 'g';
+	Config->UseCPU = Config->UseGPU = false;
+	//Config->GPURatio = -1;
+	Config->DumpMatrix = false;
+	Config->DivideToGPU = false;
+	Config->AsyncDMA = false;
+	Config->KeepBuffersMapped = false;
 
-	Info->linpack_factorize_function = linpack_fake1;
-	Info->linpack_broadcast_function = linpack_fake2;
-	Info->linpack_swap_function = linpack_fake3;
+	Config->linpack_factorize_function = linpack_fake1;
+	Config->linpack_broadcast_function = linpack_fake2;
+	Config->linpack_swap_function = linpack_fake3;
 #endif
 
-	for (CALuint x = 1; x < argc; ++x)
+	for (unsigned int x = 1; x < argc; ++x)
 	{
 		switch(argv[x][1])
 		{
 		default:
 			fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
 			Usage(argv[0]);
-			return CAL_FALSE;
+			return false;
 		case 'q':
-			Info->Quiet = CAL_TRUE;
+			Config->Quiet = true;
 			break;
 		case '?':
 			Usage(argv[0]);
-			return CAL_FALSE;
+			return false;
 		case 'e':
-			Info->Verify = CAL_TRUE;
+			Config->Verify = true;
 			break;
 		case 'p':
-			Info->MemPolicy = CAL_TRUE;
+			Config->MemPolicy = true;
 			break;
 		case 'b':
 			benchmark = true;
 			break;
 		case 'u':
-			Info->DumpMatrix = CAL_TRUE;
+			Config->DumpMatrix = true;
 			break;
 		case 'a':
-			Info->Disassemble = CAL_TRUE;
+			Config->Disassemble = true;
 			break;
 		case '1':
 			transa = true;
@@ -262,16 +265,16 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			transb = true;
 			break;
 		case '9':
-			Info->TabularTiming = CAL_TRUE;
+			Config->TabularTiming = true;
 			break;
 		case '0':
-			Info->DivideToGPU = CAL_TRUE;
+			Config->DivideToGPU = true;
 			break;
 		case 'A':
-			Info->AsyncDMA = CAL_TRUE;
+			Config->AsyncDMA = true;
 			break;
 		case 'B':
-			Info->KeepBuffersMapped = CAL_TRUE;
+			Config->KeepBuffersMapped = true;
 			break;
 		case 'L':
 			linpackmemory = true;
@@ -287,27 +290,24 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
-			break;
-		case '*':
-			Info->Torture = CAL_TRUE;
 			break;
 		case '-':
 			if (++x < argc)
 			{
-				Info->AsyncDMA = Info->KeepBuffersMapped = CAL_TRUE;
-				Info->m = Info->n = 86016;
-				Info->MemPolicy = CAL_TRUE;
-				Info->MultiThread = CAL_TRUE;
-				Info->UseCPU = CAL_FALSE;
-				Info->UseGPU = CAL_TRUE;
+				Config->AsyncDMA = Config->KeepBuffersMapped = true;
+				Config->m = Config->n = 86016;
+				Config->MemPolicy = true;
+				Config->MultiThread = true;
+				Config->UseCPU = false;
+				Config->UseGPU = true;
 				sscanf(argv[x], "%d", &torture);
 				iterations = torture;
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 'T':
@@ -320,12 +320,12 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			verifylarge = true;
 			break;
 		case '6':
-			fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (Info->m = Info->n = Info->Height * atoi(argv[++x])));
+			fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (Config->m = Config->n = Config->Height * atoi(argv[++x])));
 			break;
 		case '4':
-			Info->m = atoi(argv[++x]);
-			Info->m -= Info->m % Info->Height;
-			fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (Info->n = Info->m));
+			Config->m = atoi(argv[++x]);
+			Config->m -= Config->m % Config->Height;
+			fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (Config->n = Config->m));
 			break;
 		case '5':
 			quietbench = true;
@@ -337,19 +337,19 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			betazero = true;
 			break;
 		case 'i':
-			Info->PrintILKernel = CAL_TRUE;
+			Config->PrintILKernel = true;
 			break;
 		case 'c':
-			Info->UseCPU = CAL_TRUE;
+			Config->UseCPU = true;
 			break;
 		case 'l':
-			Info->AutoHeight = CAL_TRUE;
+			Config->AutoHeight = true;
 			break;
 		case 's':
-			Info->DynamicSched = CAL_TRUE;
+			Config->DynamicSched = true;
 			break;
 		case 'g':
-			Info->UseGPU = CAL_TRUE;
+			Config->UseGPU = true;
 			break;
 		case 'f':
 			fastinit = true;
@@ -357,26 +357,26 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 		case 'o':
 			if (++x < argc)
 			{
-				Info->DstMemory = argv[x][0];
-				if (Info->DstMemory != 'c' && Info->DstMemory != 'g')
+				Config->DstMemory = argv[x][0];
+				if (Config->DstMemory != 'c' && Config->DstMemory != 'g')
 				{
 					fprintf(STD_OUT, "Invalid destination memory type\n" );
-					return CAL_FALSE;
+					return false;
 				}
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 'w':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%lld", (long long int*) &Info->Width);
+				sscanf(argv[x], "%lld", (long long int*) &Config->Width);
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 'W':
@@ -386,27 +386,27 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 't':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%d", &Info->PinCPU);
+				sscanf(argv[x], "%d", &Config->PinCPU);
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 'h':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%lld", (long long int*) &Info->Height);
+				sscanf(argv[x], "%lld", (long long int*) &Config->Height);
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 'H':
@@ -416,27 +416,27 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 'm':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%lld", (long long int*) &Info->m);
+				sscanf(argv[x], "%lld", (long long int*) &Config->m);
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 'n':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%lld", (long long int*) &Info->n);
+				sscanf(argv[x], "%lld", (long long int*) &Config->n);
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 'x':
@@ -447,29 +447,29 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			}
 			else
 			{
-				return(CAL_FALSE);
+				return(false);
 			}
 			break;
 		case 'v':
-			Info->VerboseTiming = CAL_TRUE;
+			Config->VerboseTiming = true;
 			break;
 		case 'k':
-			Info->AsyncTiming = CAL_TRUE;
+			Config->AsyncTiming = true;
 			break;
 		case 'd':
-			Info->Debug = CAL_TRUE;
+			Config->Debug = true;
 			break;
 		case 'z':
-			Info->MultiThread = CAL_TRUE;
+			Config->MultiThread = true;
 			break;
 		case 'r':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%u", &Info->Iterations);
+				sscanf(argv[x], "%u", &Config->Iterations);
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 'R':
@@ -479,42 +479,39 @@ CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo*
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 'y':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%u", &Info->DeviceNum);
+				sscanf(argv[x], "%u", &Config->DeviceNum);
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		case 'j':
 			if (++x < argc)
 			{
-				sscanf(argv[x], "%lf", &Info->GPURatio);
-				fprintf(STD_OUT, "Using GPU Ratio %lf\n", Info->GPURatio);
+				sscanf(argv[x], "%lf", &Config->GPURatio);
+				fprintf(STD_OUT, "Using GPU Ratio %lf\n", Config->GPURatio);
 			}
 			else
 			{
-				return CAL_FALSE;
+				return false;
 			}
 			break;
 		};
 	}
 
 	if (!quietbench) fprintf(STD_OUT, "Use -? for help\n");
-	if (Info->UseCPU == CAL_FALSE && Info->UseGPU == CAL_FALSE) Info->UseGPU = CAL_TRUE;
+	if (Config->UseCPU == false && Config->UseGPU == false) Config->UseGPU = true;
 
-	return CAL_TRUE;
+	return true;
 }
 
-#include <pthread.h>
-
-#define FASTRAND_THREADS 24
 int fastrand_seed;
 volatile int fastrand_done[FASTRAND_THREADS];
 double* fastrand_A;
@@ -578,29 +575,29 @@ void fastmatgen(int SEED, double* A, size_t size)
 	sched_setaffinity(0, sizeof(cpu_set_t), &oldmask);
 }
 
-void SetupUserDataC(caldgemm::SampleInfo &Info)
+void SetupUserDataC(caldgemm::caldgemm_config &Config)
 {
 	if (fastinit || torture)
 	{
-		memset(CC, 0, Info.m * pitch_c * sizeof(double));
+		memset(CC, 0, Config.m * pitch_c * sizeof(double));
 	}
 	else
 	{
-		for (size_t i = 0;i < Info.m;i++)
+		for (size_t i = 0;i < Config.m;i++)
 		{
-			for (size_t j = 0;j < Info.n;j++)
+			for (size_t j = 0;j < Config.n;j++)
 			{
 #ifdef TESTMODE
 				CC[i * pitch_c + j] = 0;
 #else
-				CC[i * pitch_c + j] = (CALdouble) (i + j % 16);
+				CC[i * pitch_c + j] = (double) (i + j % 16);
 #endif
 			}
 		}
 	}
 }
 
-int SetupUserData(caldgemm::SampleInfo &Info)
+int SetupUserData(caldgemm::caldgemm_config &Config)
 {
 	timespec randtime;
 	clock_gettime(CLOCK_REALTIME, &randtime);
@@ -618,9 +615,9 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 		}
 		else
 		{
-			pitch_a = pitch_b = pitch_c = Info.n + Info.Width + (Info.n + Info.Width) % 8;
+			pitch_a = pitch_b = pitch_c = Config.n + Config.Width + (Config.n + Config.Width) % 8;
 		}
-		linpackmem = dgemm.AllocMemory(pitch_c * (Info.m + Info.Width + 1) + 8, mem_page_lock, mem_huge_table);
+		linpackmem = dgemm.AllocMemory(pitch_c * (Config.m + Config.Width + 1) + 8, mem_page_lock, mem_huge_table);
 		if (linpackmem == NULL) {fprintf(STD_OUT, "Memory Allocation Error\n"); return(1);}
 
 		char* linpackmem2 = (char*) linpackmem;
@@ -628,21 +625,21 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 		double* linpackmem3 = (double*) linpackmem2;
 
 
-		AA = linpackmem3 + Info.Width * pitch_c;
-		BB = linpackmem3 + Info.Width;
-		CC = linpackmem3 + Info.Width * (pitch_c + 1);
+		AA = linpackmem3 + Config.Width * pitch_c;
+		BB = linpackmem3 + Config.Width;
+		CC = linpackmem3 + Config.Width * (pitch_c + 1);
 	}
 	else
 	{
 		if (transa)
 		{
-			pitch_a = Info.m;
-			height_a = Info.Width;
+			pitch_a = Config.m;
+			height_a = Config.Width;
 		}
 		else
 		{
-			pitch_a = Info.Width;
-			height_a = Info.m;
+			pitch_a = Config.Width;
+			height_a = Config.m;
 		}
 		if (pitch_a % 8) pitch_a += (8 - pitch_a % 8);
 		if (((pitch_a / 8) & 1) == 0)
@@ -651,22 +648,22 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 		}
 		if (transb)
 		{
-			pitch_b = Info.Width;
-			height_b = Info.n;
+			pitch_b = Config.Width;
+			height_b = Config.n;
 		}
 		else
 		{
-			height_b = Info.Width;
-			pitch_b = Info.n;
+			height_b = Config.Width;
+			pitch_b = Config.n;
 		}
 		if (pitch_b % 8) pitch_b += (8 - pitch_b % 8);
 		if (((pitch_b / 8) & 1) == 0)
 		{
 			pitch_b += 8;
 		}
-		pitch_c = Info.n;
+		pitch_c = Config.n;
 		if (pitch_c % 8) pitch_c += (8 - pitch_c % 8);
-		if (Info.n % 8) fprintf(STD_OUT, "Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", (long long int) Info.n, (long long int) pitch_b);
+		if (Config.n % 8) fprintf(STD_OUT, "Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", (long long int) Config.n, (long long int) pitch_b);
 		if (((pitch_c / 8) & 1) == 0)
 		{
 			pitch_c += 8;
@@ -677,7 +674,7 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 		if (CC) dgemm.FreeMemory(CC);
 		AA = dgemm.AllocMemory(height_a * pitch_a, mem_page_lock, mem_huge_table);
 		BB = dgemm.AllocMemory(height_b * pitch_b, mem_page_lock, mem_huge_table);
-		CC = dgemm.AllocMemory(Info.m * pitch_c, mem_page_lock, mem_huge_table);
+		CC = dgemm.AllocMemory(Config.m * pitch_c, mem_page_lock, mem_huge_table);
 
 		if (AA == NULL || BB == NULL || CC == NULL)
 		{
@@ -695,36 +692,14 @@ int SetupUserData(caldgemm::SampleInfo &Info)
 	{
 		fastmatgen(rand() * 100, AA, height_a * pitch_a);
 		fastmatgen(rand() * 100, BB, height_b * pitch_b);
-		/*for (CALuint y = 0; y < pitch_a; y++)
-		{
-			for (CALuint x = 0; x < height_a; x++)
-			{
-#ifdef TESTMODE
-				AA[x * pitch_a + y] = 1;
-#else
-				AA[x * pitch_a + y] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
-#endif
-			}
-		}
-		for (CALuint y = 0; y < height_b; y++)
-		{
-			for (CALuint x = 0; x < pitch_b; x++)
-			{
-#ifdef TESTMODE
-				BB[y * pitch_b + x] = 1;
-#else
-				BB[y * pitch_b + x] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
-#endif
-			}
-		}*/
 	}
-	if (Info.Debug) fprintf(STD_OUT, "User Data Initialized\n");
+	if (Config.Debug) fprintf(STD_OUT, "User Data Initialized\n");
 	return(0);
 }
 
-bool isDoubleEqual(CALdouble a, CALdouble b)
+bool isDoubleEqual(double a, double b)
 {
-	CALdouble epsilon = 1e-6;
+	double epsilon = 1e-6;
 
 	if(fabs(b) <1e-13)
 		return (fabs(a-b) < epsilon);
@@ -732,29 +707,29 @@ bool isDoubleEqual(CALdouble a, CALdouble b)
 		return (fabs((a-b)/b) < epsilon);
 }
 
-int main(CALint argc, CALchar** argv)
+int main(int argc, char** argv)
 {
-	caldgemm::SampleInfo Info;
+	caldgemm::caldgemm_config Config;
 
-	if (!ParseCommandLine(argc, argv, &Info))
+	if (!ParseCommandLine(argc, argv, &Config))
 	{
 		return 1;
 	}
 
-	if (dgemm.InitCALDGEMM(&Info))
+	if (dgemm.InitCALDGEMM(&Config))
 	{
 		fprintf(STD_OUT, "Error initializing CALDGEMM\n");
 		return(1);
 	}
 	if (reduced_height != -1)
 	{
-		fprintf(STD_OUT, "Using partial buffers %d / %lld\n", reduced_height, (long long int) Info.Height);
-		Info.Height = reduced_height;
+		fprintf(STD_OUT, "Using partial buffers %d / %lld\n", reduced_height, (long long int) Config.Height);
+		Config.Height = reduced_height;
 	}
 	if (reduced_width != -1)
 	{
-		fprintf(STD_OUT, "Using partial buffer width %d / %lld\n", reduced_width, (long long int) Info.Width);
-		Info.Width = reduced_width;
+		fprintf(STD_OUT, "Using partial buffer width %d / %lld\n", reduced_width, (long long int) Config.Width);
+		Config.Width = reduced_width;
 	}
 
 #ifndef TEST_PARAMETERS
@@ -786,9 +761,9 @@ int main(CALint argc, CALchar** argv)
 
 		Apitch = 1536;
 
-		AA = new CALdouble[(size_t) tmp_m * (size_t) Apitch];
-		BB = new CALdouble[(size_t) tmp_k * (size_t) Bpitch];
-		CC = new CALdouble[(size_t) tmp_m * (size_t) Cpitch];
+		AA = new double[(size_t) tmp_m * (size_t) Apitch];
+		BB = new double[(size_t) tmp_k * (size_t) Bpitch];
+		CC = new double[(size_t) tmp_m * (size_t) Cpitch];
 
 		for (int i = 0;i < tmp_m;i++)
 		{
@@ -811,7 +786,7 @@ int main(CALint argc, CALchar** argv)
 		{
 			fprintf(stderr, "Initializing Data... ");
 		}
-		if (SetupUserData(Info))
+		if (SetupUserData(Config))
 		{
 			return(1);
 		}
@@ -822,30 +797,30 @@ int main(CALint argc, CALchar** argv)
 
 		//Initial run to negate cache effects
 #ifndef TESTMODE
-		if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE && initialrun && !torture)
+		if (Config.Debug == false && Config.DumpMatrix == false && initialrun && !torture)
 		{
 			if (!quietbench)
 			{
 				fprintf(stderr, "Doing initial run... ");
 			}
-			CALboolean tmpquiet = Info.Quiet, tmpverify = Info.Verify;
-			CALuint tmpiter = Info.Iterations;
-			CALuint tmpm = Info.m, tmpn = Info.n;
-			Info.Quiet = CAL_TRUE;
-			Info.Verify = CAL_FALSE;
-			Info.Iterations = 2;
-			if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
-			if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
-			if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Info.m, Info.Width, Info.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+			bool tmpquiet = Config.Quiet, tmpverify = Config.Verify;
+			unsigned int tmpiter = Config.Iterations;
+			unsigned int tmpm = Config.m, tmpn = Config.n;
+			Config.Quiet = true;
+			Config.Verify = false;
+			Config.Iterations = 2;
+			if (Config.m > 2 * Config.Height) Config.m = 2 * Config.Height;
+			if (Config.n > 2 * Config.Height) Config.n = 2 * Config.Height;
+			if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 			{
 				fprintf(STD_OUT, "Error running CALDGEMM\nexiting\n");
 				return(1);
 			}
-			Info.m = tmpm;
-			Info.n = tmpn;
-			Info.Quiet = tmpquiet;
-			Info.Verify = tmpverify;
-			Info.Iterations = tmpiter;
+			Config.m = tmpm;
+			Config.n = tmpn;
+			Config.Quiet = tmpquiet;
+			Config.Verify = tmpverify;
+			Config.Iterations = tmpiter;
 			if (!quietbench)
 			{
 				fprintf(stderr, "Done\n");
@@ -856,7 +831,7 @@ int main(CALint argc, CALchar** argv)
 		{
 			fprintf(stderr, "Initializing Matrix C\n");
 		}
-		SetupUserDataC(Info);
+		SetupUserDataC(Config);
 		dgemm.ResetTimers();
 		if (!quietbench)
 		{
@@ -868,11 +843,11 @@ int main(CALint argc, CALchar** argv)
 			{
 				if (iterations > 1 && !quietbench) fprintf(STD_OUT, "\nDGEMM Call Iteration %d\n\n", iter);
 #ifdef TESTMODE
-				if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Info.m, Info.Width, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+				if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Config.m, Config.Width, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #else
-				size_t tmpn = Info.m > Info.n ? Info.m : Info.n;
-				if (linpack_callbacks) Info.LinpackSwapN = &tmpn;
-				if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, Info.m, Info.Width, Info.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans, linpack_callbacks))
+				size_t tmpn = Config.m > Config.n ? Config.m : Config.n;
+				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
+				if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans, linpack_callbacks))
 #endif
 				{
 					fprintf(STD_OUT, "Error running CALDGEMM\n");
@@ -880,16 +855,16 @@ int main(CALint argc, CALchar** argv)
 				}
 				if (torture)
 				{
-					dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 1.0, Info.m, Info.Width, Info.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans, linpack_callbacks);
+					dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans, linpack_callbacks);
 				}
 			}
-		} while (benchmark && (Info.n += Info.Height) < 70000 && (Info.m += Info.Height) < 70000 && SetupUserData(Info) == 0);
+		} while (benchmark && (Config.n += Config.Height) < 70000 && (Config.m += Config.Height) < 70000 && SetupUserData(Config) == 0);
 		
 	}
 	
 	if (torture)
 	{
-		for (size_t i = 0;i < Info.m * pitch_c;i++)
+		for (size_t i = 0;i < Config.m * pitch_c;i++)
 		{
 			if (CC[i] > 10E-10)
 			{
@@ -906,16 +881,16 @@ int main(CALint argc, CALchar** argv)
 	{
 		fprintf(STD_OUT, "Running verification for large matrices\n");
 		srand((int) seedused);
-		Info.UseGPU = CAL_FALSE;
-		Info.UseCPU = CAL_TRUE;
-		Info.Verify = CAL_FALSE;
-		Info.Quiet = CAL_TRUE;
-		dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : -0.5, 1.0, Info.m, Info.Width, Info.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
+		Config.UseGPU = false;
+		Config.UseCPU = true;
+		Config.Verify = false;
+		Config.Quiet = true;
+		dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : -0.5, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
 		fprintf(STD_OUT, "CPU DGEMM Comparison run complete, comparing results\n");
 		int verifyok = 1;
-		for (size_t i = 0;i < Info.m * pitch_c;i++)
+		for (size_t i = 0;i < Config.m * pitch_c;i++)
 		{
-			if (!isDoubleEqual(CC[i] * 1.0, (CALdouble) (i % 16)))
+			if (!isDoubleEqual(CC[i] * 1.0, (double) (i % 16)))
 			{
 				fprintf(STD_OUT, "Verification failed at i = %lld, m = %lld, n = %lld\n", (long long int) i, (long long int) i / pitch_c, (long long int) i % pitch_c);
 				verifyok = 0;
@@ -936,15 +911,15 @@ int main(CALint argc, CALchar** argv)
 		fprintf(STD_OUT, "tmpmem = 0x%llx\n", tmpmem);
 		tmpmem -= ((size_t) tmpmem) % ((size_t) 1024 * 1024 * 1024);
 		fprintf(STD_OUT, "tmpmem = 0x%llx\n", tmpmem);
-		AA = (CALdouble*) tmpmem;
+		AA = (double*) tmpmem;
 		tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
-		BB = (CALdouble*) tmpmem;
+		BB = (double*) tmpmem;
 		tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
-		CC = (CALdouble*) tmpmem;
+		CC = (double*) tmpmem;
 
-		AA = (CALdouble*) (((size_t) AA) | ((size_t) 0x6ea040));
-		BB = (CALdouble*) (((size_t) BB) | ((size_t) 0xeec080));
-		CC = (CALdouble*) (((size_t) CC) | ((size_t) 0x495040));
+		AA = (double*) (((size_t) AA) | ((size_t) 0x6ea040));
+		BB = (double*) (((size_t) BB) | ((size_t) 0xeec080));
+		CC = (double*) (((size_t) CC) | ((size_t) 0x495040));
 		double ALPHA = -1.0;
 		double BETA = 1.0;
 		size_t M = 3072, N = 3072, K = 1024;

@@ -18,19 +18,16 @@ INCLUDE		= -I ../GotoBLAS2 -I $(ATISTREAMSDKROOT)/include
 
 all:		dgemm_bench
 
-dgemm_bench:	caldgemm.o benchmark.o calutil.o
+dgemm_bench:	caldgemm.o benchmark.o
 		g++ -o $@ $^ $(LIBS)
 
-calutil.o:	calutil.cpp calutil.h caldgemm_config.h caldgemm_config_load.h
+caldgemm.o:	caldgemm.cpp caldgemm.h caldgemm_config.h caldgemm.il caldgemm_config_load.h
 		g++ -c $< $(CXXOPTS) $(INCLUDE)
 
-caldgemm.o:	caldgemm.cpp caldgemm.h caldgemm_config.h caldgemm.il calutil.h caldgemm_config_load.h
+benchmark.o:	benchmark.cpp caldgemm.h caldgemm_config.h caldgemm_config_load.h
 		g++ -c $< $(CXXOPTS) $(INCLUDE)
 
-benchmark.o:	benchmark.cpp caldgemm.h caldgemm_config.h calutil.h caldgemm_config_load.h
-		g++ -c $< $(CXXOPTS) $(INCLUDE)
-
-caldgemm.so:	caldgemm.o calutil.o
+caldgemm.so:	caldgemm.o
 
 clean:
-		rm -f caldgemm.o calutil.o benchmark.o dgemm_bench caldgemm.so
+		rm -f caldgemm.o benchmark.o dgemm_bench caldgemm.so

@@ -199,7 +199,7 @@ MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1_12.xy, a2_12.xy, a1_12.zw, a2_12.zw, a
 #define UNNORM_TYPE
 #endif
 
-const char *calutil::ILKernelName =
+const char *caldgemm::ILKernelName =
 "il_ps_2_0\n"
 "dcl_cb cb0[4]\n"
 "dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"
@@ -263,9 +263,7 @@ const char *calutil::ILKernelName =
 #endif
 #endif
 
-#ifdef CALDGEMM_TORTURE_KERNEL
-"    mov r0.xyzw, l1.zzzz\n"
-#elif defined(CALDGEMM_44)
+#if defined(CALDGEMM_44)
 "mov r0.xy__, vWinCoord0.xy00\n"
 "mov r0.w, l1.z\n"
 #else
@@ -288,9 +286,7 @@ const char *calutil::ILKernelName =
 #ifndef CALDGEMM_44
 "    ge r0.y, r11.x, cb0[1].x\n"				//cmp with width
 #else
-#ifdef CALDGEMM_TORTURE_KERNEL
-"    add r0.w, r0.w, l1.w\n"
-#elif defined(CALDGEMM_DUAL_ENTRY) | defined(CALDGEMM_TRANSPOSED_B) | (defined(CALDGEMM_48) & !defined(CALDGEMM_88))
+#if defined(CALDGEMM_DUAL_ENTRY) | defined(CALDGEMM_TRANSPOSED_B) | (defined(CALDGEMM_48) & !defined(CALDGEMM_88))
 "    add r0.z, r0.w, l1.y\n"
 "    add r0.w, r0.w, l1.w\n"
 #else
@@ -354,13 +350,8 @@ MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r17.xy, r17.zw, r18.xy, r18.zw, r19.xy,
 #else
 SAMPLE_A(r13, r14, r0.zy)
 SAMPLE_B(r15, r16, r0.zx)
-#ifdef CALDGEMM_TORTURE_KERNEL
-SAMPLE_A(r17, r18, r0.zy)
-SAMPLE_B(r19, r20, r0.zx)
-#else
 SAMPLE_A(r17, r18, r0.wy)
 SAMPLE_B(r19, r20, r0.wx)
-#endif
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r17.xy, r14.xy, r18.xy, r15.xy, r19.xy, r16.xy, r20.xy)
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.zw, r17.zw, r14.zw, r18.zw, r15.zw, r19.zw, r16.zw, r20.zw)
 #endif
