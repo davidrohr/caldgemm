@@ -244,8 +244,6 @@ private:
 	int SetupData(CALmodule* module, CALresource* &_Res, BufferProperties* &data, CALdevice* device, CALcontext* ctx, unsigned int numInputs, unsigned int numOutputs, unsigned int numConstantBuffers, CALname** ctxProgNames, int nContext);
 	int CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event);
 	int CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, BufferProperties* dest_data = NULL);
-	void SupportedCALVersion(CALVersion *calVersion); 
-	int QueryCALVersion(CALVersion required, const char *comparison, bool silent = false);
 	int ValidateCALRuntime();
 	void displayMatrixTiming(const char* name);
 	bool isDoubleEqual(double a, double b);

@@ -821,17 +821,17 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 		return(1);
 	}
 
-	if(!ValidateCALRuntime())
+	if(ValidateCALRuntime())
 	{
 		fprintf(STD_OUT, "Error. Could not find a compatible CAL runtime.\n");
-		return 0;
+		return(1);
 	}
 
 #ifdef CALDGEMM_44
 	if (Config->Width % 8)
 	{
 		fprintf(STD_OUT, "Only width of multiples of 8 are computable.\n");
-		return(0);
+		return(1);
 	}
 	else if (Config->Width % 64)
 	{
@@ -842,13 +842,13 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 	if (Config->Width % 64)
 	{
 		fprintf(STD_OUT, "Only width of size 64 are computable.\n");
-		return(0);
+		return(1);
 	}
 #endif
 	if (Config->Height & 0x7)
 	{
 		fprintf(STD_OUT, "Only heights with multiple of 8 are computable.\n" );
-		return(0);
+		return(1);
 	}
 
 	numInputs = dwBuffersA + dwBuffersB;
@@ -1284,7 +1284,7 @@ void* cblas_wrapper(void* arg)
 
 							if (pthread_mutex_trylock(&par->cls->linpackParameters.linpackMutex[1]) == EBUSY)
 							{
-								if (!Config->NoPerformanceWarnings) printf("WARNING: Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
+								if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
 							}
 							else
 							{
@@ -1316,7 +1316,7 @@ void* cblas_wrapper(void* arg)
 							
 							if (pthread_mutex_trylock(&par->cls->linpackParameters.linpackMutex[1]) == EBUSY)
 							{
-								if (!Config->NoPerformanceWarnings) printf("Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
+								if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
 							}
 							else
 							{
@@ -2612,7 +2612,7 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 			{
 				allocated = true;
 				if (Config->Debug) fprintf(STD_OUT, "Allocating Host buffer for context %d buffer %d\n", nContext, i);
-				CHKERR(calResAllocRemote2D(&data[i].res, device, 1, tWidth, tHeight, getFormat(mComponents, sizeof(double), true), flag), "allocattion of remote memory");
+				CHKERR(calResAllocRemote2D(&data[i].res, device, 1, tWidth, tHeight, CAL_FORMAT_UNSIGNED_INT32_4, flag), "allocattion of remote memory");
 				CHKERR(calCtxGetMem(&data[i].mem, *ctx, data[i].res), "getting remote memory for context");
 				CHKERR(calResMap(&data[i].ptr_void, &data[i].pitch, data[i].res, NULL), "mapping of remote memory");
 				if (((size_t) data[i].ptr_void) & (vcpysize - 1))
@@ -2659,11 +2659,11 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 		switch(mem)
 		{
 		case 'g':
-			r = calResAllocLocal2D(&_Res[i], *device, tWidth, tHeight, getFormat(mComponents, data[i].DataSize, true), flag);
+			r = calResAllocLocal2D(&_Res[i], *device, tWidth, tHeight, CAL_FORMAT_UNSIGNED_INT32_4, flag);
 
 			break;
 		case 'c':
-			r = calResAllocRemote2D(&_Res[i], device, 1, tWidth, tHeight, getFormat(mComponents, data[i].DataSize, true), flag);
+			r = calResAllocRemote2D(&_Res[i], device, 1, tWidth, tHeight, CAL_FORMAT_UNSIGNED_INT32_4, flag);
 			break;
 		}
 		if (r != CAL_RESULT_OK)
@@ -2699,7 +2699,7 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 	{
 		int cWidth = data[i].Width * data[i].Height;
 		if (Config->Debug) fprintf(STD_OUT, "Allocating Host Constant Buffer Context %d buffer %d\n", nContext, i);
-		CHKERR(calResAllocRemote1D(&_Res[i], device, 1, cWidth, getFormat(data[i].VectorSize,data[i].DataSize), 0), "allocating constant memory");
+		CHKERR(calResAllocRemote1D(&_Res[i], device, 1, cWidth, CAL_FORMAT_FLOAT_4, 0), "allocating constant memory");
 		CHKERR(calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]), "binding constant memory to context");
 	}
 
@@ -2726,7 +2726,6 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 			}
 			if (Config->Debug) fprintf(STD_OUT, "Getting module buffer name for context %d kernel %d buffer %d name %s\n", nContext, i, j, buffer);
 			CHKERR(calModuleGetName(&ctxProgNames[i][j], *ctx, module[i], buffer), "getting buffer name");
-			printf("Name: %d\n", ctxProgNames[i][j]);
 			if (j >= bStop && j < fStop)
 			{
 				CHKERR(calCtxSetMem(*ctx, ctxProgNames[i][j], data[j].dstMem), "setting memory buffer to context");
@@ -3003,158 +3002,19 @@ int caldgemm::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties
 	return 0;
 }
 
-//MUST REWRITE!!!
-
-CALformat caldgemm::getFormat(unsigned int formatSize, unsigned int dataSize, bool isInt)
-{
-	CALformat format; // = CAL_FORMAT_FLOAT_1;
-
-	format = (isInt? CAL_FORMAT_UNSIGNED_INT32_1 : CAL_FORMAT_FLOAT_1);
-
-	switch(dataSize)
-	{
-	case 4:
-
-		switch(formatSize)
-		{
-		case 1:
-			format = (isInt? CAL_FORMAT_UNSIGNED_INT32_1 : CAL_FORMAT_FLOAT_1);
-			break;
-		case 2:
-			format = (isInt? CAL_FORMAT_UNSIGNED_INT32_2 : CAL_FORMAT_FLOAT_2);
-			//format = CAL_FORMAT_FLOAT_2;
-			break;
-		case 4:
-			format = (isInt? CAL_FORMAT_UNSIGNED_INT32_4 : CAL_FORMAT_FLOAT_4);
-			//format = CAL_FORMAT_FLOAT_4;
-			break;
-		default:
-			assert(!"attempted to use invalid format!" );
-			break;
-		};
-		break;
-	case 8:
-		switch(formatSize)
-		{
-		case 1:
-			format = (isInt? CAL_FORMAT_UNSIGNED_INT32_2 : CAL_FORMAT_FLOAT_2);
-			//format = CAL_FORMAT_FLOAT_2;
-			break;
-		case 2:
-			format = (isInt? CAL_FORMAT_UNSIGNED_INT32_4 : CAL_FORMAT_FLOAT_4);
-			//format = CAL_FORMAT_FLOAT_4;
-			break;
-		default:
-			assert(!"attempted to use invalid format!" );
-			break;
-		};
-
-		break;
-	case 16:
-		switch(formatSize)
-		{
-		case 1:
-			format = (isInt? CAL_FORMAT_UNSIGNED_INT32_4 : CAL_FORMAT_FLOAT_4);
-			//format = CAL_FORMAT_FLOAT_4;
-			break;
-		default:
-			assert(!"attempted to use invalid format!" );
-			break;
-		};
-		break;
-	}
-
-	return format;
-}
-
-int caldgemm::QueryCALVersion(CALVersion required, const char* comparison, bool silent)
+int caldgemm::ValidateCALRuntime()
 {
 	CALVersion available;
 	calGetVersion(&available.major, &available.minor, &available.imp);
-	if (Config->Debug && !silent) fprintf(STD_OUT, "Found CAL Runtime Version: %d.%d.%d\n", available.major, available.minor, available.imp);
-
-	if( strcmp(comparison,">") == 0 )
-	{
-		if( (available.major > required.major) ||
-			(available.major == required.major && available.minor > required.minor) ||
-			(available.major == required.major && available.minor == required.minor && 
-			available.imp > required.imp))
-		{
-			return 1;
-		}
-	}
-	else if( strcmp(comparison,">=") == 0 )
-	{
-		if( (available.major > required.major) ||
-			(available.major == required.major && available.minor > required.minor) ||
-			(available.major == required.major && available.minor == required.minor && 
-			available.imp >= required.imp))
-		{
-			return 1;
-		}
-	}
-	else if( strcmp(comparison,"<") == 0 )
-	{
-		if( (available.major < required.major) ||
-			(available.major == required.major && available.minor < required.minor) ||
-			(available.major == required.major && available.minor == required.minor && 
-			available.imp < required.imp))
-		{
-			return 1;
-		}
-	}
-	else if( strcmp(comparison,"<=") == 0 )
-	{
-		if( (available.major < required.major) ||
-			(available.major == required.major && available.minor < required.minor) ||
-			(available.major == required.major && available.minor == required.minor && 
-			available.imp <= required.imp))
-		{
-			return 1;
-		}
-	}
-	else if( strcmp(comparison,"==") == 0 )
-	{
-		if( available.major == required.major && available.minor == required.minor &&
-			available.imp == required.imp )
-		{
-			return 1;
-		}
-	}
-	else 
-	{
-		fprintf(STD_OUT, "Error. Invalid comparison operator: %s (QueryCALVersion)\n", comparison);
-	}
-
-	return 0;
-}
-
-void caldgemm::SupportedCALVersion(CALVersion *calVersion)
-{
-	calVersion->major = 1;
-	calVersion->minor = 3;
-	calVersion->imp = 185;
-	if (Config->Debug) fprintf(STD_OUT, "Supported CAL Runtime Version: %d.%d.%d\n", calVersion->major, calVersion->minor, calVersion->imp);
-}
-
-int caldgemm::ValidateCALRuntime()
-{
-	CALVersion supportedCALRuntime;
-
-	supportedCALRuntime.major = 1;
-	supportedCALRuntime.minor = 4;
-	supportedCALRuntime.imp = 815;
-	if (QueryCALVersion(supportedCALRuntime, ">=", true) == 0)
+	if (available.major < 1) return(1);
+	if (available.major > 2) return(0);
+	if (available.minor < 3 || available.minor == 3 && available.imp < 185) return(1);
+	if (available.minor < 4 || available.minor == 4 && available.imp < 815)
 	{
 		if (Config->AsyncDMA && !Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Asynchronous DMA not supported by CAL Runtime Version\n");
 		Config->AsyncDMA = false;
 	}
-
-	// Get the CAL runtime currently supported by the SDK 
-	SupportedCALVersion( &supportedCALRuntime );
-
-	// Check if this runtime is available 
-	return QueryCALVersion( supportedCALRuntime, ">=" );
+	return(0);
 }
 
 // vim: ts=4 sw=4 noet sts=4 tw=100
