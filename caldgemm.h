@@ -1,17 +1,26 @@
-/* ============================================================
-
-The source code is property of the Frankfurt Institute for Advanced Studies (FIAS).
-None of the material may be copied, reproduced, distributed, republished, downloaded,
-displayed, posted or transmitted in any form or by any means, including, but not
-limited to, electronic, mechanical, photocopying, recording, or otherwise,
-without the prior written permission of FIAS.
-
-Authors:
-David Rohr (drohr@jwdt.org)
-Matthias Bach (bach@compeng.uni-frankfurt.de)
-Matthias Kretz (kretz@compeng.uni-frankfurt.de)
-
-============================================================ */
+/**
+ * Interface of the CALDGEMM library.
+ *
+ * Copyright 2010:
+ *  - David Rohr (drohr@jwdt.org)
+ *  - Matthias Bach (bach@compeng.uni-frankfurt.de)
+ *  - Matthias Kretz (kretz@compeng.uni-frankfurt.de)
+ *
+ * This file is part of CALDGEMM.
+ *
+ * CALDGEMM is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * CALDGEMM is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with CALDGEMM.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "caldgemm_config_load.h"
 
