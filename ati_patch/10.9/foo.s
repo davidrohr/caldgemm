@@ -1,0 +1,1003 @@
+0x7fffe591b560:	mov    %r12,-0x20(%rsp)
+0x7fffe591b565:	mov    %r13,-0x18(%rsp)
+0x7fffe591b56a:	mov    %rdi,%r13
+0x7fffe591b56d:	mov    %r14,-0x10(%rsp)
+0x7fffe591b572:	mov    %r15,-0x8(%rsp)
+0x7fffe591b577:	mov    %rcx,%r14
+0x7fffe591b57a:	mov    %rbx,-0x30(%rsp)
+0x7fffe591b57f:	mov    %rbp,-0x28(%rsp)
+0x7fffe591b584:	sub    $0x58,%rsp
+0x7fffe591b588:	mov    0x55b791(%rip),%r12        # 0x7fffe5e76d20 <pthread_attr_setdetachstate+7503968>
+0x7fffe591b58f:	mov    %esi,%r15d
+0x7fffe591b592:	mov    %edx,0xc(%rsp)
+0x7fffe591b596:	mov    %r12,%rdi
+0x7fffe591b599:	callq  0x7fffe5b49930
+0x7fffe591b59e:	mov    0x559feb(%rip),%rax        # 0x7fffe5e75590 <pthread_attr_setdetachstate+7497936>
+0x7fffe591b5a5:	movl   $0x0,0x0(%r13)
+0x7fffe591b5ad:	cmpq   $0x0,(%rax)
+0x7fffe591b5b1:	jne    0x7fffe591b5e3
+0x7fffe591b5b3:	mov    $0x5,%esi
+0x7fffe591b5b8:	mov    %r12,%rdi
+0x7fffe591b5bb:	callq  0x7fffe5b49940
+0x7fffe591b5c0:	mov    0x28(%rsp),%rbx
+0x7fffe591b5c5:	mov    0x30(%rsp),%rbp
+0x7fffe591b5ca:	mov    0x38(%rsp),%r12
+0x7fffe591b5cf:	mov    0x40(%rsp),%r13
+0x7fffe591b5d4:	mov    0x48(%rsp),%r14
+0x7fffe591b5d9:	mov    0x50(%rsp),%r15
+0x7fffe591b5de:	add    $0x58,%rsp
+0x7fffe591b5e2:	retq   
+0x7fffe591b5e3:	callq  0x7fffe591e4f0
+0x7fffe591b5e8:	mov    $0x1,%ecx
+0x7fffe591b5ed:	mov    %rax,%rdi
+0x7fffe591b5f0:	mov    $0x1,%edx
+0x7fffe591b5f5:	mov    %r15d,%esi
+0x7fffe591b5f8:	callq  0x7fffe591e500
+0x7fffe591b5fd:	test   %rax,%rax
+0x7fffe591b600:	mov    %rax,%rbx
+0x7fffe591b603:	je     0x7fffe591b693
+0x7fffe591b609:	mov    0xc(%rsp),%esi
+0x7fffe591b60d:	mov    %rax,%rdi
+0x7fffe591b610:	callq  0x7fffe591ed00
+0x7fffe591b615:	test   %rax,%rax
+0x7fffe591b618:	mov    %rax,%rbp
+0x7fffe591b61b:	je     0x7fffe591b66c
+0x7fffe591b61d:	4c 89 e1             	mov    %r12,%rcx
+0x7fffe591b620:	4c 89 f2             	mov    %r14,%rdx
+0x7fffe591b623:	48 89 de             	mov    %rbx,%rsi
+0x7fffe591b626:	48 89 c7             	mov    %rax,%rdi
+0x7fffe591b629:	e8 52 b9 00 00       	callq  0x7fffe5926f80
+0x7fffe591b62e:	83 e8 01             	sub    $0x1,%eax            ; if eax == 1 goto 0x7fffe591b6a5
+0x7fffe591b631: 74 72                	je     0x7fffe591b6a5
+0x7fffe591b633:	48 8d bb 30 01 00 00 	lea    0x130(%rbx),%rdi
+0x7fffe591b63a:	e8 31 c5 ff ff       	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591b63f:	31 f6                	xor    %esi,%esi
+0x7fffe591b641:	83 e8 01             	sub    $0x1,%eax
+0x7fffe591b644:	7e 08                	jle    0x7fffe591b64e
+0x7fffe591b646:	e8 85 c6 ff ff       	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591b64b:	48 89 c6             	mov    %rax,%rsi
+0x7fffe591b64e:	48 8d bb 28 01 00 00 	lea    0x128(%rbx),%rdi
+0x7fffe591b655:	e8 36 c5 ff ff       	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591b65a:	mov    $0x1,%esi
+0x7fffe591b65f:	mov    %r12,%rdi
+0x7fffe591b662:	callq  0x7fffe5b49940
+0x7fffe591b667:	jmpq   0x7fffe591b5c0
+0x7fffe591b66c:	lea    0x130(%rbx),%rdi
+0x7fffe591b673:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591b678:	xor    %esi,%esi
+0x7fffe591b67a:	sub    $0x1,%eax
+0x7fffe591b67d:	jle    0x7fffe591b687
+0x7fffe591b67f:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591b684:	mov    %rax,%rsi
+0x7fffe591b687:	lea    0x128(%rbx),%rdi
+0x7fffe591b68e:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591b693:	mov    $0x6,%esi
+0x7fffe591b698:	mov    %r12,%rdi
+0x7fffe591b69b:	callq  0x7fffe5b49940
+0x7fffe591b6a0:	jmpq   0x7fffe591b5c0
+**0x7fffe591b6a5:	mov    %rbp,%rdi
+0x7fffe591b6a8:	callq  0x7fffe5926830
+0x7fffe591b6ad:	cmp    $0x4,%eax
+0x7fffe591b6b0:	je     0x7fffe591b633
+0x7fffe591b6b2:	mov    (%rbx),%rax
+0x7fffe591b6b5:	lea    0x10(%rsp),%rsi
+0x7fffe591b6ba:	mov    %r14,%rcx
+0x7fffe591b6bd:	mov    %rbp,%rdx
+0x7fffe591b6c0:	mov    %rbx,%rdi
+0x7fffe591b6c3:	add    $0xa8,%rax
+0x7fffe591b6c9:	callq  *(%rax)
+0x7fffe591b6cb:	test   %eax,%eax
+0x7fffe591b6cd:	jne    0x7fffe591b633
+0x7fffe591b6d3:	mov    %rbx,%rsi
+0x7fffe591b6d6:	mov    %rbp,%rdi
+0x7fffe591b6d9:	callq  0x7fffe5926850
+0x7fffe591b6de:	mov    0x10(%rsp),%r8d
+0x7fffe591b6e3:	test   %r8d,%r8d
+0x7fffe591b6e6:	jne    0x7fffe591b74d
+0x7fffe591b6e8:	mov    0x14(%rsp),%eax
+0x7fffe591b6ec:	and    $0xffffff,%eax
+0x7fffe591b6f1:	or     $0x90000000,%eax
+0x7fffe591b6f6:	mov    %eax,0x0(%r13)
+0x7fffe591b6fa:	mov    0xc(%rsp),%ecx
+0x7fffe591b6fe:	lea    0x34dc5b(%rip),%rsi        # 0x7fffe5c69360 <pthread_attr_setdetachstate+5351072>
+0x7fffe591b705:	mov    %eax,%r8d
+0x7fffe591b708:	mov    %r15d,%edx
+0x7fffe591b70b:	xor    %eax,%eax
+0x7fffe591b70d:	mov    $0x8,%edi
+0x7fffe591b712:	callq  0x7fffe591c120
+0x7fffe591b717:	lea    0x130(%rbx),%rdi
+0x7fffe591b71e:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591b723:	xor    %esi,%esi
+0x7fffe591b725:	sub    $0x1,%eax
+0x7fffe591b728:	jle    0x7fffe591b732
+0x7fffe591b72a:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591b72f:	mov    %rax,%rsi
+0x7fffe591b732:	lea    0x128(%rbx),%rdi
+0x7fffe591b739:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591b73e:	xor    %esi,%esi
+0x7fffe591b740:	mov    %r12,%rdi
+0x7fffe591b743:	callq  0x7fffe5b49940
+0x7fffe591b748:	jmpq   0x7fffe591b5c0
+0x7fffe591b74d:	mov    0x14(%rsp),%eax
+0x7fffe591b751:	and    $0xffffff,%eax
+0x7fffe591b756:	or     $0xa0000000,%eax
+0x7fffe591b75b:	mov    %eax,0x0(%r13)
+0x7fffe591b75f:	jmp    0x7fffe591b6fa
+0x7fffe591b761:	nop
+0x7fffe591b762:	xchg   %ax,%ax
+0x7fffe591b766:	xchg   %ax,%ax
+0x7fffe591b76a:	xchg   %ax,%ax
+0x7fffe591b76d:	xchg   %ax,%ax
+
+
+
+0x7fffe591b770:	mov    %rbx,-0x30(%rsp)
+0x7fffe591b775:	mov    %rbp,-0x28(%rsp)
+0x7fffe591b77a:	mov    %esi,%ebx
+0x7fffe591b77c:	mov    %r12,-0x20(%rsp)
+0x7fffe591b781:	mov    %r13,-0x18(%rsp)
+0x7fffe591b786:	mov    %edi,%r12d
+0x7fffe591b789:	mov    %r14,-0x10(%rsp)
+0x7fffe591b78e:	mov    %r15,-0x8(%rsp)
+0x7fffe591b793:	sub    $0x38,%rsp
+0x7fffe591b797:	mov    0x55b582(%rip),%r13        # 0x7fffe5e76d20 <pthread_attr_setdetachstate+7503968>
+0x7fffe591b79e:	mov    %edx,%ebp
+0x7fffe591b7a0:	mov    %r13,%rdi
+0x7fffe591b7a3:	callq  0x7fffe5b49930
+0x7fffe591b7a8:	lea    0x34dbe1(%rip),%rsi        # 0x7fffe5c69390 <pthread_attr_setdetachstate+5351120>
+0x7fffe591b7af:	xor    %eax,%eax
+0x7fffe591b7b1:	mov    %ebp,%r8d
+0x7fffe591b7b4:	mov    %ebx,%ecx
+0x7fffe591b7b6:	mov    %r12d,%edx
+0x7fffe591b7b9:	mov    $0x10,%edi
+0x7fffe591b7be:	callq  0x7fffe591c120
+0x7fffe591b7c3:	mov    0x559dc6(%rip),%rax        # 0x7fffe5e75590 <pthread_attr_setdetachstate+7497936>
+0x7fffe591b7ca:	mov    $0x5,%esi
+0x7fffe591b7cf:	cmpq   $0x0,(%rax)
+0x7fffe591b7d3:	je     0x7fffe591b8e4
+0x7fffe591b7d9:	callq  0x7fffe591e4f0
+0x7fffe591b7de:	mov    %r12d,%esi
+0x7fffe591b7e1:	mov    %rax,%rdi
+0x7fffe591b7e4:	mov    $0x1,%ecx
+0x7fffe591b7e9:	mov    $0x1,%edx
+0x7fffe591b7ee:	callq  0x7fffe591e500
+0x7fffe591b7f3:	test   %rax,%rax
+0x7fffe591b7f6:	mov    %rax,%r12
+0x7fffe591b7f9:	je     0x7fffe591b942
+0x7fffe591b7ff:	cmp    $0xf000000,%ebx
+0x7fffe591b805:	je     0x7fffe591ba05
+0x7fffe591b80b:	mov    %ebx,%esi
+0x7fffe591b80d:	mov    %rax,%rdi
+0x7fffe591b810:	callq  0x7fffe591eca0
+0x7fffe591b815:	test   %rax,%rax
+0x7fffe591b818:	mov    %rax,%r14
+0x7fffe591b81b:	je     0x7fffe591b919
+0x7fffe591b821:	mov    %ebp,%esi
+0x7fffe591b823:	mov    %r12,%rdi
+0x7fffe591b826:	callq  0x7fffe59219a0
+0x7fffe591b82b:	test   %ebp,%ebp
+0x7fffe591b82d:	mov    %rax,%r15
+0x7fffe591b830:	setne  %al
+0x7fffe591b833:	jne    0x7fffe591b910
+0x7fffe591b839:	test   %r15,%r15
+0x7fffe591b83c:	setne  %bpl
+0x7fffe591b840:	test   %al,%al
+0x7fffe591b842:	je     0x7fffe591b950
+0x7fffe591b848:	test   %bpl,%bpl
+0x7fffe591b84b:	je     0x7fffe591b950
+0x7fffe591b851:	mov    %r12,%rdi
+0x7fffe591b854:	callq  0x7fffe591eae0
+0x7fffe591b859:	mov    %r15,%rdi
+0x7fffe591b85c:	mov    %rax,%rbx
+0x7fffe591b85f:	callq  0x7fffe5925d50
+0x7fffe591b864:	mov    %rax,%rdi
+0x7fffe591b867:	callq  0x7fffe59243d0
+0x7fffe591b86c:	cmp    %rax,%rbx
+0x7fffe591b86f:	je     0x7fffe591b950
+0x7fffe591b875:	mov    %r13,%rdi
+0x7fffe591b878:	callq  0x7fffe5b49b00
+0x7fffe591b87d:	lea    0x34db3c(%rip),%rsi        # 0x7fffe5c693c0 <pthread_attr_setdetachstate+5351168>
+0x7fffe591b884:	mov    %r13,%rdi
+0x7fffe591b887:	callq  0x7fffe5b49a40
+0x7fffe591b88c:	mov    %r14,%rdi
+0x7fffe591b88f:	callq  0x7fffe5926590
+0x7fffe591b894:	mov    %r13,%rdi
+0x7fffe591b897:	mov    %rax,%rsi
+0x7fffe591b89a:	callq  0x7fffe5b49a40
+0x7fffe591b89f:	lea    0x34df2c(%rip),%rsi        # 0x7fffe5c697d2 <pthread_attr_setdetachstate+5352210>
+0x7fffe591b8a6:	mov    %r13,%rdi
+0x7fffe591b8a9:	callq  0x7fffe5b49a40
+0x7fffe591b8ae:	mov    %r13,%rdi
+0x7fffe591b8b1:	callq  0x7fffe5b49a00
+0x7fffe591b8b6:	lea    0x130(%r12),%rdi
+0x7fffe591b8be:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591b8c3:	xor    %esi,%esi
+0x7fffe591b8c5:	sub    $0x1,%eax
+0x7fffe591b8c8:	jle    0x7fffe591b8d2
+0x7fffe591b8ca:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591b8cf:	mov    %rax,%rsi
+0x7fffe591b8d2:	lea    0x128(%r12),%rdi
+0x7fffe591b8da:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591b8df:	mov    $0x2,%esi
+0x7fffe591b8e4:	mov    %r13,%rdi
+0x7fffe591b8e7:	mov    0x8(%rsp),%rbx
+0x7fffe591b8ec:	mov    0x10(%rsp),%rbp
+0x7fffe591b8f1:	mov    0x18(%rsp),%r12
+0x7fffe591b8f6:	mov    0x20(%rsp),%r13
+0x7fffe591b8fb:	mov    0x28(%rsp),%r14
+0x7fffe591b900:	mov    0x30(%rsp),%r15
+0x7fffe591b905:	add    $0x38,%rsp
+0x7fffe591b909:	jmpq   0x7fffe5b49940
+0x7fffe591b90e:	xchg   %ax,%ax
+0x7fffe591b910:	test   %r15,%r15
+0x7fffe591b913:	jne    0x7fffe591b839
+0x7fffe591b919:	lea    0x130(%r12),%rdi
+0x7fffe591b921:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591b926:	xor    %esi,%esi
+0x7fffe591b928:	sub    $0x1,%eax
+0x7fffe591b92b:	jle    0x7fffe591b935
+0x7fffe591b92d:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591b932:	mov    %rax,%rsi
+0x7fffe591b935:	lea    0x128(%r12),%rdi
+0x7fffe591b93d:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591b942:	mov    $0x6,%esi
+0x7fffe591b947:	jmp    0x7fffe591b8e4
+0x7fffe591b949:	xchg   %ax,%ax
+0x7fffe591b94d:	xchg   %ax,%ax
+0x7fffe591b950:	mov    %r15,%rsi
+0x7fffe591b953:	mov    %r14,%rdi
+0x7fffe591b956:	callq  0x7fffe5926620
+0x7fffe591b95b:	mov    %r14,%rdi
+0x7fffe591b95e:	callq  0x7fffe59265b0
+0x7fffe591b963:	cmp    $0x7,%eax
+0x7fffe591b966:	ja     0x7fffe591b9d0
+0x7fffe591b968:	lea    0x34db91(%rip),%rdx        # 0x7fffe5c69500 <pthread_attr_setdetachstate+5351488>
+0x7fffe591b96f:	mov    %eax,%eax
+0x7fffe591b971:	movslq (%rdx,%rax,4),%rax
+0x7fffe591b975:	add    %rdx,%rax
+0x7fffe591b978:	jmpq   *%rax
+0x7fffe591b97a:	mov    (%r12),%rax
+0x7fffe591b97e:	mov    %r15,%rdx
+0x7fffe591b981:	mov    %r14,%rsi
+0x7fffe591b984:	mov    %r12,%rdi
+0x7fffe591b987:	add    $0x70,%rax
+0x7fffe591b98b:	callq  *(%rax)
+0x7fffe591b98d:	test   %eax,%eax
+0x7fffe591b98f:	jne    0x7fffe591b9d0
+0x7fffe591b991:	mov    %r14,%rdi
+0x7fffe591b994:	callq  0x7fffe59266b0
+0x7fffe591b999:	cmp    $0x2,%eax
+0x7fffe591b99c:	je     0x7fffe591bb90
+0x7fffe591b9a2:	mov    (%r12),%rax
+0x7fffe591b9a6:	mov    %r14,%rdi
+0x7fffe591b9a9:	add    $0x68,%rax
+0x7fffe591b9ad:	mov    (%rax),%rbx
+0x7fffe591b9b0:	callq  0x7fffe59265f0
+0x7fffe591b9b5:	mov    %r15,%rdx
+0x7fffe591b9b8:	mov    %eax,%ecx
+0x7fffe591b9ba:	mov    %r14,%rsi
+0x7fffe591b9bd:	mov    %r12,%rdi
+0x7fffe591b9c0:	callq  *%rbx
+0x7fffe591b9c2:	test   %eax,%eax
+0x7fffe591b9c4:	je     0x7fffe591bb6b
+0x7fffe591b9ca:	xchg   %ax,%ax
+0x7fffe591b9cd:	xchg   %ax,%ax
+0x7fffe591b9d0:	mov    $0x1,%ebx
+0x7fffe591b9d5:	lea    0x130(%r12),%rdi
+0x7fffe591b9dd:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591b9e2:	xor    %esi,%esi
+0x7fffe591b9e4:	sub    $0x1,%eax
+0x7fffe591b9e7:	jle    0x7fffe591b9f1
+0x7fffe591b9e9:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591b9ee:	mov    %rax,%rsi
+0x7fffe591b9f1:	lea    0x128(%r12),%rdi
+0x7fffe591b9f9:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591b9fe:	mov    %ebx,%esi
+0x7fffe591ba00:	jmpq   0x7fffe591b8e4
+0x7fffe591ba05:	lea    0x130(%rax),%rdi
+0x7fffe591ba0c:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591ba11:	xor    %esi,%esi
+0x7fffe591ba13:	sub    $0x1,%eax
+0x7fffe591ba16:	jle    0x7fffe591ba20
+0x7fffe591ba18:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591ba1d:	mov    %rax,%rsi
+0x7fffe591ba20:	lea    0x128(%r12),%rdi
+0x7fffe591ba28:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591ba2d:	xor    %esi,%esi
+0x7fffe591ba2f:	jmpq   0x7fffe591b8e4
+0x7fffe591ba34:	test   %bpl,%bpl
+0x7fffe591ba37:	je     0x7fffe591bb86
+0x7fffe591ba3d:	mov    %r15,%rdi
+0x7fffe591ba40:	callq  0x7fffe5925d50
+0x7fffe591ba45:	mov    %rax,%rdi
+0x7fffe591ba48:	mov    %rax,%rbx
+0x7fffe591ba4b:	callq  0x7fffe5924440
+0x7fffe591ba50:	cmp    $0x6,%eax
+0x7fffe591ba53:	je     0x7fffe591bb86
+0x7fffe591ba59:	mov    %rbx,%rdi
+0x7fffe591ba5c:	callq  0x7fffe5924440
+0x7fffe591ba61:	cmp    $0xb,%eax
+0x7fffe591ba64:	je     0x7fffe591bb86
+0x7fffe591ba6a:	mov    %rbx,%rdi
+0x7fffe591ba6d:	callq  0x7fffe5924440
+0x7fffe591ba72:	cmp    $0xc,%eax
+0x7fffe591ba75:	je     0x7fffe591bb86
+0x7fffe591ba7b:	mov    %rbx,%rdi
+0x7fffe591ba7e:	callq  0x7fffe5924440
+0x7fffe591ba83:	cmp    $0xd,%eax
+0x7fffe591ba86:	je     0x7fffe591bb86
+0x7fffe591ba8c:	mov    %rbx,%rdi
+0x7fffe591ba8f:	callq  0x7fffe5924440
+0x7fffe591ba94:	cmp    $0xe,%eax
+0x7fffe591ba97:	je     0x7fffe591bb86
+0x7fffe591ba9d:	mov    %rbx,%rdi
+0x7fffe591baa0:	callq  0x7fffe5924440
+0x7fffe591baa5:	cmp    $0xf,%eax
+0x7fffe591baa8:	je     0x7fffe591bb86
+0x7fffe591baae:	mov    %rbx,%rdi
+0x7fffe591bab1:	callq  0x7fffe5924440
+0x7fffe591bab6:	cmp    $0x10,%eax
+0x7fffe591bab9:	je     0x7fffe591bb86
+0x7fffe591babf:	mov    %rbx,%rdi
+0x7fffe591bac2:	callq  0x7fffe5924440
+0x7fffe591bac7:	cmp    $0x11,%eax
+0x7fffe591baca:	je     0x7fffe591bb86
+0x7fffe591bad0:	mov    %rbx,%rdi
+0x7fffe591bad3:	callq  0x7fffe5924440
+0x7fffe591bad8:	cmp    $0x14,%eax
+0x7fffe591badb:	je     0x7fffe591bb86
+0x7fffe591bae1:	mov    %rbx,%rdi
+0x7fffe591bae4:	callq  0x7fffe5924440
+0x7fffe591bae9:	cmp    $0x15,%eax
+0x7fffe591baec:	je     0x7fffe591bb86
+0x7fffe591baf2:	mov    %rbx,%rdi
+0x7fffe591baf5:	callq  0x7fffe5924440
+0x7fffe591bafa:	cmp    $0x16,%eax
+0x7fffe591bafd:	je     0x7fffe591bb86
+0x7fffe591bb03:	mov    %r13,%rdi
+0x7fffe591bb06:	mov    $0x2,%ebx
+0x7fffe591bb0b:	callq  0x7fffe5b49b00
+0x7fffe591bb10:	lea    0x34d8e1(%rip),%rsi        # 0x7fffe5c693f8 <pthread_attr_setdetachstate+5351224>
+0x7fffe591bb17:	mov    %r13,%rdi
+0x7fffe591bb1a:	callq  0x7fffe5b49a40
+0x7fffe591bb1f:	mov    %r14,%rdi
+0x7fffe591bb22:	callq  0x7fffe5926590
+0x7fffe591bb27:	mov    %r13,%rdi
+0x7fffe591bb2a:	mov    %rax,%rsi
+0x7fffe591bb2d:	callq  0x7fffe5b49a40
+0x7fffe591bb32:	lea    0x34dc99(%rip),%rsi        # 0x7fffe5c697d2 <pthread_attr_setdetachstate+5352210>
+0x7fffe591bb39:	mov    %r13,%rdi
+0x7fffe591bb3c:	callq  0x7fffe5b49a40
+0x7fffe591bb41:	mov    %r13,%rdi
+0x7fffe591bb44:	callq  0x7fffe5b49a00
+0x7fffe591bb49:	jmpq   0x7fffe591b9d5
+0x7fffe591bb4e:	xchg   %ax,%ax
+0x7fffe591bb50:	mov    (%r12),%rax
+0x7fffe591bb54:	add    $0x58,%rax
+0x7fffe591bb58:	mov    %r15,%rdx
+0x7fffe591bb5b:	mov    %r14,%rsi
+0x7fffe591bb5e:	mov    %r12,%rdi
+0x7fffe591bb61:	callq  *(%rax)
+0x7fffe591bb63:	test   %eax,%eax
+0x7fffe591bb65:	jne    0x7fffe591b9d0
+0x7fffe591bb6b:	xor    %ebx,%ebx
+0x7fffe591bb6d:	jmpq   0x7fffe591b9d5
+0x7fffe591bb72:	mov    (%r12),%rax
+0x7fffe591bb76:	add    $0x48,%rax
+0x7fffe591bb7a:	jmp    0x7fffe591bb58
+0x7fffe591bb7c:	mov    (%r12),%rax
+0x7fffe591bb80:	add    $0x40,%rax
+0x7fffe591bb84:	jmp    0x7fffe591bb58
+0x7fffe591bb86:	mov    (%r12),%rax
+0x7fffe591bb8a:	add    $0x50,%rax
+0x7fffe591bb8e:	jmp    0x7fffe591bb58
+0x7fffe591bb90:	mov    (%r12),%rax
+0x7fffe591bb94:	mov    %r15,%rdx
+0x7fffe591bb97:	mov    %r14,%rsi
+0x7fffe591bb9a:	mov    %r12,%rdi
+0x7fffe591bb9d:	add    $0x78,%rax
+0x7fffe591bba1:	callq  *(%rax)
+0x7fffe591bba3:	test   %eax,%eax
+0x7fffe591bba5:	jne    0x7fffe591b9d0
+0x7fffe591bbab:	jmpq   0x7fffe591b9a2
+0x7fffe591bbb0:	mov    %rbx,-0x30(%rsp)
+0x7fffe591bbb5:	mov    %r12,-0x20(%rsp)
+0x7fffe591bbba:	mov    %rdi,%rbx
+0x7fffe591bbbd:	mov    %r13,-0x18(%rsp)
+0x7fffe591bbc2:	mov    %r14,-0x10(%rsp)
+0x7fffe591bbc7:	mov    %esi,%r13d
+0x7fffe591bbca:	mov    %r15,-0x8(%rsp)
+0x7fffe591bbcf:	mov    %rbp,-0x28(%rsp)
+0x7fffe591bbd4:	sub    $0x68,%rsp
+0x7fffe591bbd8:	mov    0x55b141(%rip),%r12        # 0x7fffe5e76d20 <pthread_attr_setdetachstate+7503968>
+0x7fffe591bbdf:	mov    %edx,%r14d
+0x7fffe591bbe2:	mov    %ecx,%r15d
+0x7fffe591bbe5:	mov    %r12,%rdi
+0x7fffe591bbe8:	callq  0x7fffe5b49930
+0x7fffe591bbed:	mov    0x55999c(%rip),%rax        # 0x7fffe5e75590 <pthread_attr_setdetachstate+7497936>
+0x7fffe591bbf4:	mov    $0x5,%esi
+0x7fffe591bbf9:	cmpq   $0x0,(%rax)
+0x7fffe591bbfd:	je     0x7fffe591bca6
+0x7fffe591bc03:	test   %rbx,%rbx
+0x7fffe591bc06:	mov    $0x2,%esi
+0x7fffe591bc0b:	je     0x7fffe591bca6
+0x7fffe591bc11:	callq  0x7fffe591e4f0
+0x7fffe591bc16:	mov    $0x1,%ecx
+0x7fffe591bc1b:	mov    %rax,%rdi
+0x7fffe591bc1e:	mov    $0x1,%edx
+0x7fffe591bc23:	mov    %r13d,%esi
+0x7fffe591bc26:	callq  0x7fffe591e500
+0x7fffe591bc2b:	test   %rax,%rax
+0x7fffe591bc2e:	mov    %rax,%rbp
+0x7fffe591bc31:	je     0x7fffe591bcf7
+0x7fffe591bc37:	mov    %r14d,%esi
+0x7fffe591bc3a:	mov    %rax,%rdi
+0x7fffe591bc3d:	callq  0x7fffe5922140
+0x7fffe591bc42:	test   %eax,%eax
+0x7fffe591bc44:	je     0x7fffe591bcd0
+0x7fffe591bc4a:	mov    %r15d,%esi
+0x7fffe591bc4d:	mov    %rbp,%rdi
+0x7fffe591bc50:	callq  0x7fffe591ed00
+0x7fffe591bc55:	test   %rax,%rax
+0x7fffe591bc58:	mov    %rax,%rcx
+0x7fffe591bc5b:	je     0x7fffe591bcd0
+0x7fffe591bc5d:	mov    0x0(%rbp),%rax
+0x7fffe591bc61:	mov    %rbx,%rdx
+0x7fffe591bc64:	mov    %rcx,%rsi
+0x7fffe591bc67:	mov    %rbp,%rdi
+0x7fffe591bc6a:	add    $0x170,%rax
+0x7fffe591bc70:	callq  *(%rax)
+0x7fffe591bc72:	test   %eax,%eax
+0x7fffe591bc74:	je     0x7fffe591bcfe
+0x7fffe591bc7a:	lea    0x130(%rbp),%rdi
+0x7fffe591bc81:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591bc86:	xor    %esi,%esi
+0x7fffe591bc88:	sub    $0x1,%eax
+0x7fffe591bc8b:	jle    0x7fffe591bc95
+0x7fffe591bc8d:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591bc92:	mov    %rax,%rsi
+0x7fffe591bc95:	lea    0x128(%rbp),%rdi
+0x7fffe591bc9c:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591bca1:	mov    $0x1,%esi
+0x7fffe591bca6:	mov    %r12,%rdi
+0x7fffe591bca9:	mov    0x38(%rsp),%rbx
+0x7fffe591bcae:	mov    0x40(%rsp),%rbp
+0x7fffe591bcb3:	mov    0x48(%rsp),%r12
+0x7fffe591bcb8:	mov    0x50(%rsp),%r13
+0x7fffe591bcbd:	mov    0x58(%rsp),%r14
+0x7fffe591bcc2:	mov    0x60(%rsp),%r15
+0x7fffe591bcc7:	add    $0x68,%rsp
+0x7fffe591bccb:	jmpq   0x7fffe5b49940
+0x7fffe591bcd0:	lea    0x130(%rbp),%rdi
+0x7fffe591bcd7:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591bcdc:	xor    %esi,%esi
+0x7fffe591bcde:	sub    $0x1,%eax
+0x7fffe591bce1:	jle    0x7fffe591bceb
+0x7fffe591bce3:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591bce8:	mov    %rax,%rsi
+0x7fffe591bceb:	lea    0x128(%rbp),%rdi
+0x7fffe591bcf2:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591bcf7:	mov    $0x6,%esi
+0x7fffe591bcfc:	jmp    0x7fffe591bca6
+0x7fffe591bcfe:	mov    (%rbx),%rax
+0x7fffe591bd01:	lea    0x34d718(%rip),%rsi        # 0x7fffe5c69420 <pthread_attr_setdetachstate+5351264>
+0x7fffe591bd08:	mov    %r15d,%r8d
+0x7fffe591bd0b:	mov    %r14d,%ecx
+0x7fffe591bd0e:	mov    %r13d,%edx
+0x7fffe591bd11:	mov    $0x8,%edi
+0x7fffe591bd16:	mov    %rax,(%rsp)
+0x7fffe591bd1a:	mov    0x8(%rbx),%rax
+0x7fffe591bd1e:	mov    %rax,0x8(%rsp)
+0x7fffe591bd23:	mov    0x10(%rbx),%rax
+0x7fffe591bd27:	mov    %rax,0x10(%rsp)
+0x7fffe591bd2c:	mov    0x18(%rbx),%rax
+0x7fffe591bd30:	mov    %rax,0x18(%rsp)
+0x7fffe591bd35:	mov    0x20(%rbx),%rax
+0x7fffe591bd39:	mov    %rax,0x20(%rsp)
+0x7fffe591bd3e:	mov    0x28(%rbx),%rax
+0x7fffe591bd42:	mov    %rax,0x28(%rsp)
+0x7fffe591bd47:	mov    0x30(%rbx),%eax
+0x7fffe591bd4a:	mov    %eax,0x30(%rsp)
+0x7fffe591bd4e:	xor    %eax,%eax
+0x7fffe591bd50:	callq  0x7fffe591c120
+0x7fffe591bd55:	lea    0x130(%rbp),%rdi
+0x7fffe591bd5c:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591bd61:	xor    %esi,%esi
+0x7fffe591bd63:	sub    $0x1,%eax
+0x7fffe591bd66:	jle    0x7fffe591bd70
+0x7fffe591bd68:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591bd6d:	mov    %rax,%rsi
+0x7fffe591bd70:	lea    0x128(%rbp),%rdi
+0x7fffe591bd77:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591bd7c:	xor    %esi,%esi
+0x7fffe591bd7e:	jmpq   0x7fffe591bca6
+0x7fffe591bd83:	nop
+0x7fffe591bd84:	xchg   %ax,%ax
+0x7fffe591bd88:	xchg   %ax,%ax
+0x7fffe591bd8c:	xchg   %ax,%ax
+0x7fffe591bd90:	mov    %rbp,-0x28(%rsp)
+0x7fffe591bd95:	mov    %r12,-0x20(%rsp)
+0x7fffe591bd9a:	mov    %rdi,%rbp
+0x7fffe591bd9d:	mov    %r13,-0x18(%rsp)
+0x7fffe591bda2:	mov    %r14,-0x10(%rsp)
+0x7fffe591bda7:	mov    %edx,%r13d
+0x7fffe591bdaa:	mov    %r15,-0x8(%rsp)
+0x7fffe591bdaf:	mov    %rbx,-0x30(%rsp)
+0x7fffe591bdb4:	sub    $0x38,%rsp
+0x7fffe591bdb8:	mov    0x55af61(%rip),%r12        # 0x7fffe5e76d20 <pthread_attr_setdetachstate+7503968>
+0x7fffe591bdbf:	mov    %esi,%r15d
+0x7fffe591bdc2:	mov    %rcx,%r14
+0x7fffe591bdc5:	mov    %r12,%rdi
+0x7fffe591bdc8:	callq  0x7fffe5b49930
+0x7fffe591bdcd:	mov    0x5597bc(%rip),%rax        # 0x7fffe5e75590 <pthread_attr_setdetachstate+7497936>
+0x7fffe591bdd4:	mov    $0x5,%esi
+0x7fffe591bdd9:	cmpq   $0x0,(%rax)
+0x7fffe591bddd:	je     0x7fffe591be4d
+0x7fffe591bddf:	test   %rbp,%rbp
+0x7fffe591bde2:	mov    $0x2,%esi
+0x7fffe591bde7:	je     0x7fffe591be4d
+0x7fffe591bde9:	movl   $0x0,0x0(%rbp)
+0x7fffe591bdf0:	callq  0x7fffe591e4f0
+0x7fffe591bdf5:	mov    $0x1,%ecx
+0x7fffe591bdfa:	mov    %rax,%rdi
+0x7fffe591bdfd:	mov    $0x1,%edx
+0x7fffe591be02:	mov    %r15d,%esi
+0x7fffe591be05:	callq  0x7fffe591e500
+0x7fffe591be0a:	test   %rax,%rax
+0x7fffe591be0d:	mov    %rax,%rbx
+0x7fffe591be10:	je     0x7fffe591be48
+0x7fffe591be12:	mov    %r13d,%esi
+0x7fffe591be15:	mov    %rax,%rdi
+0x7fffe591be18:	callq  0x7fffe5922140
+0x7fffe591be1d:	test   %eax,%eax
+0x7fffe591be1f:	jne    0x7fffe591be77
+0x7fffe591be21:	lea    0x130(%rbx),%rdi
+0x7fffe591be28:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591be2d:	xor    %esi,%esi
+0x7fffe591be2f:	sub    $0x1,%eax
+0x7fffe591be32:	jle    0x7fffe591be3c
+0x7fffe591be34:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591be39:	mov    %rax,%rsi
+0x7fffe591be3c:	lea    0x128(%rbx),%rdi
+0x7fffe591be43:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591be48:	mov    $0x6,%esi
+0x7fffe591be4d:	mov    %r12,%rdi
+0x7fffe591be50:	mov    0x8(%rsp),%rbx
+0x7fffe591be55:	mov    0x10(%rsp),%rbp
+0x7fffe591be5a:	mov    0x18(%rsp),%r12
+0x7fffe591be5f:	mov    0x20(%rsp),%r13
+0x7fffe591be64:	mov    0x28(%rsp),%r14
+0x7fffe591be69:	mov    0x30(%rsp),%r15
+0x7fffe591be6e:	add    $0x38,%rsp
+0x7fffe591be72:	jmpq   0x7fffe5b49940
+0x7fffe591be77:	cld    
+0x7fffe591be78:	lea    0x34ce0e(%rip),%rdi        # 0x7fffe5c68c8d <pthread_attr_setdetachstate+5349325>
+0x7fffe591be7f:	mov    $0x4,%ecx
+0x7fffe591be84:	mov    %r14,%rsi
+0x7fffe591be87:	repz cmpsb %es:(%rdi),%ds:(%rsi)
+0x7fffe591be89:	jne    0x7fffe591bec0
+0x7fffe591be8b:	lea    0x130(%rbx),%rdi
+0x7fffe591be92:	movl   $0xf000000,0x0(%rbp)
+0x7fffe591be99:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591be9e:	xor    %esi,%esi
+0x7fffe591bea0:	sub    $0x1,%eax
+0x7fffe591bea3:	jle    0x7fffe591bead
+0x7fffe591bea5:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591beaa:	mov    %rax,%rsi
+0x7fffe591bead:	lea    0x128(%rbx),%rdi
+0x7fffe591beb4:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591beb9:	xor    %esi,%esi
+0x7fffe591bebb:	jmp    0x7fffe591be4d
+0x7fffe591bebd:	xchg   %ax,%ax
+0x7fffe591bec0:	mov    %r14,%rcx
+0x7fffe591bec3:	mov    %r13d,%edx
+0x7fffe591bec6:	mov    %rbp,%rsi
+0x7fffe591bec9:	mov    %rbx,%rdi
+0x7fffe591becc:	callq  0x7fffe5922070
+0x7fffe591bed1:	mov    %eax,0x4(%rsp)
+0x7fffe591bed5:	mov    0x0(%rbp),%edx
+0x7fffe591bed8:	lea    0x34d589(%rip),%rsi        # 0x7fffe5c69468 <pthread_attr_setdetachstate+5351336>
+0x7fffe591bedf:	xor    %eax,%eax
+0x7fffe591bee1:	mov    %r14,%r9
+0x7fffe591bee4:	mov    %r13d,%r8d
+0x7fffe591bee7:	mov    %r15d,%ecx
+0x7fffe591beea:	mov    $0x8,%edi
+0x7fffe591beef:	callq  0x7fffe591c120
+0x7fffe591bef4:	lea    0x130(%rbx),%rdi
+0x7fffe591befb:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591bf00:	xor    %esi,%esi
+0x7fffe591bf02:	sub    $0x1,%eax
+0x7fffe591bf05:	jle    0x7fffe591bf0f
+0x7fffe591bf07:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591bf0c:	mov    %rax,%rsi
+0x7fffe591bf0f:	lea    0x128(%rbx),%rdi
+0x7fffe591bf16:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591bf1b:	mov    0x4(%rsp),%esi
+0x7fffe591bf1f:	jmpq   0x7fffe591be4d
+0x7fffe591bf24:	xchg   %ax,%ax
+0x7fffe591bf28:	xchg   %ax,%ax
+0x7fffe591bf2c:	xchg   %ax,%ax
+0x7fffe591bf30:	mov    %rbp,-0x28(%rsp)
+0x7fffe591bf35:	mov    %r12,-0x20(%rsp)
+0x7fffe591bf3a:	mov    %rdi,%rbp
+0x7fffe591bf3d:	mov    %r13,-0x18(%rsp)
+0x7fffe591bf42:	mov    %r14,-0x10(%rsp)
+0x7fffe591bf47:	mov    %edx,%r12d
+0x7fffe591bf4a:	mov    %r15,-0x8(%rsp)
+0x7fffe591bf4f:	mov    %rbx,-0x30(%rsp)
+0x7fffe591bf54:	sub    $0x78,%rsp
+0x7fffe591bf58:	mov    0x55adc1(%rip),%r13        # 0x7fffe5e76d20 <pthread_attr_setdetachstate+7503968>
+0x7fffe591bf5f:	mov    %esi,%r14d
+0x7fffe591bf62:	mov    %rcx,%r15
+0x7fffe591bf65:	mov    %r13,%rdi
+0x7fffe591bf68:	callq  0x7fffe5b49930
+0x7fffe591bf6d:	mov    0x55961c(%rip),%rax        # 0x7fffe5e75590 <pthread_attr_setdetachstate+7497936>
+0x7fffe591bf74:	cmpq   $0x0,(%rax)
+0x7fffe591bf78:	je     0x7fffe591c0c0
+0x7fffe591bf7e:	test   %rbp,%rbp
+0x7fffe591bf81:	je     0x7fffe591c106
+0x7fffe591bf87:	movl   $0x0,0x0(%rbp)
+0x7fffe591bf8e:	callq  0x7fffe591e4f0
+0x7fffe591bf93:	mov    $0x1,%ecx
+0x7fffe591bf98:	mov    %rax,%rdi
+0x7fffe591bf9b:	mov    $0x1,%edx
+0x7fffe591bfa0:	mov    %r14d,%esi
+0x7fffe591bfa3:	callq  0x7fffe591e500
+0x7fffe591bfa8:	test   %rax,%rax
+0x7fffe591bfab:	mov    %rax,%rbx
+0x7fffe591bfae:	je     0x7fffe591c08a
+0x7fffe591bfb4:	mov    %r12d,%esi
+0x7fffe591bfb7:	mov    %rax,%rdi
+0x7fffe591bfba:	callq  0x7fffe5922140
+0x7fffe591bfbf:	test   %eax,%eax
+0x7fffe591bfc1:	je     0x7fffe591c063
+0x7fffe591bfc7:	mov    %r15,%rcx
+0x7fffe591bfca:	mov    %r12d,%edx
+0x7fffe591bfcd:	mov    %rbp,%rsi
+0x7fffe591bfd0:	mov    %rbx,%rdi
+0x7fffe591bfd3:	callq  0x7fffe59221a0
+0x7fffe591bfd8:	sub    $0x1,%eax
+0x7fffe591bfdb:	je     0x7fffe591c0d0
+0x7fffe591bfe1:	mov    0x0(%rbp),%esi
+0x7fffe591bfe4:	mov    %rbx,%rdi
+0x7fffe591bfe7:	callq  0x7fffe591ed00
+0x7fffe591bfec:	test   %rax,%rax
+0x7fffe591bfef:	mov    %rax,%rcx
+0x7fffe591bff2:	je     0x7fffe591c063
+0x7fffe591bff4:	mov    (%rbx),%rax
+0x7fffe591bff7:	mov    %rsp,%rdx
+0x7fffe591bffa:	mov    %rcx,%rsi
+0x7fffe591bffd:	mov    %rbx,%rdi
+0x7fffe591c000:	add    $0x170,%rax
+0x7fffe591c006:	callq  *(%rax)
+0x7fffe591c008:	sub    $0x1,%eax
+0x7fffe591c00b:	je     0x7fffe591c0d0
+0x7fffe591c011:	mov    0x0(%rbp),%edx
+0x7fffe591c014:	lea    0x34d48d(%rip),%rsi        # 0x7fffe5c694a8 <pthread_attr_setdetachstate+5351400>
+0x7fffe591c01b:	xor    %eax,%eax
+0x7fffe591c01d:	mov    %r15,%r9
+0x7fffe591c020:	mov    %r12d,%r8d
+0x7fffe591c023:	mov    %r14d,%ecx
+0x7fffe591c026:	mov    $0x8,%edi
+0x7fffe591c02b:	callq  0x7fffe591c120
+0x7fffe591c030:	lea    0x130(%rbx),%rdi
+0x7fffe591c037:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591c03c:	xor    %esi,%esi
+0x7fffe591c03e:	sub    $0x1,%eax
+0x7fffe591c041:	jle    0x7fffe591c04b
+0x7fffe591c043:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591c048:	mov    %rax,%rsi
+0x7fffe591c04b:	lea    0x128(%rbx),%rdi
+0x7fffe591c052:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591c057:	xor    %esi,%esi
+0x7fffe591c059:	mov    %r13,%rdi
+0x7fffe591c05c:	callq  0x7fffe5b49940
+0x7fffe591c061:	jmp    0x7fffe591c097
+0x7fffe591c063:	lea    0x130(%rbx),%rdi
+0x7fffe591c06a:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591c06f:	xor    %esi,%esi
+0x7fffe591c071:	sub    $0x1,%eax
+0x7fffe591c074:	jle    0x7fffe591c07e
+0x7fffe591c076:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591c07b:	mov    %rax,%rsi
+0x7fffe591c07e:	lea    0x128(%rbx),%rdi
+0x7fffe591c085:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591c08a:	mov    $0x6,%esi
+0x7fffe591c08f:	mov    %r13,%rdi
+0x7fffe591c092:	callq  0x7fffe5b49940
+0x7fffe591c097:	mov    0x48(%rsp),%rbx
+0x7fffe591c09c:	mov    0x50(%rsp),%rbp
+0x7fffe591c0a1:	mov    0x58(%rsp),%r12
+0x7fffe591c0a6:	mov    0x60(%rsp),%r13
+0x7fffe591c0ab:	mov    0x68(%rsp),%r14
+0x7fffe591c0b0:	mov    0x70(%rsp),%r15
+0x7fffe591c0b5:	add    $0x78,%rsp
+0x7fffe591c0b9:	retq   
+0x7fffe591c0ba:	xchg   %ax,%ax
+0x7fffe591c0bd:	xchg   %ax,%ax
+0x7fffe591c0c0:	mov    $0x5,%esi
+0x7fffe591c0c5:	mov    %r13,%rdi
+0x7fffe591c0c8:	callq  0x7fffe5b49940
+0x7fffe591c0cd:	jmp    0x7fffe591c097
+0x7fffe591c0cf:	nop
+0x7fffe591c0d0:	lea    0x130(%rbx),%rdi
+0x7fffe591c0d7:	callq  0x7fffe5917b70 <pthread_attr_setdetachstate+1871536>
+0x7fffe591c0dc:	xor    %esi,%esi
+0x7fffe591c0de:	sub    $0x1,%eax
+0x7fffe591c0e1:	jle    0x7fffe591c0eb
+0x7fffe591c0e3:	callq  0x7fffe5917cd0 <pthread_attr_setdetachstate+1871888>
+0x7fffe591c0e8:	mov    %rax,%rsi
+0x7fffe591c0eb:	lea    0x128(%rbx),%rdi
+0x7fffe591c0f2:	callq  0x7fffe5917b90 <pthread_attr_setdetachstate+1871568>
+0x7fffe591c0f7:	mov    $0x1,%esi
+0x7fffe591c0fc:	mov    %r13,%rdi
+0x7fffe591c0ff:	callq  0x7fffe5b49940
+0x7fffe591c104:	jmp    0x7fffe591c097
+0x7fffe591c106:	mov    $0x2,%esi
+0x7fffe591c10b:	mov    %r13,%rdi
+0x7fffe591c10e:	callq  0x7fffe5b49940
+0x7fffe591c113:	jmp    0x7fffe591c097
+0x7fffe591c115:	nop
+0x7fffe591c116:	nop
+0x7fffe591c117:	nop
+0x7fffe591c118:	nop
+0x7fffe591c119:	nop
+0x7fffe591c11a:	nop
+0x7fffe591c11b:	nop
+0x7fffe591c11c:	nop
+0x7fffe591c11d:	nop
+0x7fffe591c11e:	nop
+0x7fffe591c11f:	nop
+0x7fffe591c120:	repz retq 
+0x7fffe591c122:	nop
+0x7fffe591c123:	nop
+0x7fffe591c124:	nop
+0x7fffe591c125:	nop
+0x7fffe591c126:	nop
+0x7fffe591c127:	nop
+0x7fffe591c128:	nop
+0x7fffe591c129:	nop
+0x7fffe591c12a:	nop
+0x7fffe591c12b:	nop
+0x7fffe591c12c:	nop
+0x7fffe591c12d:	nop
+0x7fffe591c12e:	nop
+0x7fffe591c12f:	nop
+0x7fffe591c130:	test   %rdi,%rdi
+0x7fffe591c133:	je     0x7fffe591c162
+0x7fffe591c135:	test   %rsi,%rsi
+0x7fffe591c138:	je     0x7fffe591c162
+0x7fffe591c13a:	lea    -0x8001(%rdx),%eax
+0x7fffe591c140:	cmp    $0x11,%eax
+0x7fffe591c143:	ja     0x7fffe591c157
+0x7fffe591c145:	mov    $0x3,%eax
+0x7fffe591c14a:	movl   $0x0,(%rdi)
+0x7fffe591c150:	movl   $0x0,(%rsi)
+0x7fffe591c156:	retq   
+0x7fffe591c157:	lea    -0x1001(%rdx),%ecx
+0x7fffe591c15d:	cmp    $0x7,%ecx
+0x7fffe591c160:	jbe    0x7fffe591c168
+0x7fffe591c162:	mov    $0x2,%eax
+0x7fffe591c167:	retq   
+0x7fffe591c168:	mov    $0x1,%eax
+0x7fffe591c16d:	shl    %cl,%rax
+0x7fffe591c170:	test   $0xfd,%al
+0x7fffe591c172:	jne    0x7fffe591c145
+0x7fffe591c174:	jmp    0x7fffe591c162
+0x7fffe591c176:	xchg   %ax,%ax
+0x7fffe591c17a:	xchg   %ax,%ax
+0x7fffe591c17d:	xchg   %ax,%ax
+0x7fffe591c180:	jmpq   0x7fffe5927460
+0x7fffe591c185:	nop
+0x7fffe591c186:	xchg   %ax,%ax
+0x7fffe591c18a:	xchg   %ax,%ax
+0x7fffe591c18d:	xchg   %ax,%ax
+0x7fffe591c190:	sub    $0x8,%rsp
+0x7fffe591c194:	callq  0x7fffe5927570
+0x7fffe591c199:	callq  0x7fffe5927840
+0x7fffe591c19e:	callq  0x7fffe5927a10
+0x7fffe591c1a3:	callq  0x7fffe5927e60
+0x7fffe591c1a8:	callq  0x7fffe5927eb0
+0x7fffe591c1ad:	xchg   %ax,%ax
+0x7fffe591c1b0:	callq  0x7fffe59294b0
+0x7fffe591c1b5:	callq  0x7fffe59281a0
+0x7fffe591c1ba:	callq  0x7fffe5927ef0
+0x7fffe591c1bf:	nop
+0x7fffe591c1c0:	callq  0x7fffe59294c0
+0x7fffe591c1c5:	callq  0x7fffe5929780
+0x7fffe591c1ca:	callq  0x7fffe5929960
+0x7fffe591c1cf:	nop
+0x7fffe591c1d0:	callq  0x7fffe5929cc0
+0x7fffe591c1d5:	callq  0x7fffe5928120
+0x7fffe591c1da:	callq  0x7fffe5928160
+0x7fffe591c1df:	nop
+0x7fffe591c1e0:	callq  0x7fffe5928140
+0x7fffe591c1e5:	callq  0x7fffe592a020
+0x7fffe591c1ea:	callq  0x7fffe592a0b0
+0x7fffe591c1ef:	nop
+0x7fffe591c1f0:	callq  0x7fffe592a2b0
+0x7fffe591c1f5:	add    $0x8,%rsp
+0x7fffe591c1f9:	jmpq   0x7fffe5928180
+0x7fffe591c1fe:	xchg   %ax,%ax
+0x7fffe591c200:	lea    -0x8001(%rdi),%eax
+0x7fffe591c206:	cmp    $0x11,%eax
+0x7fffe591c209:	jbe    0x7fffe591c228
+0x7fffe591c20b:	lea    -0x1001(%rdi),%ecx
+0x7fffe591c211:	cmp    $0x7,%ecx
+0x7fffe591c214:	ja     0x7fffe591c222
+0x7fffe591c216:	mov    $0x1,%eax
+0x7fffe591c21b:	shl    %cl,%rax
+0x7fffe591c21e:	test   $0xfd,%al
+0x7fffe591c220:	jne    0x7fffe591c228
+0x7fffe591c222:	mov    $0x2,%eax
+0x7fffe591c227:	retq   
+0x7fffe591c228:	xor    %eax,%eax
+0x7fffe591c22a:	retq   
+0x7fffe591c22b:	nop
+0x7fffe591c22c:	xchg   %ax,%ax
+0x7fffe591c230:	push   %rbx
+0x7fffe591c231:	mov    %rdi,%rbx
+0x7fffe591c234:	mov    %esi,%edi
+0x7fffe591c236:	test   %rbx,%rbx
+0x7fffe591c239:	je     0x7fffe591c280
+0x7fffe591c23b:	test   %rdx,%rdx
+0x7fffe591c23e:	je     0x7fffe591c280
+0x7fffe591c240:	lea    -0x8001(%rdi),%eax
+0x7fffe591c246:	cmp    $0x11,%eax
+0x7fffe591c249:	jbe    0x7fffe591c264
+0x7fffe591c24b:	lea    -0x1001(%rdi),%esi
+0x7fffe591c251:	cmp    $0x7,%esi
+0x7fffe591c254:	ja     0x7fffe591c280
+0x7fffe591c256:	mov    $0x1,%eax
+0x7fffe591c25b:	mov    %esi,%ecx
+0x7fffe591c25d:	shl    %cl,%rax
+0x7fffe591c260:	test   $0xfd,%al
+0x7fffe591c262:	je     0x7fffe591c280
+0x7fffe591c264:	mov    %rdx,%rsi
+0x7fffe591c267:	callq  0x7fffe5927510
+0x7fffe591c26c:	mov    %rax,(%rbx)
+0x7fffe591c26f:	cmp    $0x1,%rax
+0x7fffe591c273:	pop    %rbx
+0x7fffe591c274:	sbb    %eax,%eax
+0x7fffe591c276:	and    $0x3,%eax
+0x7fffe591c279:	retq   
+0x7fffe591c27a:	xchg   %ax,%ax
+0x7fffe591c27d:	xchg   %ax,%ax
+0x7fffe591c280:	pop    %rbx
+0x7fffe591c281:	mov    $0x2,%eax
+0x7fffe591c286:	retq   
+0x7fffe591c287:	nop
+0x7fffe591c288:	nop
+0x7fffe591c289:	nop
+0x7fffe591c28a:	nop
+0x7fffe591c28b:	nop
+0x7fffe591c28c:	nop
+0x7fffe591c28d:	nop
+0x7fffe591c28e:	nop
+0x7fffe591c28f:	nop
+0x7fffe591c290:	movq   $0x0,(%rdi)
+0x7fffe591c297:	movl   $0x1,0x8(%rdi)
+0x7fffe591c29e:	movl   $0x0,0xc(%rdi)
+0x7fffe591c2a5:	retq   
+0x7fffe591c2a6:	xchg   %ax,%ax
+0x7fffe591c2aa:	xchg   %ax,%ax
+0x7fffe591c2ad:	xchg   %ax,%ax
+0x7fffe591c2b0:	movq   $0x0,(%rdi)
+0x7fffe591c2b7:	movl   $0x1,0x8(%rdi)
+0x7fffe591c2be:	movl   $0x0,0xc(%rdi)
+0x7fffe591c2c5:	retq   
+0x7fffe591c2c6:	xchg   %ax,%ax
+0x7fffe591c2ca:	xchg   %ax,%ax
+0x7fffe591c2cd:	xchg   %ax,%ax
+0x7fffe591c2d0:	repz retq 
+0x7fffe591c2d2:	xchg   %ax,%ax
+0x7fffe591c2d6:	xchg   %ax,%ax
+0x7fffe591c2da:	xchg   %ax,%ax
+0x7fffe591c2dd:	xchg   %ax,%ax
+0x7fffe591c2e0:	repz retq 
+0x7fffe591c2e2:	xchg   %ax,%ax
+0x7fffe591c2e6:	xchg   %ax,%ax
+0x7fffe591c2ea:	xchg   %ax,%ax
+0x7fffe591c2ed:	xchg   %ax,%ax
+0x7fffe591c2f0:	mov    %esi,0x8(%rdi)
+0x7fffe591c2f3:	mov    %edx,0xc(%rdi)
+0x7fffe591c2f6:	retq   
+0x7fffe591c2f7:	nop
+0x7fffe591c2f8:	xchg   %ax,%ax
+0x7fffe591c2fc:	xchg   %ax,%ax
+0x7fffe591c300:	mov    %rsi,(%rdi)
+0x7fffe591c303:	retq   
+0x7fffe591c304:	xchg   %ax,%ax
+0x7fffe591c308:	xchg   %ax,%ax
+0x7fffe591c30c:	xchg   %ax,%ax
+0x7fffe591c310:	mov    (%rdi),%rax
+0x7fffe591c313:	retq   
+0x7fffe591c314:	xchg   %ax,%ax
+0x7fffe591c318:	xchg   %ax,%ax
+0x7fffe591c31c:	xchg   %ax,%ax
+0x7fffe591c320:	mov    0x8(%rdi),%eax
+0x7fffe591c323:	retq   
+0x7fffe591c324:	xchg   %ax,%ax
+0x7fffe591c328:	xchg   %ax,%ax
+0x7fffe591c32c:	xchg   %ax,%ax
+0x7fffe591c330:	mov    0xc(%rdi),%eax
+0x7fffe591c333:	retq   
+0x7fffe591c334:	xchg   %ax,%ax
+0x7fffe591c338:	xchg   %ax,%ax
+0x7fffe591c33c:	xchg   %ax,%ax
+0x7fffe591c340:	xor    %eax,%eax
+0x7fffe591c342:	cmpq   $0x0,(%rdi)
+0x7fffe591c346:	setne  %al
+0x7fffe591c349:	retq   
+0x7fffe591c34a:	nop
+0x7fffe591c34b:	nop
+0x7fffe591c34c:	nop
+0x7fffe591c34d:	nop
+0x7fffe591c34e:	nop
+0x7fffe591c34f:	nop
+0x7fffe591c350:	mov    0x559df1(%rip),%rax        # 0x7fffe5e76148 <pthread_attr_setdetachstate+7500936>
+0x7fffe591c357:	mov    (%rax),%rax
+0x7fffe591c35a:	retq   
+0x7fffe591c35b:	nop
+0x7fffe591c35c:	xchg   %ax,%ax
+0x7fffe591c360:	mov    (%rdi),%eax
+0x7fffe591c362:	retq   
+0x7fffe591c363:	nop
+0x7fffe591c364:	xchg   %ax,%ax
+0x7fffe591c368:	xchg   %ax,%ax
+0x7fffe591c36c:	xchg   %ax,%ax
+0x7fffe591c370:	mov    0x4(%rdi),%eax
+0x7fffe591c373:	retq   
+0x7fffe591c374:	xchg   %ax,%ax
+0x7fffe591c378:	xchg   %ax,%ax
+0x7fffe591c37c:	xchg   %ax,%ax
+0x7fffe591c380:	mov    %esi,%eax
+0x7fffe591c382:	shr    $0x1c,%eax
+0x7fffe591c385:	cmp    0x1c(%rdi),%eax
+0x7fffe591c388:	je     0x7fffe591c390
+0x7fffe591c38a:	xor    %eax,%eax
+0x7fffe591c38c:	retq   
+0x7fffe591c38d:	xchg   %ax,%ax
+0x7fffe591c390:	mov    %esi,%eax
+0x7fffe591c392:	shr    $0x10,%eax
+0x7fffe591c395:	and    $0xff,%eax
+0x7fffe591c39a:	cmp    0x18(%rdi),%eax
+0x7fffe591c39d:	jne    0x7fffe591c38a
+0x7fffe591c39f:	movzwl %si,%ecx
+0x7fffe591c3a2:	shl    $0x5,%rcx
+0x7fffe591c3a6:	add    0x10(%rdi),%rcx
+0x7fffe591c3aa:	cmpq   $0x0,(%rcx)
+0x7fffe591c3ae:	je     0x7fffe591c38a
+0x7fffe591c3b0:	mov    0x8(%rcx),%eax
+0x7fffe591c3b3:	mov    %eax,-0x18(%rsp)
+0x7fffe591c3b7:	mov    -0x18(%rsp),%rax
+0x7fffe591c3bc:	test   $0x1,%al
+0x7fffe591c3be:	jne    0x7fffe591c38a
+0x7fffe591c3c0:	mov    -0x18(%rsp),%edx
+0x7fffe591c3c4:	mov    0x8(%rcx),%eax
+0x7fffe591c3c7:	cmp    %eax,%edx
+0x7fffe591c3c9:	jne    0x7fffe591c3b0
+0x7fffe591c3cb:	mov    $0x1,%eax
+0x7fffe591c3d0:	retq   
+0x7fffe591c3d1:	nop
+0x7fffe591c3d2:	xchg   %ax,%ax
+0x7fffe591c3d6:	xchg   %ax,%ax
+0x7fffe591c3da:	xchg   %ax,%ax
+0x7fffe591c3dd:	xchg   %ax,%ax
+0x7fffe591c3e0:	mov    0x10(%rdi),%rax
+0x7fffe591c3e4:	retq   
+0x7fffe591c3e5:	nop
+0x7fffe591c3e6:	xchg   %ax,%ax
+0x7fffe591c3ea:	xchg   %ax,%ax
+0x7fffe591c3ed:	xchg   %ax,%ax
+0x7fffe591c3f0:	movslq 0x20(%rdi),%rdx
+0x7fffe591c3f4:	mov    0x10(%rdi),%rax
+0x7fffe591c3f8:	add    $0x20,%rax
+0x7fffe591c3fc:	shl    $0x5,%rdx
+0x7fffe591c400:	add    %rdx,%rax
+0x7fffe591c403:	retq   
+0x7fffe591c404:	xchg   %ax,%ax
+0x7fffe591c408:	xchg   %ax,%ax
+0x7fffe591c40c:	xchg   %ax,%ax
+0x7fffe591c410:	push   %r14
+0x7fffe591c412:	mov    %esi,%eax
