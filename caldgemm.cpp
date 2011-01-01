@@ -993,7 +993,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 
 void caldgemm::cal_init_constant_data(BufferProperties* &data, double alpha)
 {
-	// Setup the constants for the kernel
 	data[dwBuffersA + dwBuffersB].ptr_float[0] = (float) TILING_Y / Config->Height;			//Scale factor for normalized y pos
 	data[dwBuffersA + dwBuffersB].ptr_float[2] = (float) TILING_X / Config->Height;			//Scale factor for normalized x pos
 #ifdef CALDGEMM_44
@@ -1009,7 +1008,7 @@ void caldgemm::cal_init_constant_data(BufferProperties* &data, double alpha)
 
 	//Constants for Memexport
 	data[dwBuffersA + dwBuffersB].ptr_int[9] = TILING_Y * Config->Height / 2;				//2 for double2
-	data[dwBuffersA + dwBuffersB].ptr_int[10] = TILING_X / 2;								//x tiling in double2
+	data[dwBuffersA + dwBuffersB].ptr_int[10] = TILING_X / 2;						//x tiling in double2
 #if defined(CALDGEMM_84)
 	data[dwBuffersA + dwBuffersB].ptr_int[12] = 0 + 0 * Config->Height / 2;					//8 consecutive entries in x
 	data[dwBuffersA + dwBuffersB].ptr_int[13] = 1 + 0 * Config->Height / 2;
@@ -2216,7 +2215,6 @@ int caldgemm::ExitCALDGEMM()
 		}
 	}
 
-	// Close the device
 	if (ctx_main) calCtxDestroy(ctx_main);
 	if (device)
 	{
@@ -2227,7 +2225,6 @@ int caldgemm::ExitCALDGEMM()
 		}
 	}
 
-	// Shutdown cal device
 	if (calShutdown() != CAL_RESULT_OK )
 	{
 		fprintf(STD_OUT, "There was an error during cal shutdown.\n");
@@ -2533,7 +2530,6 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 {
 	BufferHeight = Config->Height;
 	BufferWidth = Config->Width;
-	// Fill in the dimensions
 	const unsigned int bStop = dwBuffersA + dwBuffersB;
 	const unsigned int fStop = bStop + numConstantBuffers;
 	const unsigned int cStop = fStop + dwBuffersC;
@@ -2620,7 +2616,9 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 			if ((Config->DstMemory == 'g' || i < dwBuffersA + dwBuffersB) && (Config->DivideToGPU == false || i >= dwBuffersA + dwBuffersB) && (nContext < 2 || (Config->DstMemory == 'g' && i >= dwBuffersA + dwBuffersB + numConstantBuffers)))
 			{
 				allocated = true;
+#ifdef DEBUG_MSG_ALLOCATION
 				if (Config->Debug) fprintf(STD_OUT, "Allocating Host buffer for context %d buffer %d\n", nContext, i);
+#endif
 				CHKERR(calResAllocRemote2D(&data[i].res, device, 1, tWidth, tHeight, CAL_FORMAT_UNSIGNED_INT32_4, flag), "allocattion of remote memory");
 				CHKERR(calCtxGetMem(&data[i].mem, *ctx, data[i].res), "getting remote memory for context");
 				CHKERR(calResMap(&data[i].ptr_void, &data[i].pitch, data[i].res, NULL), "mapping of remote memory");
@@ -2635,7 +2633,9 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 		{
 			if (nContext == 0)
 			{
+#ifdef DEBUG_MSG_ALLOCATION
 				if (Config->Debug) fprintf(STD_OUT, "Allocating Host memory for context %d buffer %d\n", nContext, i);
+#endif
 				data[i].ptr_char = new char[tWidth * sizeof(double) * mComponents * tHeight];
 				allocated = true;
 			}
@@ -2664,7 +2664,9 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 			flag = (CALresallocflags) (flag | CAL_RESALLOC_GLOBAL_BUFFER);
 		}
 #endif
+#ifdef DEBUG_MSG_ALLOCATION
 		if (Config->Debug) fprintf(STD_OUT, "Allocating device buffer for context %d buffer %d\n", nContext, i);
+#endif
 		switch(mem)
 		{
 		case 'g':
@@ -2707,7 +2709,9 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 	for (unsigned int i = bStop; i < fStop; ++i)
 	{
 		int cWidth = data[i].Width * data[i].Height;
+#ifdef DEBUG_MSG_ALLOCATION
 		if (Config->Debug) fprintf(STD_OUT, "Allocating Host Constant Buffer Context %d buffer %d\n", nContext, i);
+#endif
 		CHKERR(calResAllocRemote1D(&_Res[i], device, 1, cWidth, CAL_FORMAT_FLOAT_4, 0), "allocating constant memory");
 		CHKERR(calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]), "binding constant memory to context");
 	}
@@ -2733,7 +2737,9 @@ int caldgemm::SetupData ( CALmodule *module, CALresource* &_Res, BufferPropertie
 			{
 				sprintf(buffer,"cb%d", j - bStop);
 			}
+#ifdef DEBUG_MSG_ALLOCATION
 			if (Config->Debug) fprintf(STD_OUT, "Getting module buffer name for context %d kernel %d buffer %d name %s\n", nContext, i, j, buffer);
+#endif
 			CHKERR(calModuleGetName(&ctxProgNames[i][j], *ctx, module[i], buffer), "getting buffer name");
 			if (j >= bStop && j < fStop)
 			{
@@ -2873,14 +2879,12 @@ int caldgemm::RunProgram(CALcontext *ctx, CALmodule *module, unsigned int Width,
 	CALresult r = CAL_RESULT_ERROR;
 	CHKERR(calModuleGetEntry(&func, *ctx, *module, "main"), "finding module entry point");
 
-	// Setup a computation domain
 	CALdomain rect;
 	rect.x = 0;
 	rect.y = 0;
 	rect.width = Width;
 	rect.height = Height;
 
-	// Execute the program iterations number of times
 	if (Config->VerboseTiming) Timers.Kernel.Start();
 #ifdef CALDGEMM_BENCHMARK_KERNEL
 	for (int i = 0;i < CALDGEMM_BENCHMARK_KERNEL;i++)
@@ -2889,7 +2893,6 @@ int caldgemm::RunProgram(CALcontext *ctx, CALmodule *module, unsigned int Width,
 
 	if (Config->VerboseTiming)
 	{
-		// Wait for the kernel to complete.
 		if (event) WAITFOREVENTA(*ctx, *event);
 		Timers.Kernel.Stop();
 		if (Config->Debug) fprintf(STD_OUT, "\tTotal Kernel Time: %2.4lf\n", Timers.Kernel.GetElapsedTime());
@@ -2924,7 +2927,6 @@ int caldgemm::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Buffer
 		}
 	}
 
-	// Free up the CALresource
 	if (resourceHandler)
 	{
 		for (unsigned int i = 0; i < numHandles; i++ )
@@ -2946,8 +2948,6 @@ int caldgemm::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Buffer
 int caldgemm::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext)
 {
 	CleanupData(ctx, resourceHandler, data, numHandles, nContext);
-
-	// Unload the module from the context
 
 	if (nContext < 1)
 	{
