@@ -102,7 +102,7 @@ public:
 		bool UseCPU;
 		bool UseGPU;
 
-		unsigned int DeviceNum;
+		int DeviceNum;
 
 		bool Debug;
 		bool DumpMatrix;
@@ -175,7 +175,7 @@ private:
 		unsigned int pitch;
 	};
 	
-	static const int ctxcount = 3;				//Not cal context count but number of copies of data buffers etc.
+	static const int obuffercount = 3;				//Not cal context count but number of copies of data buffers etc.
 	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
 	static const int vcpysize = 16;
 	static const int kernel_count = 3;
@@ -190,7 +190,7 @@ private:
 	int divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose);
 	int mergeBuffers(double* dst, BufferProperties* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers);
 
-	int DGEMM_prepare(size_t k, int j);
+	int DGEMM_prepare(size_t k, int j, unsigned int num_device);
 	inline void DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn);
 	inline void WaitForLASWP(size_t n);
 	void checkCalPatch();
@@ -210,7 +210,7 @@ private:
 		pthread_mutex_t mergeThreadMutex[2];
 	};
 
-	pthread_mutex_t obufferMutex[ctxcount];
+	pthread_mutex_t obufferMutex[obuffercount];
 
 	struct structLinpackParameters
 	{
@@ -245,14 +245,14 @@ private:
 
 	struct CALVersion {unsigned int major, minor, imp;};
 
-	int Initialize (CALdevice *device, CALcontext *ctx, unsigned int deviceNum);
-	int SetupKernel(const char* ILKernel, CALmodule* module, CALcontext* ctx, bool disassemble = CAL_FALSE);
+	int Initialize (int deviceNum);
+	int SetupKernel(const char* ILKernel, CALmodule* module, CALcontext* ctx, unsigned int device_num, bool disassemble = false);
 	int RunProgram(CALcontext* ctx, CALmodule* module, unsigned int Width, unsigned int Height, CALevent* event);
-	int CleanupData(CALcontext* ctx, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext);
-	int Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext);
-	CALformat getFormat(unsigned int formatSize, unsigned int dataSize, bool isInt = CAL_FALSE);
+	int CleanupData(CALcontext* ctx, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device);
+	int Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device);
+	CALformat getFormat(unsigned int formatSize, unsigned int dataSize, bool isInt = false);
 	unsigned int AnalyzeResults();
-	int SetupData(CALmodule* module, CALresource* &_Res, BufferProperties* &data, CALdevice* device, CALcontext* ctx, unsigned int numInputs, unsigned int numOutputs, unsigned int numConstantBuffers, CALname** ctxProgNames, int nContext);
+	int SetupData(CALmodule* module, CALresource* &_Res, BufferProperties* &data, CALdevice* device, CALcontext* ctx, unsigned int numInputs, unsigned int numOutputs, unsigned int numConstantBuffers, CALname** ctxProgNames, int nContext, unsigned int num_device);
 	int CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event, size_t lastm, size_t lastn);
 	int CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, BufferProperties* dest_data = NULL);
 	int ValidateCALRuntime();
@@ -302,7 +302,8 @@ private:
 #else
 	static const unsigned int dwBuffersC = 8;
 #endif
-	int bbuffers;
+	static const unsigned int max_devices = 4;
+	int bbuffers[max_devices];
 	int outputthreads;
 
 	size_t BufferHeight;						//Height to which the buffers were originally initialized
@@ -310,15 +311,17 @@ private:
 
 	caldgemm_config* Config;
 
-	BufferProperties* datas[max_bbuffers];
+	BufferProperties* datas[max_devices][max_bbuffers];
 	unsigned int numInputs, numOutputs, numConstantBuffers;
-	CALdevice device;
-	CALcontext ctx_main;
-	CALresource* resourceHandlers[max_bbuffers];
-	CALmodule modules[1][kernel_count];
+	CALdevice devices[max_devices];
+	CALcontext ctxs[max_devices];
+	CALresource* resourceHandlers[max_devices][max_bbuffers];
+	CALmodule modules[max_devices][kernel_count];
 	CALmodule fakeModule;
-	CALname *progNames[1][kernel_count];
-	CALevent events[ctxcount];
+	CALname *progNames[max_devices][kernel_count];
+	CALevent events[max_devices][obuffercount];
+	unsigned int device_nums[max_devices];
+	int nDevices;
 
 	static const char *ILKernel, *ILKernelALPHA1, *ILKernelLinpack, *ILFakeKernel, *ILKernelTorture;
 
