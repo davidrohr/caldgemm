@@ -70,6 +70,25 @@ template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 #define WAITFOREVENT(ctx, eventnr) { CALresult r; if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from context %d...\n", eventnr); do { r = calCtxIsEventDone(ctx, events[eventnr]); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 #define WAITFOREVENTA(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
+#ifdef DEBUG_MSG_TIMED
+inline void printelapsedtime(bool reset = false)
+{
+    static int init = 1;
+    static long long int begin;
+    if (init == 1 || reset)
+    {
+	init = 0;
+	timespec b;
+	clock_gettime(CLOCK_REALTIME, &b);
+	begin = (long long int) b.tv_sec * 1000000 + (long long int) b.tv_nsec / 1000;
+    }
+    timespec a;
+    clock_gettime(CLOCK_REALTIME, &a);
+    fprintf(stderr, "%lld ", (long long int) a.tv_sec * 1000000 + (long long int) a.tv_nsec / 1000 - begin);
+}
+#define fprintf(file, ...) {printelapsedtime();fprintf(stderr, __VA_ARGS__);}
+#endif
+
 caldgemm::caldgemm()
 {
 	caldgemm_initialized = false;
@@ -897,7 +916,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 	}
 	outputthreads = Config->KeepBuffersMapped ? CALDGEMM_OUTPUT_THREADS : CALDGEMM_OUTPUT_THREADS_SLOW;
 
-	for (int i = 0;i < max_bbuffers;i++)
+	for (int i = 0;i < (Config->DstMemory == 'g' ? max_bbuffers_g : max_bbuffers);i++)
 	{
 		if (i < 1)
 		{
@@ -1397,7 +1416,7 @@ void* merge_wrapper(void* arg)
 		if (par->cls->Config->Debug)
 		{
 		    mergeTimer.Stop();
-		    fprintf(STD_OUT, "Merge time: %2.3lf\n", mergeTimer.GetElapsedTime());
+		    fprintf(STD_OUT, "\t\tMerge time: %2.3lf\n", mergeTimer.GetElapsedTime());
 		}
 		if (par->cls->Config->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex obuffer %d (Slavethread %d)\n", par->nContext, par->nMergeThread);
 		if (pthread_mutex_unlock(&par->cls->obufferMutex[par->nContext])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1465,6 +1484,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		fprintf(STD_OUT, "Caldgemm not initialized, aborting DGEMM run\n");
 		return(1);
 	}
+
+#ifdef DEBUG_MSG_TIMED	
+	if (Config->Debug) printelapsedtime("Resetting Timer\n");
+#endif
 
 	if (tmp_m == 0 || tmp_k == 0 || tmp_n == 0)
 	{
@@ -1937,7 +1960,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						}
 					}
 					WAITFOREVENT(ctx_main, j);
-					if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel\n");
+					if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (context %d)\n", j);
 					if (!DGEMM_favor_m && buffersSwitchable && bbuffers >= mb)
 					{
 						for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][l], datas[blockm][dwBuffersA + l].dstMem), "setting kernel memory A");
@@ -1950,6 +1973,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					}
 					for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctx_main, progNames[0][kernel_num][numInputs + numConstantBuffers + l], datas[j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 					if (RunProgram(&ctx_main, &modules[0][kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
+#ifdef CALDGEMM_IMPLICIT_DRIVER_DMA_SYNC
+					if (Config->DstMemory == 'g' && CopyDataFromGPU(&ctx_main, resourceHandlers[j] + numInputs + numConstantBuffers, datas[j] + numInputs + numConstantBuffers, numOutputs, &events[j], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+#endif
 					calCtxFlush(ctx_main);
 				}
 				if (ctxcount == 1)
@@ -1961,14 +1987,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				if ((ctxcount > 1) ? (k > 0) : (k < nBlocks))
 				{
 					WAITFOREVENT(ctx_main, oldj);
+#ifndef CALDGEMM_IMPLICIT_DRIVER_DMA_SYNC
 					if (Config->DstMemory == 'g')
 					{
-						if (Config->VerboseTiming) Timers.CounterCopyFrom.Start();
-						if (Config->Debug == true) fprintf(STD_OUT, "\tFething part of C from GPU (m = %lld, n = %lld)\n", (long long int) lastm, (long long int) lastn);
-						if (CopyDataFromGPU(&ctx_main, resourceHandlers[oldj] + numInputs + numConstantBuffers, datas[oldj] + numInputs + numConstantBuffers, numOutputs, &events[oldj])) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
-						if (Config->VerboseTiming) Timers.CounterCopyFrom.Stop();
+						if (CopyDataFromGPU(&ctx_main, resourceHandlers[oldj] + numInputs + numConstantBuffers, datas[oldj] + numInputs + numConstantBuffers, numOutputs, &events[oldj], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 						WAITFOREVENT(ctx_main, oldj);
 					}
+#endif
 					if (Config->VerboseTiming) Timers.CounterMerge.Start();
 
 					if (k == nBlocks || Config->MultiThread == false)
@@ -2032,8 +2057,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			Timers.ATime.Stop();
 			cpu_wait_time = Timers.ATime.GetElapsedTime();
-			if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15 && cParam.cblas_size > 0) fprintf(STD_OUT, "WARNING: CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
-			else if (Config->Debug) fprintf(STD_OUT, "CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
+			if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15 && cParam.cblas_size > 0)
+			{
+			    fprintf(STD_OUT, "WARNING: CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
+			}
+			else if (Config->Debug)
+			{
+			    fprintf(STD_OUT, "CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
+			}
 		}
 	}
 
@@ -2965,13 +2996,17 @@ int caldgemm::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CAL
 	return(0);
 }
 
-int caldgemm::CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event)
+int caldgemm::CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event, size_t lastm, size_t lastn)
 {
 	if (Config->DstMemory == 'c') return 0;
+	if (Config->VerboseTiming) Timers.CounterCopyFrom.Start();
+	if (Config->Debug == true) fprintf(STD_OUT, "\tFething part of C from GPU (m = %lld, n = %lld)\n", (long long int) lastm, (long long int) lastn);
 	unsigned int pitch;
 	CALresult r;
 	char* ptr;
+#ifndef CALDGEMM_IMPLICIT_DRIVER_DMA_SYNC
 	WAITFOREVENTA(*ctx, *event);
+#endif
 	for (unsigned int i = 0; i < num; ++i)
 	{
 		if (data[i].CALMemory)
@@ -2985,6 +3020,7 @@ int caldgemm::CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperti
 		CHKERR(calResUnmap(_Res[i]), "unmapping buffer");
 	}
 	if (Config->VerboseTiming) WAITFOREVENTA(*ctx, *event);
+	if (Config->VerboseTiming) Timers.CounterCopyFrom.Stop();
 	return 0;
 }
 

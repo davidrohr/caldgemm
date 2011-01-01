@@ -93,7 +93,7 @@ public:
 		bool AsyncDMA;
 		bool AutoHeight;						//Automatically adjust height
 		bool DivideToGPU;
-		char	DstMemory;
+		char DstMemory;
 		bool DynamicSched;
 		bool KeepBuffersMapped;
 		bool MemPolicy;
@@ -127,7 +127,7 @@ public:
 
 		int LinpackNodes;
 		int MPIRank;
-		int	GPUClock;
+		int GPUClock;
 		volatile size_t *LinpackSwapN;
 		void (*linpack_factorize_function)();
 		void (*linpack_broadcast_function)();
@@ -181,8 +181,10 @@ private:
 	static const int kernel_count = 3;
 #ifdef REUSE_BBUFFERS
 	static const int max_bbuffers = 21;
+	static const int max_bbuffers_g = 16;
 #else
 	static const int max_bbuffers = 3;
+	static const int max_bbuffers_g = 3;
 #endif	
 
 	int divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose);
@@ -251,7 +253,7 @@ private:
 	CALformat getFormat(unsigned int formatSize, unsigned int dataSize, bool isInt = CAL_FALSE);
 	unsigned int AnalyzeResults();
 	int SetupData(CALmodule* module, CALresource* &_Res, BufferProperties* &data, CALdevice* device, CALcontext* ctx, unsigned int numInputs, unsigned int numOutputs, unsigned int numConstantBuffers, CALname** ctxProgNames, int nContext);
-	int CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event);
+	int CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event, size_t lastm, size_t lastn);
 	int CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, BufferProperties* dest_data = NULL);
 	int ValidateCALRuntime();
 	void displayMatrixTiming(const char* name);

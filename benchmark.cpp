@@ -648,7 +648,9 @@ int main(int argc, char** argv)
 
 		//Initial run to negate cache effects
 #ifndef TESTMODE
+#ifndef DEBUG_MSG_TIMED
 		if (Config.Debug == false && Config.DumpMatrix == false && initialrun && !torture)
+#endif
 		{
 			if (!quietbench)
 			{
@@ -656,10 +658,11 @@ int main(int argc, char** argv)
 			}
 			bool tmpquiet = Config.Quiet, tmpverify = Config.Verify;
 			unsigned int tmpiter = Config.Iterations;
-			unsigned int tmpm = Config.m, tmpn = Config.n;
+			unsigned int tmpm = Config.m, tmpn = Config.n, tmpdebug = Config.Debug;
 			Config.Quiet = true;
 			Config.Verify = false;
 			Config.Iterations = 2;
+			Config.Debug = false;
 			if (Config.m > 2 * Config.Height) Config.m = 2 * Config.Height;
 			if (Config.n > 2 * Config.Height) Config.n = 2 * Config.Height;
 			if (dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
@@ -672,6 +675,7 @@ int main(int argc, char** argv)
 			Config.Quiet = tmpquiet;
 			Config.Verify = tmpverify;
 			Config.Iterations = tmpiter;
+			Config.Debug = tmpdebug;
 			if (!quietbench)
 			{
 				fprintf(stderr, "Done\n");
