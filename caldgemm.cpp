@@ -1909,12 +1909,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			for (size_t k = 0;k < nBlocks + nDevices;k++)
 			{
 				CALcontext ctx_main = ctxs[use_device];
-				
+
+				if (next_device_k[use_device] != 0) k = next_device_k[use_device];
+				else if (nextk && nextk >= k) k = nextk + 1;
+				if (k > nextk) nextk = k;
+
 				if (k < nBlocks)
 				{
-					if (next_device_k[use_device] != 0) k = next_device_k[use_device];
-					else if (nextk && nextk >= k) k = nextk + 1;
-					if (k > nextk) nextk = k;
 					DGEMM_getblocks(k, blockm, blockn);
 
 					if (cParam.dynamic_run)
@@ -1959,7 +1960,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						WaitForLASWP(blockm);
 						DGEMM_prepare(k, j[use_device], use_device);
 					}
-					if (obuffercount > 1 && lastk[use_device] != -1 && Config->AsyncDMA)
+					if (obuffercount > 1 && lastk[use_device] != -1 && Config->AsyncDMA && k + (nDevices - use_device - 1) % nDevices + 1 < nBlocks)
 					{
 						nextk++;
 						size_t nextblockm, nextblockn;
@@ -1979,6 +1980,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 							DGEMM_prepare(nextk, (j[use_device] + 1) % obuffercount, use_device);
 						}
 						next_device_k[use_device] = nextk;
+					}
+					else
+					{
+						next_device_k[use_device] = 0;
 					}
 
 					if (Config->MultiThread)
@@ -2587,7 +2592,7 @@ unsigned int caldgemm::AnalyzeResults()
 			{
 				if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
 				{
-					if (errors < 1000) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
+					if (errors < 1) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
 					++errors;
 					errortiles[j / Config->Height * nblocksm + i / Config->Height]++;
 					if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] > 0.05) errorsrel[0]++;

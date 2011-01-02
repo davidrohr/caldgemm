@@ -754,6 +754,7 @@ int main(int argc, char** argv)
 					break;
 				}
 			}
+			if (!verifyok) break;
 		}
 		if (verifyok) fprintf(STD_OUT, "Verification succeeded\n");
 	}
