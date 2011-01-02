@@ -1864,15 +1864,17 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	for (unsigned int i = 0; i < Config->Iterations; ++i)
 	{
-		int oldj;
-		int j = 0;
-		int iMergeThread = 0;
+		int oldj[max_devices];
+		int j[max_devices];
+		int iMergeThread[max_devices];
+		memset(j, 0, max_devices * sizeof(int));
+		memset(iMergeThread, 0, max_devices * sizeof(int));
 		int use_device = 0;
 		CALcontext ctx_main = ctxs[use_device];
 
 		const size_t mb = gpu_m / Config->Height;
 		const size_t nb = gpu_n / Config->Height;
-		size_t blockm, blockn, lastm, lastn;
+		size_t blockm, blockn, lastk[max_devices];
 		size_t nBlocks = mb * nb;
 
 		if (!Config->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers[use_device]) fprintf(STD_OUT, "WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
@@ -1922,18 +1924,16 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					pthread_mutex_unlock(&scheduleMutex);
 				}
 
-				lastm = blockm;
-				lastn = blockn;
 				if (k < nBlocks)
 				{
 					blockn = newblockn;
 					blockm = newblockm;
-					if (Config->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (obuffer %d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, j);
+					if (Config->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (device %d obuffer %d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device, j[use_device]);
 
 					if (k <= 1 || obuffercount == 1 || Config->AsyncDMA == false)
 					{
 						WaitForLASWP(blockm);
-						DGEMM_prepare(k, j, use_device);
+						DGEMM_prepare(k, j[use_device], use_device);
 					}
 					if (obuffercount > 1 && k >= 1 && Config->AsyncDMA)
 					{
@@ -1952,27 +1952,27 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						if (nextk < nBlocks)
 						{
 							WaitForLASWP(nextblockm);
-							DGEMM_prepare(nextk, (j + 1) % obuffercount, use_device);
+							DGEMM_prepare(nextk, (j[use_device] + 1) % obuffercount, use_device);
 						}
 					}
 
 					if (Config->MultiThread)
 					{
-						if (Config->Debug) fprintf(STD_OUT, "\tLocking mutex %d\n", j);
+						if (Config->Debug) fprintf(STD_OUT, "\tLocking mutex %d\n", j[use_device]);
 						if (Config->AsyncTiming)
 						{
 							Timers.ATime.Reset();
 							Timers.ATime.Start();
 						}
-						if (pthread_mutex_lock(&obufferMutex[use_device][j])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+						if (pthread_mutex_lock(&obufferMutex[use_device][j[use_device]])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
 						if (Config->AsyncTiming)
 						{
 							Timers.ATime.Stop();
 							if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001 || Config->Debug) fprintf(STD_OUT, "\t\tWait Time for output buffer: %1.5lf\n", Timers.ATime.GetElapsedTime());
 						}
 					}
-					WAITFOREVENT(ctx_main, j, use_device);
-					if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d)\n", use_device, j);
+					WAITFOREVENT(ctx_main, j[use_device], use_device);
+					if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d)\n", use_device, j[use_device]);
 					if (!DGEMM_favor_m && buffersSwitchable && bbuffers[use_device] >= mb)
 					{
 						for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][blockm][dwBuffersA + l].dstMem), "setting kernel memory A");
@@ -1983,43 +1983,45 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][blockm % 2][l].dstMem), "setting kernel memory A");
 						for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][nb > bbuffers[use_device] ? (blockn % 2) : blockn][l].dstMem), "setting kernel memory B");
 					}
-					for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][numInputs + numConstantBuffers + l], datas[use_device][j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
-					if (RunProgram(&ctx_main, &modules[use_device][kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[use_device][j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
+					for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][numInputs + numConstantBuffers + l], datas[use_device][j[use_device]][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
+					if (RunProgram(&ctx_main, &modules[use_device][kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[use_device][j[use_device]])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
 #ifdef CALDGEMM_IMPLICIT_DRIVER_DMA_SYNC
-					if (Config->DstMemory == 'g' && CopyDataFromGPU(&ctx_main, resourceHandlers[use_device][j] + numInputs + numConstantBuffers, datas[use_device][j] + numInputs + numConstantBuffers, numOutputs, &events[use_device][j], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+					if (Config->DstMemory == 'g' && CopyDataFromGPU(&ctx_main, resourceHandlers[use_device][j[use_device]] + numInputs + numConstantBuffers, datas[use_device][j[use_device]] + numInputs + numConstantBuffers, numOutputs, &events[use_device][j[use_device]], blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 #endif
 					calCtxFlush(ctx_main);
 				}
 				if (obuffercount == 1)
 				{
-					oldj = j;
-					lastm = blockm;
-					lastn = blockn;
+					oldj[use_device] = j[use_device];
+					lastk[use_device] = k;
 				}
 				if ((obuffercount > 1) ? (k > 0) : (k < nBlocks))
 				{
-					WAITFOREVENT(ctx_main, oldj, use_device);
+					size_t lastm, lastn;
+					DGEMM_getblocks(lastk[use_device], lastm, lastn);
+					if (Config->Debug) fprintf(STD_OUT, "Processing Output for device %d tile %lld (m = %lld, n = %lld)\n", use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
+					WAITFOREVENT(ctx_main, oldj[use_device], use_device);
 #ifndef CALDGEMM_IMPLICIT_DRIVER_DMA_SYNC
 					if (Config->DstMemory == 'g')
 					{
-						if (CopyDataFromGPU(&ctx_main, resourceHandlers[use_device][oldj] + numInputs + numConstantBuffers, datas[use_device][oldj] + numInputs + numConstantBuffers, numOutputs, &events[use_device][oldj], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
-						WAITFOREVENT(ctx_main, oldj, use_device);
+						if (CopyDataFromGPU(&ctx_main, resourceHandlers[use_device][oldj[use_device]] + numInputs + numConstantBuffers, datas[use_device][oldj[use_device]] + numInputs + numConstantBuffers, numOutputs, &events[use_device][oldj[use_device]], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+						WAITFOREVENT(ctx_main, oldj[use_device], use_device);
 					}
 #endif
 					if (Config->VerboseTiming) Timers.CounterMerge.Start();
 
 					if (k == nBlocks || Config->MultiThread == false)
 					{
-						if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, main thread)\n", use_device, oldj);
-						if (mergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, datas[use_device][oldj] + numInputs + numConstantBuffers, Config->Height, Config->Height, BufferHeight, BufferHeight, C_pitch, dwBuffersC)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
+						if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, main thread)\n", use_device, oldj[use_device]);
+						if (mergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, datas[use_device][oldj[use_device]] + numInputs + numConstantBuffers, Config->Height, Config->Height, BufferHeight, BufferHeight, C_pitch, dwBuffersC)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
 						if (Config->MultiThread)
 						{
-							if (pthread_mutex_unlock(&obufferMutex[use_device][oldj])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+							if (pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 							for (int l = 1;l < obuffercount;l++)
 							{
-								if (Config->Debug) fprintf(STD_OUT, "Waiting for finish merge process for obuffer %d\n", (oldj + l) % obuffercount);
-								if (pthread_mutex_lock(&obufferMutex[use_device][(oldj + l) % obuffercount])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
-								if (pthread_mutex_unlock(&obufferMutex[use_device][(oldj + l) % obuffercount])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+								if (Config->Debug) fprintf(STD_OUT, "Waiting for finish merge process for obuffer %d\n", (oldj[use_device] + l) % obuffercount);
+								if (pthread_mutex_lock(&obufferMutex[use_device][(oldj[use_device] + l) % obuffercount])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+								if (pthread_mutex_unlock(&obufferMutex[use_device][(oldj[use_device] + l) % obuffercount])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 							}
 						}
 					}
@@ -2030,24 +2032,25 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 							Timers.ATime.Reset();
 							Timers.ATime.Start();
 						}
-						if (pthread_mutex_lock(&mParam[use_device][iMergeThread].mergeThreadMutex[1])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+						if (pthread_mutex_lock(&mParam[use_device][iMergeThread[use_device]].mergeThreadMutex[1])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
 						if (Config->AsyncTiming)
 						{
 							Timers.ATime.Stop();
 							if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001 || Config->Debug) fprintf(STD_OUT, "\t\tWARNING: Wait Time for merge thread: %1.5lf\n", Timers.ATime.GetElapsedTime());
 						}
-						if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking outputthread mutex %d to process device %d obuffer %d\n", iMergeThread, use_device, oldj);
-						mParam[use_device][iMergeThread].nContext = oldj;
-						mParam[use_device][iMergeThread].dst = C + (lastn * Config->Height + lastm * C_pitch * Config->Height);
-						mParam[use_device][iMergeThread].src = datas[use_device][oldj] + numInputs + numConstantBuffers;
-						if (pthread_mutex_unlock(&mParam[use_device][iMergeThread].mergeThreadMutex[0])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-						iMergeThread = (iMergeThread + 1) % outputthreads;
+						if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking outputthread mutex %d to process device %d obuffer %d\n", iMergeThread[use_device], use_device, oldj[use_device]);
+						mParam[use_device][iMergeThread[use_device]].nContext = oldj[use_device];
+						mParam[use_device][iMergeThread[use_device]].dst = C + (lastn * Config->Height + lastm * C_pitch * Config->Height);
+						mParam[use_device][iMergeThread[use_device]].src = datas[use_device][oldj[use_device]] + numInputs + numConstantBuffers;
+						if (pthread_mutex_unlock(&mParam[use_device][iMergeThread[use_device]].mergeThreadMutex[0])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+						iMergeThread[use_device] = (iMergeThread[use_device] + 1) % outputthreads;
 					}
 
 					if (Config->VerboseTiming) Timers.CounterMerge.Stop();
 				}
-				oldj = j;
-				j = (j + 1) % obuffercount;
+				oldj[use_device] = j[use_device];
+				j[use_device] = (j[use_device] + 1) % obuffercount;
+				lastk[use_device] = k;
 			}
 			if(Config->Verify && i < Config->Iterations - 1) AnalyzeResults();
 		}
