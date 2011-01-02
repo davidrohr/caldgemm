@@ -353,6 +353,9 @@ private:
 
 	size_t orig_m, orig_n;
 	double *orig_a, *orig_b, *orig_c;
+	
+	int buffersMajor[max_devices];
+	bool buffersMinor[max_devices][max_bbuffers];
 
 	char hostname[256];							//Store hostname of node for host dependant debug code
 };

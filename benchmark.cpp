@@ -215,7 +215,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			{
 				fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
 				PrintUsage();
-				return false;
+				return(1);
 			}
 			if (++x >= argc) return(1);
 			Config->AsyncDMA = Config->KeepBuffersMapped = true;
@@ -435,7 +435,7 @@ void SetupUserDataC(caldgemm::caldgemm_config &Config)
 #ifdef TESTMODE
 				CC[i * pitch_c + j] = 0;
 #else
-				CC[i * pitch_c + j] = (double) (i + j % 16);
+				CC[i * pitch_c + j] = (double) ((i + j) % 16);
 #endif
 			}
 		}
@@ -740,16 +740,19 @@ int main(int argc, char** argv)
 		Config.UseCPU = true;
 		Config.Verify = false;
 		Config.Quiet = true;
-		dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : -0.5, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
+		dgemm.RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
 		fprintf(STD_OUT, "CPU DGEMM Comparison run complete, comparing results\n");
 		int verifyok = 1;
-		for (size_t i = 0;i < Config.m * pitch_c;i++)
+		for (size_t i = 0;i < Config.m;i++)
 		{
-			if (!isDoubleEqual(CC[i] * 1.0, (double) (i % 16)))
+			for (size_t j = 0;j < Config.n;j++)
 			{
-				fprintf(STD_OUT, "Verification failed at i = %lld, m = %lld, n = %lld\n", (long long int) i, (long long int) i / pitch_c, (long long int) i % pitch_c);
-				verifyok = 0;
-				break;
+				if (!isDoubleEqual(CC[i * pitch_c + j] * 1.0, (double) ((i + j) % 16)))
+				{
+					fprintf(STD_OUT, "Verification failed at i = %lld, m = %lld, n = %lld\n", (long long int) i, (long long int) i / pitch_c, (long long int) i % pitch_c);
+					verifyok = 0;
+					break;
+				}
 			}
 		}
 		if (verifyok) fprintf(STD_OUT, "Verification succeeded\n");
