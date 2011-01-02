@@ -1874,7 +1874,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		const size_t mb = gpu_m / Config->Height;
 		const size_t nb = gpu_n / Config->Height;
-		size_t blockm, blockn, lastk[max_devices];
+		size_t blockm, blockn;
+		unsigned long long int lastk[max_devices];
+		for (int l = 0;l < max_devices;l++) lastk[l] = -1;
 		size_t nBlocks = mb * nb;
 
 		if (!Config->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers[use_device]) fprintf(STD_OUT, "WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
@@ -2017,11 +2019,17 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						if (Config->MultiThread)
 						{
 							if (pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-							for (int l = 1;l < obuffercount;l++)
+							for (int l = 0;l < obuffercount;l++)
 							{
-								if (Config->Debug) fprintf(STD_OUT, "Waiting for finish merge process for obuffer %d\n", (oldj[use_device] + l) % obuffercount);
-								if (pthread_mutex_lock(&obufferMutex[use_device][(oldj[use_device] + l) % obuffercount])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
-								if (pthread_mutex_unlock(&obufferMutex[use_device][(oldj[use_device] + l) % obuffercount])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+								for (int ll = 0;ll < nDevices;ll++)
+								{
+									if ((ll != use_device || l != oldj[ll]) && lastk[ll] != -1)
+									{
+										if (Config->Debug) fprintf(STD_OUT, "Waiting for finish merge process for device %d obuffer %d\n", ll, (oldj[ll] + l) % obuffercount);
+										if (pthread_mutex_lock(&obufferMutex[ll][l])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+										if (pthread_mutex_unlock(&obufferMutex[ll][l])) fprintf(STD_OUT, "Error unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+									}
+								}
 							}
 						}
 					}
@@ -2051,6 +2059,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				oldj[use_device] = j[use_device];
 				j[use_device] = (j[use_device] + 1) % obuffercount;
 				lastk[use_device] = k;
+				if (MultiThread) use_device = (use_device + 1) % nDevices;
 			}
 			if(Config->Verify && i < Config->Iterations - 1) AnalyzeResults();
 		}
