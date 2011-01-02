@@ -186,6 +186,7 @@ private:
 	static const int max_bbuffers = 3;
 	static const int max_bbuffers_g = 3;
 #endif	
+	static const unsigned int max_devices = 4;
 
 	int divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose);
 	int mergeBuffers(double* dst, BufferProperties* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers);
@@ -206,19 +207,19 @@ private:
 		BufferProperties* src;
 		int nMergeThread;
 		int nContext;
+		int num_device;
 		bool terminate;
 		pthread_mutex_t mergeThreadMutex[2];
 	};
+	mergeParameters mParam[max_devices][max_outputthreads];
 
-	pthread_mutex_t obufferMutex[obuffercount];
+	pthread_mutex_t obufferMutex[max_devices][obuffercount];
 
 	struct structLinpackParameters
 	{
 		pthread_mutex_t linpackMutex[2];
 		bool terminate;
 	} linpackParameters;
-
-	mergeParameters mParam[max_outputthreads];
 
 	cpu_set_t oldcpumask;
 	cpu_set_t gpumask;
@@ -302,7 +303,6 @@ private:
 #else
 	static const unsigned int dwBuffersC = 8;
 #endif
-	static const unsigned int max_devices = 4;
 	int bbuffers[max_devices];
 	int outputthreads;
 
