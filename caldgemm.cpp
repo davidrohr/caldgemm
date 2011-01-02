@@ -1948,7 +1948,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						k = nBlocks;
 					}
 					pthread_mutex_unlock(&scheduleMutex);
-
+				}
+				
+				if (k < nBlocks)
+				{
 					if (Config->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (device %d obuffer %d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device, j[use_device]);
 
 					if (next_device_k[use_device] == 0 || obuffercount == 1 || Config->AsyncDMA == false)
@@ -2944,7 +2947,7 @@ static void log_callback(const char *msg)
 int caldgemm::Initialize(int deviceNum)
 {
 	CHKERR(calInit(), "initializing CAL");
-	if (deviceNum == -1 && obuffercount > 1)
+	if (deviceNum == -1 && obuffercount > 1 && Config->MultiThread)
 	{
 		CALuint tmp;
 		calDeviceGetCount(&tmp);
@@ -2957,9 +2960,16 @@ int caldgemm::Initialize(int deviceNum)
 	}
 	else
 	{
-		if (obuffercount == 1)
+		if (deviceNum == -1)
 		{
-			fprintf(STD_OUT, "Cannot use multiple devices with obuffercount = 1\n");
+			if (obuffercount == 1)
+			{
+				fprintf(STD_OUT, "Cannot use multiple devices with obuffercount = 1\n");
+			}
+			if (!Config->MultiThread)
+			{
+				fprintf(STD_OUT, "Cannot use multiple devices without multithreading\n");
+			}
 			deviceNum = 0;
 		}
 		nDevices = 1;
