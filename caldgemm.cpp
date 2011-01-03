@@ -2225,8 +2225,12 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 
 	if (Config->VerboseTiming) Timers.CounterDivide.Start();
 	
-	if (DGEMM_favor_m ? buffersMajor[num_device] >= blockn : (!buffersSufficiant || !buffersMinor[num_device][blockm]))
-	//if (blockn == 0 || (!DGEMM_favor_m && !buffersSufficiant)) 
+	if (Config->Debug) fprintf(STD_OUT, "Running Preprocessing device = %d k = %lld\n", num_device, (long long int) k);
+	
+	const bool prepareM = DGEMM_favor_m ? buffersMajor[num_device] < (signed long long int) blockm : (!buffersSufficiant || !buffersMinor[num_device][blockm]);
+	const bool prepareN = DGEMM_favor_m ? (!buffersSufficiant || !buffersMinor[num_device][blockn]) : buffersMajor[num_device] < (signed long long int) blockn;
+
+	if (prepareM)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, buffer = %d)\n", num_device, (long long int) k, next_buffer_A[num_device] % 2);
 		Timers.divideA++;
@@ -2237,8 +2241,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 #endif
 		buffer_pointers_A[num_device][blockm % (2 * max_devices)] = next_buffer_A[num_device] % 2;
 	}
-	if (DGEMM_favor_m ? (!buffersSufficiant || !buffersMinor[num_device][blockn]) : buffersMajor[num_device] >= blockm)
-	//if (blockm == 0 || (DGEMM_favor_m && !buffersSufficiant))
+	if (prepareN)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, buffer = %d)\n", num_device, (long long int) k, next_buffer_B[num_device] % 2);
 		Timers.divideB++;
@@ -2250,12 +2253,12 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 		buffer_pointers_B[num_device][blockn % (2 * max_devices)] = next_buffer_B[num_device] % 2;
 	}
 	if (Config->VerboseTiming) Timers.CounterDivide.Stop();
+	
 
 	if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
 	if (Config->DivideToGPU == false)
 	{
-		if (DGEMM_favor_m ? buffersMajor[num_device] >= blockn : (!buffersSufficiant || !buffersMinor[num_device][blockm]))
-		//if (blockn == 0 || (!DGEMM_favor_m && !buffersSufficiant))
+		if (prepareM)
 		{
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 			if (!DGEMM_favor_m && buffersSufficiant)
@@ -2267,13 +2270,12 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j])) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
 			}
 			
-			if (DGEMM_favor_m) buffersMajor[num_device] = blockn;
-			else buffersMinor[num_device][blockm] = true;
+			if (DGEMM_favor_m) buffersMajor[num_device] = blockm;
+			else if (buffersSufficiant) buffersMinor[num_device][blockm] = true;
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of A (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 
-		if (DGEMM_favor_m ? (!buffersSufficiant || !buffersMinor[num_device][blockn]) : buffersMajor[num_device] >= blockm)
-		//if (blockm == 0 || (DGEMM_favor_m && !buffersSufficiant))
+		if (prepareN)
 		{
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 			if (!DGEMM_favor_m && buffersSufficiant)
@@ -2286,15 +2288,15 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			}
 			
 			if (DGEMM_favor_m) buffersMinor[num_device][blockn] = true;
-			else buffersMajor[num_device] = blockm;
+			else if (buffersSufficiant) buffersMajor[num_device] = blockn;
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 	}
 	if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
 	calCtxFlush(ctxs[num_device]);
 	
-	if (DGEMM_favor_m ? buffersMajor[num_device] >= blockn : (!buffersSufficiant || !buffersMinor[num_device][blockm])) next_buffer_A[num_device]++;
-	if (DGEMM_favor_m ? (!buffersSufficiant || !buffersMinor[num_device][blockn]) : buffersMajor[num_device] >= blockm) next_buffer_B[num_device]++;
+	if (prepareM) next_buffer_A[num_device]++;
+	if (prepareN) next_buffer_B[num_device]++;
 }
 
 int caldgemm::ExitCALDGEMM()
