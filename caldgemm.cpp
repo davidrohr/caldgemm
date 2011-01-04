@@ -99,6 +99,30 @@ caldgemm::caldgemm()
 
 	avggflops = 0;
 	avgngflops = 0;
+	
+	conf_numprocs = get_num_procs();
+	
+	FILE* fp;
+	fp = fopen("/proc/cpuinfo", "r");
+	conf_cpufreq = 2100;
+	if (fp)
+	{
+		char tmpbuffer[256];
+		while (!feof(fp))
+		{
+			if (fgets(tmpbuffer, 255, fp) == 0) break;
+			if (strncmp(tmpbuffer, "cpu MHz", 7) == 0)
+			{
+				float tmpval;
+				char* ptr = tmpbuffer;
+				while (*(ptr++) != ':');
+				sscanf(ptr, "%f", &tmpval);
+				conf_cpufreq = (int) tmpval;
+				break;
+			}
+		}
+		fclose(fp);
+	}
 }
 
 caldgemm::~caldgemm()
@@ -1008,6 +1032,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 	return(1);
 	}*/
 	//setpriority(PRIO_PROCESS, 0, -20);
+	
+	if (Config->Debug) fprintf(STD_OUT, "Using %d CPU cores at %d GHz\n", conf_numprocs, conf_cpufreq);
 
 	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Init complete, setting CPU mask %X\n", getcpumask(&oldcpumask));
 	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
@@ -1764,7 +1790,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Config->Height < 1024) GPURatio *= (double) Config->Height / (double) 1024 * (double) Config->Height / (double) 1024;
 		
 		const int require_threads = outputthreads + 1 + (ExecLinpack && Config->LinpackNodes > 1);
-		const double CPUscale = (double) (2100 * (get_num_procs() - require_threads)) / (double) (2100 * (24 - require_threads));
+		const double CPUscale = (double) (conf_cpufreq * (conf_numprocs - require_threads)) / (double) (2100 * (24 - require_threads));
 		const double GPUscale = 1;
 		GPURatio = GPUscale * GPURatio / (GPUscale * GPURatio + (1.0 - GPURatio) * CPUscale);
 		

@@ -363,4 +363,6 @@ private:
 	bool buffersMinor[max_devices][max_bbuffers];
 
 	char hostname[256];							//Store hostname of node for host dependant debug code
+	
+	int conf_numprocs, conf_cpufreq;
 };
