@@ -2005,15 +2005,22 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					}
 					WAITFOREVENT(ctx_main, j[use_device], use_device);
 					if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", use_device, j[use_device], (long long int) k, (long long int) blockm, (long long int) blockn);
+#ifdef REUSE_BBUFFERS
 					if (!DGEMM_favor_m && buffersSwitchable && bbuffers[use_device] >= mb)
 					{
 						for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][blockm][dwBuffersA + l].dstMem), "setting kernel memory A");
 						for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][dwBuffersA + l], datas[use_device][buffer_pointers_B[use_device][blockn % (2 * max_devices)]][l].dstMem), "setting kernel memory B");
 					}
 					else
+#endif
 					{
+#ifdef REUSE_BBUFFERS
+						const bool buffersSufficiant = bbuffers[use_device] >= nb;
+#else
+						const bool buffersSufficiant = false;
+#endif
 						for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][buffer_pointers_A[use_device][blockm % (2 * max_devices)]][l].dstMem), "setting kernel memory A");
-						for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][nb > bbuffers[use_device] ? (buffer_pointers_B[use_device][blockn % (2 * max_devices)]) : blockn][l].dstMem), "setting kernel memory B");
+						for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][!buffersSufficiant ? (buffer_pointers_B[use_device][blockn % (2 * max_devices)]) : blockn][l].dstMem), "setting kernel memory B");
 					}
 					for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][numInputs + numConstantBuffers + l], datas[use_device][j[use_device]][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 					if (RunProgram(&ctx_main, &modules[use_device][kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[use_device][j[use_device]])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
