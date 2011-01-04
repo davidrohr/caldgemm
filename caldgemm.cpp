@@ -121,6 +121,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	AutoHeight = true;
 	Iterations = 1;
 	DstMemory = 'c';
+	ImplicitDriverSync = -1;
 	VerboseTiming = false;
 	AsyncTiming = false;
 	TabularTiming = false;
@@ -2024,9 +2025,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					}
 					for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][numInputs + numConstantBuffers + l], datas[use_device][j[use_device]][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 					if (RunProgram(&ctx_main, &modules[use_device][kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[use_device][j[use_device]])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
-#ifdef CALDGEMM_IMPLICIT_DRIVER_DMA_SYNC
-					if (Config->DstMemory == 'g' && CopyDataFromGPU(&ctx_main, resourceHandlers[use_device][j[use_device]] + numInputs + numConstantBuffers, datas[use_device][j[use_device]] + numInputs + numConstantBuffers, numOutputs, &events[use_device][j[use_device]], blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
-#endif
+					if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(&ctx_main, resourceHandlers[use_device][j[use_device]] + numInputs + numConstantBuffers, datas[use_device][j[use_device]] + numInputs + numConstantBuffers, numOutputs, &events[use_device][j[use_device]], blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 					calCtxFlush(ctx_main);
 				}
 				if (obuffercount == 1)
@@ -2040,13 +2039,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					DGEMM_getblocks(lastk[use_device], lastm, lastn);
 					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
 					WAITFOREVENT(ctx_main, oldj[use_device], use_device);
-#ifndef CALDGEMM_IMPLICIT_DRIVER_DMA_SYNC
-					if (Config->DstMemory == 'g')
+					if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
 					{
 						if (CopyDataFromGPU(&ctx_main, resourceHandlers[use_device][oldj[use_device]] + numInputs + numConstantBuffers, datas[use_device][oldj[use_device]] + numInputs + numConstantBuffers, numOutputs, &events[use_device][oldj[use_device]], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 						WAITFOREVENT(ctx_main, oldj[use_device], use_device);
 					}
-#endif
 					if (Config->VerboseTiming) Timers.CounterMerge.Start();
 
 					if (k == nBlocks + nDevices - 1 || Config->MultiThread == false)
@@ -3141,9 +3138,7 @@ int caldgemm::CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperti
 	unsigned int pitch;
 	CALresult r;
 	char* ptr;
-#ifndef CALDGEMM_IMPLICIT_DRIVER_DMA_SYNC
-	WAITFOREVENTA(*ctx, *event);
-#endif
+	if (Config->ImplicitDriverSync == 0) WAITFOREVENTA(*ctx, *event);
 	for (unsigned int i = 0; i < num; ++i)
 	{
 		if (data[i].CALMemory)
@@ -3188,6 +3183,13 @@ int caldgemm::ValidateCALRuntime()
 {
 	CALVersion available;
 	calGetVersion(&available.major, &available.minor, &available.imp);
+	
+	if (Config->ImplicitDriverSync == -1)
+	{
+		if (available.major > 2 || available.minor > 4 || (available.minor == 4 && available.imp > 900)) Config->ImplicitDriverSync = 0;
+		else Config->ImplicitDriverSync = 1;
+	}
+	
 	if (available.major < 1) return(1);
 	if (available.major > 2) return(0);
 	if (available.minor < 3 || available.minor == 3 && available.imp < 185) return(1);
@@ -3195,6 +3197,10 @@ int caldgemm::ValidateCALRuntime()
 	{
 		if (Config->AsyncDMA && !Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Asynchronous DMA not supported by CAL Runtime Version\n");
 		Config->AsyncDMA = false;
+	}
+	if (Config->Debug)
+	{
+		fprintf(STD_OUT, "CAL Runtime Version:%d.%d.%d\n", available.major, available.minor, available.imp);
 	}
 	return(0);
 }

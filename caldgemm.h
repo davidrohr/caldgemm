@@ -94,6 +94,7 @@ public:
 		bool AutoHeight;						//Automatically adjust height
 		bool DivideToGPU;
 		char DstMemory;
+		int ImplicitDriverSync;
 		bool DynamicSched;
 		bool KeepBuffersMapped;
 		bool MemPolicy;

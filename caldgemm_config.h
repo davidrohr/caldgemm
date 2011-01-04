@@ -42,7 +42,6 @@
 #define CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK 0		//Number of additional output threads when running in linpack mode
 #define RERESERVE_LINPACK_CPUS				//Use the Linpack CPU cores for DGEMM after they finished the broadcast
 #define REUSE_BBUFFERS					//Allocate many BBuffers on the GPU so B is not necessarily retransferred, used for A as well
-//#define CALDGEMM_IMPLICIT_DRIVER_DMA_SYNC		//Assume AMD driver performs an implicit sync when starting DMA transfer after a kernel call
 //#define NO_ASYNC_LINPACK				
 //#define WASTE_MEMORY					//Allocate extra memory before and after every memory segment allocated
 //#define CALDGEMM_BENCHMARK_KERNEL 1
