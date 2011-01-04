@@ -928,6 +928,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 			fprintf(STD_OUT, "The device does not support double precision\n");
 			return(1);
 		}
+		conf_gpufreq = attribs.engineClock ? attribs.engineClock : 850;
+		conf_gpushaders = attribs.numberOfSIMD * attribs.wavefrontSize;
 	}
 
 	if (Config->KeepBuffersMapped)
@@ -1033,7 +1035,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 	}*/
 	//setpriority(PRIO_PROCESS, 0, -20);
 	
-	if (Config->Debug) fprintf(STD_OUT, "Using %d CPU cores at %d GHz\n", conf_numprocs, conf_cpufreq);
+	if (Config->Debug) fprintf(STD_OUT, "Using %d CPU cores at %d MHz, %d GPUs of %d shaders at %d MHz\n", conf_numprocs, conf_cpufreq, nDevices, conf_gpushaders, conf_gpufreq);
 
 	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Init complete, setting CPU mask %X\n", getcpumask(&oldcpumask));
 	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
@@ -1351,7 +1353,7 @@ void* cblas_wrapper(void* arg)
 								par->cls->Timers.BcastTimer.Stop();
 								if (!Config->NoPerformanceWarnings && par->cls->Timers.BcastTimer.GetElapsedTime() > 1.0) fprintf(STD_OUT, "Bcast core idle for %2.4lf seconds\n", par->cls->Timers.BcastTimer.GetElapsedTime());
 
-								int require_threads_new = par->cls->outputthreads + 1;
+								int require_threads_new = par->cls->outputthreads * par->cls->nDevices + 1;
 								if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
 								goto_set_num_threads(old_goto_threads - require_threads_new);
 								caldgemm_goto_reserve_cpus(require_threads_new);
@@ -1380,7 +1382,7 @@ void* cblas_wrapper(void* arg)
 							}
 							else
 							{
-								int require_threads_new = par->cls->outputthreads + 1;
+								int require_threads_new = par->cls->outputthreads * par->cls->nDevices + 1;
 								if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
 								goto_set_num_threads(old_goto_threads - require_threads_new);
 								caldgemm_goto_reserve_cpus(require_threads_new);
@@ -1741,7 +1743,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	CPU_ZERO(&divide_mask);
 	if (ExecuteLinpackCallbacks)
 	{
-		//CPU_SET(outputthreads + 1, &divide_mask);
+		//CPU_SET(outputthreads * nDevices + 1, &divide_mask);
 		CPU_SET(Config->PinCPU, &divide_mask);
 	}
 	else
@@ -1789,9 +1791,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		GPURatio *= (double) Config->Width / (double) 1024;
 		if (Config->Height < 1024) GPURatio *= (double) Config->Height / (double) 1024 * (double) Config->Height / (double) 1024;
 		
-		const int require_threads = outputthreads + 1 + (ExecLinpack && Config->LinpackNodes > 1);
+		const int require_threads = outputthreads * nDevices + 1 + (ExecLinpack && Config->LinpackNodes > 1);
 		const double CPUscale = (double) (conf_cpufreq * (conf_numprocs - require_threads)) / (double) (2100 * (24 - require_threads));
-		const double GPUscale = 1;
+		const double GPUscale = (double) nDevices * conf_gpushaders * conf_gpufreq / (double) (850 * 20 * 64);
 		GPURatio = GPUscale * GPURatio / (GPUscale * GPURatio + (1.0 - GPURatio) * CPUscale);
 		
 		if (Config->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.2lf\n", GPURatio);
@@ -1900,18 +1902,19 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	    Config->linpack_swap_function();
 	}
 	
-	for (int i = 0;i < max_devices;i++)
-	{
-		buffersMajor[i] = -1;
-		for (int j = 0;j < max_bbuffers;j++) buffersMinor[i][j] = false;
-		next_buffer_A[i] = 0;
-		next_buffer_B[i] = 0;
-	}
 
 	Timers.GPUTimer.Start();
 
 	for (unsigned int i = 0; i < Config->Iterations; ++i)
 	{
+		for (int ii = 0;i < max_devices;i++)
+		{
+			buffersMajor[ii] = -1;
+			for (int j = 0;j < max_bbuffers;j++) buffersMinor[ii][j] = false;
+			next_buffer_A[ii] = 0;
+			next_buffer_B[ii] = 0;
+		}
+
 		int oldj[max_devices];
 		int j[max_devices];
 		int iMergeThread[max_devices];

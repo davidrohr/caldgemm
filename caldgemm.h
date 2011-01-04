@@ -364,5 +364,5 @@ private:
 
 	char hostname[256];							//Store hostname of node for host dependant debug code
 	
-	int conf_numprocs, conf_cpufreq;
+	int conf_numprocs, conf_cpufreq, conf_numgpus, conf_gpufreq, conf_gpushaders;
 };
