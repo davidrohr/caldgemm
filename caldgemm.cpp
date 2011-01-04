@@ -1764,7 +1764,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Config->Height < 1024) GPURatio *= (double) Config->Height / (double) 1024 * (double) Config->Height / (double) 1024;
 		
 		const int require_threads = outputthreads + 1 + (ExecLinpack && Config->LinpackNodes > 1);
-		GPURatio = GPURatio / (GPURatio + (1.0 - GPURatio) / (double) (24 - require_threads) * (double) (get_num_procs() - require_threads));
+		const double CPUscale = (double) (2100 * (get_num_procs() - require_threads)) / (double) (2100 * (24 - require_threads));
+		const double GPUscale = 1;
+		GPURatio = GPUscale * GPURatio / (GPUscale * GPURatio + (1.0 - GPURatio) * CPUscale);
 		
 		if (Config->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.2lf\n", GPURatio);
 		if ((Config->n + 4) % 4096 < 8) GPURatio = 1. - 0.95 * (1. - GPURatio);
