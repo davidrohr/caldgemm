@@ -917,7 +917,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 			fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
 		}
 	}
-	outputthreads = Config->KeepBuffersMapped ? CALDGEMM_OUTPUT_THREADS : CALDGEMM_OUTPUT_THREADS_SLOW;
+	outputthreads = Config->KeepBuffersMapped || Config->DstMemory == 'g' ? CALDGEMM_OUTPUT_THREADS : CALDGEMM_OUTPUT_THREADS_SLOW;
 
 	for (int device_num = 0;device_num < nDevices;device_num++)
 	{
@@ -1095,7 +1095,7 @@ void* linpack_wrapper(void* arg)
 	cpu_set_t linpack_mask;
 	CPU_ZERO(&linpack_mask);
 	//CPU_SET(0, &linpack_mask);
-	CPU_SET(Config->PinCPU + cls->outputthreads + 1, &linpack_mask);
+	CPU_SET(Config->PinCPU + cls->outputthreads * cls->nDevices + 1, &linpack_mask);
 	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", cls->getcpumask(&linpack_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
 
@@ -1219,7 +1219,7 @@ void* cblas_wrapper(void* arg)
 
 		int old_goto_threads = get_num_procs();
 
-		int require_threads = par->cls->outputthreads + 1;
+		int require_threads = par->cls->outputthreads * par->cls->nDevices + 1;
 		if (par->cls->ExecLinpack && par->cls->Config->LinpackNodes > 1)
 		{
 			require_threads++;
@@ -1404,7 +1404,7 @@ void* merge_wrapper(void* arg)
 
 	cpu_set_t merge_mask;
 	CPU_ZERO(&merge_mask);
-	CPU_SET(par->cls->Config->PinCPU + par->nMergeThread + 1, &merge_mask);
+	CPU_SET(par->cls->Config->PinCPU + par->num_device * par->cls->outputthreads + par->nMergeThread + 1, &merge_mask);
 	if (par->cls->Config->Debug) fprintf(STD_OUT, "Merge Thread %d, setting CPU mask %X\n", par->nMergeThread, par->cls->getcpumask(&merge_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
 
