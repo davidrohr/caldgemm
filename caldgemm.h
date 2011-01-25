@@ -187,7 +187,7 @@ private:
 	static const int max_bbuffers = 3;
 	static const int max_bbuffers_g = 3;
 #endif	
-	static const unsigned int max_devices = 4;
+	static const unsigned int max_devices = 8;
 	int next_buffer_A[max_devices];
 	int next_buffer_B[max_devices];
 	int buffer_pointers_A[max_devices][2 * max_devices];
@@ -215,6 +215,7 @@ private:
 		int num_device;
 		bool terminate;
 		pthread_mutex_t mergeThreadMutex[2];
+		size_t k;
 	};
 	mergeParameters mParam[max_devices][max_outputthreads];
 
