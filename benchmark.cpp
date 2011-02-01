@@ -83,7 +83,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-k        Print Timing of Asynchronous DGEMM Operation\n" );
 	fprintf(STD_OUT, "\t-r  <int> Number of iterations to run the program (inside caldgemm)\n" );
 	fprintf(STD_OUT, "\t-R  <int> Number of iterations to run the program (seperate caldgemm calls)\n" );
-	fprintf(STD_OUT, "\t-y  <int> Force Device ID\n" );
+	fprintf(STD_OUT, "\t-y  <int> Force Device ID (-1 = all devices)\n" );
+	fprintf(STD_OUT, "\t-Y  <int> Use n devices\n" );
 	fprintf(STD_OUT, "\t-d        Enable Debug Mode\n" );
 	fprintf(STD_OUT, "\t-z        Enable Multithreading\n" );
 	fprintf(STD_OUT, "\t-b        Enable Benchmarking\n" );
@@ -336,6 +337,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 		case 'y':
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%u", &Config->DeviceNum);
+			break;
+		case 'Y':
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%u", &Config->NumDevices);
 			break;
 		case 'j':
 			if (++x >= argc) return(1);
