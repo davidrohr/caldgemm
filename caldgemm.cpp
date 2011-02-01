@@ -139,7 +139,8 @@ caldgemm::caldgemm_config::caldgemm_config()
 	PrintILKernel = false;
 	Quiet = true;
 	DisplayTiming = false;
-	DeviceNum = 0;
+	DeviceNum = -1;
+	NumDevices = max_devices;
 	Width = 1024;
 	Height = 4096;
 	AutoHeight = true;
@@ -1899,7 +1900,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	for (unsigned int i = 0; i < Config->Iterations; ++i)
 	{
-		for (int ii = 0;ii < max_devices;ii++)
+		for (int ii = 0;ii < nDevices;ii++)
 		{
 			buffersMajor[ii] = -1;
 			for (int j = 0;j < max_bbuffers;j++) buffersMinor[ii][j] = false;
@@ -1910,20 +1911,20 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		int oldj[max_devices];
 		int j[max_devices];
 		int iMergeThread[max_devices];
-		memset(j, 0, max_devices * sizeof(int));
-		memset(iMergeThread, 0, max_devices * sizeof(int));
+		memset(j, 0, nDevices * sizeof(int));
+		memset(iMergeThread, 0, nDevices * sizeof(int));
 		int use_device = 0;
 
 		const size_t mb = gpu_m / Config->Height;
 		const size_t nb = gpu_n / Config->Height;
 		size_t blockm, blockn;
 		unsigned long long int lastk[max_devices];
-		for (int l = 0;l < max_devices;l++) lastk[l] = -1;
+		for (int l = 0;l < nDevices;l++) lastk[l] = -1;
 		size_t nBlocks = mb * nb;
 		
 		size_t nextk = 0;
 		size_t next_device_k[max_devices];
-		memset(next_device_k, 0, max_devices * sizeof(size_t));
+		memset(next_device_k, 0, nDevices * sizeof(size_t));
 
 		if (Config->Debug)
 		{
@@ -2047,7 +2048,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					if (!DGEMM_favor_m && buffersSwitchable && bbuffers[use_device] >= mb)
 					{
 						for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][blockm][dwBuffersA + l].dstMem), "setting kernel memory A");
-						for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][dwBuffersA + l], datas[use_device][buffer_pointers_B[use_device][blockn % (2 * max_devices)]][l].dstMem), "setting kernel memory B");
+						for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][dwBuffersA + l], datas[use_device][buffer_pointers_B[use_device][blockn % (2 * nDevices)]][l].dstMem), "setting kernel memory B");
 					}
 					else
 #endif
@@ -2057,8 +2058,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 #else
 						const bool buffersSufficiant = false;
 #endif
-						for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][buffer_pointers_A[use_device][blockm % (2 * max_devices)]][l].dstMem), "setting kernel memory A");
-						for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][!buffersSufficiant ? (buffer_pointers_B[use_device][blockn % (2 * max_devices)]) : blockn][l].dstMem), "setting kernel memory B");
+						for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][buffer_pointers_A[use_device][blockm % (2 * nDevices)]][l].dstMem), "setting kernel memory A");
+						for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][l], datas[use_device][!buffersSufficiant ? (buffer_pointers_B[use_device][blockn % (2 * nDevices)]) : blockn][l].dstMem), "setting kernel memory B");
 					}
 					for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][numInputs + numConstantBuffers + l], datas[use_device][j[use_device]][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 					if (RunProgram(&ctx_main, &modules[use_device][kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[use_device][j[use_device]])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
@@ -2285,7 +2286,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 #else
 		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Config->Width, Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA == CblasTrans)) return(1);
 #endif
-		buffer_pointers_A[num_device][blockm % (2 * max_devices)] = next_buffer_A[num_device] % 2;
+		buffer_pointers_A[num_device][blockm % (2 * nDevices)] = next_buffer_A[num_device] % 2;
 	}
 	if (prepareN)
 	{
@@ -2296,7 +2297,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 #else
 		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1), Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB == CblasTrans);
 #endif
-		buffer_pointers_B[num_device][blockn % (2 * max_devices)] = next_buffer_B[num_device] % 2;
+		buffer_pointers_B[num_device][blockn % (2 * nDevices)] = next_buffer_B[num_device] % 2;
 	}
 	if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 	
@@ -2795,7 +2796,7 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 #endif
 				CHKERR(calResAllocRemote2D(&data[i].res, device, 1, tWidth, tHeight, CAL_FORMAT_UNSIGNED_INT32_4, flag), "allocattion of remote memory");
 				CHKERR(calCtxGetMem(&data[i].mem, *ctx, data[i].res), "getting remote memory for context");
-				CHKERR(calResMap(&data[i].ptr_void, &data[i].pitch, data[i].res, NULL), "mapping of remote memory");
+				CHKERR(calResMap(&data[i].ptr_void, &data[i].pitch, data[i].res, 0), "mapping of remote memory");
 				if (((size_t) data[i].ptr_void) & (vcpysize - 1))
 				{
 					fprintf(STD_OUT, "Memory not aligned correctly\n");
@@ -2874,7 +2875,7 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 		}
 		if (Config->DstMemory == 'c' && i >= fStop && Config->KeepBuffersMapped)
 		{
-			CHKERR(calResMap(&data[i].ptr_void, &data[i].pitch, data[i].res, NULL), "mapping of remote output memory");
+			CHKERR(calResMap(&data[i].ptr_void, &data[i].pitch, data[i].res, 0), "mapping of remote output memory");
 		}
 	}
 
@@ -3013,6 +3014,7 @@ int caldgemm::Initialize(int deviceNum)
 		calDeviceGetCount(&tmp);
 		nDevices = tmp;
 		if (nDevices > max_devices) nDevices = max_devices;
+		if (nDevices > Config->NumDevices) nDevices = Config->NumDevices;
 		for (int i = 0;i < nDevices;i++)
 		{
 			device_nums[i] = i;
@@ -3186,7 +3188,7 @@ int caldgemm::CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperti
 		if (data[i].CALMemory)
 		{
 			//if (Config->Debug) fprintf(STD_OUT, "GPUHandle: %d, CPUHandle: %d\n", data[i].dstMem, data[i].mem);
-			CHKERR(calMemCopy(event, *ctx, data[i].dstMem, data[i].mem, NULL), "copying data from gpu");
+			CHKERR(calMemCopy(event, *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
 			continue;
 		}
 		CHKERR(calResMap((void**)&ptr, &pitch, _Res[i], 0), "mapping buffer");
@@ -3209,7 +3211,7 @@ int caldgemm::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties
 		if (data[i].CALMemory == constants) continue;
 		if (data[i].CALMemory)
 		{
-			CHKERR(calMemCopy(event, *ctx, data[i].mem, dest_data[i].dstMem, NULL), "copying data to gpu");
+			CHKERR(calMemCopy(event, *ctx, data[i].mem, dest_data[i].dstMem, 0), "copying data to gpu");
 			continue;
 		}
 		CHKERR(calResMap((void**)&ptr, &pitch, _Res[i], 0), "Mapping Buffer");

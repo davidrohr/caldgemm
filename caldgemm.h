@@ -90,47 +90,48 @@ public:
 	public:
 		caldgemm_config();
 
-		bool AsyncDMA;
+		bool AsyncDMA;				//Run DMA transfer and kernel execution in parallel
 		bool AutoHeight;						//Automatically adjust height
-		bool DivideToGPU;
-		char DstMemory;
-		int ImplicitDriverSync;
-		bool DynamicSched;
-		bool KeepBuffersMapped;
-		bool MemPolicy;
-		bool MultiThread;
-		double GPURatio;
-		bool UseCPU;
-		bool UseGPU;
+		bool DivideToGPU;			//Write preprocessed data difrectly to GPU
+		char DstMemory;				//Dst memory of kernel on GPU (g) or CPU (c)
+		int ImplicitDriverSync;			//Assume the CAL driver enforces an explicit sync when starting CAL kernel
+		bool DynamicSched;			//Dynamically schedule CPU DGEMM
+		bool KeepBuffersMapped;			//Do not unmap CAL buffers before kernel execution
+		bool MemPolicy;				//Set memory allocation policy to interleaved
+		bool MultiThread;			//Use multiple threads
+		double GPURatio;			//Fraction of the matrix processed by GPU
+		bool UseCPU;				//use CPU for DGEMM
+		bool UseGPU;				//use GPUs for DGEMM
 
-		int DeviceNum;
+		int DeviceNum;				//CAL Device to use (-1 for all devices)
+		int NumDevices;				//Number of devices to use in parallel at max
 
-		bool Debug;
-		bool DumpMatrix;
-		unsigned int Iterations;
-		int PinCPU;
-		bool Verify;
+		bool Debug;				//Activate debig output
+		bool DumpMatrix;			//Dump input matrix to file
+		unsigned int Iterations;		//Run multiple iterations (for benchmark and debugging purpose only)
+		int PinCPU;				//Pin the GPU pre- and postprocessing threads to a CPUZ core
+		bool Verify;				//Verify the result
 
 		size_t Height;							//height of subblock od A, width of subblock of B
 		size_t m, n;								//height of A, width of B, must be multiple of height
 		size_t Width;							//k for matrix multiply
 
-		bool Disassemble;
-		bool PrintILKernel;
+		bool Disassemble;			//Print the disassembled IL kernel
+		bool PrintILKernel;			//Print the IL kernel source
 
-		bool AsyncTiming;
+		bool AsyncTiming;			//Print additional asynchronous timing information
 		bool DisplayTiming;					//Display Final Timing Information even when quiet
 		bool NoPerformanceWarnings;			//Suppress also performance warnings, will usually be shown even in quiet mode
-		const char* PreOut;
-		bool Quiet;
-		bool TabularTiming;
-		bool VerboseTiming;
+		const char* PreOut;			//Prefix timing output with user defined string (for MPI-runs)
+		bool Quiet;				//Quiet mode
+		bool TabularTiming;			//Output a table with timing information
+		bool VerboseTiming;			//Verbose timing information, disables asynchronous processing
 
-		int LinpackNodes;
-		int MPIRank;
-		int GPUClock;
-		volatile size_t *LinpackSwapN;
-		void (*linpack_factorize_function)();
+		int LinpackNodes;			//Number of nodes contributing to MPI HPL run
+		int MPIRank;				//MPI Rank to display in debug info
+		int GPUClock;				//GPU clock of the device used (to display throttling information)
+		volatile size_t *LinpackSwapN;		//Current status of linpack pivoting process
+		void (*linpack_factorize_function)();	//Linpack callback functions
 		void (*linpack_broadcast_function)();
 		void (*linpack_swap_function)();
 	};
