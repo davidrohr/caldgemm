@@ -1403,7 +1403,7 @@ void* cblas_wrapper(void* arg)
 				}
 			}
 			par->borders_done = true;
-			fprintf(STD_OUT, "cblas run completed\n");
+			if (Config->Debug) fprintf(STD_OUT, "cblas run completed\n");
 		} while (par->cls->cpuScheduler());
 		par->cls->Timers.CPUTimer.Stop();
 
