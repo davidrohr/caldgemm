@@ -1264,7 +1264,7 @@ void* cblas_wrapper(void* arg)
 		par->cls->Timers.LinpackTimer3.Start();
 		if (Config->LinpackSwapN != NULL)
 		{
-			goto_set_num_threads(8);
+			if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
 			Config->linpack_swap_function();
 			goto_set_num_threads(old_goto_threads - require_threads);
 		}
@@ -1278,7 +1278,7 @@ void* cblas_wrapper(void* arg)
 			par->cls->Timers.CPUTimer.Stop();
 #ifndef NO_ASYNC_LINPACK
 			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tStarting Linpack factorization\n");
-			goto_set_num_threads(8);
+			if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
 			par->cls->Timers.LinpackTimer1.Start();
 			Config->linpack_factorize_function();
 			par->cls->Timers.LinpackTimer1.Stop();
