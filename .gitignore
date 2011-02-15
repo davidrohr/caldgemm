@@ -1,3 +1,4 @@
 dgemm_bench
 .svn
 vcproject
+*.o
