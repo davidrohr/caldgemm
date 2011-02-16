@@ -1,30 +1,7 @@
-#
-# This patch add dynamic thread count modification to GotoBLAS.
-#
-# Copyright 2010:
-#  - David Rohr (drohr@jwdt.org)
-#  - Matthias Bach (bach@compeng.uni-frankfurt.de)
-#  - Matthias Kretz (kretz@compeng.uni-frankfurt.de)
-#
-# This file is part of CALDGEMM.
-#
-# CALDGEMM is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# CALDGEMM is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with CALDGEMM.  If not, see <http://www.gnu.org/licenses/>.
-#
-
---- ./common.h	2010-01-20 20:58:34.000000000 +0100
-+++ ../goto2/common.h	2010-08-18 14:55:20.000000000 +0200
-@@ -393,6 +393,7 @@
+diff -u -r ../GotoBLAS2_org//common.h ./common.h
+--- ../GotoBLAS2_org//common.h	2010-11-05 14:56:22.000000000 +0100
++++ ./common.h	2011-02-16 10:22:24.982506674 +0100
+@@ -410,6 +410,7 @@
  #endif
  
  void goto_set_num_threads(int);
@@ -32,9 +9,10 @@
  
  void gotoblas_affinity_init(void);
  void gotoblas_affinity_quit(void);
---- ./common_thread.h	2009-12-16 02:22:38.000000000 +0100
-+++ ../goto2/common_thread.h	2010-08-18 15:45:36.000000000 +0200
-@@ -30,6 +30,7 @@
+diff -u -r ../GotoBLAS2_org//common_thread.h ./common_thread.h
+--- ../GotoBLAS2_org//common_thread.h	2010-11-05 14:57:49.000000000 +0100
++++ ./common_thread.h	2011-02-16 10:22:24.983506808 +0100
+@@ -47,6 +47,7 @@
  
  /* Global Parameter */
  extern int blas_cpu_number;
@@ -42,9 +20,10 @@
  extern int blas_num_threads;
  extern int blas_omp_linked;
  
---- ./driver/others/blas_server.c	2010-02-05 16:46:32.000000000 +0100
-+++ ../goto2/driver/others/blas_server.c	2010-08-18 16:29:28.000000000 +0200
-@@ -25,6 +25,10 @@
+diff -u -r ../GotoBLAS2_org//driver/others/blas_server.c ./driver/others/blas_server.c
+--- ../GotoBLAS2_org//driver/others/blas_server.c	2010-11-05 14:57:49.000000000 +0100
++++ ./driver/others/blas_server.c	2011-02-16 10:23:31.079506212 +0100
+@@ -42,6 +42,10 @@
  #include <sys/resource.h>
  #endif
  
@@ -55,7 +34,7 @@
  #ifdef SMP_SERVER
  
  #undef MONITOR
-@@ -52,6 +56,8 @@
+@@ -69,6 +73,8 @@
  static unsigned long server_lock       = 0;
  #endif
  
@@ -64,7 +43,7 @@
  #define THREAD_STATUS_SLEEP		2
  #define THREAD_STATUS_WAKEUP		4
  
-@@ -547,9 +553,9 @@
+@@ -564,9 +570,9 @@
        /* Node Mapping Mode */
  
        if (queue -> mode & BLAS_NODE) {
@@ -76,7 +55,7 @@
  	  
  	  if (i < blas_num_threads - 1) break;
  
-@@ -561,19 +567,24 @@
+@@ -578,19 +584,26 @@
  	  }
  
  	} while (1);
@@ -87,7 +66,9 @@
        } else {
 -	while(thread_status[i].queue) {
 +	while(thread_status[i].queue || i < caldgemm_reserve_cpus) {
++#ifdef SMP_DEBUG
 +		if (i < caldgemm_reserve_cpus) printf("Ommiting thread %d\n", i);
++#endif
  	  i ++;
  	  if (i >= blas_num_threads - 1) i = 0;
  	}
@@ -103,7 +84,7 @@
        
        queue -> assigned = i;
        WMB;
-@@ -741,6 +752,10 @@
+@@ -758,6 +771,10 @@
  
  }
  
@@ -114,10 +95,10 @@
  /* Compatible function with pthread_create / join */
  
  int gotoblas_pthread(int numthreads, void *function, void *args, int stride) {
-diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
---- ./driver/others/init.c	2010-08-18 21:58:56.176744600 +0200
-+++ ../goto2/driver/others/init.c	2010-08-18 16:29:18.000000000 +0200
-@@ -63,7 +63,7 @@
+diff -u -r ../GotoBLAS2_org//driver/others/init.c ./driver/others/init.c
+--- ../GotoBLAS2_org//driver/others/init.c	2010-11-05 14:57:49.000000000 +0100
++++ ./driver/others/init.c	2011-02-16 10:22:24.989515440 +0100
+@@ -80,7 +80,7 @@
  
  static cpu_set_t cpu_orig_mask[4];
  
@@ -126,7 +107,7 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
  static int  node_mapping[MAX_CPUS * 4];
  static int  cpu_sub_mapping[MAX_CPUS];
  static int  disable_mapping;
-@@ -366,7 +366,7 @@
+@@ -383,7 +383,7 @@
      fprintf(stderr, "Node mask = %lx\n", lnodemask);
  #endif
      
@@ -135,7 +116,7 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
  
      numnodes = popcount(lnodemask);
    }
-@@ -424,7 +424,7 @@
+@@ -441,7 +441,7 @@
  
    int cpu, id, mapping;
  
@@ -144,7 +125,7 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
    mapping = 0;
  
    do {
-@@ -443,9 +443,9 @@
+@@ -460,9 +460,9 @@
        mapping ++;
      }
  
@@ -156,7 +137,7 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
    
    disable_mapping = 0;
  
-@@ -469,7 +469,7 @@
+@@ -486,7 +486,7 @@
  int get_num_nodes(void)  { return numnodes; }
  int get_node_equal(void) { 
  
@@ -165,9 +146,10 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
    
  }
  
---- ./driver/others/memory.c	2010-01-28 20:15:42.000000000 +0100
-+++ ../goto2/driver/others/memory.c	2010-08-18 14:56:30.000000000 +0200
-@@ -157,6 +157,7 @@
+diff -u -r ../GotoBLAS2_org//driver/others/memory.c ./driver/others/memory.c
+--- ../GotoBLAS2_org//driver/others/memory.c	2010-11-05 14:57:49.000000000 +0100
++++ ./driver/others/memory.c	2011-02-16 10:25:02.899506907 +0100
+@@ -174,6 +174,7 @@
  #endif
  
  int blas_cpu_number  = 0;
@@ -175,21 +157,34 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
  int blas_num_threads = 0;
  
  int  goto_get_num_procs  (void) {
---- ./Makefile.rule
-+++ ./Makefile.rule
-@@ -59,6 +59,9 @@ VERSION = 1.13
+@@ -912,7 +913,9 @@
+ 
+       while ((func != NULL) && (map_address == (void *) -1)) {
+ 
+-	map_address = (*func)((void *)base_address);
++      LOCK_COMMAND(&alloc_lock);
++      map_address = (*func)((void *)base_address);
++      UNLOCK_COMMAND(&alloc_lock);
+ 
+ #ifdef ALLOC_DEVICEDRIVER
+ 	if ((*func ==  alloc_devicedirver) && (map_address == (void *)-1)) {
+diff -u -r ../GotoBLAS2_org//Makefile.rule ./Makefile.rule
+--- ../GotoBLAS2_org//Makefile.rule	2010-02-05 17:02:04.000000000 +0100
++++ ./Makefile.rule	2011-02-16 10:25:37.357506615 +0100
+@@ -59,6 +59,9 @@
  # If you want to disable CPU/Memory affinity on Linux.
  # NO_AFFINITY = 1
  
 +# Do not set the memory policy to interleaving automatically
-+# NO_MEMPOLICY = 1
++NO_MEMPOLICY = 1
 +
  # If you would like to know minute performance report of GotoBLAS.
  # FUNCTION_PROFILE = 1
  
---- ./Makefile.system
-+++ ./Makefile.system
-@@ -570,6 +570,10 @@ NO_AFFINITY = 1
+diff -u -r ../GotoBLAS2_org//Makefile.system ./Makefile.system
+--- ../GotoBLAS2_org//Makefile.system	2010-01-28 21:11:08.000000000 +0100
++++ ./Makefile.system	2011-02-16 10:22:24.991642328 +0100
+@@ -570,6 +570,10 @@
  endif
  endif
  
@@ -198,5 +193,5 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
 +endif
 +
  ifdef NO_AFFINITY
- CCOMMON_OPT    += -DNO_AFFINITY
+ CCOMMON_OPT	+= -DNO_AFFINITY
  endif
