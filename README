@@ -1,0 +1,301 @@
+Caldgemm Readme, Command Line Options, and Performance Optimization Guide, and some examples
+
+Command Line Options:
+-?
+Display help on command line options.
+
+-e (default: disabled)
+Verify Computational Correctness. The matrix is copied at the beginning of the computation.
+Sufficient memory must be available. See -7 for verification of large matrices.
+
+-q (default: disabled)
+Supress Display Output in caldgemm. Output from dgemm_bench is still active.
+See -5 to suppress this.
+
+-a (default: disabled)
+Print the disassembled kernel image
+
+-i (default: disabled)
+Print IL Kernel used
+
+-o  <c|g> (default: 'c')
+Specify the output location, c = CPU, g = GPU, default GPU.
+This is the output location of the kernel. If 'g' is specified the GPU write to GPU global
+memory and an additional DMA transfer fetches the data to the host. In general 'c' is the
+faster option. On some systems DMA is slow and 'g' gets the better kernel performance.
+See -I in combination with the 'g' option!
+
+-I (default: autodetect)
+Force implicit driver sync.
+A bug in some AMD drivers prohibits DMA transfer and slows down caldgemm. A workaround is
+available that relies on a specific driver behavior and might result in wrong results with
+newer drivers. It is automatically detected whether you driver suffers by the bug and whether
+the workaround can be applied. This check does not work for newer driver versions though.
+-I forces the workaround enabled.
+
+-h  <int> (default: =4096)
+Tile size for matrix multiply, default 4096. If you use GPU only DGEMM the matrix sizes must
+be a multiple of h.
+
+-H  <int> (default: =-h)
+Reduced block size for actual matrix multiply (buffer size given by -h).
+Used for internal testing.
+
+-w  <int> (default: 1024)
+k for matrix multiply, default 1024.
+
+-W  <int> (default: =-w)
+Reduced width, see H.
+Used for internal testing.
+
+-l (default: disabled)
+Automatically select tile-size for good performance. The -H paramameter defines the maximal
+size possible. The size will be reduced for smaller matrices. Activating this is generally
+a good idea.
+
+-m  <int> (default: 4096)
+m for matrix multiply, must be multiple of h, default 1024.
+Number of rows of the target matrix. If GPU-only DGEMM is used this must be a multiple of -H.
+
+
+-n  <int> (default: 4096)
+n for matrix multiply, must be multiple of h, default 1024.
+Number of cols of the target matrix. If GPU-only DGEMM is used this must be a multiple of -H.
+
+-v (default: disabled)
+Verbose Synchronous Timing for Single Kernels / Transfers.
+This disables all asynchronous transfers in caldgemm. Overall performance will be poor.
+This can be used for directly measuring kernel performance and DMA performance.
+
+-k (default: disabled)
+Print Timing of Asynchronous DGEMM Operation.
+Used for internal testing.
+
+-r  <int> (default: 1)
+Number of iterations to run the program (inside caldgemm)
+Used for internal testing.
+
+-R  <int> (default: 1)
+Number of iterations to run the program (seperate caldgemm calls)
+Used for internal testing.
+
+-y  <int> (default: -1)
+Force Device ID (-1 = all devices)
+Force the device id to use. You can either specify a single device or provide -1 to use all
+devices.
+
+-Y  <int> (default: 8)
+Maximal number of devices to use. Setting -Y greater than zero requires -y to be -1
+
+-d (default: disabled)
+Print lots of debug output
+
+-z (default: disabled)
+Enable Multithreading. You definitely want to activate this.
+
+-b (default: disabled)
+Enable Benchmarking.
+Used for internal testing.
+
+-c (default: disabled)
+Use CPU for DGEMM. You can supply -g as well to use both CPU and GPU. Supplying neither of them
+will use GPU only.
+
+-g (default: enabled id and only if -c is disabled)
+Use GPU for DGEMM. You can supply -g as well to use both CPU and GPU. Supplying neither of them
+will use GPU only.
+
+-f (default: disabled)
+Fast Init (Empty Matrices). The matrices filled with zeros instead of using a random number
+generator. Initialization is faster. Use for optimization and benchmarking only. The verification
+does not work with this initialization method.
+
+-j  <dbl> (default: -1)
+Ratio of GPU performance to total CPU+GPU performance. Set to -1 for autodetection.
+
+-s (default: disabled)
+Dynamic CPU GPU scheduling. Do not use only the fixed ratio specified by -j but use a dynamic CPU/GPU
+workload scheduling. This includes work-stealing, etc. The value provided by -j is the basis for the
+scheduling.
+
+-p (default: disabled)
+Interleaving Memory Policy. Gotoblas usually activates memory interleaving. This leads to a problem with
+the CAL library. Interleaving should be activated after memory for the CAL library is allocated. Thus
+it is recommended to disable interleaving in GotoBLAS (apply the patch provided with caldgemm and
+set NO_MEMINTERLEAVE in GotoBLAS Make.rule) and use -p
+
+-u (default: disabled)
+Dump Test Matrix.
+Used for internal testing only.
+
+-1 (default: disabled)
+Transpose A Matrix. Provide a transposed input A matrix.
+
+-2 (default: disabled)
+Transpose B Matrix. Provide a transposed input B matrix.
+
+-3 (default: disabled)
+Set alpha parameter to 1.0 to test optimized kernel.
+
+-# (default: disabled)
+Set beta parameter to 0.0 to test optimized memcpy.
+
+-5 (default: disabled)
+Quiet Benchmark mode (different from quiet caldgemm mode -q). This suppresses output of dgemm_bench.
+Output of caldgemm is not suppressed. See -q for this.
+
+-6  <int> (default: not used)
+Set m=n = value * tile-size (-h)
+
+-4  <int> (default: not used)
+Set m=n to the closest multiple of tile-size (-h) to value
+
+-7 (default: disabled)
+Verfication for large matrices. Compared to -e this does not require the matrix to be copied. However,
+the output is less elaborated and it only tells you whether the DGEMM succeeded.
+
+-8 (default: initial run enabled)
+No initial run to negate cache effects. The first run is usually slower as the kernel must be copied
+to GPU, etc. Thus, for benchmarks, an initial run is performed before the actual benchmark run is
+started. The -8 option ommits this initial run. The initial run is automatically deactivated if the
+-d option or some other are given. This option is primarily used for debugging.
+
+-9 (default: disabled)
+Output a table with timing information
+
+-0 (default: disabled)
+Write the output of divideBuffers-function directly to GPU instead of a seperate DMA transfer. This
+option turned out to not perform well. Better leave it deactivated.
+
+-A (default: disabled)
+Do the DMA transfer to GPU asynchronously. If you are not debugging, always enable this.
+
+-L (default: disabled)
+Memory Organisation like in HPL (LINPACK). Do not pack the A, B, C matrices together but use a
+memory organisation like in HPL where the matrices are stored kind of interleaved.
+
+-C (default: disabled)
+Call fake LINPACK callback functions. This is used to test the HPL callback implementation.
+For internal testing only.
+
+-P  <int> (default: not used)
+LDA=LDB=LDC = val for HPL like memory. Forces the leading dimension of the matrices to a specific value.
+If not set the leading dimensions are chosen such that each row starts at a new cache line.
+
+-T (default: disabled)
+Allocate Memory using Huge Tables. Turned out not to perform well for some reasons. Better leave it 
+deactivated. To activate this feature shared memory segments with huge tables must be provided.
+
+-B (default: disabled)
+Keep DMA Buffers mapped during kernel execution. The Driver Hack is needed for this option. It is
+only relevant when using "-o c" which, however, is the default value.
+
+-x <file> (default: not used)
+Load Matrix from file.
+
+--  <int> (default: disabled)
+Run a torture test with n iterations. The torture test will automatically set "-A -B -p -z -g"
+If will use m and n of 86016. If you do not have sufficient memory available you can override
+the m and n settings. make sure you specifiy -m and -n after --. Without additional options
+a GPU only torture test is started. Using the standard option you can run combined GPU/CPU torture
+tests. E.g. a combined torture test with reduced matrix size can be started by:
+-- 10 -m 40960 -n 40960 -c -l -se;
+
+-t  <int> (default: 0)
+Pin GPU thread to core n. The core which is closest to the GPU should be chosen. Mostly 0.
+The additional merge threads will use the next possible core then. E.g. running with 1 merge threads
+and -1 6 will use cores 6 and 7.
+
+
+
+Performance Optimization Guide:
+
+To achieve good performance 3 steps should be performed:
+1. Optimize Kernel Performance.
+2. Optimize System Performance of GPU-DGEMM (including DMA-transfer, post-/ preprocessing).
+3. Optimize Combined GPU/CPU Performance.
+4. Optimize multi-GPU performance.
+
+If you have multiple GPUs better do the following with a single GPU first. Try multiGPU afterwards.
+Add -y 0 to each of the following command lines.
+
+
+Step 1:
+The kernel performance should be good out of the box. Most kernel parameters cannot be changed via
+command-line but during compilation in caldgemm_config.h. Usually the parameters are fine as they are.
+
+Run a "./dgemm_bench -v" to check the kernel performance. The kernel will usually write its output to
+host memory.
+
+Some systems have a poor DMA. You can try to alter the output to GPU memory and see whether
+kernel performance gets better. Run "./dgemm_bench -o g -v" for this. If the second option is better,
+always use "-o g"
+
+
+Step 2:
+Optimize System performance
+
+First check whether DMA is working well. Run "./dgemm_bench -o g -v" and look at the copy speeds from and
+to the device. (-o g is required here to measure PCIe speed.)
+Anything above 5gb/s should be fine. If the speed is below probably the GPU threads are pinned
+to a wrong CPU core on NUMA architectures. You can alter the CPU core with the -t option.
+Try "./dgemm_bench -o g -v -t 0", "./dgemm_bench -o g -v -t 1", etc to find the best CPU core.
+Using a CPU core other than zero can lead to problems when using GPU/CPU combined DGEMM.
+
+Test you system GPU DGEMM performance. The parameters you definitely want to have are:
+-z (multithreading)
+-p (memory interleaving)
+-A (asynchronous DMA transfer)
+Run "./dgemm_bench -z -p -A -m 40960 -n 40960"
+
+This part is only relevant if you found you want to use "-o g" in Step 1:
+There is a DMA problem in the AMD driver that can be overcome by a workaround. Usually it is autotedected
+whether the workaround can and must be applied. Still, you better recheck by hand.
+You can force the workaround using the -I parameter.
+Rerun the above test: "./dgemm_bench -z -p -A -m 40960 -n 40960 -o g -I"
+If the performance is better you have to check whether the results are correct. The workaround will only
+work with some drivers and might produce false results with others. To verify run:
+"./dgemm_bench -z -p -A -m 40960 -n 40960 -o g -I -e"
+
+This part is only relevant if you found you want to use "-o c" in Step 1:
+Use the AMD driver hack. Apply the hack and then use the "-B" parameter.
+Run "./dgemm_bench -z -p -A -B -m 40960 -n 40960". You'll see a warning if the hack was not applied
+correctly. Performance is not necessarily better than without "-B" but the CPU load is decreased. You'll
+see the difference when using combined CPU/GPU DGEMM.
+
+
+Step 3:
+Optimize Overall performance.
+
+First check the possible CPU performance: "./dgemm_bench -c -z -p -m 40960 -n 40960".
+Then do a combined CPU/GPU run: "./dgemm_bench -c -g -l -s -p -z -A -m 40960 -n 40960".
+Use the "-o g", "-I", and "-B" parameters as determined in steps 1 and 2.
+The performance should be better than in step 2.
+
+You can alter the CPU/GPU ratio using the "-j" parameter. Try to tune it such that the GPU and CPU DGEMM
+times are equal. It is better to set -j rather high, as the dynamic scheduler will compensate this with a
+work-stealing algorithm. If you see many 3rd-phase runs in caldgemm output, than "-j" is possibly to big.
+
+If the AMD driver hack is not available, you might get better combined performance by using "-o g"
+(foolow the appropriate instructions in step 2 also).
+
+
+Step 4:
+There is little you can do to optimize multi-GPU performance. First try to run without CPU. From now on omit the "-y 0".
+The performance should scale almost linearly with multi-GPU.
+
+If you have good multi-GPU performance try to use the CPU as well. You might need to change the -j value.
+
+
+Examples:
+
+Measure kernel and PCIe performance:
+./dgemm_bench -o g -v
+
+Run GPU-only DGEMM
+./dgemm_bench -z -p -A -B -m 40960 -n 40960
+./dgemm_bench -z -p -A -o g -I -m 40960 -n 40960
+
+Run CPU/GPU DGEMM
+./dgemm_bench -c -g -z -s -l -p -A -B -y -1 -j -1 -m 40960 -n 40960
+./dgemm_bench -c -g -z -s -l -p -A -o g -I -y -1 -j -1 -m 40960 -n 40960
