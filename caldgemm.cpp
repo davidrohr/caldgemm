@@ -1555,14 +1555,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		return(0);		//Do Nothing
 	}
 
-	/*  //Disable output for all but one host in MPI rin
-	if (strcmp(hostname, "gpu-dev05") != 0)
-	{
-	Config->Debug = false;
-	Config->Quiet = true;
-	Config->Verify = false;
-	}*/
-
 	bool forceCPU = false;
 	bool forceReinit = false;
 	double GPURatio;
@@ -1717,13 +1709,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (Config->Width > BufferWidth || Config->Height > BufferHeight) forceReinit = true;
 
 	if (Config->UseGPU == false || Config->m < Config->Height || Config->n < Config->Height || (forceReinit && (long long int) MaxGpuM * (long long int) MaxGpuN * (long long int) Config->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Config->Width < 1024 && Config->Height < 1024)) forceCPU = true;
-
-	/*  //Run on CPU on all but one node in MPIRUN
-	if (strcmp(hostname, "gpu-dev05") != 0)
-	{
-	fprintf(STD_OUT, "Hostname not 5 but %s\n", hostname);
-	forceCPU = true;
-	}*/
 
 	if (forceCPU)
 	{
