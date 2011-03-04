@@ -904,6 +904,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 		fprintf(STD_OUT, "Only heights with multiple of 8 are computable.\n" );
 		return(1);
 	}
+	else if (Config->Height % 256)
+	{
+		Config->Height += 256 - Config->Height % 256;
+		fprintf(STD_OUT, "Cannot allocate buffer corresponding to Config->Width, increasing buffer size to %lld\n", (long long int) Config->Height);
+	}
 
 	numInputs = dwBuffersA + dwBuffersB;
 	numOutputs = dwBuffersC;
