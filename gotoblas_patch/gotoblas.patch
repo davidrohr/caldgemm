@@ -1,6 +1,6 @@
-diff -u -r ../GotoBLAS2_org//common.h ./common.h
---- ../GotoBLAS2_org//common.h	2010-11-05 14:56:22.000000000 +0100
-+++ ./common.h	2011-02-16 10:22:24.982506674 +0100
+diff -u -r ../gotoblas_org/GotoBLAS2//common.h GotoBLAS2//common.h
+--- ../gotoblas_org/GotoBLAS2//common.h	2010-11-05 14:56:22.000000000 +0100
++++ GotoBLAS2//common.h	2011-02-16 10:22:24.000000000 +0100
 @@ -410,6 +410,7 @@
  #endif
  
@@ -9,9 +9,9 @@ diff -u -r ../GotoBLAS2_org//common.h ./common.h
  
  void gotoblas_affinity_init(void);
  void gotoblas_affinity_quit(void);
-diff -u -r ../GotoBLAS2_org//common_thread.h ./common_thread.h
---- ../GotoBLAS2_org//common_thread.h	2010-11-05 14:57:49.000000000 +0100
-+++ ./common_thread.h	2011-02-16 10:22:24.983506808 +0100
+diff -u -r ../gotoblas_org/GotoBLAS2//common_thread.h GotoBLAS2//common_thread.h
+--- ../gotoblas_org/GotoBLAS2//common_thread.h	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2//common_thread.h	2011-02-16 10:22:24.000000000 +0100
 @@ -47,6 +47,7 @@
  
  /* Global Parameter */
@@ -20,9 +20,9 @@ diff -u -r ../GotoBLAS2_org//common_thread.h ./common_thread.h
  extern int blas_num_threads;
  extern int blas_omp_linked;
  
-diff -u -r ../GotoBLAS2_org//driver/others/blas_server.c ./driver/others/blas_server.c
---- ../GotoBLAS2_org//driver/others/blas_server.c	2010-11-05 14:57:49.000000000 +0100
-+++ ./driver/others/blas_server.c	2011-02-16 10:23:31.079506212 +0100
+diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/blas_server.c GotoBLAS2//driver/others/blas_server.c
+--- ../gotoblas_org/GotoBLAS2//driver/others/blas_server.c	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2//driver/others/blas_server.c	2011-02-16 10:23:31.000000000 +0100
 @@ -42,6 +42,10 @@
  #include <sys/resource.h>
  #endif
@@ -95,10 +95,22 @@ diff -u -r ../GotoBLAS2_org//driver/others/blas_server.c ./driver/others/blas_se
  /* Compatible function with pthread_create / join */
  
  int gotoblas_pthread(int numthreads, void *function, void *args, int stride) {
-diff -u -r ../GotoBLAS2_org//driver/others/init.c ./driver/others/init.c
---- ../GotoBLAS2_org//driver/others/init.c	2010-11-05 14:57:49.000000000 +0100
-+++ ./driver/others/init.c	2011-02-16 10:22:24.989515440 +0100
-@@ -80,7 +80,7 @@
+diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/others/init.c
+--- ../gotoblas_org/GotoBLAS2//driver/others/init.c	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2//driver/others/init.c	2011-03-04 08:14:17.691710317 +0100
+@@ -70,17 +70,17 @@
+   int num_nodes;
+   int num_procs;
+   int final_num_procs;
+-  unsigned long avail;
++  unsigned long long int avail;
+   
+   unsigned long cpu_info   [MAX_CPUS];
+-  unsigned long node_info  [MAX_NODES];
++  unsigned long long int node_info  [MAX_NODES];
+   int cpu_use[MAX_CPUS];
+ 
+ } shm_t;
  
  static cpu_set_t cpu_orig_mask[4];
  
@@ -107,7 +119,147 @@ diff -u -r ../GotoBLAS2_org//driver/others/init.c ./driver/others/init.c
  static int  node_mapping[MAX_CPUS * 4];
  static int  cpu_sub_mapping[MAX_CPUS];
  static int  disable_mapping;
-@@ -383,7 +383,7 @@
+@@ -93,7 +93,8 @@
+ static int shmid, pshmid;
+ static void *paddr;
+ 
+-static unsigned long lprocmask, lnodemask;
++static unsigned long long int lprocmask;
++static unsigned long lnodemask;
+ static int numprocs = 1;
+ static int numnodes = 1;
+ 
+@@ -139,12 +140,12 @@
+   return count;
+ }
+ 
+-static inline unsigned long get_cpumap(int node) {
++static inline unsigned long long int get_cpumap(int node) {
+ 
+   int infile;
+-  unsigned long affinity;
++  unsigned long long int affinity;
+   char name[160];
+-  char *p, *dummy;
++  char *p, *pp, *dummy;
+   
+   sprintf(name, CPUMAP_NAME, node);
+   
+@@ -154,24 +155,37 @@
+     
+   if (infile != -1) {
+     
+-    read(infile, name, sizeof(name));
++    name[read(infile, name, sizeof(name))] = 0;
+    
+     p = name;
+ 
++    p[128] = NULL;
+     while ((*p == '0') || (*p == ',')) p++;
++    pp = p;
++    pp++;
++    while (*pp != ',' && *pp != 0) pp++;
++    if (*pp == ',')
++    {
++	do
++	{
++	    *pp = *(pp + 1);
++	    pp++;
++	} while (*pp != 0);
++    }
++    
+ 
+-    affinity = strtol(p, &dummy, 16);
+-   
++    affinity = strtoll(p, &dummy, 16);
++    
+     close(infile);
+   }
+ 
+   return affinity;
+ }
+ 
+-static inline unsigned long get_share(int cpu, int level) {
++static inline unsigned long long int get_share(int cpu, int level) {
+ 
+   int infile;
+-  unsigned long affinity;
++  unsigned long long int affinity;
+   char name[160];
+   char *p;
+   
+@@ -179,7 +193,7 @@
+   
+   infile = open(name, O_RDONLY);
+ 
+-  affinity = (1UL << cpu);
++  affinity = (((unsigned long long int) 1) << cpu);
+     
+   if (infile != -1) {
+     
+@@ -189,7 +203,7 @@
+ 
+     while ((*p == '0') || (*p == ',')) p++;
+ 
+-    affinity = strtol(p, &p, 16);
++    affinity = strtoll(p, &p, 16);
+    
+     close(infile);
+   }
+@@ -238,7 +252,7 @@
+   fprintf(stderr, "Numa found : number of Nodes = %2d\n", common -> num_nodes);
+ 
+   for (node = 0; node < common -> num_nodes; node ++)
+-    fprintf(stderr, "MASK (%2d) : %08lx\n", node, common -> node_info[node]);
++    fprintf(stderr, "MASK (%2d) : %08llx\n", node, common -> node_info[node]);
+ #endif
+ 
+   return common -> num_nodes;
+@@ -254,7 +268,7 @@
+   for (node = 0; node < common -> num_nodes; node ++) {
+     core = 0;
+     for (cpu = 0; cpu < common -> num_procs; cpu ++) {
+-      if (common -> node_info[node] & common -> avail & (1UL << cpu)) {
++      if (common -> node_info[node] & common -> avail & (((unsigned long long int) 1) << cpu)) {
+ 	common -> cpu_info[count] = WRITE_CORE(core) | WRITE_NODE(node) | WRITE_CPU(cpu);
+ 	count ++;
+ 	core ++;
+@@ -311,10 +325,10 @@
+ 
+ static void disable_hyperthread(void) {
+ 
+-  unsigned long share;
++  unsigned long long int share;
+   int cpu;
+ 
+-  common -> avail = (1UL << common -> num_procs) - 1;
++  common -> avail = (((unsigned long long int) 1) << common -> num_procs) - 1;
+ 
+ #ifdef DEBUG
+   fprintf(stderr, "\nAvail CPUs    : %04lx.\n", common -> avail);
+@@ -328,10 +342,10 @@
+       
+ #ifdef DEBUG
+       fprintf(stderr, "Detected Hyper Threading on CPU %4x; disabled CPU %04lx.\n",
+-	      cpu, share & ~(1UL << cpu));
++	      cpu, share & ~(((unsigned long long int) 1) << cpu));
+ #endif
+       
+-      common -> avail &= ~((share & ~(1UL << cpu)));
++      common -> avail &= ~((share & ~(((unsigned long long int) 1) << cpu)));
+     }
+   }
+ }
+@@ -343,7 +357,7 @@
+     fprintf(stderr, "CPU mask                  : %04lx.\n\n", *(unsigned long *)&cpu_orig_mask[0]);
+ #endif
+ 
+-  lprocmask = (1UL << common -> final_num_procs) - 1;
++  lprocmask = (((unsigned long long int) 1) << common -> final_num_procs) - 1;
+ 
+ #ifndef USE_OPENMP
+   lprocmask &= *(unsigned long *)&cpu_orig_mask[0];
+@@ -383,7 +397,7 @@
      fprintf(stderr, "Node mask = %lx\n", lnodemask);
  #endif
      
@@ -116,7 +268,7 @@ diff -u -r ../GotoBLAS2_org//driver/others/init.c ./driver/others/init.c
  
      numnodes = popcount(lnodemask);
    }
-@@ -441,7 +441,7 @@
+@@ -441,7 +455,7 @@
  
    int cpu, id, mapping;
  
@@ -125,7 +277,16 @@ diff -u -r ../GotoBLAS2_org//driver/others/init.c ./driver/others/init.c
    mapping = 0;
  
    do {
-@@ -460,9 +460,9 @@
+@@ -451,7 +465,7 @@
+       if (is_dead(id)) common -> cpu_use[cpu] = 0;
+     }
+ 
+-    if ((common -> cpu_use[cpu] == 0) && (lprocmask & (1UL << cpu))) {
++    if ((common -> cpu_use[cpu] == 0) && (lprocmask & (((unsigned long long int) 1) << cpu))) {
+ 
+       common -> cpu_use[cpu] = pshmid;
+       cpu_mapping[mapping] = READ_CPU(common -> cpu_info[cpu]);
+@@ -460,9 +474,9 @@
        mapping ++;
      }
  
@@ -137,7 +298,7 @@ diff -u -r ../GotoBLAS2_org//driver/others/init.c ./driver/others/init.c
    
    disable_mapping = 0;
  
-@@ -486,7 +486,7 @@
+@@ -486,7 +500,7 @@
  int get_num_nodes(void)  { return numnodes; }
  int get_node_equal(void) { 
  
@@ -146,10 +307,30 @@ diff -u -r ../GotoBLAS2_org//driver/others/init.c ./driver/others/init.c
    
  }
  
-diff -u -r ../GotoBLAS2_org//driver/others/memory.c ./driver/others/memory.c
---- ../GotoBLAS2_org//driver/others/memory.c	2010-11-05 14:57:49.000000000 +0100
-+++ ./driver/others/memory.c	2011-02-16 10:25:02.899506907 +0100
-@@ -174,6 +174,7 @@
+diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/memory.c GotoBLAS2//driver/others/memory.c
+--- ../gotoblas_org/GotoBLAS2//driver/others/memory.c	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2//driver/others/memory.c	2011-03-04 08:13:58.312058333 +0100
+@@ -37,7 +37,6 @@
+ /*********************************************************************/
+ 
+ #undef  DEBUG
+-
+ #include "common.h"
+ 
+ #ifdef OS_WINDOWS
+@@ -109,6 +108,11 @@
+ gotoblas_t *gotoblas = NULL;
+ #endif
+ 
++#ifdef DEBUG
++int alloc_area[NUM_BUFFERS];
++int alloc_used[NUM_BUFFERS];
++#endif
++
+ #ifndef SMP
+ 
+ #define blas_cpu_number 1
+@@ -174,6 +178,7 @@
  #endif
  
  int blas_cpu_number  = 0;
@@ -157,7 +338,7 @@ diff -u -r ../GotoBLAS2_org//driver/others/memory.c ./driver/others/memory.c
  int blas_num_threads = 0;
  
  int  goto_get_num_procs  (void) {
-@@ -912,7 +913,9 @@
+@@ -912,7 +917,9 @@
  
        while ((func != NULL) && (map_address == (void *) -1)) {
  
@@ -168,9 +349,18 @@ diff -u -r ../GotoBLAS2_org//driver/others/memory.c ./driver/others/memory.c
  
  #ifdef ALLOC_DEVICEDRIVER
  	if ((*func ==  alloc_devicedirver) && (map_address == (void *)-1)) {
-diff -u -r ../GotoBLAS2_org//Makefile.rule ./Makefile.rule
---- ../GotoBLAS2_org//Makefile.rule	2010-02-05 17:02:04.000000000 +0100
-+++ ./Makefile.rule	2011-02-16 10:25:37.357506615 +0100
+@@ -936,7 +943,7 @@
+       }
+ 
+ #ifdef DEBUG
+-      printf("  Success -> %08lx\n", map_address);
++      printf("  Success -> %08lx\n", (unsigned long int) map_address);
+ #endif
+       if (((BLASLONG) map_address) == -1) base_address = 0UL;
+ 
+diff -u -r ../gotoblas_org/GotoBLAS2//Makefile.rule GotoBLAS2//Makefile.rule
+--- ../gotoblas_org/GotoBLAS2//Makefile.rule	2010-02-05 17:02:04.000000000 +0100
++++ GotoBLAS2//Makefile.rule	2011-02-16 10:25:37.000000000 +0100
 @@ -59,6 +59,9 @@
  # If you want to disable CPU/Memory affinity on Linux.
  # NO_AFFINITY = 1
@@ -181,9 +371,9 @@ diff -u -r ../GotoBLAS2_org//Makefile.rule ./Makefile.rule
  # If you would like to know minute performance report of GotoBLAS.
  # FUNCTION_PROFILE = 1
  
-diff -u -r ../GotoBLAS2_org//Makefile.system ./Makefile.system
---- ../GotoBLAS2_org//Makefile.system	2010-01-28 21:11:08.000000000 +0100
-+++ ./Makefile.system	2011-02-16 10:22:24.991642328 +0100
+diff -u -r ../gotoblas_org/GotoBLAS2//Makefile.system GotoBLAS2//Makefile.system
+--- ../gotoblas_org/GotoBLAS2//Makefile.system	2010-01-28 21:11:08.000000000 +0100
++++ GotoBLAS2//Makefile.system	2011-02-16 10:22:24.000000000 +0100
 @@ -570,6 +570,10 @@
  endif
  endif
