@@ -912,7 +912,15 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 	if (Config->Debug) fprintf(STD_OUT, "Initializing CAL\n");
 	if (Initialize(Config->DeviceNum))
 	{
-		return 1;
+		gpu_available = false;
+	}
+	if (!gpu_available)
+	{
+		if (!Config->Quiet) fprintf(STD_OUT, "No GPU available, falling back to CPU\n");
+		nDevices = 0;
+		Config->UseGPU = 0;
+		Config->UseCPU = 1;
+		Config->KeepBuffersMapped = 0;
 	}
 
 	CALdeviceattribs attribs;
@@ -1721,20 +1729,28 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 		if (Config->Debug) fprintf(STD_OUT, "Running CPU only DGEMM\n");
 		if (Config->LinpackSwapN != NULL) Config->linpack_swap_function();
-		Timers.CPUTimer.Start();
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
-		Timers.CPUTimer.Stop();
-		CPUOnlyRun = true;
 #ifndef NO_ASYNC_LINPACK
 		if (ExecuteLinpackCallbacks)
 		{
+			Timers.CPUTimer.Start();
+			cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->Width, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
+			Timers.CPUTimer.Stop();
+
 			if (Config->Debug) fprintf(STD_OUT, "DGEMM was running on CPU only, executing linpack callback functions\n");
 			Timers.LinpackTimer1.Start();
 			Config->linpack_factorize_function();
 			if (Config->LinpackNodes > 1) Config->linpack_broadcast_function();
 			Timers.LinpackTimer1.Stop();
+
+			Config->m -= Config->Width;
+			A += Config->Width * (TransposeA == CblasTrans ? 1 : A_pitch);
+			C += Config->Width * (C_pitch);
 		}
 #endif
+		Timers.CPUTimer.Start();
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
+		Timers.CPUTimer.Stop();
+		CPUOnlyRun = true;
 		goto RunCALDGEMM_end;
 	}
 	CPUOnlyRun = false;
@@ -2394,7 +2410,7 @@ int caldgemm::ExitCALDGEMM()
 	fprintf(STD_OUT, "Uninitializing CAL runtime\n");
 #endif
 
-	if (calShutdown() != CAL_RESULT_OK)
+	if (gpu_available && calShutdown() != CAL_RESULT_OK)
 	{
 		fprintf(STD_OUT, "There was an error during cal shutdown.\n");
 		fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
@@ -3038,6 +3054,7 @@ int caldgemm::Initialize(int deviceNum)
 		device_nums[0] = deviceNum;
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Initializing CALDGEMM for %d devices\n", nDevices);
+	gpu_available = (nDevices > 0);
 	for (int i = 0;i < nDevices;i++)
 	{
 	    devices[i] = 0;

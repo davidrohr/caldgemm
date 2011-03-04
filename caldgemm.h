@@ -234,6 +234,7 @@ private:
 	size_t gpu_m, gpu_n;
 
 	bool caldgemm_initialized;
+	bool gpu_available;
 
 	pthread_mutex_t scheduleMutex;
 	volatile long long int gpu_k_barrier, cpu_k_barrier;
