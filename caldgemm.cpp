@@ -875,6 +875,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 		fprintf(STD_OUT, "Error setting CPU affinity\n");
 		return(1);
 	}
+	
+	if (Config->SlowCPU) Config->DynamicSched = false;
 
 	if(ValidateCALRuntime())
 	{
@@ -1705,17 +1707,17 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (Config->AutoHeight)
 	{
-		if (ExecuteLinpackCallbacks >= 2)
+		if (ExecuteLinpackCallbacks >= 2 || Config->SlowCPU)
 		{
 			if (MaxGpuM < 1024 || MaxGpuN < 1024)
 			{
 				Config->Height = 512;
 			}
-			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || (MaxGpuM * MaxGpuN < 13 * 14 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 2048 >= 1024) || (MaxGpuM * MaxGpuN < 16 * 1024 * 1024))
+			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || ((Config->SlowCPU || MaxGpuM * MaxGpuN < 13 * 14 * 1024 * 1024) && mymax(MaxGpuN, MaxGpuM) % 2048 >= 1024) || (MaxGpuM * MaxGpuN < 16 * 1024 * 1024))
 			{
 				Config->Height = 1024;
 			}
-			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || (MaxGpuM * MaxGpuN < 20 * 21 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 3072 >= 2048) || (MaxGpuM * MaxGpuN < 120 * 1024 * 1024))
+			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || ((Config->SlowCPU || MaxGpuM * MaxGpuN < 20 * 21 * 1024 * 1024) && mymax(MaxGpuN, MaxGpuM) % 3072 >= 2048) || (MaxGpuM * MaxGpuN < 120 * 1024 * 1024))
 			{
 				Config->Height = 2048;
 			}
