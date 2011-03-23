@@ -109,9 +109,11 @@ public:
 		bool Debug;				//Activate debig output
 		bool DumpMatrix;			//Dump input matrix to file
 		unsigned int Iterations;		//Run multiple iterations (for benchmark and debugging purpose only)
-		int PinCPU;				//Pin the GPU pre- and postprocessing threads to a CPUZ core
 		bool Verify;				//Verify the result
 
+		int PinCPU;				//Pin the GPU pre- and postprocessing threads to a CPUZ core
+		bool SlowCPU;				//Try to put as many load as possible on the GPU as CPU is slow
+		
 		size_t Height;							//height of subblock od A, width of subblock of B
 		size_t m, n;								//height of A, width of B, must be multiple of height
 		size_t Width;							//k for matrix multiply

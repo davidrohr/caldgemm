@@ -163,6 +163,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	KeepBuffersMapped = true;
 	NoPerformanceWarnings = false;
 	PinCPU = 0;
+	SlowCPU = false;
 	m = 0;
 	n = 0;
 	LinpackNodes = 0;
@@ -1140,7 +1141,9 @@ void* linpack_wrapper(void* arg)
 	cpu_set_t linpack_mask;
 	CPU_ZERO(&linpack_mask);
 	//CPU_SET(0, &linpack_mask);
-	CPU_SET(Config->PinCPU + cls->outputthreads * cls->nDevices + 1, &linpack_mask);
+	int linpackCPU = Config->PinCPU + cls->outputthreads * cls->nDevices + 1;
+	if (linpackCPU >= cls->conf_numprocs) linpackCPU = 0;
+	CPU_SET(linpackCPU, &linpack_mask);
 	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", cls->getcpumask(&linpack_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
 
@@ -1242,7 +1245,18 @@ void* cblas_wrapper(void* arg)
 	if (Config->Debug) fprintf(STD_OUT, "Cblas helper thread started\n");
 
 	if (Config->Debug) fprintf(STD_OUT, "Cblas thread Thread, setting CPU mask %X\n", par->cls->getcpumask(&par->cls->oldcpumask));
-	sched_setaffinity(0, sizeof(par->cls->oldcpumask), &par->cls->oldcpumask);
+	
+	if (Config->PinCPU + par->cls->outputthreads * par->cls->nDevices + 1 >= par->cls->conf_numprocs)
+	{
+		cpu_set_t tmp_mask;
+		CPU_ZERO(&tmp_mask);
+		CPU_SET(0, &tmp_mask);
+		sched_setaffinity(0, sizeof(tmp_mask), &tmp_mask);
+	}
+	else
+	{
+		sched_setaffinity(0, sizeof(par->cls->oldcpumask), &par->cls->oldcpumask);
+	}
 	
 	if (Config->MultiThread) if (pthread_mutex_lock(&par->cls->cParam.cblasMutex[1])) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
 	while (pthread_mutex_lock(&par->cls->cParam.cblasMutex[1]) == 0 && par->terminate == false)
@@ -1270,8 +1284,16 @@ void* cblas_wrapper(void* arg)
 			require_threads++;
 		}
 		if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu (/ Linpack)\n", require_threads);
-		goto_set_num_threads(old_goto_threads - require_threads);
-		caldgemm_goto_reserve_cpus(require_threads);
+		if (old_goto_threads > require_threads)
+		{
+			goto_set_num_threads(old_goto_threads - require_threads);
+			caldgemm_goto_reserve_cpus(require_threads);
+		}
+		else
+		{
+			goto_set_num_threads(1);
+			caldgemm_goto_reserve_cpus(0);
+		}
 
 		par->cls->Timers.TotalCPUTimer.Start();
 		par->cls->Timers.LinpackTimer3.Start();
@@ -1279,13 +1301,20 @@ void* cblas_wrapper(void* arg)
 		{
 			if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
 			Config->linpack_swap_function();
-			goto_set_num_threads(old_goto_threads - require_threads);
+			if (old_goto_threads > require_threads)
+			{
+				goto_set_num_threads(old_goto_threads - require_threads);
+			}
+			else
+			{
+				goto_set_num_threads(1);
+			}
 		}
 		par->cls->Timers.LinpackTimer3.Stop();
 
 		if (par->cls->ExecLinpack)
 		{
-			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tDoint initial cblas runs to prepare Linpack factorization\n");
+			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tDoing initial cblas runs to prepare Linpack factorization\n");
 			par->cls->Timers.CPUTimer.Start();
 			cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->Width, Config->n, Config->Width, Alpha, A - Config->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Config->Width * C_pitch, C_pitch);
 			par->cls->Timers.CPUTimer.Stop();
@@ -1372,8 +1401,15 @@ void* cblas_wrapper(void* arg)
 
 								int require_threads_new = par->cls->outputthreads * par->cls->nDevices + 1;
 								if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
-								goto_set_num_threads(old_goto_threads - require_threads_new);
-								caldgemm_goto_reserve_cpus(require_threads_new);
+								if (old_goto_threads > require_threads_new)
+								{
+									goto_set_num_threads(old_goto_threads - require_threads_new);
+									caldgemm_goto_reserve_cpus(require_threads_new);
+								}
+								else
+								{
+									goto_set_num_threads(1);
+								}
 								linpackfinished = true;
 							}
 						}
@@ -1400,9 +1436,17 @@ void* cblas_wrapper(void* arg)
 							else
 							{
 								int require_threads_new = par->cls->outputthreads * par->cls->nDevices + 1;
-								if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
-								goto_set_num_threads(old_goto_threads - require_threads_new);
-								caldgemm_goto_reserve_cpus(require_threads_new);
+								if (old_goto_threads > require_threads_new)
+								{
+									if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
+									goto_set_num_threads(old_goto_threads - require_threads_new);
+									caldgemm_goto_reserve_cpus(require_threads_new);
+								}
+								else
+								{
+									goto_set_num_threads(1);
+									caldgemm_goto_reserve_cpus(0);
+								}
 								linpackfinished = true;
 							}
 						}
@@ -1450,7 +1494,7 @@ void* merge_wrapper(void* arg)
 
 	cpu_set_t merge_mask;
 	CPU_ZERO(&merge_mask);
-	CPU_SET(par->cls->Config->PinCPU + par->num_device * par->cls->outputthreads + par->nMergeThread + 1, &merge_mask);
+	CPU_SET((par->cls->Config->PinCPU + par->num_device * par->cls->outputthreads + par->nMergeThread + 1) % par->cls->conf_numprocs, &merge_mask);
 	if (par->cls->Config->Debug) fprintf(STD_OUT, "Merge Thread %d, setting CPU mask %X\n", par->nMergeThread, par->cls->getcpumask(&merge_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
 
@@ -1786,7 +1830,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
 	if (Config->Debug) fprintf(STD_OUT, "   Done\n");
 
-	if (Config->GPURatio < 0)
+	if (Config->SlowCPU)
+	{
+		GPURatio = 1.0;
+	}
+	else if (Config->GPURatio < 0)
 	{
 		//Optimal ratio found using combined runs
 		if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000000) GPURatio = 0.75;
@@ -1815,7 +1863,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		GPURatio = Config->GPURatio;
 	}
 
-	if (ExecuteLinpackCallbacks)
+	if (ExecuteLinpackCallbacks && (Config->GPURatio < 0 || GPURatio < 0.99) && !Config->SlowCPU)
 	{
 		if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80;
 		else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
