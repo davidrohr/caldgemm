@@ -208,6 +208,14 @@ and -1 6 will use cores 6 and 7.
 
 
 
+Other CALDGEMM Options:
+
+The CALDGEMM config allow the SlowCPU option which should be used when the CPU is comparably slow compared
+to the GPU. It deactivates 2nd and 3rd phase runs and adjusts the tiling size to minimize the 1st phase
+CPU run.
+
+
+
 Performance Optimization Guide:
 
 To achieve good performance 3 steps should be performed:
