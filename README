@@ -206,7 +206,8 @@ Pin GPU thread to core n. The core which is closest to the GPU should be chosen.
 The additional merge threads will use the next possible core then. E.g. running with 1 merge threads
 and -1 6 will use cores 6 and 7.
 
-
+-S (deafult: not used)
+Set slow CPU option (see below)
 
 Other CALDGEMM Options:
 

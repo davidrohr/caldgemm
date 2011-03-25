@@ -116,6 +116,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
 	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n" );
 	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n" );
+	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -266,6 +267,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 's':
 			Config->DynamicSched = true;
+			break;
+		case 'S':
+			Config->SlowCPU = true;
 			break;
 		case 'g':
 			Config->UseGPU = true;
@@ -658,7 +662,7 @@ int main(int argc, char** argv)
 		//Initial run to negate cache effects
 #ifndef TESTMODE
 #ifndef DEBUG_MSG_TIMED
-		if (Config.Debug == false && Config.DumpMatrix == false && initialrun && !torture)
+		//if (Config.Debug == false && Config.DumpMatrix == false && initialrun && !torture)
 #endif
 		{
 			if (!quietbench)
