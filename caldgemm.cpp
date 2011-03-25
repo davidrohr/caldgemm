@@ -1729,7 +1729,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 				Config->Height = 4096;
 			}
-		
+			if (Config->SlowCPU && Config->Height > 1024 && (MaxGpuM % Config->Height > 1024 || MaxGpuN % Config->Height > 1024)) Config->Height = 1024;
 		}
 		else
 		{
