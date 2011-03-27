@@ -1849,16 +1849,18 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 2500000) GPURatio = 0.60;
 		else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 1000000) GPURatio = 0.55;
 		else GPURatio = 0.50;
-		GPURatio *= (double) Config->Width / (double) 1024;
+		if (Config->Width < 1024) GPURatio *= (double) Config->Width / (double) 1024;
 		if (Config->Height < 1024) GPURatio *= (double) Config->Height / (double) 1024 * (double) Config->Height / (double) 1024;
 		
 		const int require_threads = outputthreads * nDevices + 1 + (ExecLinpack && Config->LinpackNodes > 1);
 		const double CPUscale = (double) (conf_cpufreq * (conf_numprocs - require_threads)) / (double) (2100 * (24 - require_threads));
 		const double GPUscale = (double) nDevices * conf_gpushaders * conf_gpufreq / (double) (850 * 20 * 64);
+		if (Config->Debug) fprintf(STD_OUT, "GPU Curve Ration: %1.2lf, CPUScale %1.2lf, GPUScale %1.2lf\n", GPURatio, CPUscale, GPUscale);
 		GPURatio = GPUscale * GPURatio / (GPUscale * GPURatio + (1.0 - GPURatio) * CPUscale);
 		
 		if (Config->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.2lf\n", GPURatio);
-		if ((Config->n + 4) % 4096 < 8) GPURatio = 1. - 0.95 * (1. - GPURatio);
+		if (GPURatio > 1.) GPURatio = 1.0;
+		if ((Config->n + 4) % 4096 < 8 && GPURatio > 0.5) GPURatio = 1. - 0.95 * (1. - GPURatio);
 	}
 	else
 	{
