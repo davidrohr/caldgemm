@@ -2255,14 +2255,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						next_device_k[use_device] = 0;
 					}
 
-					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0])
+					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0] && cpu_k_barrier_hit == false)
 					{
-						if (Config->Debug) fprintf(STD_OUT, "Starting PrepareAndExecute task on divide thread for device %d\n", use_device);
+						if (Config->Debug) fprintf(STD_OUT, "Starting PrepareAndExecute task on divide thread for device %d (k = %lld)\n", use_device, k);
 						if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
 					else
 					{
 						if (DGEMMPrepareAndExecute(Task)) return(1);
+						if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
 				}
 				if (obuffercount == 1)
@@ -2274,7 +2275,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				{
 					if (nBlocks <= k && lastk[use_device] < nBlocks && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0])
 					{
-						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (k=%lld lastk = %lld)\n", use_device, k, lastk[use_device]);
+						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (late phase, k=%lld lastk = %lld)\n", use_device, k, lastk[use_device]);
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
 					size_t lastm, lastn;
