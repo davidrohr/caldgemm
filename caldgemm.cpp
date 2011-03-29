@@ -2152,11 +2152,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		cParam.cpu_k = nBlocks;
 		gpu_k_barrier = -1;
 		cpu_k_barrier = nBlocks;
+		bool cpu_k_barrier_hit = false;
 		if (gpu_n && gpu_m)
 		{
-			for (size_t k = 0;k < nBlocks + nDevices;k++)
+			for (size_t k = 0;k < nBlocks + 2 * nDevices;k++)
 			{
 				CALcontext* ctx_main = &ctxs[use_device];
+				fprintf(STD_OUT, "!!!!! k %lld nd k %lld nextk %lld\n", k, next_device_k[use_device], nextk);
 				if (next_device_k[use_device] != 0) k = next_device_k[use_device];
 				else if (nextk && nextk >= k) k = nextk + 1;
 				if (k > nextk) nextk = k;
@@ -2197,6 +2199,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						k = nBlocks;
 						if (nextk < nBlocks) nextk = nBlocks;
 						next_device_k[use_device] = 0;
+						cpu_k_barrier_hit = true;
 					}
 					pthread_mutex_unlock(&scheduleMutex);
 				}
@@ -2226,7 +2229,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						Task.PrepareTasks[0].j = j[use_device];
 						
 					}
-					if (obuffercount > 1 && lastk[use_device] != -1 && Config->AsyncDMA && k + (nDevices - use_device - 1) % nDevices + 1 < nBlocks)
+					if (obuffercount > 1 && lastk[use_device] != -1 && Config->AsyncDMA && k + (nDevices - use_device - 1) % nDevices + 1 < nBlocks && cpu_k_barrier_hit == false)
 					{
 						nextk++;
 						size_t nextblockm, nextblockn;
@@ -2286,12 +2289,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					}
 					if (Config->VerboseTiming) Timers.CounterMerge.Start();
 
-					if (k == nBlocks + nDevices - 1 || Config->MultiThread == false)
+					if (k == nBlocks + 2 * nDevices - 1 || Config->MultiThread == false)
 					{
 						if (lastk[use_device] < nBlocks)
 						{
 							if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
 							if (mergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, datas[use_device][oldj[use_device]] + numInputs + numConstantBuffers, Config->Height, Config->Height, BufferHeight, BufferHeight, C_pitch, dwBuffersC)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
+							if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex devuce %d obuffer %d\n", use_device, oldj[use_device]);
 							if (pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 						}
 						if (Config->MultiThread)
