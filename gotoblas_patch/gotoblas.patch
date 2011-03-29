@@ -1,17 +1,19 @@
-diff -u -r ../gotoblas_org/GotoBLAS2//common.h GotoBLAS2//common.h
---- ../gotoblas_org/GotoBLAS2//common.h	2010-11-05 14:56:22.000000000 +0100
-+++ GotoBLAS2//common.h	2011-02-16 10:22:24.000000000 +0100
-@@ -410,6 +410,7 @@
+diff -u -r gotoblas_org/GotoBLAS2/common.h GotoBLAS2/common.h
+--- gotoblas_org/GotoBLAS2/common.h	2010-11-05 14:56:22.000000000 +0100
++++ GotoBLAS2/common.h	2011-03-29 11:52:33.922501236 +0200
+@@ -410,6 +410,9 @@
  #endif
  
  void goto_set_num_threads(int);
 +void caldgemm_goto_reserve_cpus(int);
++void caldgemm_goto_reserve_cpu(int, int);
++void caldgemm_goto_restrict_cpus(int);
  
  void gotoblas_affinity_init(void);
  void gotoblas_affinity_quit(void);
-diff -u -r ../gotoblas_org/GotoBLAS2//common_thread.h GotoBLAS2//common_thread.h
---- ../gotoblas_org/GotoBLAS2//common_thread.h	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2//common_thread.h	2011-02-16 10:22:24.000000000 +0100
+diff -u -r gotoblas_org/GotoBLAS2/common_thread.h GotoBLAS2/common_thread.h
+--- gotoblas_org/GotoBLAS2/common_thread.h	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2/common_thread.h	2011-03-29 10:58:05.055625469 +0200
 @@ -47,6 +47,7 @@
  
  /* Global Parameter */
@@ -20,9 +22,17 @@ diff -u -r ../gotoblas_org/GotoBLAS2//common_thread.h GotoBLAS2//common_thread.h
  extern int blas_num_threads;
  extern int blas_omp_linked;
  
-diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/blas_server.c GotoBLAS2//driver/others/blas_server.c
---- ../gotoblas_org/GotoBLAS2//driver/others/blas_server.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2//driver/others/blas_server.c	2011-02-16 10:23:31.000000000 +0100
+@@ -123,6 +124,7 @@
+ #ifdef SMP_SERVER
+ 
+ extern int blas_server_avail;
++extern int caldgemm_restrict_cpus;
+ 
+ static __inline int num_cpu_avail(int level) {
+ 
+diff -u -r gotoblas_org/GotoBLAS2/driver/others/blas_server.c GotoBLAS2/driver/others/blas_server.c
+--- gotoblas_org/GotoBLAS2/driver/others/blas_server.c	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2/driver/others/blas_server.c	2011-03-29 12:37:28.874938806 +0200
 @@ -42,6 +42,10 @@
  #include <sys/resource.h>
  #endif
@@ -34,7 +44,16 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/blas_server.c GotoBLAS2//dri
  #ifdef SMP_SERVER
  
  #undef MONITOR
-@@ -69,6 +73,8 @@
+@@ -51,6 +55,8 @@
+ 
+ #define ATTRIBUTE_SIZE 128
+ 
++extern int reserved_cpu_cores[MAX_CPUS];
++
+ /* This is a thread server model implementation.  The threads are   */
+ /* spawned at first access to blas library, and still remains until */
+ /* destruction routine is called.  The number of threads are        */
+@@ -69,6 +75,8 @@
  static unsigned long server_lock       = 0;
  #endif
  
@@ -43,19 +62,25 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/blas_server.c GotoBLAS2//dri
  #define THREAD_STATUS_SLEEP		2
  #define THREAD_STATUS_WAKEUP		4
  
-@@ -564,9 +570,9 @@
+@@ -564,9 +572,15 @@
        /* Node Mapping Mode */
  
        if (queue -> mode & BLAS_NODE) {
 -
  	do {
 -	  while((thread_status[i].node != node || thread_status[i].queue) && (i < blas_num_threads - 1)) i ++;
-+	  while((i < blas_num_threads - 1) && (thread_status[i].node != node || thread_status[i].queue || cpu_mapping[i + 1] < caldgemm_reserve_cpus) ) i ++;
++	  while((i < blas_num_threads - 1) && (thread_status[i].node != node || thread_status[i].queue || cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]] ))
++	  {
++	    i ++;
++#ifdef SMP_DEBUG
++	    if (cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]]) printf("Ommiting thread %d\n", i);
++#endif
++	  }
 +	  
  	  
  	  if (i < blas_num_threads - 1) break;
  
-@@ -578,19 +584,26 @@
+@@ -578,19 +592,29 @@
  	  }
  
  	} while (1);
@@ -65,9 +90,9 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/blas_server.c GotoBLAS2//dri
  
        } else {
 -	while(thread_status[i].queue) {
-+	while(thread_status[i].queue || i < caldgemm_reserve_cpus) {
++	while(thread_status[i].queue || i < caldgemm_reserve_cpus || reserved_cpu_cores[i]) {
 +#ifdef SMP_DEBUG
-+		if (i < caldgemm_reserve_cpus) printf("Ommiting thread %d\n", i);
++		if (i < caldgemm_reserve_cpus || reserved_cpu_cores[i]) printf("Ommiting thread %d\n", i);
 +#endif
  	  i ++;
  	  if (i >= blas_num_threads - 1) i = 0;
@@ -75,7 +100,10 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/blas_server.c GotoBLAS2//dri
        }
  #else
 -      while(thread_status[i].queue) {
-+      while(thread_status[i].queue || i < caldgemm_reserve_cpus) {
++        while(thread_status[i].queue || i < caldgemm_reserve_cpus || reserved_cpu_cores[i]) {
++#ifdef SMP_DEBUG
++		if (i < caldgemm_reserve_cpus || reserved_cpu_cores[i]) printf("Ommiting thread %d\n", i);
++#endif
  	i ++;
  	if (i >= blas_num_threads - 1) i = 0;
        }
@@ -84,21 +112,32 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/blas_server.c GotoBLAS2//dri
        
        queue -> assigned = i;
        WMB;
-@@ -758,6 +771,10 @@
+@@ -758,6 +782,21 @@
  
  }
  
 +void caldgemm_goto_reserve_cpus(int num_cpus) {
++    int i;
 +    caldgemm_reserve_cpus = num_cpus;
++    for (i = 0;i < blas_num_threads;i++) reserved_cpu_cores[i] = 0;
 +};
++
++void caldgemm_goto_restrict_cpus(int val)
++{
++    caldgemm_restrict_cpus = val;
++}
++void caldgemm_goto_reserve_cpu(int cpu_id, int val)
++{
++    reserved_cpu_cores[cpu_id] = val;
++}
 +
  /* Compatible function with pthread_create / join */
  
  int gotoblas_pthread(int numthreads, void *function, void *args, int stride) {
-diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/others/init.c
---- ../gotoblas_org/GotoBLAS2//driver/others/init.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2//driver/others/init.c	2011-03-04 08:14:17.691710317 +0100
-@@ -70,17 +70,17 @@
+diff -u -r gotoblas_org/GotoBLAS2/driver/others/init.c GotoBLAS2/driver/others/init.c
+--- gotoblas_org/GotoBLAS2/driver/others/init.c	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2/driver/others/init.c	2011-03-29 12:28:57.375500235 +0200
+@@ -70,17 +70,19 @@
    int num_nodes;
    int num_procs;
    int final_num_procs;
@@ -112,6 +151,8 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
  
  } shm_t;
  
++int reserved_cpu_cores[MAX_CPUS];
++
  static cpu_set_t cpu_orig_mask[4];
  
 -static int  cpu_mapping[MAX_CPUS];
@@ -119,7 +160,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
  static int  node_mapping[MAX_CPUS * 4];
  static int  cpu_sub_mapping[MAX_CPUS];
  static int  disable_mapping;
-@@ -93,7 +93,8 @@
+@@ -93,7 +95,8 @@
  static int shmid, pshmid;
  static void *paddr;
  
@@ -129,7 +170,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
  static int numprocs = 1;
  static int numnodes = 1;
  
-@@ -139,12 +140,12 @@
+@@ -139,12 +142,12 @@
    return count;
  }
  
@@ -145,7 +186,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
    
    sprintf(name, CPUMAP_NAME, node);
    
-@@ -154,24 +155,37 @@
+@@ -154,24 +157,37 @@
      
    if (infile != -1) {
      
@@ -188,7 +229,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
    char name[160];
    char *p;
    
-@@ -179,7 +193,7 @@
+@@ -179,7 +195,7 @@
    
    infile = open(name, O_RDONLY);
  
@@ -197,7 +238,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
      
    if (infile != -1) {
      
-@@ -189,7 +203,7 @@
+@@ -189,7 +205,7 @@
  
      while ((*p == '0') || (*p == ',')) p++;
  
@@ -206,7 +247,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
     
      close(infile);
    }
-@@ -238,7 +252,7 @@
+@@ -238,7 +254,7 @@
    fprintf(stderr, "Numa found : number of Nodes = %2d\n", common -> num_nodes);
  
    for (node = 0; node < common -> num_nodes; node ++)
@@ -215,7 +256,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
  #endif
  
    return common -> num_nodes;
-@@ -254,7 +268,7 @@
+@@ -254,7 +270,7 @@
    for (node = 0; node < common -> num_nodes; node ++) {
      core = 0;
      for (cpu = 0; cpu < common -> num_procs; cpu ++) {
@@ -224,7 +265,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
  	common -> cpu_info[count] = WRITE_CORE(core) | WRITE_NODE(node) | WRITE_CPU(cpu);
  	count ++;
  	core ++;
-@@ -311,10 +325,10 @@
+@@ -311,10 +327,10 @@
  
  static void disable_hyperthread(void) {
  
@@ -237,7 +278,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
  
  #ifdef DEBUG
    fprintf(stderr, "\nAvail CPUs    : %04lx.\n", common -> avail);
-@@ -328,10 +342,10 @@
+@@ -328,10 +344,10 @@
        
  #ifdef DEBUG
        fprintf(stderr, "Detected Hyper Threading on CPU %4x; disabled CPU %04lx.\n",
@@ -250,7 +291,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
      }
    }
  }
-@@ -343,7 +357,7 @@
+@@ -343,7 +359,7 @@
      fprintf(stderr, "CPU mask                  : %04lx.\n\n", *(unsigned long *)&cpu_orig_mask[0]);
  #endif
  
@@ -259,7 +300,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
  
  #ifndef USE_OPENMP
    lprocmask &= *(unsigned long *)&cpu_orig_mask[0];
-@@ -383,7 +397,7 @@
+@@ -383,7 +399,7 @@
      fprintf(stderr, "Node mask = %lx\n", lnodemask);
  #endif
      
@@ -268,7 +309,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
  
      numnodes = popcount(lnodemask);
    }
-@@ -441,7 +455,7 @@
+@@ -441,7 +457,7 @@
  
    int cpu, id, mapping;
  
@@ -277,7 +318,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
    mapping = 0;
  
    do {
-@@ -451,7 +465,7 @@
+@@ -451,7 +467,7 @@
        if (is_dead(id)) common -> cpu_use[cpu] = 0;
      }
  
@@ -286,7 +327,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
  
        common -> cpu_use[cpu] = pshmid;
        cpu_mapping[mapping] = READ_CPU(common -> cpu_info[cpu]);
-@@ -460,9 +474,9 @@
+@@ -460,9 +476,9 @@
        mapping ++;
      }
  
@@ -298,7 +339,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
    
    disable_mapping = 0;
  
-@@ -486,7 +500,7 @@
+@@ -486,7 +502,7 @@
  int get_num_nodes(void)  { return numnodes; }
  int get_node_equal(void) { 
  
@@ -307,9 +348,23 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/init.c GotoBLAS2//driver/oth
    
  }
  
-diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/memory.c GotoBLAS2//driver/others/memory.c
---- ../gotoblas_org/GotoBLAS2//driver/others/memory.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2//driver/others/memory.c	2011-03-04 08:13:58.312058333 +0100
+@@ -534,11 +550,13 @@
+ void gotoblas_affinity_init(void) {
+ 
+   int cpu, num_avail;
++  int i;
+ #ifndef USE_OPENMP
+   cpu_set_t cpu_mask;
+ #endif
+ 
+   if (initialized) return;
++  for (i = 0;i < MAX_CPUS;i++) reserved_cpu_cores[i] = 0;
+ 
+   initialized = 1;
+ 
+diff -u -r gotoblas_org/GotoBLAS2/driver/others/memory.c GotoBLAS2/driver/others/memory.c
+--- gotoblas_org/GotoBLAS2/driver/others/memory.c	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2/driver/others/memory.c	2011-03-29 10:50:43.686531848 +0200
 @@ -37,7 +37,6 @@
  /*********************************************************************/
  
@@ -330,15 +385,16 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/memory.c GotoBLAS2//driver/o
  #ifndef SMP
  
  #define blas_cpu_number 1
-@@ -174,6 +178,7 @@
+@@ -174,6 +178,8 @@
  #endif
  
  int blas_cpu_number  = 0;
 +int caldgemm_reserve_cpus = 0;
++int caldgemm_restrict_cpus = 0;
  int blas_num_threads = 0;
  
  int  goto_get_num_procs  (void) {
-@@ -912,7 +917,9 @@
+@@ -912,7 +918,9 @@
  
        while ((func != NULL) && (map_address == (void *) -1)) {
  
@@ -349,7 +405,7 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/memory.c GotoBLAS2//driver/o
  
  #ifdef ALLOC_DEVICEDRIVER
  	if ((*func ==  alloc_devicedirver) && (map_address == (void *)-1)) {
-@@ -936,7 +943,7 @@
+@@ -936,7 +944,7 @@
        }
  
  #ifdef DEBUG
@@ -358,22 +414,180 @@ diff -u -r ../gotoblas_org/GotoBLAS2//driver/others/memory.c GotoBLAS2//driver/o
  #endif
        if (((BLASLONG) map_address) == -1) base_address = 0UL;
  
-diff -u -r ../gotoblas_org/GotoBLAS2//Makefile.rule GotoBLAS2//Makefile.rule
---- ../gotoblas_org/GotoBLAS2//Makefile.rule	2010-02-05 17:02:04.000000000 +0100
-+++ GotoBLAS2//Makefile.rule	2011-02-16 10:25:37.000000000 +0100
-@@ -59,6 +59,9 @@
+diff -u -r gotoblas_org/GotoBLAS2/interface/axpy.c GotoBLAS2/interface/axpy.c
+--- gotoblas_org/GotoBLAS2/interface/axpy.c	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2/interface/axpy.c	2011-03-29 10:55:57.651532068 +0200
+@@ -79,7 +79,15 @@
+   if (incy < 0) y -= (n - 1) * incy;
+ 
+ #ifdef SMP
+-  nthreads = num_cpu_avail(1);
++  if (caldgemm_restrict_cpus)
++  {
++    nthreads = 8;
++    if (nthreads > num_cpu_avail(1)) nthreads = num_cpu_avail(1);
++  }
++  else
++  {
++    nthreads = num_cpu_avail(1);
++  }
+ 
+   if (nthreads == 1) {
+ #endif
+diff -u -r gotoblas_org/GotoBLAS2/interface/gemm.c GotoBLAS2/interface/gemm.c
+--- gotoblas_org/GotoBLAS2/interface/gemm.c	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2/interface/gemm.c	2011-03-29 10:54:28.051531906 +0200
+@@ -398,6 +398,20 @@
+ 
+   args.common = NULL;
+   args.nthreads = num_cpu_avail(3);
++  if (caldgemm_restrict_cpus)
++  {
++    long long int tflops = (long long int) args.m * (long long int) args.n * (long long int) args.k;
++    if (tflops <= 16384) args.nthreads = 1;
++    else if (tflops <= 65536) args.nthreads = 2;
++    else if (tflops < 200000 || (tflops > 2000000 && tflops < 4000000)) args.nthreads = 3;
++    else if (tflops <= 2000000) args.nthreads = 4;
++    else if (tflops <= 26542080) args.nthreads = 8;
++    else if (tflops <= 56623104) args.nthreads = 12;
++    else if (tflops <= 89915392) args.nthreads = 16;
++    else if (tflops <= 262144000) args.nthreads = 20;
++
++    if (args.nthreads > num_cpu_avail(3)) args.nthreads = num_cpu_avail(3);
++  }
+ 
+  if (args.nthreads == 1) {
+ #endif
+diff -u -r gotoblas_org/GotoBLAS2/interface/gemv.c GotoBLAS2/interface/gemv.c
+--- gotoblas_org/GotoBLAS2/interface/gemv.c	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2/interface/gemv.c	2011-03-29 10:56:51.093543219 +0200
+@@ -211,8 +211,30 @@
+   buffer = (FLOAT *)blas_memory_alloc(1);
+ 
+ #ifdef SMP
+-  nthreads = num_cpu_avail(2);
+-
++  
++  if (caldgemm_restrict_cpus)
++  {
++    if (m >= 4 * n)
++    {
++	long long int tflops = (long long int) m * 64;
++	if (tflops <= 458752) nthreads = 4;
++	else if (tflops <= 655360) nthreads = 8;
++	else nthreads = 24;
++    }
++    else
++    {
++	long long int tflops = (long long int) m * (long long int) n;
++	if (tflops < 102400) nthreads = 1;
++	else if (tflops < 3686400) nthreads = 3;
++	else nthreads = 4;
++    }
++    if (nthreads > 8) nthreads = 8;
++    if (nthreads > num_cpu_avail(2)) nthreads = num_cpu_avail(2);
++  }
++  else
++  {
++    nthreads = num_cpu_avail(2);
++  }
+   if (nthreads == 1) {
+ #endif
+     
+diff -u -r gotoblas_org/GotoBLAS2/interface/scal.c GotoBLAS2/interface/scal.c
+--- gotoblas_org/GotoBLAS2/interface/scal.c	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2/interface/scal.c	2011-03-29 10:55:33.693531905 +0200
+@@ -76,7 +76,15 @@
+ 
+ 
+ #ifdef SMP
+-  nthreads = num_cpu_avail(1);
++  if (caldgemm_restrict_cpus)
++  {
++    nthreads = 8;
++    if (nthreads > num_cpu_avail(1)) nthreads = num_cpu_avail(1);
++  }
++  else
++  {
++    nthreads = num_cpu_avail(1);
++  }
+ 
+   if (nthreads == 1) {
+ #endif
+diff -u -r gotoblas_org/GotoBLAS2/interface/trsm.c GotoBLAS2/interface/trsm.c
+--- gotoblas_org/GotoBLAS2/interface/trsm.c	2010-11-05 14:57:49.000000000 +0100
++++ GotoBLAS2/interface/trsm.c	2011-03-29 10:54:56.886531912 +0200
+@@ -362,6 +362,16 @@
+   mode |= (side  << BLAS_RSIDE_SHIFT);
+ 
+   args.nthreads = num_cpu_avail(3);
++  if (caldgemm_restrict_cpus)
++  {
++    long long int tflops = (long long int) args.n * (long long int) args.n * (long long int) args.m;
++    if (tflops <= 32768) args.nthreads = 1;
++    else if (tflops <= 110592) args.nthreads = 3;
++    else if (tflops <= 100000000) args.nthreads = 4;
++    else if (tflops <= 1000000000) args.nthreads = 16;
++    if (args.nthreads > 8) args.nthreads = 8;
++    if (args.nthreads > num_cpu_avail(3)) args.nthreads = num_cpu_avail(3);
++  }
+ 
+   if (args.nthreads == 1) {
+ #endif
+diff -u -r gotoblas_org/GotoBLAS2/Makefile GotoBLAS2/Makefile
+--- gotoblas_org/GotoBLAS2/Makefile	2010-01-20 21:54:38.000000000 +0100
++++ GotoBLAS2/Makefile	2011-03-29 11:03:33.454897208 +0200
+@@ -13,9 +13,14 @@
+ 
+ SUBDIRS	= $(BLASDIRS) lapack
+ 
++ifdef NO_SELFTEST
++SUBDIRS_ALL = $(SUBDIRS) exports ../laswp ../bench
++.PHONY : all libs netlib shared
++else
+ SUBDIRS_ALL = $(SUBDIRS) test ctest exports benchmark ../laswp ../bench
+-
+ .PHONY : all libs netlib test ctest shared
++endif
++
+ .NOTPARALLEL : all libs prof lapack-test
+ 
+ all :: libs netlib tests shared
+@@ -71,6 +76,7 @@
+ endif
+ 
+ tests :
++ifndef NO_SELFTEST
+ ifndef NOFORTRAN
+ ifndef TARGET
+ ifndef CROSS
+@@ -83,6 +89,7 @@
+ endif
+ endif
+ endif
++endif
+ endif
+ 
+ libs :
+diff -u -r gotoblas_org/GotoBLAS2/Makefile.rule GotoBLAS2/Makefile.rule
+--- gotoblas_org/GotoBLAS2/Makefile.rule	2010-02-05 17:02:04.000000000 +0100
++++ GotoBLAS2/Makefile.rule	2011-03-29 11:00:04.720626031 +0200
+@@ -59,6 +59,12 @@
  # If you want to disable CPU/Memory affinity on Linux.
  # NO_AFFINITY = 1
  
 +# Do not set the memory policy to interleaving automatically
 +NO_MEMPOLICY = 1
 +
++# Do not run selftest after compilation
++NO_SELFTEST = 1
++
  # If you would like to know minute performance report of GotoBLAS.
  # FUNCTION_PROFILE = 1
  
-diff -u -r ../gotoblas_org/GotoBLAS2//Makefile.system GotoBLAS2//Makefile.system
---- ../gotoblas_org/GotoBLAS2//Makefile.system	2010-01-28 21:11:08.000000000 +0100
-+++ GotoBLAS2//Makefile.system	2011-02-16 10:22:24.000000000 +0100
+diff -u -r gotoblas_org/GotoBLAS2/Makefile.system GotoBLAS2/Makefile.system
+--- gotoblas_org/GotoBLAS2/Makefile.system	2010-01-28 21:11:08.000000000 +0100
++++ GotoBLAS2/Makefile.system	2011-02-16 10:22:24.991642328 +0100
 @@ -570,6 +570,10 @@
  endif
  endif
