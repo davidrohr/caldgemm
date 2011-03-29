@@ -162,7 +162,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	AsyncDMA = true;
 	KeepBuffersMapped = true;
 	NoPerformanceWarnings = false;
-	PinCPU = 0;
+	PinCPU = -1;
 	SlowCPU = false;
 	m = 0;
 	n = 0;
@@ -867,9 +867,14 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 
 	gethostname(hostname, 255);
 	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);
+	
+	if (Config->PinCPU != -1)
+	{
+	    for (int i = 0;i < max_devices;i++) Config->GPUMapping[i] = Config->PinCPU;
+	}
 
 	CPU_ZERO(&gpumask);
-	CPU_SET(Config->PinCPU, &gpumask);
+	CPU_SET(Config->GPUMapping[0], &gpumask);
 
 	if (Config->Debug) fprintf(STD_OUT, "Init Caldgemm, setting CPU mask %X\n", getcpumask(&gpumask));
 	if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
@@ -963,9 +968,15 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 		}
 	}
 	outputthreads = Config->KeepBuffersMapped || Config->DstMemory == 'g' ? CALDGEMM_OUTPUT_THREADS : CALDGEMM_OUTPUT_THREADS_SLOW;
+	
+	cpu_set_t tmpmask;
 
 	for (int device_num = 0;device_num < nDevices;device_num++)
 	{
+		CPU_ZERO(&tmpmask);
+		CPU_SET(Config->GPUMapping[device_num], &tmpmask);
+		sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+		
 		int num_bbuffers;
 		if (Config->DstMemory == 'g') num_bbuffers =  max_bbuffers_g;
 		else num_bbuffers = max_bbuffers;
@@ -1014,6 +1025,10 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 		}
 		if (Config->Debug) fprintf(STD_OUT, "Was able to allocate %d bbuffers on device %d\n", bbuffers[device_num], device_num);
 	}
+	CPU_ZERO(&tmpmask);
+	CPU_SET(Config->GPUMapping[0], &tmpmask);
+	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+
 	if (Config->UseCPU)
 	{
 		cParam.cls = this;
@@ -1145,7 +1160,11 @@ void* linpack_wrapper(void* arg)
 	cpu_set_t linpack_mask;
 	CPU_ZERO(&linpack_mask);
 	//CPU_SET(0, &linpack_mask);
-	int linpackCPU = Config->PinCPU + cls->outputthreads * cls->nDevices + 1;
+	int linpackCPU = Config->GPUMapping[0] + cls->outputthreads + 1;
+	for (int i = 1;i < cls->nDevices;i++)
+	{
+		if (Config->GPUMapping[i] == Config->GPUMapping[0]) linpackCPU += cls->outputthreads;
+	}
 	if (linpackCPU >= cls->conf_numprocs) linpackCPU = 0;
 	CPU_SET(linpackCPU, &linpack_mask);
 	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", cls->getcpumask(&linpack_mask));
@@ -1250,7 +1269,7 @@ void* cblas_wrapper(void* arg)
 
 	if (Config->Debug) fprintf(STD_OUT, "Cblas thread Thread, setting CPU mask %X\n", par->cls->getcpumask(&par->cls->oldcpumask));
 	
-	if (Config->PinCPU + par->cls->outputthreads * par->cls->nDevices + 1 >= par->cls->conf_numprocs)
+	if (Config->GPUMapping[0] + par->cls->outputthreads * par->cls->nDevices + 1 >= par->cls->conf_numprocs)
 	{
 		cpu_set_t tmp_mask;
 		CPU_ZERO(&tmp_mask);
@@ -1517,7 +1536,12 @@ void* merge_wrapper(void* arg)
 
 	cpu_set_t merge_mask;
 	CPU_ZERO(&merge_mask);
-	CPU_SET((par->cls->Config->PinCPU + par->num_device * par->cls->outputthreads + par->nMergeThread + 1) % par->cls->conf_numprocs, &merge_mask);
+	int merge_core = par->cls->Config->GPUMapping[par->num_device] + par->nMergeThread + 1;
+	for (int i = 0;i < par->num_device;i++)
+	{
+		if (par->cls->Config->GPUMapping[i] == par->cls->Config->GPUMapping[par->num_device]) merge_core += par->cls->outputthreads;
+	}
+	CPU_SET(merge_core % par->cls->conf_numprocs, &merge_mask);
 	if (par->cls->Config->Debug) fprintf(STD_OUT, "Merge Thread %d, setting CPU mask %X\n", par->nMergeThread, par->cls->getcpumask(&merge_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
 
@@ -1819,15 +1843,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	cpu_set_t divide_mask;
 	CPU_ZERO(&divide_mask);
-	if (ExecuteLinpackCallbacks)
-	{
-		//CPU_SET(outputthreads * nDevices + 1, &divide_mask);
-		CPU_SET(Config->PinCPU, &divide_mask);
-	}
-	else
-	{
-		CPU_SET(Config->PinCPU, &divide_mask);
-	}
+	CPU_SET(Config->GPUMapping[0], &divide_mask);
 	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&divide_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
 

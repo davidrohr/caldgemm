@@ -116,7 +116,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
 	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n" );
 	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n" );
-	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided" );
+	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n" );
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 }
 
