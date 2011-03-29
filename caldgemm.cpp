@@ -973,6 +973,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 	
 	cpu_set_t tmpmask;
 
+	int min_bbuffers = max_bbuffers;
 	for (int device_num = 0;device_num < nDevices;device_num++)
 	{
 		CPU_ZERO(&tmpmask);
@@ -1025,7 +1026,9 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 			}
 		}
 		if (Config->Debug) fprintf(STD_OUT, "Was able to allocate %d bbuffers on device %d\n", bbuffers[device_num], device_num);
+		if (bbuffers[device_num] < min_bbuffers) min_bbuffers = bbuffers[device_num];
 	}
+	if (!Config->Quiet) fprintf(STD_OUT, "Was able to allocate %d bbuffers\n", min_bbuffers);
 	CPU_ZERO(&tmpmask);
 	CPU_SET(Config->GPUMapping[0], &tmpmask);
 	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
@@ -1062,7 +1065,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 			pthread_mutex_init(&DGEMMTasks[i].mutex_start, NULL);
 			pthread_mutex_lock(&DGEMMTasks[i].mutex_start);
 			pthread_mutex_init(&DGEMMTasks[i].mutex_finished, NULL);
-			pthread_mutex_lock(&DGEMMTasks[i].mutex_finished);
+			if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", i);
 			if (Config->GPUMapping[i] == Config->GPUMapping[0]) continue;
 			int found = 0;
 			for (int j = 1;j < i;j++)
@@ -1081,7 +1084,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 				dParam[divideThreads].nThread = divideThreads;
 				dParam[divideThreads].terminate = 0;
 				pthread_create(&thr, NULL, divide_wrapper, &dParam[divideThreads]);
-				pthread_mutex_lock(&DGEMMTasks[divideThreads].mutex_finished);
+				if (pthread_mutex_lock(&DGEMMTasks[divideThreads].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", divideThreads);
 				divideThreads++;
 			}
 		}
@@ -1603,7 +1606,7 @@ void* divide_wrapper(void* arg)
 	CPU_SET(par->CPUCore, &divide_mask);
 	sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
 
-	pthread_mutex_unlock(&par->cls->DGEMMTasks[par->nThread].mutex_finished);
+	if (pthread_mutex_unlock(&par->cls->DGEMMTasks[par->nThread].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finish mutex (%d)\n", par->nThread);
 	int i = 0;
 	while (true)
 	{
@@ -1624,7 +1627,7 @@ void* divide_wrapper(void* arg)
 			if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread for device %d Starting processing (k = %lld)\n", i, par->cls->DGEMMTasks[i].k);
 			par->cls->DGEMMPrepareAndExecute(par->cls->DGEMMTasks[i]);
 			
-			if (pthread_mutex_unlock(&par->cls->DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+			if (pthread_mutex_unlock(&par->cls->DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finish mutex (%d): %s - %d\n", i, __FILE__, __LINE__);
 		}
 		i = (i + 1) % par->cls->nDevices;
 	}
@@ -2345,21 +2348,21 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			}
 			if(Config->Verify && i < Config->Iterations - 1) AnalyzeResults();
 		}
+		if (Config->MultiThreadDivide)
+		{
+			for (int l = 0;l < nDevices;l++)
+			{
+				int tmp = pthread_mutex_trylock(&DGEMMTasks[l].mutex_finished);
+				if (tmp != 0 && tmp != EBUSY) fprintf(STD_OUT, "ERROR trylocking mutex (%d): %s - %d\n", l, __FILE__, __LINE__);
+			}
+			for (int l = 0;l < divideThreads;l++)
+			{
+				dParam[l].reset = 1;
+				if (pthread_mutex_unlock(&DGEMMTasks[dParam[l].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+			}
+		}
 	}
 	Timers.GPUTimer.Stop();
-
-	if (Config->MultiThreadDivide)
-	{
-		for (int l = 0;l < nDevices;l++)
-		{
-			if (pthread_mutex_trylock(&DGEMMTasks[l].mutex_finished)) fprintf(STD_OUT, "ERROR trylocking mutex: %s - %d\n", __FILE__, __LINE__);
-		}
-		for (int l = 0;l < divideThreads;l++)
-		{
-			dParam[l].reset = 1;
-			if (pthread_mutex_unlock(&DGEMMTasks[dParam[l].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-		}
-	}
 
 	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&oldcpumask));
 	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
@@ -2732,12 +2735,11 @@ int caldgemm::ExitCALDGEMM()
 		for (int i = 0;i < nDevices;i++)
 		{
 			if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR unlocking divide start mutex (%d)\n", i);
-			if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finished  mutex (%d)\n", i);
+			if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finished mutex (%d)\n", i);
 			if (pthread_mutex_destroy(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR destroying divide start mutex (%d)\n", i);
-			if (pthread_mutex_destroy(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR destroying divide finished  mutex (%d)\n", i);
+			pthread_mutex_destroy(&DGEMMTasks[i].mutex_finished); //TODO, check why this fails
 		}
 	}
-
 
 	caldgemm_initialized = false;
 	return(0);
@@ -3148,12 +3150,9 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 				calResFree(_Res[j]);
 			}
 
-			if (nContext < obuffercount)
-			{
-				fprintf(STD_OUT, "There was an error in allocating resources and binding them to memory\n");
-				return(1);
-			}
+			if (nContext < obuffercount) fprintf(STD_OUT, "There was an error in allocating resources and binding them to memory\n");
 			else if (Config->Debug) fprintf(STD_OUT, "No more memory available for bbuffers\n");
+			return(1);
 		}
 		CHKERR(calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]), "binding memory to context");
 		if ((Config->DstMemory == 'c' && i >= fStop) || (Config->DivideToGPU && i < bStop))
@@ -3515,6 +3514,7 @@ int caldgemm::ValidateCALRuntime()
 	{
 		if (available.major > 2 || available.minor > 4 || (available.minor == 4 && available.imp > 900)) Config->ImplicitDriverSync = 0;
 		else Config->ImplicitDriverSync = 1;
+		if (Config->DstMemory == 'g' && !Config->Quiet) fprintf(STD_OUT, "Implicit driver sync automatically set to %d\n", Config->ImplicitDriverSync);
 	}
 	
 	if (available.major < 1) return(1);
