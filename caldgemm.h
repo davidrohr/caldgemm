@@ -354,6 +354,26 @@ private:
 		pthread_mutex_t cblasMutex[2];
 	};
 
+	struct DGEMMPrepareAndExecuteTask
+	{
+		struct DGEMMPrepareTask
+		{
+			size_t k;
+			int j;
+		} PrepareTasks[2];
+		int k;
+		int j;
+		int device;
+		CALcontext ctx;
+		int kernel_num;
+
+		DGEMMPrepareAndExecuteTask()
+		{
+			PrepareTasks[0].j = PrepareTasks[1].j = -1;
+		}
+	}
+	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task);
+
 	cblasParameters cParam;
 	//For Verfify only
 	double* D;
