@@ -88,6 +88,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Y  <int> Use n devices\n" );
 	fprintf(STD_OUT, "\t-d        Enable Debug Mode\n" );
 	fprintf(STD_OUT, "\t-z        Enable Multithreading\n" );
+	fprintf(STD_OUT, "\t-Z        Enable Multithreading for DivideBuffer\n" );
 	fprintf(STD_OUT, "\t-b        Enable Benchmarking\n" );
 	fprintf(STD_OUT, "\t-c        Use CPU\n" );
 	fprintf(STD_OUT, "\t-g        Use GPU\n" );
@@ -133,6 +134,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 	Config->Disassemble = false;
 	Config->PrintILKernel = false;
 	Config->MultiThread = false;
+	Config->MultiThreadDivide = false;
 	//Config->DeviceNum = 0;
 	//Config->Width = 1024;
 	//Config->Height = 4096;
@@ -346,6 +348,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'z':
 			Config->MultiThread = true;
+			break;
+		case 'Z':
+			Config->MultiThreadDivide = true;
 			break;
 		case 'r':
 			if (++x >= argc) return(1);

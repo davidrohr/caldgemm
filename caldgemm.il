@@ -230,11 +230,7 @@ const char *caldgemm::ILKernelName =
 #endif
 #endif
 "dcl_literal l0, 0x00000000, 0x00000000, 0x00000000, 0x00000000\n"
-#ifdef CALDGEMM_BENCHMARK_KERNEL
 "dcl_literal l1, %d.0, 1.0, -0.5, 2.0\n"
-#else
-"dcl_literal l1, 1024.0, 1.0, -0.5, 2.0\n"
-#endif
 "mov r3, l0\n"
 "mov r4, l0\n"
 "mov r5, l0\n"

@@ -152,6 +152,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	TabularTiming = false;
 	Debug = false;
 	MultiThread = true;
+	MultiThreadDivide = true;
 	UseGPU = true;
 	UseCPU = true;
 	GPURatio = -1.0;
@@ -595,7 +596,7 @@ int caldgemm::mergeBuffers(double* dst, BufferProperties* src, int width, int he
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
 	const unsigned long long int double_minus_one = 0xBFF0000000000000;
 
-	if (Config->Width == 1024 && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one)
+	if (Config->Width == BufferWidth && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one)
 	{
 		//Special Linpack Function
 		for (int y=0; y < height; y++)
@@ -884,6 +885,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 	}
 	
 	if (Config->SlowCPU) Config->DynamicSched = false;
+	if (Config->MultiThread == false) Config->MultiThreadDivide == false;
 
 	if(ValidateCALRuntime())
 	{
@@ -1054,6 +1056,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 		pthread_mutex_init(&scheduleMutex, NULL);
 		
 		divideThreads = 0;
+		if (Config->MultiThreadDivide)
 		for (int i = 0;i < nDevices;i++)
 		{
 			pthread_mutex_init(&DGEMMTasks[i].mutex_start, NULL);
@@ -1302,9 +1305,12 @@ int caldgemm::reserve_cpu_cores()
 		}
 		if (offset == 0)
 		{
-			caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
-			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
-			nthreads++;
+			if (Config->MultiThreadDivide || i == 0)
+			{
+				caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
+				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
+				nthreads++;
+			}
 		}
 		for (int j = 0;j < outputthreads;j++)
 		{
@@ -1782,7 +1788,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
 	const unsigned long long int double_minus_one = 0xBFF0000000000000;
 #if defined(CALDGEMM_44) && !defined(CALDGEMM_USE_MEMEXPORT)
-	const int kernel_num = ((Config->Width == 1024 && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one) ? 2 : (reinterpret_cast<long long int &>(Alpha) == double_one));
+	const int kernel_num = ((Config->Width == BufferWidth && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one) ? 2 : (reinterpret_cast<long long int &>(Alpha) == double_one));
 #else
 	const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
 #endif
@@ -2192,7 +2198,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				{
 					if (Config->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (device %d obuffer %d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device, j[use_device]);
 
-					if (Config->MultiThread && Config->GPUMapping[use_device] != Config->GPUMapping[0])
+					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0])
 					{
 						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d\n", use_device);
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -2240,7 +2246,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						next_device_k[use_device] = 0;
 					}
 
-					if (Config->MultiThread && Config->GPUMapping[use_device] != Config->GPUMapping[0])
+					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0])
 					{
 						if (Config->Debug) fprintf(STD_OUT, "Starting PrepareAndExecute task on divide thread for device %d\n", use_device);
 						if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -2257,7 +2263,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				}
 				if ((obuffercount > 1) ? (lastk[use_device] != -1) : (k < nBlocks))
 				{
-					if (nBlocks <= k && Config->MultiThread && Config->GPUMapping[use_device] != Config->GPUMapping[0])
+					if (0 && nBlocks <= k && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0])
 					{
 						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d\n", use_device);
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -2676,6 +2682,7 @@ int caldgemm::ExitCALDGEMM()
 			if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking blasMutex 1\n");
 		}
 		
+		if (Config->MultiThreadDivide)
 		for (int i = 0;i < divideThreads;i++)
 		{
 			dParam[i].terminate = 1;
@@ -2697,6 +2704,7 @@ int caldgemm::ExitCALDGEMM()
 		}
 		if (pthread_mutex_destroy(&scheduleMutex)) fprintf(STD_OUT, "Error destroying schedule mutex\n");
 		
+		if (Config->MultiThreadDivide)
 		for (int i = 0;i < nDevices;i++)
 		{
 			if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR unlocking divide start mutex (%d)\n", i);
@@ -3314,17 +3322,11 @@ int caldgemm::SetupKernel(const char* ILKernel, CALmodule* module, CALcontext* c
 	CHKERR(calDeviceGetAttribs(&attribs, device_num), "getting device attributes");
 
 	CALobject obj;
-	if (Config->PrintILKernel) fprintf(STD_OUT, "Kernel:\n%s\n", ILKernel);
-#ifdef CALDGEMM_BENCHMARK_KERNEL
 	char* ILKernelUse = (char*) malloc(strlen(ILKernel) + 1024);
 	sprintf(ILKernelUse, ILKernel, Config->Width);
-#else
-	const char* ILKernelUse = ILKernel;
-#endif
+	if (Config->PrintILKernel) fprintf(STD_OUT, "Kernel:\n%s\n", ILKernelUse);
 	CHKERR(calclCompile(&obj, CAL_LANGUAGE_IL, ILKernelUse, attribs.target), "compiling the kernel");
-#ifdef CALDGEMM_BENCHMARK_KERNEL
 	free(ILKernelUse);
-#endif
 
 	CHKERR(calclLink(&image, &obj, 1), "linking the kernel");
 	CHKERR(calclFreeObject(obj), "freeing the object file");

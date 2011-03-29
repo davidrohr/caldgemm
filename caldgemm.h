@@ -103,6 +103,7 @@ public:
 		bool KeepBuffersMapped;			//Do not unmap CAL buffers before kernel execution
 		bool MemPolicy;				//Set memory allocation policy to interleaved
 		bool MultiThread;			//Use multiple threads
+		bool MultiThreadDivide;			//Use multiple threads for DivideBuffer as well
 		double GPURatio;			//Fraction of the matrix processed by GPU
 		bool UseCPU;				//use CPU for DGEMM
 		bool UseGPU;				//use GPUs for DGEMM
