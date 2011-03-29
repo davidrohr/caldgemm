@@ -2073,7 +2073,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			for (size_t k = 0;k < nBlocks + nDevices;k++)
 			{
-				CALcontext ctx_main = ctxs[use_device];
+				CALcontext* ctx_main = &ctxs[use_device];
 				if (next_device_k[use_device] != 0) k = next_device_k[use_device];
 				else if (nextk && nextk >= k) k = nextk + 1;
 				if (k > nextk) nextk = k;
@@ -2123,10 +2123,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					if (Config->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (device %d obuffer %d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device, j[use_device]);
 
 					DGEMMPrepareAndExecuteTask Task;
+					Task.PrepareTasks[0].j = Task.PrepareTasks[1].j = -1;
 					Task.device = use_device;
 					Task.ctx = ctx_main;
 					Task.kernel_num = kernel_num;
-					Task.kernel_num = k;
+					Task.k = k;
 					Task.j = j[use_device];
 
 					if (next_device_k[use_device] == 0 || obuffercount == 1 || Config->AsyncDMA == false)
@@ -2163,7 +2164,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						next_device_k[use_device] = 0;
 					}
 
-					DGEMMPrepareAndExecute(Task);
+					if (DGEMMPrepareAndExecute(Task)) return(1);
 				}
 				if (obuffercount == 1)
 				{
@@ -2175,11 +2176,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					size_t lastm, lastn;
 					DGEMM_getblocks(lastk[use_device], lastm, lastn);
 					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
-					WAITFOREVENT(ctx_main, oldj[use_device], use_device);
+					WAITFOREVENT(*ctx_main, oldj[use_device], use_device);
 					if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
 					{
-						if (CopyDataFromGPU(&ctx_main, resourceHandlers[use_device][oldj[use_device]] + numInputs + numConstantBuffers, datas[use_device][oldj[use_device]] + numInputs + numConstantBuffers, numOutputs, &events[use_device][oldj[use_device]], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
-						WAITFOREVENT(ctx_main, oldj[use_device], use_device);
+						if (CopyDataFromGPU(ctx_main, resourceHandlers[use_device][oldj[use_device]] + numInputs + numConstantBuffers, datas[use_device][oldj[use_device]] + numInputs + numConstantBuffers, numOutputs, &events[use_device][oldj[use_device]], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+						WAITFOREVENT(*ctx_main, oldj[use_device], use_device);
 					}
 					if (Config->VerboseTiming) Timers.CounterMerge.Start();
 
@@ -2352,7 +2353,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 	{
 		if (Task.PrepareTasks[l].j != -1) DGEMM_prepare(Task.PrepareTasks[l].k, Task.PrepareTasks[l].j, Task.device);
 	}
-
+	
 	if (Config->MultiThread)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "\tLocking obuffer mutex %d/%d\n", Task.device, Task.j);
@@ -2368,15 +2369,15 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 			if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001 || Config->Debug) fprintf(STD_OUT, "\t\tWait Time for output buffer: %1.5lf\n", Timers.ATime.GetElapsedTime());
 		}
 	}
-	WAITFOREVENT(Task.ctx, Task.j, Task.device);
+	WAITFOREVENT(*Task.ctx, Task.j, Task.device);
 	size_t blockm, blockn;
 	DGEMM_getblocks(Task.k, blockm, blockn);
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable && bbuffers[Task.device] >= mb)
 	{
-		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][blockm][dwBuffersA + l].dstMem), "setting kernel memory A");
-		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn % (2 * nDevices)]][l].dstMem), "setting kernel memory B");
+		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][blockm][dwBuffersA + l].dstMem), "setting kernel memory A");
+		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn % (2 * nDevices)]][l].dstMem), "setting kernel memory B");
 	}
 	else
 #endif
@@ -2386,13 +2387,14 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 #else
 		const bool buffersSufficiant = false;
 #endif
-		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm % (2 * nDevices)]][l].dstMem), "setting kernel memory A");
-		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn % (2 * nDevices)]) : blockn][l].dstMem), "setting kernel memory B");
+		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm % (2 * nDevices)]][l].dstMem), "setting kernel memory A");
+		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn % (2 * nDevices)]) : blockn][l].dstMem), "setting kernel memory B");
 	}
-	for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(Task.ctx, progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
-	if (RunProgram(&Task.ctx, &modules[Task.device][Task.kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
-	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(&Task.ctx, resourceHandlers[Task.device][Task.j] + numInputs + numConstantBuffers, datas[Task.device][Task.j] + numInputs + numConstantBuffers, numOutputs, &events[Task.device][Task.j], blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
-	calCtxFlush(Task.ctx);
+	for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
+	if (RunProgram(Task.ctx, &modules[Task.device][Task.kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
+	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(Task.ctx, resourceHandlers[Task.device][Task.j] + numInputs + numConstantBuffers, datas[Task.device][Task.j] + numInputs + numConstantBuffers, numOutputs, &events[Task.device][Task.j], blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+	calCtxFlush(*Task.ctx);
+	return(0);
 }
 
 int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)

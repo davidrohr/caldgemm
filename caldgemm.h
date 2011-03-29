@@ -364,13 +364,8 @@ private:
 		int k;
 		int j;
 		int device;
-		CALcontext ctx;
+		CALcontext* ctx;
 		int kernel_num;
-
-		DGEMMPrepareAndExecuteTask()
-		{
-			PrepareTasks[0].j = PrepareTasks[1].j = -1;
-		}
 	};
 	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task);
 
