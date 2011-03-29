@@ -675,7 +675,7 @@ int main(int argc, char** argv)
 		//Initial run to negate cache effects
 #ifndef TESTMODE
 #ifndef DEBUG_MSG_TIMED
-		//if (Config.Debug == false && Config.DumpMatrix == false && initialrun && !torture)
+		if (Config.Debug == false && Config.DumpMatrix == false && initialrun && !torture)
 #endif
 		{
 			if (!quietbench)
