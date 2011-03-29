@@ -371,7 +371,7 @@ private:
 		{
 			PrepareTasks[0].j = PrepareTasks[1].j = -1;
 		}
-	}
+	};
 	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task);
 
 	cblasParameters cParam;

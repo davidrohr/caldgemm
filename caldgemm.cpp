@@ -2163,7 +2163,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						next_device_k[use_device] = 0;
 					}
 
-					DGEMMPrepeareAndExecute(Task);
+					DGEMMPrepareAndExecute(Task);
 				}
 				if (obuffercount == 1)
 				{
@@ -2346,6 +2346,8 @@ inline void caldgemm::DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn)
 
 int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 {
+	const size_t mb = gpu_m / Config->Height;
+	const size_t nb = gpu_n / Config->Height;
 	for (int l = 0;l < 2;l++)
 	{
 		if (Task.PrepareTasks[l].j != -1) DGEMM_prepare(Task.PrepareTasks[l].k, Task.PrepareTasks[l].j, Task.device);
@@ -2368,7 +2370,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 	}
 	WAITFOREVENT(Task.ctx, Task.j, Task.device);
 	size_t blockm, blockn;
-	DGEMM_getblocks(k, blockm, blockn);
+	DGEMM_getblocks(Task.k, blockm, blockn);
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable && bbuffers[Task.device] >= mb)
@@ -2387,8 +2389,8 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm % (2 * nDevices)]][l].dstMem), "setting kernel memory A");
 		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn % (2 * nDevices)]) : blockn][l].dstMem), "setting kernel memory B");
 	}
-	for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctx_main, progNames[use_device][kernel_num][numInputs + numConstantBuffers + l], datas[use_device][j[use_device]][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
-	if (RunProgram(&ctx_main, &modules[Task.device][Task.kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[use_device][j[use_device]])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
+	for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(Task.ctx, progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
+	if (RunProgram(&Task.ctx, &modules[Task.device][Task.kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
 	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(&Task.ctx, resourceHandlers[Task.device][Task.j] + numInputs + numConstantBuffers, datas[Task.device][Task.j] + numInputs + numConstantBuffers, numOutputs, &events[Task.device][Task.j], blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 	calCtxFlush(Task.ctx);
 }
