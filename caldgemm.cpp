@@ -2128,9 +2128,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		if (!Config->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers[use_device]) fprintf(STD_OUT, "WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
 		
-		for (int l = 0;l < nDevices;l++)
+		if (Config->MultiThread)
 		{
-			if (pthread_mutex_unlock(&DGEMMTasks[l].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+			for (int l = 0;l < nDevices;l++)
+			{
+				if (pthread_mutex_unlock(&DGEMMTasks[l].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+			}
 		}
 
 		cParam.cpu_k = nBlocks;
@@ -2189,6 +2192,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				{
 					if (Config->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (device %d obuffer %d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device, j[use_device]);
 
+					if (Config->MultiThread && Config->GPUMapping[use_device] != Config->GPUMapping[0])
+					{
+						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d\n", use_device);
+						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+					}
+
 					DGEMMPrepareAndExecuteTask& Task = DGEMMTasks[use_device];
 					Task.PrepareTasks[0].j = Task.PrepareTasks[1].j = -1;
 					Task.device = use_device;
@@ -2231,10 +2240,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						next_device_k[use_device] = 0;
 					}
 
-					if (Config->GPUMapping[use_device] != Config->GPUMapping[0])
+					if (Config->MultiThread && Config->GPUMapping[use_device] != Config->GPUMapping[0])
 					{
-						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d\n", use_device);
-						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
 						if (Config->Debug) fprintf(STD_OUT, "Starting PrepareAndExecute task on divide thread for device %d\n", use_device);
 						if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
@@ -2250,6 +2257,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				}
 				if ((obuffercount > 1) ? (lastk[use_device] != -1) : (k < nBlocks))
 				{
+					if (nBlocks <= k && Config->MultiThread && Config->GPUMapping[use_device] != Config->GPUMapping[0])
+					{
+						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d\n", use_device);
+						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "Error locking mutex: %s - %d\n", __FILE__, __LINE__);
+					}
 					size_t lastm, lastn;
 					DGEMM_getblocks(lastk[use_device], lastm, lastn);
 					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
