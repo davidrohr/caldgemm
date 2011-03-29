@@ -450,7 +450,7 @@ void SetupUserDataC(caldgemm::caldgemm_config &Config)
 {
 	if (fastinit || torture)
 	{
-		memset(CC, 0, Config.m * pitch_c * sizeof(double));
+		if (torture) memset(CC, 0, Config.m * pitch_c * sizeof(double));
 	}
 	else
 	{
@@ -559,8 +559,8 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 
 	if (fastinit)
 	{
-		memset(AA, 0, height_a * pitch_a * sizeof(double));
-		memset(BB, 0, height_b * pitch_b * sizeof(double));
+		//memset(AA, 0, height_a * pitch_a * sizeof(double));
+		//memset(BB, 0, height_b * pitch_b * sizeof(double));
 	}
 	else
 	{
