@@ -54,6 +54,7 @@ extern "C" {
 #endif
 
 void* merge_wrapper(void* arg);
+void* divide_wrapper(void* arg);
 void* cblas_wrapper(void* arg);
 void* linpack_wrapper(void* arg);
 
@@ -77,6 +78,7 @@ private:
 class caldgemm
 {
 	friend void* merge_wrapper(void* arg);
+	friend void* divide_wrapper(void* arg);
 	friend void* cblas_wrapper(void* arg);
 	friend void* linpack_wrapper(void* arg);
 protected:
@@ -366,8 +368,19 @@ private:
 		int device;
 		CALcontext* ctx;
 		int kernel_num;
-	};
+		pthread_mutex_t mutex_start, mutex_finished;
+	} DGEMMTasks[max_devices];
 	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task);
+	
+	struct divideParameters
+	{
+		caldgemm* cls;
+		int CPUCore;
+		int nThread;
+		int terminate;
+		int curDevice;
+	} dParam[max_devices];
+	int divideThreads;
 
 	cblasParameters cParam;
 	//For Verfify only
