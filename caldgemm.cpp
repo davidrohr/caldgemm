@@ -1621,7 +1621,7 @@ void* divide_wrapper(void* arg)
 				continue;
 			}
 			
-			if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread for device %d Starting processing\n", i);
+			if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread for device %d Starting processing (k = %lld)\n", i, par->cls->DGEMMTasks[i].k);
 			par->cls->DGEMMPrepareAndExecute(par->cls->DGEMMTasks[i]);
 			
 			if (pthread_mutex_unlock(&par->cls->DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -2158,7 +2158,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			for (size_t k = 0;k < nBlocks + 2 * nDevices;k++)
 			{
 				CALcontext* ctx_main = &ctxs[use_device];
-				fprintf(STD_OUT, "!!!!! k %lld nd k %lld nextk %lld\n", k, next_device_k[use_device], nextk);
 				if (next_device_k[use_device] != 0) k = next_device_k[use_device];
 				else if (nextk && nextk >= k) k = nextk + 1;
 				if (k > nextk) nextk = k;
@@ -2273,9 +2272,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				}
 				if ((obuffercount > 1) ? (lastk[use_device] != -1) : (k < nBlocks))
 				{
-					if (nBlocks <= k && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0])
+					if (nBlocks <= k && lastk[use_device] < nBlocks && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0])
 					{
-						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d\n", use_device);
+						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (k=%lld lastk = %lld)\n", use_device, k, lastk[use_device]);
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
 					size_t lastm, lastn;
