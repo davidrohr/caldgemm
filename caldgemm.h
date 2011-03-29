@@ -110,6 +110,7 @@ public:
 
 		int DeviceNum;				//CAL Device to use (-1 for all devices)
 		int NumDevices;				//Number of devices to use in parallel at max
+		bool ImprovedScheduler;			//Tries to save bbuffers, replaces the round-robin scheduler
 
 		bool Debug;				//Activate debig output
 		bool DumpMatrix;			//Dump input matrix to file

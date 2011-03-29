@@ -140,6 +140,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	Quiet = true;
 	DisplayTiming = false;
 	DeviceNum = -1;
+	ImprovedScheduler = false;
 	NumDevices = max_devices;
 	Width = 1024;
 	Height = 4096;
@@ -2152,6 +2153,33 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			}
 		}
 
+		int* tileDistribution;
+		int ImprovedSchedPhase1 = 0;
+		if (Config->ImprovedScheduler)
+		{
+			tileDistribution = new int[nBlocks];
+			ImprovedSchedPhase1 = 1;
+			for (int l = 0;l < nBlocks;l++)
+			{
+				int k;
+				if (DGEMM_favor_m)
+				{
+					const int nb = gpu_n / Config->Height;
+					blockn = l % nb;
+					blockm = l / nb;
+					k = blockn * mb + blockm;
+				}
+				else
+				{
+					const int mb = gpu_m / Config->Height;
+					blockm = l % mb;
+					blockn = l / mb;
+					k = blockn + blockm * nb;
+				}
+				tileDistribution[l] = 3 * k / nBlocks;
+			}
+		}
+
 		cParam.cpu_k = nBlocks;
 		gpu_k_barrier = -1;
 		cpu_k_barrier = nBlocks;
@@ -2160,6 +2188,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			for (size_t k = 0;k < nBlocks + 2 * nDevices;k++)
 			{
+restartkloop:
 				CALcontext* ctx_main = &ctxs[use_device];
 				if (next_device_k[use_device] != 0) k = next_device_k[use_device];
 				else if (nextk && nextk >= k) k = nextk + 1;
@@ -2167,6 +2196,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 				if (k < nBlocks)
 				{
+					if (Config->ImprovedScheduler)
+					{
+						if (tileDistribution[k] < 0) continue;
+					}
+					if (ImprovedSchedPhase1)
+					{
+						if (tileDistribution[k] != use_device) continue;
+					}
 					DGEMM_getblocks(k, blockm, blockn);
 
 					if (cParam.dynamic_run)
@@ -2205,6 +2242,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					}
 					pthread_mutex_unlock(&scheduleMutex);
 				}
+
+				if (ImprovedSchedPhase1 && k >= nBlocks)
+				{
+					ImprovedSchedPhase1 = 0;
+					k = nextk = 0;
+					goto restartkloop;
+				}
 				
 				if (k < nBlocks)
 				{
@@ -2238,8 +2282,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						DGEMM_getblocks(nextk, nextblockm, nextblockn);
 						if (cParam.dynamic_run)
 						{
-							while (DGEMM_favor_m ? (nextk < nBlocks && nextblockm * Config->Height >= gpu_m - cParam.dynamic_run && nextblockn * Config->Height >= gpu_n - cParam.dynamic_size) :
-								(nextk < nBlocks && nextblockn * Config->Height >= gpu_n - cParam.dynamic_run && nextblockm * Config->Height >= gpu_m - cParam.dynamic_size))
+							while (
+									(DGEMM_favor_m ? (nextk < nBlocks && nextblockm * Config->Height >= gpu_m - cParam.dynamic_run && nextblockn * Config->Height >= gpu_n - cParam.dynamic_size) :
+										(nextk < nBlocks && nextblockn * Config->Height >= gpu_n - cParam.dynamic_run && nextblockm * Config->Height >= gpu_m - cParam.dynamic_size)) ||
+									(Config->ImprovedScheduler && tileDistribution[k] < 0) ||
+									(ImprovedSchedPhase1 tileDistribution[k] != use_device)
+							)
 							{
 								nextk++;
 								DGEMM_getblocks(nextk, nextblockm, nextblockn);
@@ -2360,6 +2408,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				dParam[l].reset = 1;
 				if (pthread_mutex_unlock(&DGEMMTasks[dParam[l].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 			}
+		}
+
+		if (Config->ImprovedScheduler)
+		{
+			delete[] tileDistribution;
 		}
 	}
 	Timers.GPUTimer.Stop();
