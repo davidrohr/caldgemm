@@ -172,6 +172,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	MPIRank = -1;
 	PreOut = EmptyOut;
 	GPUClock = 0;
+	for (int i = 0;i < caldgemm::max_devices;i++) GPUMapping[i] = 0;
 }
 
 int caldgemm::getcpumask(cpu_set_t* set)

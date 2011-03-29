@@ -116,6 +116,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
 	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n" );
 	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n" );
+	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided" );
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 }
 
@@ -300,6 +301,18 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 		case 't':
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", &Config->PinCPU);
+			break;
+		case 'G':
+			if (x + 1 >= argc) return(1);
+			int gpuid;
+			sscanf(&argv[x++][2], "%d", &gpuid);
+			if (gpuid >= sizeof(Config->GPUMapping) / sizeof(Config->GPUMapping[0]))
+			{
+			    fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+			    break;
+			}
+			sscanf(argv[x], "%d", &Config->GPUMapping[gpuid]);
+			printf("Set CPU core for GPU %d to %d\n", gpuid, Config->GPUMapping[gpuid]);
 			break;
 		case 'h':
 			if (++x >= argc) return(1);

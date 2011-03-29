@@ -79,6 +79,8 @@ class caldgemm
 	friend void* merge_wrapper(void* arg);
 	friend void* cblas_wrapper(void* arg);
 	friend void* linpack_wrapper(void* arg);
+protected:
+	static const unsigned int max_devices = 8;
 
 public:
 
@@ -111,6 +113,7 @@ public:
 		unsigned int Iterations;		//Run multiple iterations (for benchmark and debugging purpose only)
 		bool Verify;				//Verify the result
 
+		int GPUMapping[max_devices];		//Mapping of GPU devices to CPU cores. Affects DivideBuffer Threads, merge threads take the succeeding cores.
 		int PinCPU;				//Pin the GPU pre- and postprocessing threads to a CPUZ core
 		bool SlowCPU;				//Try to put as many load as possible on the GPU as CPU is slow
 		
@@ -192,7 +195,6 @@ private:
 	static const int max_bbuffers = 3;
 	static const int max_bbuffers_g = 3;
 #endif	
-	static const unsigned int max_devices = 8;
 	int next_buffer_A[max_devices];
 	int next_buffer_B[max_devices];
 	int buffer_pointers_A[max_devices][2 * max_devices];
