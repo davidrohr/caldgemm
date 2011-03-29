@@ -379,6 +379,7 @@ private:
 		int CPUCore;
 		int nThread;
 		int terminate;
+		int reset;
 		int curDevice;
 	} dParam[max_devices];
 	int divideThreads;
