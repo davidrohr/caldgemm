@@ -1165,6 +1165,7 @@ void* linpack_wrapper(void* arg)
 	{
 		if (Config->GPUMapping[i] == Config->GPUMapping[0]) linpackCPU += cls->outputthreads;
 	}
+	cls->broadcast_cpu_core = linpackCPU;
 	if (linpackCPU >= cls->conf_numprocs) linpackCPU = 0;
 	CPU_SET(linpackCPU, &linpack_mask);
 	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", cls->getcpumask(&linpack_mask));
@@ -1260,6 +1261,33 @@ TryThirdRun:
 	return(retVal);
 }
 
+int caldgemm::reserve_cpu_cores()
+{
+	int nthreads = 0;
+	for (int i = 0;i < nDevices;i++)
+	{
+		int offset = 0;
+		for (int j = 0;j < i;j++)
+		{
+			if (Config->GPUMapping[i] == Config->GPUMapping[j]) offset++;
+		}
+		if (offset == 0)
+		{
+			caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
+			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
+			nthreads++;
+		}
+		for (int j = 0;j < outputthreads;j++)
+		{
+			caldgemm_goto_reserve_cpu(Config->GPUMapping[i] + 1 + offset * outputthreads + j, 1);
+			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", Config->GPUMapping[i] + 1 + offset * outputthreads + j);
+		}
+		nthreads += outputthreads;
+	}
+	if (Config->Debug) fprintf(STD_OUT, "Reserved %d cores\n", nthreads);
+	return(nthreads);
+}
+
 void* cblas_wrapper(void* arg)
 {
 	volatile caldgemm::cblasParameters* par = (caldgemm::cblasParameters*) arg;
@@ -1301,16 +1329,18 @@ void* cblas_wrapper(void* arg)
 
 		int old_goto_threads = get_num_procs();
 
-		int require_threads = par->cls->outputthreads * par->cls->nDevices + 1;
+		int require_threads_base = par->cls->reserve_cpu_cores();
+		int require_threads = require_threads_base;
+		
 		if (par->cls->ExecLinpack && par->cls->Config->LinpackNodes > 1)
 		{
+			caldgemm_goto_reserve_cpu(par->cls->broadcast_cpu_core, 1);
 			require_threads++;
 		}
 		if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu (/ Linpack)\n", require_threads);
 		if (old_goto_threads > require_threads)
 		{
 			goto_set_num_threads(old_goto_threads - require_threads);
-			caldgemm_goto_reserve_cpus(require_threads);
 		}
 		else
 		{
@@ -1441,16 +1471,17 @@ void* cblas_wrapper(void* arg)
 								par->cls->Timers.BcastTimer.Stop();
 								if (!Config->NoPerformanceWarnings && par->cls->Timers.BcastTimer.GetElapsedTime() > 1.0) fprintf(STD_OUT, "Bcast core idle for %2.4lf seconds\n", par->cls->Timers.BcastTimer.GetElapsedTime());
 
-								int require_threads_new = par->cls->outputthreads * par->cls->nDevices + 1;
+								int require_threads_new = require_threads_base;
 								if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
 								if (old_goto_threads > require_threads_new)
 								{
 									goto_set_num_threads(old_goto_threads - require_threads_new);
-									caldgemm_goto_reserve_cpus(require_threads_new);
+									caldgemm_goto_reserve_cpu(par->cls->broadcast_cpu_core, 0);
 								}
 								else
 								{
 									goto_set_num_threads(1);
+									caldgemm_goto_reserve_cpus(0);
 								}
 								linpackfinished = true;
 							}
@@ -1477,12 +1508,12 @@ void* cblas_wrapper(void* arg)
 							}
 							else
 							{
-								int require_threads_new = par->cls->outputthreads * par->cls->nDevices + 1;
+								int require_threads_new = require_threads_base;
 								if (old_goto_threads > require_threads_new)
 								{
 									if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
 									goto_set_num_threads(old_goto_threads - require_threads_new);
-									caldgemm_goto_reserve_cpus(require_threads_new);
+									caldgemm_goto_reserve_cpu(par->cls->broadcast_cpu_core, 0);
 								}
 								else
 								{
