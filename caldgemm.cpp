@@ -168,6 +168,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	n = 0;
 	LinpackNodes = 0;
 	LinpackSwapN = NULL;
+	HPLFactorizeRestrictCPUs = 1;
 	MPIRank = -1;
 	PreOut = EmptyOut;
 	GPUClock = 0;
@@ -1301,8 +1302,19 @@ void* cblas_wrapper(void* arg)
 		par->cls->Timers.LinpackTimer3.Start();
 		if (Config->LinpackSwapN != NULL)
 		{
-			if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
+			if (Config->HPLFactorizeRestrictCPUs == 1)
+			{
+			    if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
+			}
+			else if (Config->HPLFactorizeRestrictCPUs == 2)
+			{
+			    caldgemm_goto_restrict_cpus(1);
+			}
 			Config->linpack_swap_function();
+			if (Config->HPLFactorizeRestrictCPUs == 2)
+			{
+			    caldgemm_goto_restrict_cpus(0);
+			}
 			if (old_goto_threads > require_threads)
 			{
 				goto_set_num_threads(old_goto_threads - require_threads);
@@ -1322,10 +1334,18 @@ void* cblas_wrapper(void* arg)
 			par->cls->Timers.CPUTimer.Stop();
 #ifndef NO_ASYNC_LINPACK
 			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tStarting Linpack factorization\n");
-			if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
+			if (Config->HPLFactorizeRestrictCPUs == 1)
+			{
+			    if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
+			}
+			else if (Config->HPLFactorizeRestrictCPUs == 2)
+			{
+			    caldgemm_goto_restrict_cpus(1);
+			}
 			par->cls->Timers.LinpackTimer1.Start();
 			Config->linpack_factorize_function();
 			par->cls->Timers.LinpackTimer1.Stop();
+			if (Config->HPLFactorizeRestrictCPUs == 2) caldgemm_goto_restrict_cpus(0);
 			goto_set_num_threads(old_goto_threads - require_threads);
 
 			if (par->cls->Config->LinpackNodes > 1)

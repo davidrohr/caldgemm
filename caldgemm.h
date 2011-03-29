@@ -132,6 +132,8 @@ public:
 		int LinpackNodes;			//Number of nodes contributing to MPI HPL run
 		int MPIRank;				//MPI Rank to display in debug info
 		int GPUClock;				//GPU clock of the device used (to display throttling information)
+		
+		int HPLFactorizeRestrictCPUs;		//Set 1 to restrct thread count to 8, 2 for dynamic restriction
 		volatile size_t *LinpackSwapN;		//Current status of linpack pivoting process
 		void (*linpack_factorize_function)();	//Linpack callback functions
 		void (*linpack_broadcast_function)();
