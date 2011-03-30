@@ -2155,6 +2155,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		int* tileDistribution;
 		int ImprovedSchedPhase1 = 0;
+		int forcePreparation[max_devices];
+		for (int l = 0;l < nDevices;l++) forcePreparation[l] = 0;
 		if (Config->ImprovedScheduler)
 		{
 			tileDistribution = new int[nBlocks];
@@ -2258,7 +2260,8 @@ restartkloop:
 
 				if (ImprovedSchedPhase1 && k >= nBlocks)
 				{
-endimprovedphase:			ImprovedSchedPhase1 = 0;
+endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduling phase ended\n");
+					ImprovedSchedPhase1 = 0;
 					k = nextk = 0;
 					goto restartkloop;
 				}
@@ -2281,12 +2284,12 @@ endimprovedphase:			ImprovedSchedPhase1 = 0;
 					Task.k = k;
 					Task.j = j[use_device];
 
-					if (next_device_k[use_device] == 0 || obuffercount == 1 || Config->AsyncDMA == false)
+					if (next_device_k[use_device] == 0 || obuffercount == 1 || Config->AsyncDMA == false || forcePreparation[use_device])
 					{
 						WaitForLASWP(blockm);
 						Task.PrepareTasks[0].k = k;
 						Task.PrepareTasks[0].j = j[use_device];
-						
+						forcePreparation[use_device] = 0;
 					}
 					if (obuffercount > 1 && lastk[use_device] != -1 && Config->AsyncDMA && k + (nDevices - use_device - 1) % nDevices + 1 < nBlocks && cpu_k_barrier_hit == false)
 					{
@@ -2294,13 +2297,13 @@ endimprovedphase:			ImprovedSchedPhase1 = 0;
 						else nextk++;
 						size_t nextblockm, nextblockn;
 						DGEMM_getblocks(nextk, nextblockm, nextblockn);
-						if (cParam.dynamic_run)
+						if (cParam.dynamic_run || Config->ImprovedScheduler)
 						{
 							while (
-									(DGEMM_favor_m ? (nextk < nBlocks && nextblockm * Config->Height >= gpu_m - cParam.dynamic_run && nextblockn * Config->Height >= gpu_n - cParam.dynamic_size) :
-										(nextk < nBlocks && nextblockn * Config->Height >= gpu_n - cParam.dynamic_run && nextblockm * Config->Height >= gpu_m - cParam.dynamic_size)) ||
-									(Config->ImprovedScheduler && tileDistribution[k] < 0) ||
-									(ImprovedSchedPhase1 && tileDistribution[k] != use_device)
+									(cParam.dynamic_run && (DGEMM_favor_m ? (nextk < nBlocks && nextblockm * Config->Height >= gpu_m - cParam.dynamic_run && nextblockn * Config->Height >= gpu_n - cParam.dynamic_size) :
+										(nextk < nBlocks && nextblockn * Config->Height >= gpu_n - cParam.dynamic_run && nextblockm * Config->Height >= gpu_m - cParam.dynamic_size))) ||
+									(Config->ImprovedScheduler && tileDistribution[nextk] < 0) ||
+									(ImprovedSchedPhase1 && tileDistribution[nextk] != use_device)
 							)
 							{
 								nextk++;
@@ -2317,8 +2320,15 @@ endimprovedphase:			ImprovedSchedPhase1 = 0;
 					}
 					else
 					{
-						if (ImprovedSchedPhase1) next_device_k[use_device] = k + 1;
-						else next_device_k[use_device] = 0;
+						if (ImprovedSchedPhase1)
+						{
+							next_device_k[use_device] = k + 1;
+							forcePreparation[use_device] = 1;
+						}
+						else
+						{
+							next_device_k[use_device] = 0;
+						}
 					}
 					
 					if (Config->ImprovedScheduler) tileDistribution[k] = -1;
