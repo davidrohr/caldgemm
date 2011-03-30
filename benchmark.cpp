@@ -119,6 +119,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n" );
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n" );
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
+	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -198,6 +199,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case '0':
 			Config->DivideToGPU = true;
+			break;
+		case 'X':
+			Config->ImprovedScheduler = true;
 			break;
 		case 'A':
 			Config->AsyncDMA = true;

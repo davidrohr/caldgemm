@@ -2176,7 +2176,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					blockn = l / mb;
 					k = blockn + blockm * nb;
 				}
-				tileDistribution[l] = 3 * k / nBlocks;
+				tileDistribution[l] = nDevices * k / nBlocks;
+				
+				if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", l, tileDistribution[l]);
 			}
 		}
 
@@ -2190,19 +2192,30 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 restartkloop:
 				CALcontext* ctx_main = &ctxs[use_device];
+				fprintf(STD_OUT, "!!!!! k %lld nd k %lld nextk %lld\n", k, next_device_k[use_device], nextk);
+				if (Config->ImprovedScheduler && !ImprovedSchedPhase1 && tileDistribution[next_device_k[use_device]] < 0) next_device_k[use_device] = 0;
 				if (next_device_k[use_device] != 0) k = next_device_k[use_device];
 				else if (nextk && nextk >= k) k = nextk + 1;
 				if (k > nextk) nextk = k;
 
 				if (k < nBlocks)
 				{
-					if (Config->ImprovedScheduler)
-					{
-						if (tileDistribution[k] < 0) continue;
-					}
 					if (ImprovedSchedPhase1)
 					{
-						if (tileDistribution[k] != use_device) continue;
+						while (k < nBlocks && tileDistribution[k] != use_device)
+						{
+							if (Config->Debug) fprintf(STD_OUT, "Skipping tile %lld for device %d\n", k, use_device);
+							k++;
+						}
+						if (k == nBlocks) goto endimprovedphase;
+					}
+					if (Config->ImprovedScheduler)
+					{
+						if (tileDistribution[k] < 0)
+						{
+							if (Config->Debug) fprintf(STD_OUT, "Tile %lld already processed, skipping\n", k);
+							continue;
+						}
 					}
 					DGEMM_getblocks(k, blockm, blockn);
 
@@ -2245,7 +2258,7 @@ restartkloop:
 
 				if (ImprovedSchedPhase1 && k >= nBlocks)
 				{
-					ImprovedSchedPhase1 = 0;
+endimprovedphase:			ImprovedSchedPhase1 = 0;
 					k = nextk = 0;
 					goto restartkloop;
 				}
@@ -2277,7 +2290,8 @@ restartkloop:
 					}
 					if (obuffercount > 1 && lastk[use_device] != -1 && Config->AsyncDMA && k + (nDevices - use_device - 1) % nDevices + 1 < nBlocks && cpu_k_barrier_hit == false)
 					{
-						nextk++;
+						if (ImprovedSchedPhase1) nextk = k + 1;
+						else nextk++;
 						size_t nextblockm, nextblockn;
 						DGEMM_getblocks(nextk, nextblockm, nextblockn);
 						if (cParam.dynamic_run)
@@ -2286,7 +2300,7 @@ restartkloop:
 									(DGEMM_favor_m ? (nextk < nBlocks && nextblockm * Config->Height >= gpu_m - cParam.dynamic_run && nextblockn * Config->Height >= gpu_n - cParam.dynamic_size) :
 										(nextk < nBlocks && nextblockn * Config->Height >= gpu_n - cParam.dynamic_run && nextblockm * Config->Height >= gpu_m - cParam.dynamic_size)) ||
 									(Config->ImprovedScheduler && tileDistribution[k] < 0) ||
-									(ImprovedSchedPhase1 tileDistribution[k] != use_device)
+									(ImprovedSchedPhase1 && tileDistribution[k] != use_device)
 							)
 							{
 								nextk++;
@@ -2303,8 +2317,11 @@ restartkloop:
 					}
 					else
 					{
-						next_device_k[use_device] = 0;
+						if (ImprovedSchedPhase1) next_device_k[use_device] = k + 1;
+						else next_device_k[use_device] = 0;
 					}
+					
+					tileDistribution[k] = -1;
 
 					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0] && cpu_k_barrier_hit == false)
 					{
