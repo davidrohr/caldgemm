@@ -2264,7 +2264,11 @@ restartkloop:
 endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduling phase ended\n");
 					ImprovedSchedPhase1 = 0;
 					k = nextk = 0;
-					for (int l = 0;l < nDevices;l++) next_device_k[l] = 0;
+					for (int l = 0;l < nDevices;l++)
+					{
+						next_device_k[l] = 0;
+						forcePreparation[l] = 1;
+					}
 					goto restartkloop;
 				}
 				
@@ -2291,7 +2295,6 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						WaitForLASWP(blockm);
 						Task.PrepareTasks[0].k = k;
 						Task.PrepareTasks[0].j = j[use_device];
-						forcePreparation[use_device] = 0;
 						if (Config->ImprovedScheduler && !ImprovedSchedPhase1)
 						{
 							if (buffersMajor[use_device] != (DGEMM_favor_m ? blockm : blockn))
@@ -2300,6 +2303,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 								buffersMajor[use_device] = -1;
 							}
 						}
+						forcePreparation[use_device] = 0;
 					}
 					if (obuffercount > 1 && lastk[use_device] != -1 && Config->AsyncDMA && k + (nDevices - use_device - 1) % nDevices + 1 < nBlocks && cpu_k_barrier_hit == false)
 					{
