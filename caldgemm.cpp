@@ -2579,7 +2579,10 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 	const size_t nb = gpu_n / Config->Height;
 	for (int l = 0;l < 2;l++)
 	{
-		if (Task.PrepareTasks[l].j != -1) DGEMM_prepare(Task.PrepareTasks[l].k, Task.PrepareTasks[l].j, Task.device);
+		if (Task.PrepareTasks[l].j != -1)
+		{
+			if (DGEMM_prepare(Task.PrepareTasks[l].k, Task.PrepareTasks[l].j, Task.device)) return(1);
+		}
 	}
 	
 	if (Config->MultiThread)
@@ -2701,11 +2704,11 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 			if (!DGEMM_favor_m && buffersSufficiant)
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], datas[num_device][buffer_pointers_A[num_device][blockm] % bbuffers[num_device]] + dwBuffersA)) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], datas[num_device][buffer_pointers_A[num_device][blockm] % bbuffers[num_device]] + dwBuffersA)) {fprintf(STD_OUT, "Error copying A to GPU (minor)\n"); return(1);}
 			}
 			else
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j])) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j])) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
 			}
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of A (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
@@ -2715,11 +2718,11 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 			if (!DGEMM_favor_m && buffersSufficiant)
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][next_buffer_B[num_device] % 2])) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][next_buffer_B[num_device] % 2])) {fprintf(STD_OUT, "Error copying B to GPU (major)\n"); return(1);}
 			}
 			else
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][buffersSufficiant ? (buffer_pointers_A[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][buffersSufficiant ? (buffer_pointers_A[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
 			}
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
@@ -2729,6 +2732,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 	
 	if (prepareM) next_buffer_A[num_device]++;
 	if (prepareN) next_buffer_B[num_device]++;
+	return(0);
 }
 
 int caldgemm::ExitCALDGEMM()
