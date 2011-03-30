@@ -1868,15 +1868,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 				Config->Height = 512;
 			}
-			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || ((Config->SlowCPU || MaxGpuM * MaxGpuN < 13 * 14 * 1024 * 1024) && mymax(MaxGpuN, MaxGpuM) % 2048 >= 1024) || (MaxGpuM * MaxGpuN < 16 * 1024 * 1024))
+			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || ((Config->SlowCPU || MaxGpuM * MaxGpuN < 13 * 14 * 1024 * 1024) && mymax(MaxGpuN, MaxGpuM) % 2048 >= 1024) || (MaxGpuM * MaxGpuN < 16 * 1024 * 1024) || BufferHeight < 2048)
 			{
 				Config->Height = 1024;
 			}
-			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || ((Config->SlowCPU || MaxGpuM * MaxGpuN < 20 * 21 * 1024 * 1024) && mymax(MaxGpuN, MaxGpuM) % 3072 >= 2048) || (MaxGpuM * MaxGpuN < 120 * 1024 * 1024))
+			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || ((Config->SlowCPU || MaxGpuM * MaxGpuN < 20 * 21 * 1024 * 1024) && mymax(MaxGpuN, MaxGpuM) % 3072 >= 2048) || (MaxGpuM * MaxGpuN < 120 * 1024 * 1024) || BufferHeight < 3072)
 			{
 				Config->Height = 2048;
 			}
-			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < 27 * 28 * 1024 * 1024)
+			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < 27 * 28 * 1024 * 1024 || BufferHeight < 4096)
 			{
 				Config->Height = 3072;
 			}
@@ -1892,15 +1892,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 				Config->Height = 512;
 			}
-			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || MaxGpuM * MaxGpuN < 16 * 1024 * 1024)
+			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || MaxGpuM * MaxGpuN < 16 * 1024 * 1024 || BufferHeight < 2048)
 			{
 				Config->Height = 1024;
 			}
-			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || MaxGpuM * MaxGpuN < 120 * 1024 * 1024)
+			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || MaxGpuM * MaxGpuN < 120 * 1024 * 1024 || BufferHeight < 3072)
 			{
 				Config->Height = 2048;
 			}
-			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < (size_t) 60 * 60 * 1024 * 1024)
+			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < (size_t) 60 * 60 * 1024 * 1024 || BufferHeight < 4096)
 			{
 				Config->Height = 3072;
 			}
