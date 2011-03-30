@@ -2291,6 +2291,14 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						Task.PrepareTasks[0].k = k;
 						Task.PrepareTasks[0].j = j[use_device];
 						forcePreparation[use_device] = 0;
+						if (Config->ImprovedScheduler && !ImprovedSchedPhase1)
+						{
+							if (buffersMajor[use_device] != (DGEMM_favor_m ? blockm : blockn))
+							{
+								if (Config->Debug) fprintf(STD_OUT, "Resetting favored directions buffers for device %d\n", use_device);
+								buffersMajor[use_device] = -1;
+							}
+						}
 					}
 					if (obuffercount > 1 && lastk[use_device] != -1 && Config->AsyncDMA && k + (nDevices - use_device - 1) % nDevices + 1 < nBlocks && cpu_k_barrier_hit == false)
 					{
