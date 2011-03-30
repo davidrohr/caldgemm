@@ -2167,14 +2167,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				int k;
 				if (DGEMM_favor_m)
 				{
-					const int nb = gpu_n / Config->Height;
 					blockn = l % nb;
 					blockm = l / nb;
 					k = blockn * mb + blockm;
 				}
 				else
 				{
-					const int mb = gpu_m / Config->Height;
 					blockm = l % mb;
 					blockn = l / mb;
 					k = blockn + blockm * nb;
@@ -2182,6 +2180,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				tileDistribution[l] = nDevices * k / nBlocks;
 				
 				//if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", l, tileDistribution[l]);
+			}
+		}
+		for (int l = 0;l < nDevices;l++)
+		{
+			buffer_pointers_A[l] = new int[mb];
+			buffer_pointers_B[l] = new int[nb];
+			for (int ll = 0;ll < bbuffers[l];ll++)
+			{
+				bbuffer_block_pointers[l][ll] = -1;
 			}
 		}
 
@@ -2457,6 +2464,11 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 		{
 			delete[] tileDistribution;
 		}
+		for (int l = 0;l < nDevices;l++)
+		{
+			delete[] buffer_pointers_A[l];
+			delete[] buffer_pointers_B[l];
+		}
 	}
 	Timers.GPUTimer.Stop();
 
@@ -2595,7 +2607,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 	if (!DGEMM_favor_m && buffersSwitchable && bbuffers[Task.device] >= mb)
 	{
 		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][blockm][dwBuffersA + l].dstMem), "setting kernel memory A");
-		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn % (2 * nDevices)]][l].dstMem), "setting kernel memory B");
+		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn]][l].dstMem), "setting kernel memory B");
 	}
 	else
 #endif
@@ -2605,8 +2617,8 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 #else
 		const bool buffersSufficiant = false;
 #endif
-		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm % (2 * nDevices)]][l].dstMem), "setting kernel memory A");
-		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn % (2 * nDevices)]) : blockn][l].dstMem), "setting kernel memory B");
+		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm]][l].dstMem), "setting kernel memory A");
+		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn]) : blockn][l].dstMem), "setting kernel memory B");
 	}
 	for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 	if (RunProgram(Task.ctx, &modules[Task.device][Task.kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
@@ -2656,7 +2668,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 #else
 		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Config->Width, Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA == CblasTrans)) return(1);
 #endif
-		buffer_pointers_A[num_device][blockm % (2 * nDevices)] = next_buffer_A[num_device] % 2;
+		buffer_pointers_A[num_device][blockm] = next_buffer_A[num_device] % 2;
 	}
 	if (prepareN)
 	{
@@ -2667,7 +2679,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 #else
 		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1), Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB == CblasTrans);
 #endif
-		buffer_pointers_B[num_device][blockn % (2 * nDevices)] = next_buffer_B[num_device] % 2;
+		buffer_pointers_B[num_device][blockn] = next_buffer_B[num_device] % 2;
 	}
 	if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 	
