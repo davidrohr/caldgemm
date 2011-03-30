@@ -18,7 +18,7 @@ Print the disassembled kernel image
 -i (default: disabled)
 Print IL Kernel used
 
--o  <c|g> (default: 'c')
+-o <c|g> (default: 'c')
 Specify the output location, c = CPU, g = GPU, default GPU.
 This is the output location of the kernel. If 'g' is specified the GPU write to GPU global
 memory and an additional DMA transfer fetches the data to the host. In general 'c' is the
@@ -33,18 +33,18 @@ newer drivers. It is automatically detected whether you driver suffers by the bu
 the workaround can be applied. This check does not work for newer driver versions though.
 -I forces the workaround enabled.
 
--h  <int> (default: =4096)
+-h <int> (default: =4096)
 Tile size for matrix multiply, default 4096. If you use GPU only DGEMM the matrix sizes must
 be a multiple of h.
 
--H  <int> (default: =-h)
+-H <int> (default: =-h)
 Reduced block size for actual matrix multiply (buffer size given by -h).
 Used for internal testing.
 
--w  <int> (default: 1024)
+-w <int> (default: 1024)
 k for matrix multiply, default 1024.
 
--W  <int> (default: =-w)
+-W <int> (default: =-w)
 Reduced width, see H.
 Used for internal testing.
 
@@ -53,12 +53,12 @@ Automatically select tile-size for good performance. The -H paramameter defines 
 size possible. The size will be reduced for smaller matrices. Activating this is generally
 a good idea.
 
--m  <int> (default: 4096)
+-m <int> (default: 4096)
 m for matrix multiply, must be multiple of h, default 1024.
 Number of rows of the target matrix. If GPU-only DGEMM is used this must be a multiple of -H.
 
 
--n  <int> (default: 4096)
+-n <int> (default: 4096)
 n for matrix multiply, must be multiple of h, default 1024.
 Number of cols of the target matrix. If GPU-only DGEMM is used this must be a multiple of -H.
 
@@ -71,20 +71,20 @@ This can be used for directly measuring kernel performance and DMA performance.
 Print Timing of Asynchronous DGEMM Operation.
 Used for internal testing.
 
--r  <int> (default: 1)
+-r <int> (default: 1)
 Number of iterations to run the program (inside caldgemm)
 Used for internal testing.
 
--R  <int> (default: 1)
+-R <int> (default: 1)
 Number of iterations to run the program (seperate caldgemm calls)
 Used for internal testing.
 
--y  <int> (default: -1)
+-y <int> (default: -1)
 Force Device ID (-1 = all devices)
 Force the device id to use. You can either specify a single device or provide -1 to use all
 devices.
 
--Y  <int> (default: 8)
+-Y <int> (default: 8)
 Maximal number of devices to use. Setting -Y greater than zero requires -y to be -1
 
 -d (default: disabled)
@@ -110,7 +110,7 @@ Fast Init (Empty Matrices). The matrices filled with zeros instead of using a ra
 generator. Initialization is faster. Use for optimization and benchmarking only. The verification
 does not work with this initialization method.
 
--j  <dbl> (default: -1)
+-j <dbl> (default: -1)
 Ratio of GPU performance to total CPU+GPU performance. Set to -1 for autodetection.
 
 -s (default: disabled)
@@ -144,10 +144,10 @@ Set beta parameter to 0.0 to test optimized memcpy.
 Quiet Benchmark mode (different from quiet caldgemm mode -q). This suppresses output of dgemm_bench.
 Output of caldgemm is not suppressed. See -q for this.
 
--6  <int> (default: not used)
+-6 <int> (default: not used)
 Set m=n = value * tile-size (-h)
 
--4  <int> (default: not used)
+-4 <int> (default: not used)
 Set m=n to the closest multiple of tile-size (-h) to value
 
 -7 (default: disabled)
@@ -178,7 +178,7 @@ memory organisation like in HPL where the matrices are stored kind of interleave
 Call fake LINPACK callback functions. This is used to test the HPL callback implementation.
 For internal testing only.
 
--P  <int> (default: not used)
+-P <int> (default: not used)
 LDA=LDB=LDC = val for HPL like memory. Forces the leading dimension of the matrices to a specific value.
 If not set the leading dimensions are chosen such that each row starts at a new cache line.
 
@@ -193,7 +193,7 @@ only relevant when using "-o c" which, however, is the default value.
 -x <file> (default: not used)
 Load Matrix from file.
 
---  <int> (default: disabled)
+-- <int> (default: disabled)
 Run a torture test with n iterations. The torture test will automatically set "-A -B -p -z -g"
 If will use m and n of 86016. If you do not have sufficient memory available you can override
 the m and n settings. make sure you specifiy -m and -n after --. Without additional options
@@ -201,13 +201,25 @@ a GPU only torture test is started. Using the standard option you can run combin
 tests. E.g. a combined torture test with reduced matrix size can be started by:
 -- 10 -m 40960 -n 40960 -c -l -se;
 
--t  <int> (default: 0)
+-t <int> (default: 0)
 Pin GPU thread to core n. The core which is closest to the GPU should be chosen. Mostly 0.
 The additional merge threads will use the next possible core then. E.g. running with 1 merge threads
 and -1 6 will use cores 6 and 7.
 
 -S (deafult: not used)
 Set slow CPU option (see below)
+
+-X (default: disabled)
+Do not use a round robin scheduler for multi-GPU but split the matrix along the not favored direction and
+process each part by a distinct GPU. This saves BBuffers.
+
+-Z (default: disabled)
+Multithreaded DivideBuffer threads. It is not guarantueed that this is faster due to overhead.
+
+-Gx <int> (default: not used)
+Use CPU cored given for GPU x. The merge threads will use the next cores, ie -G1 12 will do dividebuffer
+for GPU 1 on core 12 (if -X) used and mergebuffers on 13 and following. Multiple GPUs assigned to the
+same core are automatically grouped correctly.
 
 Other CALDGEMM Options:
 
