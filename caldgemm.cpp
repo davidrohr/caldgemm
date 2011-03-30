@@ -1848,7 +1848,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 #ifndef TESTMODE    
 	//Check if the GPU can/shall process the required dgemm task
-	if (Config->Iterations > 1);
+	if (Config->Iterations > 1 || !Config->UseCPU);
 	else if (Config->Width % 8 || Config->Width < 256) forceCPU = true;
 	else if (MaxGpuM < 512 || MaxGpuN < 512) forceCPU = true;
 	else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
@@ -1914,7 +1914,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (Config->Width > BufferWidth || Config->Height > BufferHeight) forceReinit = true;
 
-	if (Config->UseGPU == false || Config->m < Config->Height || Config->n < Config->Height || (forceReinit && (long long int) MaxGpuM * (long long int) MaxGpuN * (long long int) Config->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Config->Width < 1024 && Config->Height < 1024)) forceCPU = true;
+	if (Config->UseCPU)
+	    if (Config->UseGPU == false || Config->m < Config->Height || Config->n < Config->Height || (forceReinit && (long long int) MaxGpuM * (long long int) MaxGpuN * (long long int) Config->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Config->Width < 1024 && Config->Height < 1024)) forceCPU = true;
 
 	if (forceCPU)
 	{
