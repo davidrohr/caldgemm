@@ -2321,7 +2321,7 @@ endimprovedphase:			ImprovedSchedPhase1 = 0;
 						else next_device_k[use_device] = 0;
 					}
 					
-					tileDistribution[k] = -1;
+					if (Config->ImprovedScheduler) tileDistribution[k] = -1;
 
 					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0] && cpu_k_barrier_hit == false)
 					{
