@@ -2180,7 +2180,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				}
 				tileDistribution[l] = nDevices * k / nBlocks;
 				
-				if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", l, tileDistribution[l]);
+				//if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", l, tileDistribution[l]);
 			}
 		}
 
@@ -2198,6 +2198,7 @@ restartkloop:
 				if (Config->ImprovedScheduler && !ImprovedSchedPhase1 && tileDistribution[next_device_k[use_device]] < 0) next_device_k[use_device] = 0;
 				if (next_device_k[use_device] != 0) k = next_device_k[use_device];
 				else if (nextk && nextk >= k) k = nextk + 1;
+				if (next_device_k[use_device] >= nBlocks) next_device_k[use_device] = 0;
 				if (k > nextk) nextk = k;
 
 				if (k < nBlocks)
