@@ -2607,7 +2607,8 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable)
 	{
-		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : 2)][dwBuffersA + l].dstMem), "setting kernel memory A");
+		const int buffer_pos = buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : 2);
+		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pos][dwBuffersA + l].dstMem), "setting kernel memory A");
 		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2][l].dstMem), "setting kernel memory B");
 	}
 	else
@@ -2678,7 +2679,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			const int buffer_pos = next_buffer_A[num_device] % (buffersSufficiant ? bbuffers[num_device] : 2);
 			if (buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]] != -1)
 			{
-				fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockm %d by %d\n", buffersMinor[num_device][buffer_pos], blockm);
+				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockm %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], blockm, buffer_pos);
 				buffer_pointers_A[num_device][buffersMinor[num_device][buffer_pos]] = -1;
 				
 			}
@@ -2701,7 +2702,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			const int buffer_pos = next_buffer_B[num_device] % (buffersSufficiant ? bbuffers[num_device] : 2);
 			if (buffersMinor[num_device][buffer_pos] != -1)
 			{
-				fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockn %d by %d\n", buffersMinor[num_device][buffer_pos], blockn);
+				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockn %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], blockn, buffer_pos);
 				buffer_pointers_B[num_device][buffersMinor[num_device][buffer_pos]] = -1;
 			}
 			buffersMinor[num_device][buffer_pos] = blockn;
@@ -2716,9 +2717,9 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 		if (prepareM)
 		{
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
-			if (!DGEMM_favor_m && buffersSufficiant)
+			if (!DGEMM_favor_m && buffersSufficiant0)
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], datas[num_device][buffer_pointers_A[num_device][blockm] % bbuffers[num_device]] + dwBuffersA)) {fprintf(STD_OUT, "Error copying A to GPU (minor)\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], datas[num_device][buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying A to GPU (minor)\n"); return(1);}
 			}
 			else
 			{
@@ -2730,7 +2731,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 		if (prepareN)
 		{
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
-			if (!DGEMM_favor_m && buffersSufficiant)
+			if (!DGEMM_favor_m && buffersSufficiant0)
 			{
 				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][next_buffer_B[num_device] % 2])) {fprintf(STD_OUT, "Error copying B to GPU (major)\n"); return(1);}
 			}
