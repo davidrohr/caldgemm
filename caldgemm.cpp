@@ -2669,8 +2669,8 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 		if (DGEMM_favor_m) buffersMajor[num_device] = blockm;
 		else if (buffersSufficiant)
 		{
-			if (buffersMinor[num_device][blockm % bbuffers[num_device]] != -1) buffer_pointers_A[num_device][buffersMinor[num_device][blockm % bbuffers[num_device]]] = -1;
-			buffersMinor[num_device][blockm % bbuffers[num_device]] = blockm;
+			if (buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]] != -1) buffer_pointers_A[num_device][buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]]] = -1;
+			buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]] = blockm;
 		}
 		buffer_pointers_A[num_device][blockm] = next_buffer_A[num_device];
 	}
@@ -2686,8 +2686,8 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 		if (!DGEMM_favor_m) buffersMajor[num_device] = blockn;
 		else if (buffersSufficiant)
 		{
-			if (buffersMinor[num_device][blockn % bbuffers[num_device]] != -1) buffer_pointers_B[num_device][buffersMinor[num_device][blockn % bbuffers[num_device]]] = -1;
-			buffersMinor[num_device][blockn % bbuffers[num_device]] = blockn;
+			if (buffersMinor[num_device][next_buffer_B[num_device] % bbuffers[num_device]] != -1) buffer_pointers_B[num_device][buffersMinor[num_device][next_buffer_B[num_device] % bbuffers[num_device]]] = -1;
+			buffersMinor[num_device][next_buffer_B[num_device] % bbuffers[num_device]] = blockn;
 		}
 		buffer_pointers_B[num_device][blockn] = next_buffer_B[num_device];
 	}
