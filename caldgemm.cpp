@@ -2722,7 +2722,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			}
 			else
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][buffersSufficiant ? (buffer_pointers_A[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
 			}
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
