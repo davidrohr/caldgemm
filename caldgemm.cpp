@@ -2654,8 +2654,8 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 	if (Config->Debug) fprintf(STD_OUT, "Running Preprocessing device = %d k = %lld\n", num_device, (long long int) k);
 	//if (Config->Debug) fprintf(STD_OUT, "device %d Favor %d major %d minor %d blockm %d blockn %d\n", (int) num_device, (int) DGEMM_favor_m, (int) buffersMajor[num_device], (int) buffersMinor[num_device][DGEMM_favor_m ? blockn : blockm], (int) blockm, (int) blockn);
 	
-	const bool prepareM = DGEMM_favor_m ? (buffersMajor[num_device] < (signed long long int) blockm) : (!buffersSufficiant || buffersMinor[num_device][blockm % bbuffers[num_device]] != blockm);
-	const bool prepareN = DGEMM_favor_m ? (!buffersSufficiant || buffersMinor[num_device][blockn % bbuffers[num_device]] != blockn) : (buffersMajor[num_device] < (signed long long int) blockn);
+	const bool prepareM = DGEMM_favor_m ? (buffersMajor[num_device] < (signed long long int) blockm) : (!buffersSufficiant || buffer_pointers_A[num_device][blockm] == -1);
+	const bool prepareN = DGEMM_favor_m ? (!buffersSufficiant || buffer_pointers_B[num_device][blockn] == -1) : (buffersMajor[num_device] < (signed long long int) blockn);
 
 	if (prepareM)
 	{
@@ -2667,6 +2667,8 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Config->Width, Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA == CblasTrans)) return(1);
 #endif
 		buffer_pointers_A[num_device][blockm] = next_buffer_A[num_device];
+		if (DGEMM_favor_m) buffersMajor[num_device] = blockm;
+		else if (buffersSufficiant) buffersMinor[num_device][blockm % bbuffers[num_device]] = blockm;
 	}
 	if (prepareN)
 	{
@@ -2678,6 +2680,8 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1), Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB == CblasTrans);
 #endif
 		buffer_pointers_B[num_device][blockn] = next_buffer_B[num_device];
+		if (!DGEMM_favor_m) buffersMajor[num_device] = blockn;
+		else if (buffersSufficiant) buffersMinor[num_device][blockn % bbuffers[num_device]] = blockn;
 	}
 	if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 
@@ -2695,9 +2699,6 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			{
 				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j])) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
 			}
-			
-			if (DGEMM_favor_m) buffersMajor[num_device] = blockm;
-			else if (buffersSufficiant) buffersMinor[num_device][blockm % bbuffers[num_device]] = blockm;
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of A (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 
@@ -2712,9 +2713,6 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			{
 				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][buffersSufficiant ? blockn : (next_buffer_B[num_device] % 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
 			}
-			
-			if (!DGEMM_favor_m) buffersMajor[num_device] = blockn;
-			else if (buffersSufficiant) buffersMinor[num_device][blockn % bbuffers[num_device]] = blockn;
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 	}
