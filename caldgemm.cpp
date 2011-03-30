@@ -2605,7 +2605,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 	DGEMM_getblocks(Task.k, blockm, blockn);
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 #ifdef REUSE_BBUFFERS
-	if (!DGEMM_favor_m && buffersSwitchable && bbuffers[Task.device] >= mb)
+	if (!DGEMM_favor_m && buffersSwitchable)
 	{
 		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % bbuffers[Task.device]][dwBuffersA + l].dstMem), "setting kernel memory A");
 		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2][l].dstMem), "setting kernel memory B");
@@ -2614,7 +2614,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 #endif
 	{
 #ifdef REUSE_BBUFFERS
-		const bool buffersSufficiant = bbuffers[Task.device] >= nb;
+		const bool buffersSufficiant = true;
 #else
 		const bool buffersSufficiant = false;
 #endif
@@ -2642,11 +2642,11 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 #ifdef REUSE_BBUFFERS
 	if (DGEMM_favor_m)
 	{
-		buffersSufficiant = (bbuffers[num_device] >= nb);
+		buffersSufficiant = true;
 	}
 	else
 	{
-		buffersSufficiant = (bbuffers[num_device] >= mb && buffersSwitchable);
+		buffersSufficiant = buffersSwitchable;
 	}
 #else
 	buffersSufficiant = false;
