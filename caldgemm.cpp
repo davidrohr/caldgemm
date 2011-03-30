@@ -2192,9 +2192,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			for (size_t k = 0;k < nBlocks + 2 * nDevices;k++)
 			{
+			static int count = 0;
+			if (count++ > 100) exit(1);
 restartkloop:
 				CALcontext* ctx_main = &ctxs[use_device];
-				fprintf(STD_OUT, "!!!!! k %lld nd k %lld nextk %lld\n", k, next_device_k[use_device], nextk);
+				//fprintf(STD_OUT, "!!!!! k %lld nd k %lld nextk %lld\n", k, next_device_k[use_device], nextk);
 				if (Config->ImprovedScheduler && !ImprovedSchedPhase1 && tileDistribution[next_device_k[use_device]] < 0) next_device_k[use_device] = 0;
 				if (next_device_k[use_device] != 0) k = next_device_k[use_device];
 				else if (nextk && nextk >= k) k = nextk + 1;
@@ -2263,6 +2265,7 @@ restartkloop:
 endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduling phase ended\n");
 					ImprovedSchedPhase1 = 0;
 					k = nextk = 0;
+					for (int l = 0;l < nDevices;l++) next_device_k[l] = 0;
 					goto restartkloop;
 				}
 				
@@ -2299,11 +2302,12 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						DGEMM_getblocks(nextk, nextblockm, nextblockn);
 						if (cParam.dynamic_run || Config->ImprovedScheduler)
 						{
-							while (
-									(cParam.dynamic_run && (DGEMM_favor_m ? (nextk < nBlocks && nextblockm * Config->Height >= gpu_m - cParam.dynamic_run && nextblockn * Config->Height >= gpu_n - cParam.dynamic_size) :
-										(nextk < nBlocks && nextblockn * Config->Height >= gpu_n - cParam.dynamic_run && nextblockm * Config->Height >= gpu_m - cParam.dynamic_size))) ||
+							while ( nextk < nBlocks && (
+									(cParam.dynamic_run && (DGEMM_favor_m ? (nextblockm * Config->Height >= gpu_m - cParam.dynamic_run && nextblockn * Config->Height >= gpu_n - cParam.dynamic_size) :
+										(nextblockn * Config->Height >= gpu_n - cParam.dynamic_run && nextblockm * Config->Height >= gpu_m - cParam.dynamic_size))) ||
 									(Config->ImprovedScheduler && tileDistribution[nextk] < 0) ||
 									(ImprovedSchedPhase1 && tileDistribution[nextk] != use_device)
+								)
 							)
 							{
 								nextk++;
