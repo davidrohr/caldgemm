@@ -2192,8 +2192,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			for (size_t k = 0;k < nBlocks + 2 * nDevices;k++)
 			{
-			static int count = 0;
-			if (count++ > 100) exit(1);
 restartkloop:
 				CALcontext* ctx_main = &ctxs[use_device];
 				//fprintf(STD_OUT, "!!!!! k %lld nd k %lld nextk %lld\n", k, next_device_k[use_device], nextk);
