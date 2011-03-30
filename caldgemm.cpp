@@ -2666,9 +2666,13 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 #else
 		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Config->Width, Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA == CblasTrans)) return(1);
 #endif
-		buffer_pointers_A[num_device][blockm] = next_buffer_A[num_device];
 		if (DGEMM_favor_m) buffersMajor[num_device] = blockm;
-		else if (buffersSufficiant) buffersMinor[num_device][blockm % bbuffers[num_device]] = blockm;
+		else if (buffersSufficiant)
+		{
+			if (buffersMinor[num_device][blockm % bbuffers[num_device]] != -1) buffer_pointers_A[num_device][buffersMinor[num_device][blockm % bbuffers[num_device]]] = -1;
+			buffersMinor[num_device][blockm % bbuffers[num_device]] = blockm;
+		}
+		buffer_pointers_A[num_device][blockm] = next_buffer_A[num_device];
 	}
 	if (prepareN)
 	{
@@ -2679,9 +2683,13 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 #else
 		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1), Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB == CblasTrans);
 #endif
-		buffer_pointers_B[num_device][blockn] = next_buffer_B[num_device];
 		if (!DGEMM_favor_m) buffersMajor[num_device] = blockn;
-		else if (buffersSufficiant) buffersMinor[num_device][blockn % bbuffers[num_device]] = blockn;
+		else if (buffersSufficiant)
+		{
+			if (buffersMinor[num_device][blockn % bbuffers[num_device]] != -1) buffer_pointers_B[num_device][buffersMinor[num_device][blockn % bbuffers[num_device]]] = -1;
+			buffersMinor[num_device][blockn % bbuffers[num_device]] = blockn;
+		}
+		buffer_pointers_B[num_device][blockn] = next_buffer_B[num_device];
 	}
 	if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 
