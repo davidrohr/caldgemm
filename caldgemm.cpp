@@ -2244,7 +2244,7 @@ restartkloop:
 					pthread_mutex_lock(&scheduleMutex);
 					if (k < cpu_k_barrier)
 					{
-						gpu_k_barrier = k;
+						if ((signed int) k > (signed int) gpu_k_barrier) gpu_k_barrier = k;
 					}
 					else
 					{
