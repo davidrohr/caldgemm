@@ -2604,7 +2604,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable && bbuffers[Task.device] >= mb)
 	{
-		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][blockm][dwBuffersA + l].dstMem), "setting kernel memory A");
+		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % bbuffers[Task.device]][dwBuffersA + l].dstMem), "setting kernel memory A");
 		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2][l].dstMem), "setting kernel memory B");
 	}
 	else
@@ -2616,7 +2616,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 		const bool buffersSufficiant = false;
 #endif
 		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % 2][l].dstMem), "setting kernel memory A");
-		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : blockn][l].dstMem), "setting kernel memory B");
+		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][l].dstMem), "setting kernel memory B");
 	}
 	for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 	if (RunProgram(Task.ctx, &modules[Task.device][Task.kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
@@ -2701,7 +2701,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 			if (!DGEMM_favor_m && buffersSufficiant)
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], datas[num_device][blockm] + dwBuffersA)) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], datas[num_device][buffer_pointers_A[num_device][blockm] % bbuffers[num_device]] + dwBuffersA)) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
 			}
 			else
 			{
@@ -2719,7 +2719,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			}
 			else
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][buffersSufficiant ? blockn : (next_buffer_B[num_device] % 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][buffersSufficiant ? (buffer_pointers_A[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying to GPU\n"); return(1);}
 			}
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
