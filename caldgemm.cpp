@@ -2607,14 +2607,14 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable)
 	{
-		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % bbuffers[Task.device]][dwBuffersA + l].dstMem), "setting kernel memory A");
+		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : 2)][dwBuffersA + l].dstMem), "setting kernel memory A");
 		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2][l].dstMem), "setting kernel memory B");
 	}
 	else
 #endif
 	{
 #ifdef REUSE_BBUFFERS
-		const bool buffersSufficiant = true;
+		const bool buffersSufficiant = buffer_pointers_B[Task.device][blockn] < bbuffers[Task.device];
 #else
 		const bool buffersSufficiant = false;
 #endif
@@ -2638,27 +2638,30 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 	size_t blockm, blockn;
 	DGEMM_getblocks(k, blockm, blockn);
 
-	bool buffersSufficiant;
+	bool buffersSufficiant0, buffersSufficiant;
 #ifdef REUSE_BBUFFERS
 	if (DGEMM_favor_m)
 	{
-		buffersSufficiant = true;
+		buffersSufficiant0 = true;
+		buffersSufficiant = next_buffer_B[num_device] < bbuffers[num_device];
 	}
 	else
 	{
-		buffersSufficiant = buffersSwitchable;
+		buffersSufficiant0 = buffersSwitchable;
+		buffersSufficiant = buffersSwitchable && next_buffer_A[num_device] < bbuffers[num_device];
 	}
 #else
-	buffersSufficiant = false;
+	buffersSufficiant0 = buffersSufficiant = false;
 #endif
+
 
 	if (Config->VerboseTiming) Timers.CounterDivide.Start();
 	
 	if (Config->Debug) fprintf(STD_OUT, "Running Preprocessing device = %d k = %lld\n", num_device, (long long int) k);
 	//if (Config->Debug) fprintf(STD_OUT, "device %d Favor %d major %d minor %d blockm %d blockn %d\n", (int) num_device, (int) DGEMM_favor_m, (int) buffersMajor[num_device], (int) buffersMinor[num_device][DGEMM_favor_m ? blockn : blockm], (int) blockm, (int) blockn);
 	
-	const bool prepareM = DGEMM_favor_m ? (buffersMajor[num_device] < (signed long long int) blockm) : (!buffersSufficiant || buffer_pointers_A[num_device][blockm] == -1);
-	const bool prepareN = DGEMM_favor_m ? (!buffersSufficiant || buffer_pointers_B[num_device][blockn] == -1) : (buffersMajor[num_device] < (signed long long int) blockn);
+	const bool prepareM = DGEMM_favor_m ? (buffersMajor[num_device] < (signed long long int) blockm) : (!buffersSufficiant0 || buffer_pointers_A[num_device][blockm] == -1);
+	const bool prepareN = DGEMM_favor_m ? (!buffersSufficiant0 || buffer_pointers_B[num_device][blockn] == -1) : (buffersMajor[num_device] < (signed long long int) blockn);
 
 	if (prepareM)
 	{
@@ -2670,10 +2673,16 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Config->Width, Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA == CblasTrans)) return(1);
 #endif
 		if (DGEMM_favor_m) buffersMajor[num_device] = blockm;
-		else if (buffersSufficiant)
+		else if (buffersSufficiant0)
 		{
-			if (buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]] != -1) buffer_pointers_A[num_device][buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]]] = -1;
-			buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]] = blockm;
+			const int buffer_pos = next_buffer_A[num_device] % (buffersSufficiant ? bbuffers[num_device] : 2);
+			if (buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]] != -1)
+			{
+				fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockm %d by %d\n", buffersMinor[num_device][buffer_pos], blockm);
+				buffer_pointers_A[num_device][buffersMinor[num_device][buffer_pos]] = -1;
+				
+			}
+			buffersMinor[num_device][buffer_pos] = blockm;
 		}
 		buffer_pointers_A[num_device][blockm] = next_buffer_A[num_device];
 	}
@@ -2687,10 +2696,15 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1), Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB == CblasTrans);
 #endif
 		if (!DGEMM_favor_m) buffersMajor[num_device] = blockn;
-		else if (buffersSufficiant)
+		else if (buffersSufficiant0)
 		{
-			if (buffersMinor[num_device][next_buffer_B[num_device] % bbuffers[num_device]] != -1) buffer_pointers_B[num_device][buffersMinor[num_device][next_buffer_B[num_device] % bbuffers[num_device]]] = -1;
-			buffersMinor[num_device][next_buffer_B[num_device] % bbuffers[num_device]] = blockn;
+			const int buffer_pos = next_buffer_B[num_device] % (buffersSufficiant ? bbuffers[num_device] : 2);
+			if (buffersMinor[num_device][buffer_pos] != -1)
+			{
+				fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockn %d by %d\n", buffersMinor[num_device][buffer_pos], blockn);
+				buffer_pointers_B[num_device][buffersMinor[num_device][buffer_pos]] = -1;
+			}
+			buffersMinor[num_device][buffer_pos] = blockn;
 		}
 		buffer_pointers_B[num_device][blockn] = next_buffer_B[num_device];
 	}
