@@ -203,7 +203,6 @@ private:
 	int next_buffer_B[max_devices];
 	int *buffer_pointers_A[max_devices];
 	int *buffer_pointers_B[max_devices];
-	int bbuffer_block_pointers[max_devices][max_bbuffers];
 
 	int divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose);
 	int mergeBuffers(double* dst, BufferProperties* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers);
@@ -403,7 +402,7 @@ private:
 	double *orig_a, *orig_b, *orig_c;
 	
 	int buffersMajor[max_devices];
-	bool buffersMinor[max_devices][max_bbuffers];
+	int buffersMinor[max_devices][max_bbuffers];
 
 	char hostname[256];							//Store hostname of node for host dependant debug code
 	

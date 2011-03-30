@@ -2109,7 +2109,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		for (int ii = 0;ii < nDevices;ii++)
 		{
 			buffersMajor[ii] = -1;
-			for (int j = 0;j < max_bbuffers;j++) buffersMinor[ii][j] = false;
+			for (int j = 0;j < bbuffers[ii];j++) buffersMinor[ii][j] = -1;
 			next_buffer_A[ii] = 0;
 			next_buffer_B[ii] = 0;
 		}
@@ -2185,11 +2185,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		for (int l = 0;l < nDevices;l++)
 		{
 			buffer_pointers_A[l] = new int[mb];
+			for (int ll = 0;ll < mb;ll++) buffer_pointers_A[l][ll] = -1;
 			buffer_pointers_B[l] = new int[nb];
-			for (int ll = 0;ll < bbuffers[l];ll++)
-			{
-				bbuffer_block_pointers[l][ll] = -1;
-			}
+			for (int ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
 		}
 
 		cParam.cpu_k = nBlocks;
@@ -2607,7 +2605,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 	if (!DGEMM_favor_m && buffersSwitchable && bbuffers[Task.device] >= mb)
 	{
 		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][blockm][dwBuffersA + l].dstMem), "setting kernel memory A");
-		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn]][l].dstMem), "setting kernel memory B");
+		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2][l].dstMem), "setting kernel memory B");
 	}
 	else
 #endif
@@ -2617,8 +2615,8 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 #else
 		const bool buffersSufficiant = false;
 #endif
-		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm]][l].dstMem), "setting kernel memory A");
-		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn]) : blockn][l].dstMem), "setting kernel memory B");
+		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % 2][l].dstMem), "setting kernel memory A");
+		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : blockn][l].dstMem), "setting kernel memory B");
 	}
 	for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 	if (RunProgram(Task.ctx, &modules[Task.device][Task.kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
@@ -2656,8 +2654,8 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 	if (Config->Debug) fprintf(STD_OUT, "Running Preprocessing device = %d k = %lld\n", num_device, (long long int) k);
 	//if (Config->Debug) fprintf(STD_OUT, "device %d Favor %d major %d minor %d blockm %d blockn %d\n", (int) num_device, (int) DGEMM_favor_m, (int) buffersMajor[num_device], (int) buffersMinor[num_device][DGEMM_favor_m ? blockn : blockm], (int) blockm, (int) blockn);
 	
-	const bool prepareM = DGEMM_favor_m ? buffersMajor[num_device] < (signed long long int) blockm : (!buffersSufficiant || !buffersMinor[num_device][blockm]);
-	const bool prepareN = DGEMM_favor_m ? (!buffersSufficiant || !buffersMinor[num_device][blockn]) : buffersMajor[num_device] < (signed long long int) blockn;
+	const bool prepareM = DGEMM_favor_m ? (buffersMajor[num_device] < (signed long long int) blockm) : (!buffersSufficiant || buffersMinor[num_device][blockm % bbuffers[num_device]] != blockm);
+	const bool prepareN = DGEMM_favor_m ? (!buffersSufficiant || buffersMinor[num_device][blockn % bbuffers[num_device]] != blockn) : (buffersMajor[num_device] < (signed long long int) blockn);
 
 	if (prepareM)
 	{
@@ -2668,7 +2666,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 #else
 		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Config->Width, Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA == CblasTrans)) return(1);
 #endif
-		buffer_pointers_A[num_device][blockm] = next_buffer_A[num_device] % 2;
+		buffer_pointers_A[num_device][blockm] = next_buffer_A[num_device];
 	}
 	if (prepareN)
 	{
@@ -2679,10 +2677,9 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 #else
 		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1), Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB == CblasTrans);
 #endif
-		buffer_pointers_B[num_device][blockn] = next_buffer_B[num_device] % 2;
+		buffer_pointers_B[num_device][blockn] = next_buffer_B[num_device];
 	}
 	if (Config->VerboseTiming) Timers.CounterDivide.Stop();
-	
 
 	if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
 	if (Config->DivideToGPU == false)
@@ -2700,7 +2697,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			}
 			
 			if (DGEMM_favor_m) buffersMajor[num_device] = blockm;
-			else if (buffersSufficiant) buffersMinor[num_device][blockm] = true;
+			else if (buffersSufficiant) buffersMinor[num_device][blockm % bbuffers[num_device]] = blockm;
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of A (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 
@@ -2717,7 +2714,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			}
 			
 			if (!DGEMM_favor_m) buffersMajor[num_device] = blockn;
-			else if (buffersSufficiant) buffersMinor[num_device][blockn] = true;
+			else if (buffersSufficiant) buffersMinor[num_device][blockn % bbuffers[num_device]] = blockn;
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 	}
