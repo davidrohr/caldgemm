@@ -2017,8 +2017,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (ExecuteLinpackCallbacks && (Config->GPURatio < 0 || GPURatio < 0.99) && !Config->SlowCPU)
 	{
-		if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80;
+		if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80 * Config->Width / 1024;
 		else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
+		if (GPURatio > 1.0) GPURatio = 1.0;
 		if ((((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecuteLinpackCallbacks]) / linpack_last_mn[ExecuteLinpackCallbacks] < 0.3 && linpackGPURatios[ExecuteLinpackCallbacks] > 0.0001)
 		{
 			GPURatio = linpackGPURatios[ExecuteLinpackCallbacks];
