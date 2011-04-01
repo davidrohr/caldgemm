@@ -3008,6 +3008,7 @@ void caldgemm::displayMatrixTiming(const char* name)
 			fprintf(STD_OUT, "%sThrottling: %s (%2.3lf GFlops)\n", Config->PreOut, hostname, flopsg);
 		}
 
+		const double gpu_ratio_used_new = flopsg / (flopsc * Timers.CPUTimer.GetElapsedTime() / Timers.System.GetElapsedTime() + flopsg);
 		if (!Config->Quiet || (Config->DisplayTiming /*&& Config->m * Config->n >= 16 * 24 * 1024 * 1024*/))
 		{
 			char timingoutputbase[1024];
@@ -3016,12 +3017,12 @@ void caldgemm::displayMatrixTiming(const char* name)
 			if (ExecLinpack) timingoutput += sprintf(timingoutput, "   Linpack Time: %2.4lf (%d, %2.4lf, %2.4lf)  Total CPU Time: %2.4lf", Timers.LinpackTimer1.GetElapsedTime(), ExecLinpack, Timers.LinpackTimer2.GetElapsedTime(), Timers.LinpackTimer3.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime());
 			if (Config->TabularTiming)
 			{
-				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.2lf Guessed: %2.2lf , m*n: %.1E, CPU Wait Time: %2.3lf", (flopsg / (flopsc + flopsg)), gpu_ratio_used, (double) (Config->m * Config->n), cpu_wait_time);
+				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.2lf Corrected: %2.2lf Guessed: %2.2lf , m*n: %.1E, CPU Wait Time: %2.3lf", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, gpu_ratio_used, (double) (Config->m * Config->n), cpu_wait_time);
 			}
 			sprintf(timingoutput, "\n");
 			fwrite(timingoutputbase, 1, strlen(timingoutputbase), STD_OUT);
 		}
-		gpu_ratio_used = flopsg / (flopsc * Timers.CPUTimer.GetElapsedTime() / Timers.System.GetElapsedTime() + flopsg);
+		gpu_ratio_used = gpu_ratio_used_new;
 	}
 	if ((!Config->Quiet || (Config->DisplayTiming /*&& Config->n * Config->m >= 16 * 24 * 1024 * 1024*/)) && Config->VerboseTiming)
 	{
