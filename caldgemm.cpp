@@ -92,10 +92,13 @@ inline void printelapsedtime(bool reset = false)
 caldgemm::caldgemm()
 {
 	caldgemm_initialized = false;
-	memset(linpack_last_mn, 0, max_linpack_callback_types * sizeof(double));
-	memset(linpackGPURatios, 0, 3 * sizeof(double));
-	memset(linpackCPUDGEMMTime, 0, 3 * sizeof(double));
-	memset(linpackBcastTime, 0, 3 * sizeof(double));
+	for (int i = 0;i < caldgemm::max_linpack_callback_types;i++)
+	{
+		linpack_last_mn[i] = -1.;
+		linpackGPURatios[i] = 1.;
+		linpackBcastTime[i] = 0;
+		linpackCPUDGEMMTime[i] = 0;
+	}
 
 	avggflops = 0;
 	avgngflops = 0;
