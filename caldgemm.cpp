@@ -1285,7 +1285,7 @@ TryThirdRun:
 					test_cpu_k--;
 					DGEMM_getblocks(test_cpu_k, cpublockm, cpublockn);
 				}
-				if (test_cpu_k && k < test_cpu_k - 1)
+				if ((long long int) test_cpu_k > 0 && k < test_cpu_k - 1)
 				{
 					if (!Config->Quiet) fprintf(STD_OUT, "Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", (long long int) test_cpu_k, (long long int) cpublockm, (long long int) cpublockn);
 					cParam.dynamic_run2++;
