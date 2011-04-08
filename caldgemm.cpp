@@ -2033,7 +2033,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80 * Config->Width / 1024;
 		else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
 		if (GPURatio > 1.0) GPURatio = 1.0;
-		if ((((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecuteLinpackCallbacks]) / linpack_last_mn[ExecuteLinpackCallbacks] < 0.3 && linpackGPURatios[ExecuteLinpackCallbacks] > 0.0001)
+		if (linpack_last_mn[ExecuteLinpackCallbacks] > 0 && (((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecuteLinpackCallbacks]) / linpack_last_mn[ExecuteLinpackCallbacks] < 0.3 && linpackGPURatios[ExecuteLinpackCallbacks] > 0.0001)
 		{
 			GPURatio = linpackGPURatios[ExecuteLinpackCallbacks];
 			if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.1lf\n", ExecuteLinpackCallbacks, 100 * GPURatio);
