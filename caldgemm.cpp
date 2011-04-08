@@ -1448,9 +1448,9 @@ void* cblas_wrapper(void* arg)
 				}
 				else
 				{
-					par->cls->Timers.LinpackTimer1.Start();
+					par->cls->Timers.LinpackTimer2.Start();
 					Config->linpack_broadcast_function();
-					par->cls->Timers.LinpackTimer1.Stop();
+					par->cls->Timers.LinpackTimer2.Stop();
 				}
 			}
 #endif
@@ -1758,8 +1758,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			Timers.LinpackTimer1.Start();
 			Config->linpack_factorize_function();
-			if (Config->LinpackNodes > 1) Config->linpack_broadcast_function();
 			Timers.LinpackTimer1.Stop();
+			if (Config->LinpackNodes > 1)
+			{
+				Timers.LinpackTimer2.Start();
+				Config->linpack_broadcast_function();
+				Timers.LinpackTimer2.Stop();
+			}
 		}
 		return(0);		//Do Nothing
 	}
@@ -1934,8 +1939,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			if (Config->Debug) fprintf(STD_OUT, "DGEMM was running on CPU only, executing linpack callback functions\n");
 			Timers.LinpackTimer1.Start();
 			Config->linpack_factorize_function();
-			if (Config->LinpackNodes > 1) Config->linpack_broadcast_function();
 			Timers.LinpackTimer1.Stop();
+			if (Config->LinpackNodes > 1)
+			{
+				Timers.LinpackTimer2.Start();
+				Config->linpack_broadcast_function();
+				Timers.LinpackTimer2.Stop();
+			}
 
 			Config->m -= Config->Width;
 			A += Config->Width * (TransposeA == CblasTrans ? 1 : A_pitch);
@@ -2514,8 +2524,13 @@ RunCALDGEMM_end:
 		if (!Config->Quiet) fprintf(STD_OUT, "No asynchronous processing of linpack functions possible, executing linpack callback functions\n");
 		Timers.LinpackTimer1.Start();
 		Config->linpack_factorize_function();
-		if (Config->LinpackNodes > 1) Config->linpack_broadcast_function();
 		Timers.LinpackTimer1.Stop();
+		if (Config->LinpackNodes > 1)
+		{
+			Timers.LinpackTimer2.Start();
+			Config->linpack_broadcast_function();
+			Timers.LinpackTimer2.Stop();
+		}
 	}
 
 	Timers.System.Stop();
