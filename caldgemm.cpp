@@ -860,7 +860,7 @@ void caldgemm::checkCalPatch()
 	}
 }
 
-int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
+int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 {
 	Config = pInfo;
 
@@ -931,7 +931,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo)
 	numConstantBuffers = 1;
 
 	if (Config->Debug) fprintf(STD_OUT, "Initializing CAL\n");
-	if (Initialize(Config->DeviceNum))
+	if (Initialize(Config->DeviceNum, nocalinit))
 	{
 		gpu_available = false;
 	}
@@ -3449,9 +3449,9 @@ static void log_callback(const char *msg)
 	fwrite(msg, 1, strlen(msg), STD_OUT);
 }
 
-int caldgemm::Initialize(int deviceNum)
+int caldgemm::Initialize(int deviceNum, bool nocalinit)
 {
-	CHKERR(calInit(), "initializing CAL");
+	if (!nocalinit) CHKERR(calInit(), "initializing CAL");
 	if (deviceNum == -1 && obuffercount > 1 && Config->MultiThread)
 	{
 		CALuint tmp;

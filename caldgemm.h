@@ -152,7 +152,7 @@ public:
 	//Optimal parameters for big n,m are: DstMemory = 'c', Height = 2048, Width = 1024, MultiThread = true, UseGPU = UseCPU = true, GPURatio = 0.66
 	//m and n can be defined in the RunCALDGEMM call
 	//The Width (k in matrix multiply) is fixed and cannot be changed without reinitializing
-	int InitCALDGEMM(caldgemm_config* pInfo);
+	int InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit = false);
 	int ExitCALDGEMM();
 	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = -1, size_t k = -1, size_t n = -1, size_t Apitch = -1, size_t Bpitch = -1, size_t Cpitch = -1, CBLAS_ORDER order = CblasRowMajor, CBLAS_TRANSPOSE TransA = CblasNoTrans, CBLAS_TRANSPOSE TransB = CblasNoTrans, int ExecuteLinpackCallbacks = 0);
 	double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages);
@@ -266,7 +266,7 @@ private:
 
 	struct CALVersion {unsigned int major, minor, imp;};
 
-	int Initialize (int deviceNum);
+	int Initialize (int deviceNum, bool nocalinit);
 	int SetupKernel(const char* ILKernel, CALmodule* module, CALcontext* ctx, unsigned int device_num, bool disassemble = false);
 	int RunProgram(CALcontext* ctx, CALmodule* module, unsigned int Width, unsigned int Height, CALevent* event);
 	int CleanupData(CALcontext* ctx, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device);
