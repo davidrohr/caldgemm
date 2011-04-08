@@ -1870,7 +1870,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (Config->AutoHeight)
 	{
-		if (ExecuteLinpackCallbacks >= 2 || Config->SlowCPU)
+		if (ExecuteLinpackCallbacks >= 2 || (Config->SlowCPU))
 		{
 			if (MaxGpuM < 1024 || MaxGpuN < 1024)
 			{
@@ -2619,9 +2619,16 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 			if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001 || Config->Debug) fprintf(STD_OUT, "\t\tWait Time for output buffer: %1.5lf\n", Timers.ATime.GetElapsedTime());
 		}
 	}
-	WAITFOREVENT(*Task.ctx, Task.j, Task.device);
 	size_t blockm, blockn;
 	DGEMM_getblocks(Task.k, blockm, blockn);
+
+	if (buffer_pointers_A[Task.device][blockm] < 0 || buffer_pointers_B[Task.device][blockn] < 0)
+	{
+		if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING, Buffer falsified by previous iteration, need to retransfer\n");
+		DGEMM_prepare(Task.k, Task.j, Task.device);
+	}
+	WAITFOREVENT(*Task.ctx, Task.j, Task.device);
+
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable)
