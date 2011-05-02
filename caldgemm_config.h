@@ -48,3 +48,5 @@
 
 //#define DEBUG_MSG_ALLOCATION				//Debug Messages considering GPU buffer allocation when in Debug = true
 //#define DEBUG_MSG_TIMED				//Add timestamps to all messages
+
+#define CALDGEMM_44_BT_64				//64 bit DMA transfers for 4x4 B transposed kernel

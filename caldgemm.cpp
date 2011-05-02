@@ -1127,7 +1127,11 @@ void caldgemm::cal_init_constant_data(BufferProperties* &data, double alpha)
 	data[dwBuffersA + dwBuffersB].ptr_float[2] = (float) TILING_X / Config->Height;			//Scale factor for normalized x pos
 #ifdef CALDGEMM_44
 	data[dwBuffersA + dwBuffersB].ptr_float[1] = 1.f / Config->Width;							//Step in K direction
+#ifdef CALDGEMM_44_BT_64
+	data[dwBuffersA + dwBuffersB].ptr_float[4] = static_cast<float>(Config->Width * 2);			//Iterations of loop in IL Kernel
+#else
 	data[dwBuffersA + dwBuffersB].ptr_float[4] = static_cast<float>(Config->Width);			//Iterations of loop in IL Kernel
+#endif
 #else //CALDGEMM_44
 	data[dwBuffersA + dwBuffersB].ptr_float[1] = 2.f / Config->Width;							//Step in K direction
 	data[dwBuffersA + dwBuffersB].ptr_float[4] = static_cast<float>(Config->Width / (dwBuffersB << 2));	//Iterations of loop in IL Kernel
@@ -3226,12 +3230,29 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 			mem = Config->DstMemory;
 			flag = (CALresallocflags) (flag | CAL_RESALLOC_CACHEABLE);
 		}
+		
+
+		CALformat bufferformat;
 
 		data[i].DataSize = sizeof(double);
 		data[i].Width = tWidth;
 		data[i].Height = tHeight;
 		data[i].VectorSize = mComponents;
 		bool allocated = false;
+
+#ifdef CALDGEMM_44_BT_64
+		if (i < dwBuffersA + dwBuffersB)
+		{
+			tWidth *= 2;					//Change size after storing to data[i] to make divide/mergebuffer run on original size
+			bufferformat = CAL_FORMAT_UNSIGNED_INT32_2;
+			mComponents = 1;
+		}
+		else
+#endif
+		{
+			bufferformat = CAL_FORMAT_UNSIGNED_INT32_4;
+		}
+
 		if (tHeight > 1)
 		{
 			data[i].CALMemory = true;
@@ -3241,7 +3262,7 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 #ifdef DEBUG_MSG_ALLOCATION
 				if (Config->Debug) fprintf(STD_OUT, "Allocating Host buffer for device %d obuffer %d buffer %d\n", num_device, nContext, i);
 #endif
-				CHKERR(calResAllocRemote2D(&data[i].res, device, 1, tWidth, tHeight, CAL_FORMAT_UNSIGNED_INT32_4, flag), "allocattion of remote memory");
+				CHKERR(calResAllocRemote2D(&data[i].res, device, 1, tWidth, tHeight, bufferformat, flag), "allocattion of remote memory");
 				CHKERR(calCtxGetMem(&data[i].mem, *ctx, data[i].res), "getting remote memory for context");
 				CHKERR(calResMap(&data[i].ptr_void, &data[i].pitch, data[i].res, 0), "mapping of remote memory");
 				if (((size_t) data[i].ptr_void) & (vcpysize - 1))
@@ -3292,11 +3313,11 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 		switch(mem)
 		{
 		case 'g':
-			r = calResAllocLocal2D(&_Res[i], *device, tWidth, tHeight, CAL_FORMAT_UNSIGNED_INT32_4, flag);
+			r = calResAllocLocal2D(&_Res[i], *device, tWidth, tHeight, bufferformat, flag);
 
 			break;
 		case 'c':
-			r = calResAllocRemote2D(&_Res[i], device, 1, tWidth, tHeight, CAL_FORMAT_UNSIGNED_INT32_4, flag);
+			r = calResAllocRemote2D(&_Res[i], device, 1, tWidth, tHeight, bufferformat, flag);
 			break;
 		}
 		if (r != CAL_RESULT_OK)
@@ -3503,7 +3524,11 @@ int caldgemm::SetupKernel(const char* ILKernel, CALmodule* module, CALcontext* c
 
 	CALobject obj;
 	char* ILKernelUse = (char*) malloc(strlen(ILKernel) + 1024);
+#ifdef CALDGEMM_44_BT_64
+	sprintf(ILKernelUse, ILKernel, Config->Width * 2);
+#else
 	sprintf(ILKernelUse, ILKernel, Config->Width);
+#endif
 	if (Config->PrintILKernel) fprintf(STD_OUT, "Kernel:\n%s\n", ILKernelUse);
 	CHKERR(calclCompile(&obj, CAL_LANGUAGE_IL, ILKernelUse, attribs.target), "compiling the kernel");
 	free(ILKernelUse);

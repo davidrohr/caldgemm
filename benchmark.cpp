@@ -483,6 +483,7 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 	timespec randtime;
 	clock_gettime(CLOCK_REALTIME, &randtime);
 	srand((int) (seedused = randtime.tv_nsec));
+	size_t width_a, width_b;
 
 	if (linpackmemory)
 	{
@@ -516,11 +517,13 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		{
 			pitch_a = Config.m;
 			height_a = Config.Width;
+			width_a = Config.Width;
 		}
 		else
 		{
 			pitch_a = Config.Width;
 			height_a = Config.m;
+			width_a = Config.m;
 		}
 		if (pitch_a % 8) pitch_a += (8 - pitch_a % 8);
 		if (((pitch_a / 8) & 1) == 0)
@@ -531,11 +534,13 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		{
 			pitch_b = Config.Width;
 			height_b = Config.n;
+			width_b = Config.Width;
 		}
 		else
 		{
 			height_b = Config.Width;
 			pitch_b = Config.n;
+			width_b = Config.n;
 		}
 		if (pitch_b % 8) pitch_b += (8 - pitch_b % 8);
 		if (((pitch_b / 8) & 1) == 0)
@@ -567,6 +572,22 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		}
 	}
 
+#ifdef TESTMODE
+	for (int i = 0;i < height_a;i++)
+	{
+		for (int j = 0;j < width_a;j++)
+		{
+			AA[i * pitch_a + j] = j;
+		}
+	}
+	for (int i = 0;i < height_b;i++)
+	{
+		for (int j = 0;j < width_b;j++)
+		{
+			BB[i * pitch_b + j] = i;
+		}
+	}
+#else
 	if (fastinit)
 	{
 		//memset(AA, 0, height_a * pitch_a * sizeof(double));
@@ -579,6 +600,7 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		if (!quietbench) fprintf(stderr, "...init B");
 		fastmatgen(rand() * 100, BB, height_b * pitch_b);
 	}
+#endif
 	if (Config.Debug) fprintf(STD_OUT, "User Data Initialized\n");
 	if (!quietbench) fprintf(stderr, "...");
 	return(0);
@@ -734,7 +756,7 @@ int main(int argc, char** argv)
 			{
 				if (iterations > 1 && !quietbench) fprintf(STD_OUT, "\nDGEMM Call Iteration %d\n\n", iter);
 #ifdef TESTMODE
-				if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Config.m, Config.Width, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+				if (dgemm.RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
 #else
 				size_t tmpn = Config.m > Config.n ? Config.m : Config.n;
 				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
