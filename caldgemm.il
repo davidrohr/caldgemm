@@ -231,7 +231,7 @@ const char *caldgemm::ILKernelName =
 #endif
 "dcl_literal l0, 0x00000000, 0x00000000, 0x00000000, 0x00000000\n"
 #ifdef CALDGEMM_44_BT_64
-"dcl_literal l1, %d, 2.0, -1.5, 4.0\n"
+"dcl_literal l1, %d.0, 2.0, -1.5, 4.0\n"
 #else
 "dcl_literal l1, %d.0, 1.0, -0.5, 2.0\n"
 #endif
