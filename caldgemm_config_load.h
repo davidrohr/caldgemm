@@ -39,8 +39,8 @@
 #endif
 #define CALDGEMM_TRANSPOSED_B
 #define CALDGEMM_44
-#ifndef CALDGEMM_44_BT_CONVERT
-#define CALDGEMM_44_BT_KERNEL
+#ifndef CALDGEMM_44_BT_64_CONVERT
+#define CALDGEMM_44_BT_64_KERNEL
 #endif
 #endif
 
