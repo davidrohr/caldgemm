@@ -230,7 +230,7 @@ const char *caldgemm::ILKernelName =
 #endif
 #endif
 "dcl_literal l0, 0x00000000, 0x00000000, 0x00000000, 0x00000000\n"
-#ifdef CALDGEMM_44_BT_64
+#ifdef CALDGEMM_44_BT_64_KERNEL
 "dcl_literal l1, %d.0, 2.0, -1.5, 4.0\n"
 #else
 "dcl_literal l1, %d.0, 1.0, -0.5, 2.0\n"
@@ -302,7 +302,7 @@ const char *caldgemm::ILKernelName =
 #else
 "    add r0.w, r0.w, l1.y\n"
 #endif
-#ifdef CALDGEMM_44_BT_64
+#ifdef CALDGEMM_44_BT_64_KERNEL
 "    add r1.xyzw, r0.xyzw, l1.0011\n"
 #endif
 #if defined(CALDGEMM_LINPACK_KERNEL) | defined(CALDGEMM_BENCHMARK_KERNEL)
@@ -366,7 +366,7 @@ SAMPLE_B(r15, r16, r0.zx)
 SAMPLE_A(r17, r18, r0.wy)
 SAMPLE_B(r19, r20, r0.wx)
 
-#ifdef CALDGEMM_44_BT_64
+#ifdef CALDGEMM_44_BT_64_KERNEL
 SAMPLE_A(r23, r24, r1.zy)
 SAMPLE_B(r25, r26, r1.zx)
 SAMPLE_A(r27, r28, r1.wy)
@@ -374,7 +374,7 @@ SAMPLE_B(r29, r30, r1.wx)
 #endif
 
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r17.xy, r14.xy, r18.xy, r15.xy, r19.xy, r16.xy, r20.xy)
-#ifdef CALDGEMM_44_BT_64
+#ifdef CALDGEMM_44_BT_64_KERNEL
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r23.xy, r27.xy, r24.xy, r28.xy, r25.xy, r29.xy, r26.xy, r30.xy)
 #else
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.zw, r17.zw, r14.zw, r18.zw, r15.zw, r19.zw, r16.zw, r20.zw)

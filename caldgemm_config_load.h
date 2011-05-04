@@ -24,6 +24,26 @@
 
 #include "caldgemm_config.h"
 
+#ifdef CALDGEMM_44_BT_64
+#ifdef CALDGEMM_88
+#undef CALDGEMM_88
+#endif
+#ifdef CALDGEMM_84
+#undef CALDGEMM_84
+#endif
+#ifdef CALDGEMM_48
+#undef CALDGEMM_48
+#endif
+#ifdef CALDGEMM_TRANSPOSED_A
+#undef CALDGEMM_TRANSPOSED_A
+#endif
+#define CALDGEMM_TRANSPOSED_B
+#define CALDGEMM_44
+#ifndef CALDGEMM_44_BT_CONVERT
+#define CALDGEMM_44_BT_KERNEL
+#endif
+#endif
+
 #ifdef CALDGEMM_88
 #define CALDGEMM_84
 #define CALDGEMM_48
