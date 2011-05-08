@@ -2793,7 +2793,7 @@ int caldgemm::ExitCALDGEMM()
 		for (int i = 0;i < bbuffers[num_device];i++)
 		{
 #ifdef DEBUG_MSG_ALLOCATION
-			fprintf(STD_OUT, "Uninitializing buffers for device %d context %d\n", num_device, i);
+			if (Config->Debug) fprintf(STD_OUT, "Uninitializing buffers for device %d context %d\n", num_device, i);
 #endif
 			if (Cleanup(&devices[num_device], &ctxs[num_device], modules[num_device], resourceHandlers[num_device][i], datas[num_device][i], numInputs + numOutputs + numConstantBuffers, i, num_device))
 			{
@@ -2811,7 +2811,7 @@ int caldgemm::ExitCALDGEMM()
 	for (int i = 0;i < nDevices;i++)
 	{
 #ifdef DEBUG_MSG_ALLOCATION
-		fprintf(STD_OUT, "Uninitializing context for device %d\n", i);
+		if (Config->Debug) fprintf(STD_OUT, "Uninitializing context for device %d\n", i);
 #endif
 		if (ctxs[i]) calCtxDestroy(ctxs[i]);
 		if (devices[i])
@@ -2825,7 +2825,7 @@ int caldgemm::ExitCALDGEMM()
 	}
 
 #ifdef DEBUG_MSG_ALLOCATION
-	fprintf(STD_OUT, "Uninitializing CAL runtime\n");
+	if (Config->Debug) fprintf(STD_OUT, "Uninitializing CAL runtime\n");
 #endif
 
 	if (gpu_available && calShutdown() != CAL_RESULT_OK)
@@ -3241,7 +3241,11 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 		bool allocated = false;
 
 #ifdef CALDGEMM_44_BT_64
+#ifdef CALDGEMM_44_BT_64_CONVERT
+		if (i < dwBuffersA + dwBuffersB && nContext < 2)
+#else
 		if (i < dwBuffersA + dwBuffersB)
+#endif
 		{
 			tWidth *= 2;					//Change size after storing to data[i] to make divide/mergebuffer run on original size
 			bufferformat = CAL_FORMAT_UNSIGNED_INT32_2;
@@ -3310,14 +3314,39 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 #ifdef DEBUG_MSG_ALLOCATION
 		if (Config->Debug) fprintf(STD_OUT, "Allocating device buffer for device %d obuffer %d buffer %d\n", num_device, nContext, i);
 #endif
+
+		CALresource* resuse;
+		CALmem* memuse;
+#ifdef CALDGEMM_44_BT_64_CONVERT
+		if (i <= dwBuffersA + dwBuffersB && nContext < 2)
+		{
+#ifdef DEBUG_MSG_ALLOCATION
+			if (Config->Debug) fprintf(STD_OUT, "Allocating temporary device buffer for device %d context %d buffer %d\n", num_device, nContext, i);
+#endif
+			if (calResAllocLocal2D(&_Res[i], *device, tWidth / 2, tHeight, CAL_FORMAT_UNSIGNED_INT32_4, flag) != CAL_RESULT_OK)
+			{
+				fprintf(STD_OUT, "Error allocating GPU memory\n");
+				return(1);
+			}
+			CHKERR(calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]), "binding temporary memory to context");
+			resuse = &data[i].tmpres;
+			memuse = &data[i].tmpmem;
+		}
+		else
+#endif
+		{
+			resuse = &_Res[i];
+			memuse = &data[i].dstMem;
+		}
+
 		switch(mem)
 		{
 		case 'g':
-			r = calResAllocLocal2D(&_Res[i], *device, tWidth, tHeight, bufferformat, flag);
+			r = calResAllocLocal2D(resuse, *device, tWidth, tHeight, bufferformat, flag);
 
 			break;
 		case 'c':
-			r = calResAllocRemote2D(&_Res[i], device, 1, tWidth, tHeight, bufferformat, flag);
+			r = calResAllocRemote2D(resuse, device, 1, tWidth, tHeight, bufferformat, flag);
 			break;
 		}
 		if (r != CAL_RESULT_OK)
@@ -3332,7 +3361,7 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 			else if (Config->Debug) fprintf(STD_OUT, "No more memory available for bbuffers\n");
 			return(1);
 		}
-		CHKERR(calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]), "binding memory to context");
+		CHKERR(calCtxGetMem(memuse, *ctx, *resuse), "binding memory to context");
 		if ((Config->DstMemory == 'c' && i >= fStop) || (Config->DivideToGPU && i < bStop))
 		{
 			data[i].mem = data[i].dstMem;
@@ -3582,6 +3611,9 @@ int caldgemm::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Buffer
 		{
 			if ((nContext == 0 || i != dwBuffersA + dwBuffersB) && (nContext < 2 || i >= dwBuffersA) && (nContext < obuffercount || i < dwBuffersA + dwBuffersB) && data[i].ptr_char)
 			{
+#ifdef DEBUG_MSG_ALLOCATION
+				if (Config->Debug) fprintf(STD_OUT, "Freeing CAL Host memory, device %d context %d buffer %d\n", num_device, nContext, i);
+#endif
 				if (data[i].CALMemory)
 				{
 					if ((Config->DstMemory == 'g' || i <= dwBuffersA + dwBuffersB) && (Config->DivideToGPU == false || i >= dwBuffersA + dwBuffersB + numConstantBuffers) && nContext < 2)
@@ -3597,6 +3629,16 @@ int caldgemm::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Buffer
 				}
 				data[i].ptr_char = NULL;
 			}
+#ifdef CALDGEMM_44_BT_64_CONVERT
+			if (nContext < 2 && i < dwBuffersA + dwBuffersB)
+			{
+#ifdef DEBUG_MSG_ALLOCATION
+				if (Config->Debug) fprintf(STD_OUT, "Freeing temporary CAL memory, device %d context %d buffer %d\n", num_device, nContext, i);
+#endif
+				CHKERR(calCtxReleaseMem(*ctx, data[i].tmpmem), "releasing temporary CAL memory");
+				CHKERR(calResFree(data[i].tmpres), "releasing temporary CAL resources");
+			}
+#endif
 		}
 	}
 
@@ -3606,6 +3648,9 @@ int caldgemm::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Buffer
 		{
 			if ((nContext == 0 || i != dwBuffersA + dwBuffersB) && (nContext < 2 || i >= dwBuffersA) && (nContext < obuffercount || i < dwBuffersA + dwBuffersB) && resourceHandler[i])
 			{
+#ifdef DEBUG_MSG_ALLOCATION
+				if (Config->Debug) fprintf(STD_OUT, "Freeing CAL GPU memory, device %d context %d buffer %d\n", num_device, nContext, i);
+#endif
 				if (Config->DstMemory == 'c' && i >= dwBuffersA + dwBuffersB + numConstantBuffers && Config->KeepBuffersMapped)
 				{
 					CHKERR(calResUnmap(data[i].res), "mapping of remote output memory");

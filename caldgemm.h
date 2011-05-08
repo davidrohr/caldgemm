@@ -186,6 +186,8 @@ private:
 		CALmem mem;
 		CALmem dstMem;
 		unsigned int pitch;
+		CALresource tmpres;
+		CALmem tmpmem;
 	};
 	
 	static const int obuffercount = 3;				//Not cal context count but number of copies of data buffers etc.
