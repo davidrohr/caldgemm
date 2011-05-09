@@ -44,6 +44,31 @@ const char* caldgemm::ILFakeKernel =
 "end\n"
 ;
 
+const char* caldgemm::ILConvertKernel =
+"il_ps_2_0\n"
+"dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"
+"dcl_resource_id(0)_type(2d,unnorm)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+"dcl_resource_id(1)_type(2d,unnorm)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+"dcl_literal l0, 2.0, 1.0, 0.5, 0.0\n"
+"sub r0.xy__, vWinCoord0.xy00, l0.zz00\n"
+"mul r0.xy__, r0.xy00, l0.xy00\n"
+"add r0.xy__, r0.xy00, l0.zz00\n"
+"add r1.xy__, r0.xy00, l0.yw00\n"
+"sample_resource(0)_sampler(0) r13, r0.xy\n"
+"sample_resource(0)_sampler(0) r14, r1.xy\n"
+"sample_resource(1)_sampler(1) r15, r0.xy\n"
+"sample_resource(1)_sampler(1) r16, r1.xy\n"
+"mov r2.xy, r13.xy\n"
+"mov r2.zw, r14.xy\n"
+"mov r3.xy, r15.xy\n"
+"mov r3.zw, r16.xy\n"
+"dcl_output_generic o0\n"
+"dcl_output_generic o1\n"
+"mov o0, r2\n"
+"mov o1, r3\n"
+"end\n"
+;
+
 #include <syscall.h>
 #include <errno.h>
 extern "C" {
@@ -993,7 +1018,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 			{
 				if (SetupKernel(ILKernel, &modules[device_num][0], &ctxs[device_num], device_num, (bool) (Config->Disassemble && i == 0)) ||
 					SetupKernel(ILKernelALPHA1, &modules[device_num][1], &ctxs[device_num], device_num, (bool) (Config->Disassemble && i == 0)) ||
-					SetupKernel(ILKernelLinpack, &modules[device_num][2], &ctxs[device_num], device_num, (bool) (Config->Disassemble && i == 0)))
+					SetupKernel(ILKernelLinpack, &modules[device_num][2], &ctxs[device_num], device_num, (bool) (Config->Disassemble && i == 0)) ||
+					SetupKernel(ILConvertKernel, &modulesConvert[device_num], &ctxs[device_num], device_num, (bool) (Config->Disassemble && i == 0)))
 				{
 					return 1;
 				}
@@ -1127,7 +1153,7 @@ void caldgemm::cal_init_constant_data(BufferProperties* &data, double alpha)
 	data[dwBuffersA + dwBuffersB].ptr_float[2] = (float) TILING_X / Config->Height;			//Scale factor for normalized x pos
 #ifdef CALDGEMM_44
 	data[dwBuffersA + dwBuffersB].ptr_float[1] = 1.f / Config->Width;							//Step in K direction
-#ifdef CALDGEMM_44_BT_64
+#ifdef CALDGEMM_44_BT_64_KERNEL
 	data[dwBuffersA + dwBuffersB].ptr_float[4] = static_cast<float>(Config->Width * 2);			//Iterations of loop in IL Kernel
 #else
 	data[dwBuffersA + dwBuffersB].ptr_float[4] = static_cast<float>(Config->Width);			//Iterations of loop in IL Kernel
@@ -1993,7 +2019,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 		if (Config->Debug) fprintf(STD_OUT, "%d", i);
 		cal_init_constant_data(datas[i][0], alpha);
-		if (CopyDataToGPU(&ctxs[i], resourceHandlers[i][0] + numInputs, datas[i][0] + numInputs, numConstantBuffers, true, &events[i][0])) return(1);
+		if (CopyDataToGPU(&ctxs[i], resourceHandlers[i][0] + numInputs, datas[i][0] + numInputs, numConstantBuffers, true, &events[i][0], i)) return(1);
 	}
 	if (Config->Debug) fprintf(STD_OUT, "   Done\n");
 
@@ -2541,7 +2567,7 @@ RunCALDGEMM_end:
 	if (Config->Debug) fprintf(STD_OUT, "DGEMM Run Complete\n");
 
 #ifdef TESTMODE
-	print_submatrices(C, 12, 24, Config->n, 1, 1, 1, 1);
+	print_submatrices(C, 12, 24, C_pitch, 1, 1, 1, 1);
 #endif
 
 	if (!Config->NoPerformanceWarnings && Config->UseCPU && Config->UseGPU && !CPUOnlyRun && fabs(Timers.TotalCPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()) > 1.0)
@@ -2749,11 +2775,11 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 			if (!DGEMM_favor_m && buffersSufficiant0)
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], datas[num_device][buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying A to GPU (minor)\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], num_device, datas[num_device][buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying A to GPU (minor)\n"); return(1);}
 			}
 			else
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j])) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], num_device)) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
 			}
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of A (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
@@ -2763,11 +2789,11 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 			if (!DGEMM_favor_m && buffersSufficiant0)
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][next_buffer_B[num_device] % 2])) {fprintf(STD_OUT, "Error copying B to GPU (major)\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][next_buffer_B[num_device] % 2])) {fprintf(STD_OUT, "Error copying B to GPU (major)\n"); return(1);}
 			}
 			else
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], datas[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
+				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
 			}
 		}
 		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
@@ -3099,7 +3125,7 @@ unsigned int caldgemm::AnalyzeResults()
 			{
 				if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
 				{
-					if (errors < 1) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j]);
+					if (errors < 1) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le, Relative: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j], (D[i * C_pitch + j] - C[i * C_pitch + j]) / D[i * C_pitch + j]);
 					++errors;
 					errortiles[j / Config->Height * nblocksm + i / Config->Height]++;
 					if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] > 0.05) errorsrel[0]++;
@@ -3416,6 +3442,15 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 			}
 		}
 	}
+	
+	for (unsigned int j = 0;j < dwBuffersA;j++)
+	{
+		char buffer[10];
+		sprintf(buffer, "i%d", j);
+		CHKERR(calModuleGetName(&progNamesConvert[num_device][j], *ctx, modulesConvert[num_device], buffer), "getting buffer name");
+		sprintf(buffer, "o%d", j);
+		CHKERR(calModuleGetName(&progNamesConvert[num_device][j + dwBuffersA], *ctx, modulesConvert[num_device], buffer), "getting buffer name");
+	}
 
 	return(0);
 }
@@ -3553,7 +3588,7 @@ int caldgemm::SetupKernel(const char* ILKernel, CALmodule* module, CALcontext* c
 
 	CALobject obj;
 	char* ILKernelUse = (char*) malloc(strlen(ILKernel) + 1024);
-#ifdef CALDGEMM_44_BT_64
+#ifdef CALDGEMM_44_BT_64_KERNEL
 	sprintf(ILKernelUse, ILKernel, Config->Width * 2);
 #else
 	sprintf(ILKernelUse, ILKernel, Config->Width);
@@ -3676,6 +3711,7 @@ int caldgemm::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CAL
 				CHKERR(calModuleUnload(*ctx, module[i]), "unloading module");
 			}
 		}
+		CHKERR(calModuleUnload(*ctx, modulesConvert[num_device]), "unloading module");
 	}
 	delete[] resourceHandler;
 	delete[] data;
@@ -3709,7 +3745,7 @@ int caldgemm::CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperti
 	return 0;
 }
 
-int caldgemm::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, BufferProperties* dest_data)
+int caldgemm::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, int num_device, BufferProperties* dest_data)
 {
 	if (dest_data == NULL) dest_data = data;
 	unsigned int pitch;
@@ -3720,7 +3756,11 @@ int caldgemm::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties
 		if (data[i].CALMemory == constants) continue;
 		if (data[i].CALMemory)
 		{
+#ifdef CALDGEMM_44_BT_64_CONVERT
+			CHKERR(calMemCopy(event, *ctx, data[i].mem, data[i].tmpmem, 0), "copying to gpu");
+#else
 			CHKERR(calMemCopy(event, *ctx, data[i].mem, dest_data[i].dstMem, 0), "copying data to gpu");
+#endif
 			continue;
 		}
 		CHKERR(calResMap((void**)&ptr, &pitch, _Res[i], 0), "Mapping Buffer");
@@ -3728,7 +3768,23 @@ int caldgemm::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties
 		CHKERR(calResUnmap(_Res[i]), "unmapping buffer");
 	}
 	if (Config->VerboseTiming && constants == false) WAITFOREVENTA(*ctx, *event);
-
+#ifdef CALDGEMM_44_BT_64_CONVERT
+	if (!constants)
+	{
+		WAITFOREVENTA(*ctx, *event);
+		for (unsigned int i = 0; i < num; ++i)
+		{
+			CHKERR(calCtxSetMem(*ctx, progNamesConvert[num_device][i], data[i].tmpmem), "setting convert kernel memory in");
+			CHKERR(calCtxSetMem(*ctx, progNamesConvert[num_device][i + dwBuffersA], dest_data[i].dstMem), "setting convert kernel memory out");
+		}
+		if (Config->Debug) fprintf(STD_OUT, "Starting conversion kernel\n");
+		if (RunProgram(ctx, &modulesConvert[num_device], data[0].Width, data[0].Height, event))
+		{
+			fprintf(STD_OUT, "Error running conversion kernel\n");
+			return(1);
+		}
+	}
+#endif
 	return 0;
 }
 

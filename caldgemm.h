@@ -277,7 +277,7 @@ private:
 	unsigned int AnalyzeResults();
 	int SetupData(CALmodule* module, CALresource* &_Res, BufferProperties* &data, CALdevice* device, CALcontext* ctx, unsigned int numInputs, unsigned int numOutputs, unsigned int numConstantBuffers, CALname** ctxProgNames, int nContext, unsigned int num_device);
 	int CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event, size_t lastm, size_t lastn);
-	int CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, BufferProperties* dest_data = NULL);
+	int CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, int num_device, BufferProperties* dest_data = NULL);
 	int ValidateCALRuntime();
 	void displayMatrixTiming(const char* name);
 	bool isDoubleEqual(double a, double b);
@@ -339,13 +339,15 @@ private:
 	CALcontext ctxs[max_devices];
 	CALresource* resourceHandlers[max_devices][max_bbuffers];
 	CALmodule modules[max_devices][kernel_count];
+	CALmodule modulesConvert[max_devices];
 	CALmodule fakeModule;
 	CALname *progNames[max_devices][kernel_count];
+	CALname progNamesConvert[max_devices][2 * dwBuffersA];
 	CALevent events[max_devices][obuffercount];
 	unsigned int device_nums[max_devices];
 	int nDevices;
 
-	static const char *ILKernel, *ILKernelALPHA1, *ILKernelLinpack, *ILFakeKernel, *ILKernelTorture;
+	static const char *ILKernel, *ILKernelALPHA1, *ILKernelLinpack, *ILFakeKernel, *ILConvertKernel;
 
 	struct cblasParameters
 	{

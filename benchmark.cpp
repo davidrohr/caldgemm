@@ -55,6 +55,8 @@ bool mem_page_lock = true;
 bool mem_huge_table = false;
 bool linpack_callbacks = false;
 
+int random_seed = 0;
+
 int torture = 0;
 
 char* matrixfile;
@@ -120,6 +122,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n" );
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
+	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n" );
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -284,6 +287,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 		case 'I':
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", (int*) &Config->ImplicitDriverSync);
+			break;
+		case 'E':
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &random_seed);
 			break;
 		case 'f':
 			fastinit = true;
@@ -481,7 +488,14 @@ void SetupUserDataC(caldgemm::caldgemm_config &Config)
 int SetupUserData(caldgemm::caldgemm_config &Config)
 {
 	timespec randtime;
-	clock_gettime(CLOCK_REALTIME, &randtime);
+	if (random_seed == 0)
+	{
+		clock_gettime(CLOCK_REALTIME, &randtime);
+	}
+	else
+	{
+		randtime.tv_nsec = random_seed;
+	}
 	srand((int) (seedused = randtime.tv_nsec));
 	size_t width_a, width_b;
 
@@ -577,14 +591,14 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 	{
 		for (int j = 0;j < width_a;j++)
 		{
-			AA[i * pitch_a + j] = j;
+			AA[i * pitch_a + j] = 1;
 		}
 	}
 	for (int i = 0;i < height_b;i++)
 	{
 		for (int j = 0;j < width_b;j++)
 		{
-			BB[i * pitch_b + j] = i;
+			BB[i * pitch_b + j] = 1;
 		}
 	}
 #else
