@@ -3383,7 +3383,7 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 				calResFree(_Res[j]);
 			}
 
-			if (nContext < obuffercount) fprintf(STD_OUT, "There was an error in allocating resources and binding them to memory\n");
+			if (nContext < obuffercount) fprintf(STD_OUT, "There was an error in allocating resources and binding them to memory (Error code %d)\n", r);
 			else if (Config->Debug) fprintf(STD_OUT, "No more memory available for bbuffers\n");
 			return(1);
 		}
