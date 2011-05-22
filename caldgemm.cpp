@@ -1658,7 +1658,7 @@ void* divide_wrapper(void* arg)
 				continue;
 			}
 			
-			if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread for device %d Starting processing (k = %lld)\n", i, par->cls->DGEMMTasks[i].k);
+			if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread for device %d Starting processing (k = %d)\n", i, par->cls->DGEMMTasks[i].k);
 			par->cls->DGEMMPrepareAndExecute(par->cls->DGEMMTasks[i]);
 			
 			if (pthread_mutex_unlock(&par->cls->DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finish mutex (%d): %s - %d\n", i, __FILE__, __LINE__);
@@ -1730,26 +1730,28 @@ int caldgemm::DumpMatrix(double* a, double* b, double* c, double alpha, double b
 		return(1);
 	}
 	fp = fopen(filename, "w+b");
-	fwrite(&a, sizeof(a), 1, fp);
-	fwrite(&b, sizeof(b), 1, fp);
-	fwrite(&c, sizeof(c), 1, fp);
-	fwrite(&alpha, sizeof(alpha), 1, fp);
-	fwrite(&beta, sizeof(beta), 1, fp);
-	fwrite(&tmp_m, sizeof(tmp_m), 1, fp);
-	fwrite(&tmp_k, sizeof(tmp_k), 1, fp);
-	fwrite(&tmp_n, sizeof(tmp_n), 1, fp);
-	fwrite(&Apitch, sizeof(Apitch), 1, fp);
-	fwrite(&Bpitch, sizeof(Bpitch), 1, fp);
-	fwrite(&Cpitch, sizeof(Cpitch), 1, fp);
+	int nWritten = 0;
+	nWritten += fwrite(&a, sizeof(a), 1, fp);
+	nWritten += fwrite(&b, sizeof(b), 1, fp);
+	nWritten += fwrite(&c, sizeof(c), 1, fp);
+	nWritten += fwrite(&alpha, sizeof(alpha), 1, fp);
+	nWritten += fwrite(&beta, sizeof(beta), 1, fp);
+	nWritten += fwrite(&tmp_m, sizeof(tmp_m), 1, fp);
+	nWritten += fwrite(&tmp_k, sizeof(tmp_k), 1, fp);
+	nWritten += fwrite(&tmp_n, sizeof(tmp_n), 1, fp);
+	nWritten += fwrite(&Apitch, sizeof(Apitch), 1, fp);
+	nWritten += fwrite(&Bpitch, sizeof(Bpitch), 1, fp);
+	nWritten += fwrite(&Cpitch, sizeof(Cpitch), 1, fp);
 	for (i = 0;i < tmp_m;i++)
 	{
-		fwrite(a + i * Apitch, sizeof(double), tmp_k, fp);
+		nWritten += fwrite(a + i * Apitch, sizeof(double), tmp_k, fp);
 	}
 	for (i = 0;i < tmp_k;i++)
 	{
-		fwrite(b + i * Bpitch, sizeof(double), tmp_n, fp);
+		nWritten += fwrite(b + i * Bpitch, sizeof(double), tmp_n, fp);
 	}
 	fclose(fp);
+	if (nWritten == 0) return(1);
 	return(0);
 }
 
@@ -2257,7 +2259,7 @@ restartkloop:
 					{
 						while (k < nBlocks && tileDistribution[k] != use_device)
 						{
-							if (Config->Debug) fprintf(STD_OUT, "Skipping tile %lld for device %d\n", k, use_device);
+							if (Config->Debug) fprintf(STD_OUT, "Skipping tile %lld for device %d\n", (long long int) k, use_device);
 							k++;
 						}
 						if (k == nBlocks) goto endimprovedphase;
@@ -2266,7 +2268,7 @@ restartkloop:
 					{
 						if (tileDistribution[k] < 0)
 						{
-							if (Config->Debug) fprintf(STD_OUT, "Tile %lld already processed, skipping\n", k);
+							if (Config->Debug) fprintf(STD_OUT, "Tile %lld already processed, skipping\n", (long long int) k);
 							continue;
 						}
 					}
@@ -2400,7 +2402,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 
 					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0] && cpu_k_barrier_hit == false)
 					{
-						if (Config->Debug) fprintf(STD_OUT, "Starting PrepareAndExecute task on divide thread for device %d (k = %lld)\n", use_device, k);
+						if (Config->Debug) fprintf(STD_OUT, "Starting PrepareAndExecute task on divide thread for device %d (k = %lld)\n", use_device, (long long int) k);
 						if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
 					else
@@ -2418,7 +2420,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 				{
 					if (nBlocks <= k && lastk[use_device] < nBlocks && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0])
 					{
-						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (late phase, k=%lld lastk = %lld)\n", use_device, k, lastk[use_device]);
+						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (late phase, k=%lld lastk = %lld)\n", use_device, (long long int)k, lastk[use_device]);
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
 					size_t lastm, lastn;
@@ -2735,7 +2737,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			const int buffer_pos = next_buffer_A[num_device] % (buffersSufficiant ? bbuffers[num_device] : 2);
 			if (buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]] != -1)
 			{
-				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockm %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], blockm, buffer_pos);
+				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockm %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], (int) blockm, buffer_pos);
 				buffer_pointers_A[num_device][buffersMinor[num_device][buffer_pos]] = -1;
 				
 			}
@@ -2758,7 +2760,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 			const int buffer_pos = next_buffer_B[num_device] % (buffersSufficiant ? bbuffers[num_device] : 2);
 			if (buffersMinor[num_device][buffer_pos] != -1)
 			{
-				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockn %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], blockn, buffer_pos);
+				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockn %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], (int) blockn, buffer_pos);
 				buffer_pointers_B[num_device][buffersMinor[num_device][buffer_pos]] = -1;
 			}
 			buffersMinor[num_device][buffer_pos] = blockn;
@@ -3075,7 +3077,7 @@ void caldgemm::displayMatrixTiming(const char* name)
 				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.2lf Corrected: %2.2lf Guessed: %2.2lf , m*n: %.1E, CPU Wait Time: %2.3lf", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, gpu_ratio_used, (double) (Config->m * Config->n), cpu_wait_time);
 			}
 			sprintf(timingoutput, "\n");
-			fwrite(timingoutputbase, 1, strlen(timingoutputbase), STD_OUT);
+			const int nwritten = fwrite(timingoutputbase, 1, strlen(timingoutputbase), STD_OUT);
 		}
 		gpu_ratio_used = gpu_ratio_used_new;
 	}
@@ -3531,7 +3533,7 @@ double HighResTimer::GetElapsedTime()
 
 static void log_callback(const char *msg)
 {
-	fwrite(msg, 1, strlen(msg), STD_OUT);
+	fprintf(STD_OUT, "%s", msg);
 }
 
 int caldgemm::Initialize(int deviceNum, bool nocalinit)
