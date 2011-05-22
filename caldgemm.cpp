@@ -930,8 +930,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 	else if (Config->Width % 64)
 	{
+		fprintf(STD_OUT, "Cannot allocate buffer corresponding to Config->Width, increasing buffer size from %lld to %lld\n", (long long int) Config->Width, (long long int) (Config->Width + 64 - Config->Width % 64));
 		Config->Width += 64 - Config->Width % 64;
-		fprintf(STD_OUT, "Cannot allocate buffers of size that is not multiple of 64, increasing buffer size to %lld\n", (long long int) Config->Width);
 	}
 #else
 	if (Config->Width % 64)
@@ -947,8 +947,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 	else if (Config->Height % 256)
 	{
+		fprintf(STD_OUT, "Cannot allocate buffer corresponding to Config->Height, increasing buffer size from %lld to %lld\n", (long long int) Config->Height, (long long int) (Config->Height + 256 - Config->Height % 256));
 		Config->Height += 256 - Config->Height % 256;
-		fprintf(STD_OUT, "Cannot allocate buffer corresponding to Config->Width, increasing buffer size to %lld\n", (long long int) Config->Height);
 	}
 
 	numInputs = dwBuffersA + dwBuffersB;
@@ -956,13 +956,13 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	numConstantBuffers = 1;
 
 	if (Config->Debug) fprintf(STD_OUT, "Initializing CAL\n");
-	if (Initialize(Config->DeviceNum, nocalinit))
+	if (Config->UseGPU == 0 || Initialize(Config->DeviceNum, nocalinit))
 	{
 		gpu_available = false;
 	}
 	if (!gpu_available)
 	{
-		if (!Config->Quiet) fprintf(STD_OUT, "No GPU available, falling back to CPU\n");
+		if (!Config->Quiet && Config->UseGPU) fprintf(STD_OUT, "No GPU available, falling back to CPU\n");
 		nDevices = 0;
 		Config->UseGPU = 0;
 		Config->UseCPU = 1;
