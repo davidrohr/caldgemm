@@ -232,6 +232,7 @@ CPU run.
 Performance Optimization Guide:
 
 To achieve good performance 3 steps should be performed:
+0. Update Settings for the GPU used
 1. Optimize Kernel Performance.
 2. Optimize System Performance of GPU-DGEMM (including DMA-transfer, post-/ preprocessing).
 3. Optimize Combined GPU/CPU Performance.
@@ -239,6 +240,14 @@ To achieve good performance 3 steps should be performed:
 
 If you have multiple GPUs better do the following with a single GPU first. Try multiGPU afterwards.
 Add -y 0 to each of the following command lines.
+
+
+Step 0:
+Different GPUs require different settings for optimal performance.
+The standard settings are tuned for 5xxx series GPUs.
+For 6xxx series GPUs it is best to enable the CALDGEMM_44_BT_64 and CALDGEMM_44_BT_64_CONVERT
+options in caldgemm_config.h and use h = 2304.
+For 5xxx series h can be used almost arbitrarily but is suggested to be at least 1024.
 
 
 Step 1:
@@ -320,3 +329,12 @@ Run GPU-only DGEMM
 Run CPU/GPU DGEMM
 ./dgemm_bench -c -g -z -s -l -p -A -B -y -1 -j -1 -m 40960 -n 40960
 ./dgemm_bench -c -g -z -s -l -p -A -o g -I -y -1 -j -1 -m 40960 -n 40960
+
+Run Multi-GPU/CPU DGEMM
+./dgemm_bench -c -g -z -s -l -p -A -B -m 89088 -n 89088 -X -G0 0 -G1 0 -G2 12
+
+GPU only torture test for device 0
+./dgemm_bench -y 0 -- 100
+
+GPU/CPU torture test
+./dgemm_bench -- 100 -c -g -s -z -p

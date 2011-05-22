@@ -188,6 +188,8 @@ private:
 		unsigned int pitch;
 		CALresource tmpres;
 		CALmem tmpmem;
+		
+		BufferProperties* conversionBuffer;
 	};
 	
 	static const int obuffercount = 3;				//Not cal context count but number of copies of data buffers etc.

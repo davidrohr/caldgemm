@@ -2668,6 +2668,27 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 		const int buffer_pos = buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : 2);
 		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pos][dwBuffersA + l].dstMem), "setting kernel memory A");
 		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2][l].dstMem), "setting kernel memory B");
+#ifdef CALDGEMM_44_BT_64_CONVERT
+		for (int ll = 0;ll < 2;ll++)
+		{
+			BufferProperties* const chkBuffer = ((ll == 1) ? datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2] : &datas[Task.device][buffer_pos][dwBuffersA]);
+			if (chkBuffer[0].conversionBuffer != NULL)
+			{
+				if (Config->Debug) fprintf(STD_OUT, "\tStarting conversion kernel for device %d input matrix %d (path 1)\n", Task.device, ll);
+				for (unsigned int i = 0; i < ((ll == 1) ? dwBuffersB : dwBuffersA); ++i)
+				{
+					CHKERR(calCtxSetMem(*Task.ctx, progNamesConvert[Task.device][i], chkBuffer[0].conversionBuffer[i].tmpmem), "setting convert kernel memory in");
+					CHKERR(calCtxSetMem(*Task.ctx, progNamesConvert[Task.device][i + dwBuffersA], chkBuffer[i].dstMem), "setting convert kernel memory out");
+				}
+				if (RunProgram(Task.ctx, &modulesConvert[Task.device], chkBuffer[0].Width, chkBuffer[0].Height, &events[Task.device][Task.j]))
+				{
+					fprintf(STD_OUT, "Error running conversion kernel\n");
+					return(1);
+				}
+				chkBuffer[0].conversionBuffer = NULL;
+			}
+		}
+#endif
 	}
 	else
 #endif
@@ -2679,6 +2700,27 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 #endif
 		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % 2][l].dstMem), "setting kernel memory A");
 		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][l].dstMem), "setting kernel memory B");
+#ifdef CALDGEMM_44_BT_64_CONVERT
+		for (int ll = 0;ll < 2;ll++)
+		{
+			BufferProperties* const chkBuffer = ((ll == 1) ? &datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][dwBuffersA] : datas[Task.device][buffer_pointers_A[Task.device][blockm] % 2]);
+			if (chkBuffer[0].conversionBuffer != NULL)
+			{
+				if (Config->Debug) fprintf(STD_OUT, "\tStarting conversion kernel for device %d input matrix %d (path 2)\n", Task.device, ll);
+				for (unsigned int i = 0; i < ((ll == 1) ? dwBuffersB : dwBuffersA); ++i)
+				{
+					CHKERR(calCtxSetMem(*Task.ctx, progNamesConvert[Task.device][i], chkBuffer[0].conversionBuffer[i].tmpmem), "setting convert kernel memory in");
+					CHKERR(calCtxSetMem(*Task.ctx, progNamesConvert[Task.device][i + dwBuffersA], chkBuffer[i].dstMem), "setting convert kernel memory out");
+				}
+				if (RunProgram(Task.ctx, &modulesConvert[Task.device], chkBuffer[0].Width, chkBuffer[0].Height, &events[Task.device][Task.j]))
+				{
+					fprintf(STD_OUT, "Error running conversion kernel\n");
+					return(1);
+				}
+				chkBuffer[0].conversionBuffer = NULL;
+			}
+		}
+#endif
 	}
 	for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 	if (RunProgram(Task.ctx, &modules[Task.device][Task.kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
@@ -3776,18 +3818,7 @@ int caldgemm::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties
 #ifdef CALDGEMM_44_BT_64_CONVERT
 	if (!constants)
 	{
-		WAITFOREVENTA(*ctx, *event);
-		for (unsigned int i = 0; i < num; ++i)
-		{
-			CHKERR(calCtxSetMem(*ctx, progNamesConvert[num_device][i], data[i].tmpmem), "setting convert kernel memory in");
-			CHKERR(calCtxSetMem(*ctx, progNamesConvert[num_device][i + dwBuffersA], dest_data[i].dstMem), "setting convert kernel memory out");
-		}
-		if (Config->Debug) fprintf(STD_OUT, "Starting conversion kernel\n");
-		if (RunProgram(ctx, &modulesConvert[num_device], data[0].Width, data[0].Height, event))
-		{
-			fprintf(STD_OUT, "Error running conversion kernel\n");
-			return(1);
-		}
+		dest_data[0].conversionBuffer = data;
 	}
 #endif
 	return 0;
