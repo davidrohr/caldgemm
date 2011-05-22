@@ -3318,6 +3318,9 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 		}
 		if (allocated)
 		{
+#ifdef DEBUG_MSG_ALLOCATION
+			if (Config->Debug) fprintf(STD_OUT, "Clearing Memory at %p, Width = %d, Height = %d, components = %d, type=double\n", (void*) data[i].ptr_char, (int) tWidth, (int) tHeight, (int) mComponents);
+#endif
 			memset((void*)data[i].ptr_char, 0, tWidth * sizeof(double) * mComponents * tHeight);
 		}
 
