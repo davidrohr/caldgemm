@@ -969,10 +969,10 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->KeepBuffersMapped = 0;
 	}
 
-	CALdeviceattribs attribs;
-	attribs.struct_size = sizeof(CALdeviceattribs);
 	for (int i = 0;i < nDevices;i++)
 	{
+		CALdeviceattribs attribs;
+		attribs.struct_size = sizeof(CALdeviceattribs);
 		if (calDeviceGetAttribs(&attribs, device_nums[i]) != CAL_RESULT_OK)
 		{
 			fprintf(STD_OUT, "Error getting device attributes\n");
@@ -1016,10 +1016,10 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		{
 			if (i < 1)
 			{
-				if (SetupKernel(ILKernel, &modules[device_num][0], &ctxs[device_num], device_num, (bool) (Config->Disassemble && i == 0)) ||
-					SetupKernel(ILKernelALPHA1, &modules[device_num][1], &ctxs[device_num], device_num, (bool) (Config->Disassemble && i == 0)) ||
-					SetupKernel(ILKernelLinpack, &modules[device_num][2], &ctxs[device_num], device_num, (bool) (Config->Disassemble && i == 0)) ||
-					SetupKernel(ILConvertKernel, &modulesConvert[device_num], &ctxs[device_num], device_num, (bool) (Config->Disassemble && i == 0)))
+				if (SetupKernel(ILKernel, &modules[device_num][0], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
+					SetupKernel(ILKernelALPHA1, &modules[device_num][1], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
+					SetupKernel(ILKernelLinpack, &modules[device_num][2], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
+					SetupKernel(ILConvertKernel, &modulesConvert[device_num], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)))
 				{
 					return 1;
 				}
@@ -2425,8 +2425,8 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					}
 					size_t lastm, lastn;
 					DGEMM_getblocks(lastk[use_device], lastm, lastn);
-					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
 					WAITFOREVENT(*ctx_main, oldj[use_device], use_device);
+					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
 					if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
 					{
 						if (CopyDataFromGPU(ctx_main, resourceHandlers[use_device][oldj[use_device]] + numInputs + numConstantBuffers, datas[use_device][oldj[use_device]] + numInputs + numConstantBuffers, numOutputs, &events[use_device][oldj[use_device]], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
@@ -3430,8 +3430,14 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 				calResFree(_Res[j]);
 			}
 
-			if (nContext < obuffercount) fprintf(STD_OUT, "There was an error in allocating resources and binding them to memory (Error code %d)\n", r);
-			else if (Config->Debug) fprintf(STD_OUT, "No more memory available for bbuffers\n");
+			if (nContext < obuffercount)
+			{
+				fprintf(STD_OUT, "There was an error in allocating resources and binding them to memory (Error code %d)\n", r);
+			}
+			else if (Config->Debug)
+			{
+				fprintf(STD_OUT, "No more memory available for bbuffers\n");
+			}
 			return(1);
 		}
 		CHKERR(calCtxGetMem(memuse, *ctx, *resuse), "binding memory to context");
