@@ -1193,6 +1193,12 @@ void caldgemm::cal_init_constant_data(BufferProperties* &data, double alpha)
 	data[dwBuffersA + dwBuffersB].ptr_int[17] = 1 + 2 * Config->Height / 2;
 	data[dwBuffersA + dwBuffersB].ptr_int[18] = 0 + 3 * Config->Height / 2;
 	data[dwBuffersA + dwBuffersB].ptr_int[19] = 1 + 3 * Config->Height / 2;
+#ifdef CALDGEMM_SGEMM
+	data[dwBuffersA + dwBuffersB].ptr_int[20] = Config->Height * Config->Height / 2;
+	data[dwBuffersA + dwBuffersB].ptr_int[21] = Config->Height * Config->Height / 2;
+	data[dwBuffersA + dwBuffersB].ptr_int[22] = Config->Height * Config->Height / 2;
+	data[dwBuffersA + dwBuffersB].ptr_int[23] = Config->Height * Config->Height / 2;
+#endif
 #ifdef CALDGEMM_48
 	data[dwBuffersA + dwBuffersB].ptr_int[20] = 0 + 4 * Config->Height / 2;					//Proceed by 4 rows
 	data[dwBuffersA + dwBuffersB].ptr_int[21] = 0 + 4 * Config->Height / 2;
@@ -3296,6 +3302,9 @@ int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties*
 #else
 			tWidth = Config->Height / 2;
 			tHeight = Config->Height / dwBuffersC;
+#endif
+#ifdef CALDGEMM_SGEMM
+			tHeight *= 2;
 #endif
 			mem = Config->DstMemory;
 			flag = (CALresallocflags) (flag | CAL_RESALLOC_CACHEABLE);

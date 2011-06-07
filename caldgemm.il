@@ -101,6 +101,80 @@ MMUL22(o8_12, a8_1, a8_2, b1_1, b1_2, b2_1, b2_2)
 "dmad " mxstr(o4_34.xy) ", " mxstr(a4) ", " mxstr(b3) ", " mxstr(o4_34.xy) "\n" \
 "dmad " mxstr(o4_34.zw) ", " mxstr(a4) ", " mxstr(b4) ", " mxstr(o4_34.zw) "\n"
 
+#if defined(CALDGEMM_IGEMM)
+#define MMUL441_S1(o1_12, o2_12, o3_12, o4_12, o1_34, o2_34, o3_34, o4_34, a1, a2, a3, a4, b1, b2, b3, b4) \
+"imad " mxstr(o1_12.x) ", " mxstr(a1) ", " mxstr(b1) ", " mxstr(o1_12.x) "\n" \
+"imad " mxstr(o1_12.z) ", " mxstr(a1) ", " mxstr(b2) ", " mxstr(o1_12.z) "\n" \
+"imad " mxstr(o1_34.x) ", " mxstr(a1) ", " mxstr(b3) ", " mxstr(o1_34.x) "\n" \
+"imad " mxstr(o1_34.z) ", " mxstr(a1) ", " mxstr(b4) ", " mxstr(o1_34.z) "\n" \
+"imad " mxstr(o2_12.x) ", " mxstr(a2) ", " mxstr(b1) ", " mxstr(o2_12.x) "\n" \
+"imad " mxstr(o2_12.z) ", " mxstr(a2) ", " mxstr(b2) ", " mxstr(o2_12.z) "\n" \
+"imad " mxstr(o2_34.x) ", " mxstr(a2) ", " mxstr(b3) ", " mxstr(o2_34.x) "\n" \
+"imad " mxstr(o2_34.z) ", " mxstr(a2) ", " mxstr(b4) ", " mxstr(o2_34.z) "\n" \
+"imad " mxstr(o3_12.x) ", " mxstr(a3) ", " mxstr(b1) ", " mxstr(o3_12.x) "\n" \
+"imad " mxstr(o3_12.z) ", " mxstr(a3) ", " mxstr(b2) ", " mxstr(o3_12.z) "\n" \
+"imad " mxstr(o3_34.x) ", " mxstr(a3) ", " mxstr(b3) ", " mxstr(o3_34.x) "\n" \
+"imad " mxstr(o3_34.z) ", " mxstr(a3) ", " mxstr(b4) ", " mxstr(o3_34.z) "\n" \
+"imad " mxstr(o4_12.x) ", " mxstr(a4) ", " mxstr(b1) ", " mxstr(o4_12.x) "\n" \
+"imad " mxstr(o4_12.z) ", " mxstr(a4) ", " mxstr(b2) ", " mxstr(o4_12.z) "\n" \
+"imad " mxstr(o4_34.x) ", " mxstr(a4) ", " mxstr(b3) ", " mxstr(o4_34.x) "\n" \
+"imad " mxstr(o4_34.z) ", " mxstr(a4) ", " mxstr(b4) ", " mxstr(o4_34.z) "\n"
+
+#define MMUL441_S2(o1_12, o2_12, o3_12, o4_12, o1_34, o2_34, o3_34, o4_34, a1, a2, a3, a4, b1, b2, b3, b4) \
+"imad " mxstr(o1_12.y) ", " mxstr(a1) ", " mxstr(b1) ", " mxstr(o1_12.y) "\n" \
+"imad " mxstr(o1_12.w) ", " mxstr(a1) ", " mxstr(b2) ", " mxstr(o1_12.w) "\n" \
+"imad " mxstr(o1_34.y) ", " mxstr(a1) ", " mxstr(b3) ", " mxstr(o1_34.y) "\n" \
+"imad " mxstr(o1_34.w) ", " mxstr(a1) ", " mxstr(b4) ", " mxstr(o1_34.w) "\n" \
+"imad " mxstr(o2_12.y) ", " mxstr(a2) ", " mxstr(b1) ", " mxstr(o2_12.y) "\n" \
+"imad " mxstr(o2_12.w) ", " mxstr(a2) ", " mxstr(b2) ", " mxstr(o2_12.w) "\n" \
+"imad " mxstr(o2_34.y) ", " mxstr(a2) ", " mxstr(b3) ", " mxstr(o2_34.y) "\n" \
+"imad " mxstr(o2_34.w) ", " mxstr(a2) ", " mxstr(b4) ", " mxstr(o2_34.w) "\n" \
+"imad " mxstr(o3_12.y) ", " mxstr(a3) ", " mxstr(b1) ", " mxstr(o3_12.y) "\n" \
+"imad " mxstr(o3_12.w) ", " mxstr(a3) ", " mxstr(b2) ", " mxstr(o3_12.w) "\n" \
+"imad " mxstr(o3_34.y) ", " mxstr(a3) ", " mxstr(b3) ", " mxstr(o3_34.y) "\n" \
+"imad " mxstr(o3_34.w) ", " mxstr(a3) ", " mxstr(b4) ", " mxstr(o3_34.w) "\n" \
+"imad " mxstr(o4_12.y) ", " mxstr(a4) ", " mxstr(b1) ", " mxstr(o4_12.y) "\n" \
+"imad " mxstr(o4_12.w) ", " mxstr(a4) ", " mxstr(b2) ", " mxstr(o4_12.w) "\n" \
+"imad " mxstr(o4_34.y) ", " mxstr(a4) ", " mxstr(b3) ", " mxstr(o4_34.y) "\n" \
+"imad " mxstr(o4_34.w) ", " mxstr(a4) ", " mxstr(b4) ", " mxstr(o4_34.w) "\n"
+#else //CALDGEMM_IGEMM
+#define MMUL441_S1(o1_12, o2_12, o3_12, o4_12, o1_34, o2_34, o3_34, o4_34, a1, a2, a3, a4, b1, b2, b3, b4) \
+"mad " mxstr(o1_12.x) ", " mxstr(a1) ", " mxstr(b1) ", " mxstr(o1_12.x) "\n" \
+"mad " mxstr(o1_12.z) ", " mxstr(a1) ", " mxstr(b2) ", " mxstr(o1_12.z) "\n" \
+"mad " mxstr(o1_34.x) ", " mxstr(a1) ", " mxstr(b3) ", " mxstr(o1_34.x) "\n" \
+"mad " mxstr(o1_34.z) ", " mxstr(a1) ", " mxstr(b4) ", " mxstr(o1_34.z) "\n" \
+"mad " mxstr(o2_12.x) ", " mxstr(a2) ", " mxstr(b1) ", " mxstr(o2_12.x) "\n" \
+"mad " mxstr(o2_12.z) ", " mxstr(a2) ", " mxstr(b2) ", " mxstr(o2_12.z) "\n" \
+"mad " mxstr(o2_34.x) ", " mxstr(a2) ", " mxstr(b3) ", " mxstr(o2_34.x) "\n" \
+"mad " mxstr(o2_34.z) ", " mxstr(a2) ", " mxstr(b4) ", " mxstr(o2_34.z) "\n" \
+"mad " mxstr(o3_12.x) ", " mxstr(a3) ", " mxstr(b1) ", " mxstr(o3_12.x) "\n" \
+"mad " mxstr(o3_12.z) ", " mxstr(a3) ", " mxstr(b2) ", " mxstr(o3_12.z) "\n" \
+"mad " mxstr(o3_34.x) ", " mxstr(a3) ", " mxstr(b3) ", " mxstr(o3_34.x) "\n" \
+"mad " mxstr(o3_34.z) ", " mxstr(a3) ", " mxstr(b4) ", " mxstr(o3_34.z) "\n" \
+"mad " mxstr(o4_12.x) ", " mxstr(a4) ", " mxstr(b1) ", " mxstr(o4_12.x) "\n" \
+"mad " mxstr(o4_12.z) ", " mxstr(a4) ", " mxstr(b2) ", " mxstr(o4_12.z) "\n" \
+"mad " mxstr(o4_34.x) ", " mxstr(a4) ", " mxstr(b3) ", " mxstr(o4_34.x) "\n" \
+"mad " mxstr(o4_34.z) ", " mxstr(a4) ", " mxstr(b4) ", " mxstr(o4_34.z) "\n"
+
+#define MMUL441_S2(o1_12, o2_12, o3_12, o4_12, o1_34, o2_34, o3_34, o4_34, a1, a2, a3, a4, b1, b2, b3, b4) \
+"mad " mxstr(o1_12.y) ", " mxstr(a1) ", " mxstr(b1) ", " mxstr(o1_12.y) "\n" \
+"mad " mxstr(o1_12.w) ", " mxstr(a1) ", " mxstr(b2) ", " mxstr(o1_12.w) "\n" \
+"mad " mxstr(o1_34.y) ", " mxstr(a1) ", " mxstr(b3) ", " mxstr(o1_34.y) "\n" \
+"mad " mxstr(o1_34.w) ", " mxstr(a1) ", " mxstr(b4) ", " mxstr(o1_34.w) "\n" \
+"mad " mxstr(o2_12.y) ", " mxstr(a2) ", " mxstr(b1) ", " mxstr(o2_12.y) "\n" \
+"mad " mxstr(o2_12.w) ", " mxstr(a2) ", " mxstr(b2) ", " mxstr(o2_12.w) "\n" \
+"mad " mxstr(o2_34.y) ", " mxstr(a2) ", " mxstr(b3) ", " mxstr(o2_34.y) "\n" \
+"mad " mxstr(o2_34.w) ", " mxstr(a2) ", " mxstr(b4) ", " mxstr(o2_34.w) "\n" \
+"mad " mxstr(o3_12.y) ", " mxstr(a3) ", " mxstr(b1) ", " mxstr(o3_12.y) "\n" \
+"mad " mxstr(o3_12.w) ", " mxstr(a3) ", " mxstr(b2) ", " mxstr(o3_12.w) "\n" \
+"mad " mxstr(o3_34.y) ", " mxstr(a3) ", " mxstr(b3) ", " mxstr(o3_34.y) "\n" \
+"mad " mxstr(o3_34.w) ", " mxstr(a3) ", " mxstr(b4) ", " mxstr(o3_34.w) "\n" \
+"mad " mxstr(o4_12.y) ", " mxstr(a4) ", " mxstr(b1) ", " mxstr(o4_12.y) "\n" \
+"mad " mxstr(o4_12.w) ", " mxstr(a4) ", " mxstr(b2) ", " mxstr(o4_12.w) "\n" \
+"mad " mxstr(o4_34.y) ", " mxstr(a4) ", " mxstr(b3) ", " mxstr(o4_34.y) "\n" \
+"mad " mxstr(o4_34.w) ", " mxstr(a4) ", " mxstr(b4) ", " mxstr(o4_34.w) "\n"
+#endif //CALDGEMM_IGEMM
+
 #define MUL8(x1, x2, x3, x4, x5, x6, x7, x8, factor) \
 "dmul " mxstr(x1) ".xy, " mxstr(x1) ".xy, " mxstr(factor) "\n" \
 "dmul " mxstr(x1) ".zw, " mxstr(x1) ".zw, " mxstr(factor) "\n" \
@@ -244,7 +318,7 @@ const char *caldgemm::ILKernelName =
 "mov r9, l0\n"
 "mov r10, l0\n"
 
-#if defined(CALDGEMM_84) | defined(CALDGEMM_48)
+#if defined(CALDGEMM_84) | defined(CALDGEMM_48) | defined(CALDGEMM_SGEMM)
 "mov r37, l0\n"
 "mov r38, l0\n"
 "mov r39, l0\n"
@@ -355,11 +429,25 @@ MMUL441(r37, r38, r39, r40, r41, r42, r43, r44, r15.xy, r15.zw, r16.xy, r16.zw, 
 #ifdef CALDGEMM_DUAL_ENTRY
 SAMPLE_A(r13, r14, r0.yz)
 SAMPLE_B(r15, r16, r0.xz)
+#ifdef CALDGEMM_SGEMM
+MMUL441_S1(r3, r4, r5, r6, r7, r8, r9, r10, r13.x, r13.z, r14.x, r14.z, r15.x, r15.z, r16.x, r16.z)
+MMUL441_S1(r37, r38, r38, r40, r41, r42, r43, r44, r13.x, r13.z, r14.x, r14.z, r15.y, r15.w, r16.y, r16.w)
+MMUL441_S2(r3, r4, r5, r6, r7, r8, r9, r10, r13.y, r13.w, r14.y, r14.w, r15.x, r15.z, r16.x, r16.z)
+MMUL441_S2(r37, r38, r39, r40, r41, r42, r43, r44, r13.y, r13.w, r14.y, r14.w, r15.y, r15.w, r16.y, r16.w)
+#else //CALDGEMM_SGEMM
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, r15.zw, r16.xy, r16.zw)
+#endif //CALDGEMM_SGEMM
 #endif
 SAMPLE_A(r17, r18, r0.yw)
 SAMPLE_B(r19, r20, r0.xw)
+#ifdef CALDGEMM_SGEMM
+MMUL441_S1(r3, r4, r5, r6, r7, r8, r9, r10, r17.x, r17.z, r18.x, r18.z, r19.x, r19.z, r20.x, r20.z)
+MMUL441_S1(r37, r38, r38, r40, r41, r42, r43, r44, r17.x, r17.z, r18.x, r18.z, r19.y, r19.w, r20.y, r20.w)
+MMUL441_S2(r3, r4, r5, r6, r7, r8, r9, r10, r17.y, r17.w, r18.y, r18.w, r19.x, r19.z, r20.x, r20.z)
+MMUL441_S2(r37, r38, r39, r40, r41, r42, r43, r44, r17.y, r17.w, r18.y, r18.w, r19.y, r19.w, r20.y, r20.w)
+#else //CALDGEMM_SGEMM
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r17.xy, r17.zw, r18.xy, r18.zw, r19.xy, r19.zw, r20.xy, r20.zw)
+#endif //CALDGEMM_SGEMM
 #else
 SAMPLE_A(r13, r14, r0.zy)
 SAMPLE_B(r15, r16, r0.zx)
@@ -373,12 +461,25 @@ SAMPLE_A(r27, r28, r1.wy)
 SAMPLE_B(r29, r30, r1.wx)
 #endif
 
+#ifdef CALDGEMM_SGEMM
+MMUL441_S1(r3, r4, r5, r6, r7, r8, r9, r10, r13.x, r17.x, r14.x, r18.x, r15.x, r19.x, r16.x, r20.x)
+MMUL441_S1(r37, r38, r38, r40, r41, r42, r43, r44, r13.x, r17.x, r14.x, r18.x, r15.y, r19.y, r16.y, r20.y)
+MMUL441_S2(r3, r4, r5, r6, r7, r8, r9, r10, r13.y, r17.y, r14.y, r18.y, r15.x, r19.x, r16.x, r20.x)
+MMUL441_S2(r37, r38, r39, r40, r41, r42, r43, r44, r13.y, r17.y, r14.y, r18.y, r15.y, r19.y, r16.y, r20.y)
+
+MMUL441_S1(r3, r4, r5, r6, r7, r8, r9, r10, r13.z, r17.z, r14.z, r18.z, r15.z, r19.z, r16.z, r20.z)
+MMUL441_S1(r37, r38, r39, r40, r41, r42, r43, r44, r13.z, r17.z, r14.z, r18.z, r15.w, r19.w, r16.w, r20.w)
+MMUL441_S2(r3, r4, r5, r6, r7, r8, r9, r10, r13.w, r17.w, r14.w, r18.w, r15.z, r19.z, r16.z, r20.z)
+MMUL441_S2(r37, r38, r39, r40, r41, r42, r43, r44, r13.w, r17.w, r14.w, r18.w, r15.w, r19.w, r16.w, r20.w)
+
+#else //CALDGEMM_SGEMM
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r17.xy, r14.xy, r18.xy, r15.xy, r19.xy, r16.xy, r20.xy)
 #ifdef CALDGEMM_44_BT_64_KERNEL
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r23.xy, r27.xy, r24.xy, r28.xy, r25.xy, r29.xy, r26.xy, r30.xy)
 #else
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.zw, r17.zw, r14.zw, r18.zw, r15.zw, r19.zw, r16.zw, r20.zw)
 #endif
+#endif //CALDGEMM_SGEMM
 #endif
 
 #else
@@ -573,7 +674,7 @@ MUL8(r45, r46, r47, r48, r49, r50, r51, r52, cb0[1].zw)
 "mov g[r2.y], r9\n"
 "mov g[r2.z], r6\n"
 "mov g[r2.w], r10\n"
-#ifdef CALDGEMM_48
+#if defined(CALDGEMM_48) | defined(CALDGEMM_SGEMM)
 "iadd r1, r1, cb0[5]\n"
 "iadd r2, r2, cb0[5]\n"
 "mov g[r1.x], r37\n"
