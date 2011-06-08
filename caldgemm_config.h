@@ -52,6 +52,6 @@
 //#define CALDGEMM_44_BT_64				//64 bit DMA transfers for 4x4 B transposed kernel
 //#define CALDGEMM_44_BT_64_CONVERT			//Perform 64 bit DMA transfer but transform to 128 bit for kernel input
 
-//#define CALDGEMM_SGEMM					//Experimental SGEMM implementation (requires MemExport)
-//#define CALDGEMM_IGEMM					//Experimental IGEMM implementation (Integer instead of single) (requires SGEMM)
-//#define CALDGEMM_BGEMM
+#define CALDGEMM_SGEMM					//Experimental SGEMM implementation (requires MemExport)
+//#define CALDGEMM_IGEMM				//Experimental IGEMM implementation (Integer instead of single) (requires SGEMM)
+//#define CALDGEMM_BGEMM				//Experimental

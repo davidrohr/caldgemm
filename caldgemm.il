@@ -101,7 +101,44 @@ MMUL22(o8_12, a8_1, a8_2, b1_1, b1_2, b2_1, b2_2)
 "dmad " mxstr(o4_34.xy) ", " mxstr(a4) ", " mxstr(b3) ", " mxstr(o4_34.xy) "\n" \
 "dmad " mxstr(o4_34.zw) ", " mxstr(a4) ", " mxstr(b4) ", " mxstr(o4_34.zw) "\n"
 
-#if defined(CALDGEMM_IGEMM)
+#if defined(CALDGEMM_BGEMM)
+#define MMUL441_S1(o1_12, o2_12, o3_12, o4_12, o1_34, o2_34, o3_34, o4_34, a1, a2, a3, a4, b1, b2, b3, b4) \
+"ior " mxstr(r100.x) ", " mxstr(a1) ", " mxstr(b1) "\nixor " mxstr(o1_12.x) ", r100.x, " mxstr(o1_12.x) "\n" \
+"ior " mxstr(r100.y) ", " mxstr(a1) ", " mxstr(b2) "\nixor " mxstr(o1_12.z) ", r100.y, " mxstr(o1_12.z) "\n" \
+"ior " mxstr(r100.z) ", " mxstr(a1) ", " mxstr(b3) "\nixor " mxstr(o1_34.x) ", r100.z, " mxstr(o1_34.x) "\n" \
+"ior " mxstr(r100.w) ", " mxstr(a1) ", " mxstr(b4) "\nixor " mxstr(o1_34.x) ", r100.w, " mxstr(o1_34.z) "\n" \
+"ior " mxstr(r100.x) ", " mxstr(a2) ", " mxstr(b1) "\nixor " mxstr(o2_12.x) ", r100.x, " mxstr(o2_12.x) "\n" \
+"ior " mxstr(r100.y) ", " mxstr(a2) ", " mxstr(b2) "\nixor " mxstr(o2_12.z) ", r100.y, " mxstr(o2_12.z) "\n" \
+"ior " mxstr(r100.z) ", " mxstr(a2) ", " mxstr(b3) "\nixor " mxstr(o2_34.x) ", r100.z, " mxstr(o2_34.x) "\n" \
+"ior " mxstr(r100.w) ", " mxstr(a2) ", " mxstr(b4) "\nixor " mxstr(o2_34.z) ", r100.w, " mxstr(o2_34.z) "\n" \
+"ior " mxstr(r100.x) ", " mxstr(a3) ", " mxstr(b1) "\nixor " mxstr(o3_12.x) ", r100.x, " mxstr(o3_12.x) "\n" \
+"ior " mxstr(r100.y) ", " mxstr(a3) ", " mxstr(b2) "\nixor " mxstr(o3_12.z) ", r100.y, " mxstr(o3_12.z) "\n" \
+"ior " mxstr(r100.z) ", " mxstr(a3) ", " mxstr(b3) "\nixor " mxstr(o3_34.x) ", r100.z, " mxstr(o3_34.x) "\n" \
+"ior " mxstr(r100.w) ", " mxstr(a3) ", " mxstr(b4) "\nixor " mxstr(o3_34.z) ", r100.w, " mxstr(o3_34.z) "\n" \
+"ior " mxstr(r100.x) ", " mxstr(a4) ", " mxstr(b1) "\nixor " mxstr(o4_12.x) ", r100.x, " mxstr(o4_12.x) "\n" \
+"ior " mxstr(r100.y) ", " mxstr(a4) ", " mxstr(b2) "\nixor " mxstr(o4_12.z) ", r100.y, " mxstr(o4_12.z) "\n" \
+"ior " mxstr(r100.z) ", " mxstr(a4) ", " mxstr(b3) "\nixor " mxstr(o4_34.x) ", r100.z, " mxstr(o4_34.x) "\n" \
+"ior " mxstr(r100.w) ", " mxstr(a4) ", " mxstr(b4) "\nixor " mxstr(o4_34.x) ", r100.w, " mxstr(o4_34.z) "\n"
+
+#define MMUL441_S2(o1_12, o2_12, o3_12, o4_12, o1_34, o2_34, o3_34, o4_34, a1, a2, a3, a4, b1, b2, b3, b4) \
+"ior " mxstr(r100.x) ", " mxstr(a1) ", " mxstr(b1) "\nixor " mxstr(o1_12.y) ", r100.x, " mxstr(o1_12.y) "\n" \
+"ior " mxstr(r100.y) ", " mxstr(a1) ", " mxstr(b2) "\nixor " mxstr(o1_12.w) ", r100.y, " mxstr(o1_12.w) "\n" \
+"ior " mxstr(r100.z) ", " mxstr(a1) ", " mxstr(b3) "\nixor " mxstr(o1_34.y) ", r100.z, " mxstr(o1_34.y) "\n" \
+"ior " mxstr(r100.w) ", " mxstr(a1) ", " mxstr(b4) "\nixor " mxstr(o1_34.w) ", r100.w, " mxstr(o1_34.w) "\n" \
+"ior " mxstr(r100.x) ", " mxstr(a2) ", " mxstr(b1) "\nixor " mxstr(o2_12.y) ", r100.x, " mxstr(o2_12.y) "\n" \
+"ior " mxstr(r100.y) ", " mxstr(a2) ", " mxstr(b2) "\nixor " mxstr(o2_12.w) ", r100.y, " mxstr(o2_12.w) "\n" \
+"ior " mxstr(r100.z) ", " mxstr(a2) ", " mxstr(b3) "\nixor " mxstr(o2_34.y) ", r100.z, " mxstr(o2_34.y) "\n" \
+"ior " mxstr(r100.w) ", " mxstr(a2) ", " mxstr(b4) "\nixor " mxstr(o2_34.w) ", r100.w, " mxstr(o2_34.w) "\n" \
+"ior " mxstr(r100.x) ", " mxstr(a3) ", " mxstr(b1) "\nixor " mxstr(o3_12.y) ", r100.x, " mxstr(o3_12.y) "\n" \
+"ior " mxstr(r100.y) ", " mxstr(a3) ", " mxstr(b2) "\nixor " mxstr(o3_12.w) ", r100.y, " mxstr(o3_12.w) "\n" \
+"ior " mxstr(r100.z) ", " mxstr(a3) ", " mxstr(b3) "\nixor " mxstr(o3_34.y) ", r100.z, " mxstr(o3_34.y) "\n" \
+"ior " mxstr(r100.w) ", " mxstr(a3) ", " mxstr(b4) "\nixor " mxstr(o3_34.w) ", r100.w, " mxstr(o3_34.w) "\n" \
+"ior " mxstr(r100.x) ", " mxstr(a4) ", " mxstr(b1) "\nixor " mxstr(o4_12.y) ", r100.x, " mxstr(o4_12.y) "\n" \
+"ior " mxstr(r100.y) ", " mxstr(a4) ", " mxstr(b2) "\nixor " mxstr(o4_12.w) ", r100.y, " mxstr(o4_12.w) "\n" \
+"ior " mxstr(r100.z) ", " mxstr(a4) ", " mxstr(b3) "\nixor " mxstr(o4_34.y) ", r100.z, " mxstr(o4_34.y) "\n" \
+"ior " mxstr(r100.w) ", " mxstr(a4) ", " mxstr(b4) "\nixor " mxstr(o4_34.w) ", r100.w, " mxstr(o4_34.w) "\n"
+
+#elif defined(CALDGEMM_IGEMM)
 #define MMUL441_S1(o1_12, o2_12, o3_12, o4_12, o1_34, o2_34, o3_34, o4_34, a1, a2, a3, a4, b1, b2, b3, b4) \
 "imad " mxstr(o1_12.x) ", " mxstr(a1) ", " mxstr(b1) ", " mxstr(o1_12.x) "\n" \
 "imad " mxstr(o1_12.z) ", " mxstr(a1) ", " mxstr(b2) ", " mxstr(o1_12.z) "\n" \
