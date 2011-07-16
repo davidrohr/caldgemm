@@ -1,4 +1,6 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 Caldgemm Readme, Command Line Options, and Performance Optimization Guide, and some examples
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Command Line Options:
 -?
@@ -92,6 +94,10 @@ Print lots of debug output
 
 -z (default: disabled)
 Enable Multithreading. You definitely want to activate this.
+
+-Z (default: disabled)
+Enabld Multithreading for DivideBuffer as well. Requires -z. Only valid for multiple GPUs. Use
+-Gx to set CPUs for GPU pre/postprocessing!.
 
 -b (default: disabled)
 Enable Benchmarking.
@@ -206,6 +212,11 @@ Pin GPU thread to core n. The core which is closest to the GPU should be chosen.
 The additional merge threads will use the next possible core then. E.g. running with 1 merge threads
 and -1 6 will use cores 6 and 7.
 
+-Gx <int> (default: not used)
+Use CPU cored given for GPU x. The merge threads will use the next cores, ie -G1 12 will do dividebuffer
+for GPU 1 on core 12 (if -X) used and mergebuffers on 13 and following. Multiple GPUs assigned to the
+same core are automatically grouped correctly. Use multiple times for multiple GPUs, e.g. -G0 0 -G1 12 -G2 12.
+
 -S (deafult: not used)
 Set slow CPU option (see below)
 
@@ -213,42 +224,42 @@ Set slow CPU option (see below)
 Do not use a round robin scheduler for multi-GPU but split the matrix along the not favored direction and
 process each part by a distinct GPU. This saves BBuffers.
 
--Z (default: disabled)
-Multithreaded DivideBuffer threads. It is not guarantueed that this is faster due to overhead.
-
--Gx <int> (default: not used)
-Use CPU cored given for GPU x. The merge threads will use the next cores, ie -G1 12 will do dividebuffer
-for GPU 1 on core 12 (if -X) used and mergebuffers on 13 and following. Multiple GPUs assigned to the
-same core are automatically grouped correctly.
-
 Other CALDGEMM Options:
 
 The CALDGEMM config allow the SlowCPU option which should be used when the CPU is comparably slow compared
 to the GPU. It deactivates 2nd and 3rd phase runs and adjusts the tiling size to minimize the 1st phase
 CPU run.
 
-
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Performance Optimization Guide:
 
-To achieve good performance 3 steps should be performed:
+To achieve good performance multiple steps should be performed:
 0. Update Settings for the GPU used
 1. Optimize Kernel Performance.
 2. Optimize System Performance of GPU-DGEMM (including DMA-transfer, post-/ preprocessing).
 3. Optimize Combined GPU/CPU Performance.
 4. Optimize multi-GPU performance.
 
-If you have multiple GPUs better do the following with a single GPU first. Try multiGPU afterwards.
+If you have multiple GPUs better do the following with a single GPU first. Try multiGPU afterwards (step 4).
 Add -y 0 to each of the following command lines.
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Step 0:
 Different GPUs require different settings for optimal performance.
 The standard settings are tuned for 5xxx series GPUs.
-For 6xxx series GPUs it is best to enable the CALDGEMM_44_BT_64 and CALDGEMM_44_BT_64_CONVERT
-options in caldgemm_config.h and use h = 2304.
-For 5xxx series h can be used almost arbitrarily but is suggested to be at least 1024.
 
+Especially the splitting ratio calculation may not work correctly. Always keep an eye on the GPU time and the
+CPU time. If one of them is higher then the other, adjust the -j ratio. This is also relevant for the 5000
+series due to different clock speeds.
+
+For the 6xxx series the following configuration is suggested:
+It is best to enable the CALDGEMM_44_BT_64 and CALDGEMM_44_BT_64_CONVERT options in caldgemm_config.h.
+h = 2304 performs best (For 5xxx series h can be used almost arbitrarily but is suggested to be at least 1024).
+Use -o c in any case! See that implicit driver sync works (-I)
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Step 1:
 The kernel performance should be good out of the box. Most kernel parameters cannot be changed via
@@ -261,6 +272,7 @@ Some systems have a poor DMA. You can try to alter the output to GPU memory and 
 kernel performance gets better. Run "./dgemm_bench -o g -v" for this. If the second option is better,
 always use "-o g"
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Step 2:
 Optimize System performance
@@ -293,6 +305,7 @@ Run "./dgemm_bench -z -p -A -B -m 40960 -n 40960". You'll see a warning if the h
 correctly. Performance is not necessarily better than without "-B" but the CPU load is decreased. You'll
 see the difference when using combined CPU/GPU DGEMM.
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Step 3:
 Optimize Overall performance.
@@ -309,13 +322,25 @@ work-stealing algorithm. If you see many 3rd-phase runs in caldgemm output, than
 If the AMD driver hack is not available, you might get better combined performance by using "-o g"
 (foolow the appropriate instructions in step 2 also).
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Step 4:
-There is little you can do to optimize multi-GPU performance. First try to run without CPU. From now on omit the "-y 0".
-The performance should scale almost linearly with multi-GPU.
+There is little you can do to optimize multi-GPU performance. You have to determine the CPU core for each GPU
+independently. Repeat this part of step2. Use -y 0, -y 1, -y 2 etc to optimize each gpu.
+Finally use -G0 ? -G1 ? -G2 ? and insert the optimal cpu core you obtained for each GPU.
+
+First try to run without CPU. From now on omit the "-y 0". The performance should scale almost linearly with
+multi-GPU.
+
+You can try the -X and -Z options. The usually increase performance for 3 GPUs or more. You might also
+want to increase w. w = 1536 or w = 2048 can achieve good performance. For larger w a smaller h is suggested.
+Try h = 3072 for instance.
 
 If you have good multi-GPU performance try to use the CPU as well. You might need to change the -j value.
+Best, start with -j 1 to do almost all work of the CPU. Then decrease j step by step until you see optimal
+performance. (-j 0.97 ... -j 0.94 ... -j 0.91).
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Examples:
 
@@ -331,10 +356,12 @@ Run CPU/GPU DGEMM
 ./dgemm_bench -c -g -z -s -l -p -A -o g -I -y -1 -j -1 -m 40960 -n 40960
 
 Run Multi-GPU/CPU DGEMM
-./dgemm_bench -c -g -z -s -l -p -A -B -m 89088 -n 89088 -X -G0 0 -G1 0 -G2 12
+./dgemm_bench -c -g -z -s -l -p -A -B -m 89088 -n 89088 -X -Z -w 1536 -h 3072 -G0 0 -G1 0 -G2 12
 
 GPU only torture test for device 0
 ./dgemm_bench -y 0 -- 100
 
 GPU/CPU torture test
 ./dgemm_bench -- 100 -c -g -s -z -p
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
