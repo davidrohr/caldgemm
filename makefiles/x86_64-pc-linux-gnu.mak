@@ -85,7 +85,7 @@ ifeq ("$(CONFIG_OPENCL)", "1")
 LIBSUSE						+= -lOpenCL
 endif
 ifeq ("$(CONFIG_CAL)", "1")
-LIBSUSE						+= -laticalcl.lib -laticalrt.lib
+LIBSUSE						+= -laticalcl -laticalrt
 endif
 ifeq ("$(CONFIG_OPENGL)", "1")
 LIBSUSE						+= -lGL -lGLU

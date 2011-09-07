@@ -1206,8 +1206,8 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 	if (!DGEMM_favor_m && buffersSwitchable)
 	{
 		const int buffer_pos = buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : 2);
-		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pos][dwBuffersA + l].dstMem), "setting kernel memory A");
-		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2][l].dstMem), "setting kernel memory B");
+		for (unsigned int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pos][dwBuffersA + l].dstMem), "setting kernel memory A");
+		for (unsigned int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2][l].dstMem), "setting kernel memory B");
 #ifdef CALDGEMM_44_BT_64_CONVERT
 		for (int ll = 0;ll < 2;ll++)
 		{
@@ -1238,8 +1238,8 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 #else
 		const bool buffersSufficiant = false;
 #endif
-		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % 2][l].dstMem), "setting kernel memory A");
-		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][l].dstMem), "setting kernel memory B");
+		for (unsigned int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % 2][l].dstMem), "setting kernel memory A");
+		for (unsigned int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][l].dstMem), "setting kernel memory B");
 #ifdef CALDGEMM_44_BT_64_CONVERT
 		for (int ll = 0;ll < 2;ll++)
 		{
