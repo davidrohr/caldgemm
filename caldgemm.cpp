@@ -176,13 +176,13 @@ int caldgemm::getcpumask(cpu_set_t* set)
 void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2)
 {
 	fprintf(STD_OUT, "Matrix %lld x %lld, Subblocks %lld x %lld, Strides: %lld / %lld\n", (long long int) width, (long long int) height, (long long int) subx, (long long int) suby, (long long int) stridex, (long long int) stridey);
-	for (int j = 0;j < height;j += stridey)
+	for (size_t j = 0;j < height;j += stridey)
 	{
-		for (int jj = j;jj < j + suby && jj < height;jj++)
+		for (size_t jj = j;jj < j + suby && jj < height;jj++)
 		{
-			for (int i = 0;i < width;i += stridex)
+			for (isize_tnt i = 0;i < width;i += stridex)
 			{
-				for (int ii = i;ii < i + subx && ii < width;ii++)
+				for (size_t ii = i;ii < i + subx && ii < width;ii++)
 				{
 					if (M2 != NULL)
 					{
