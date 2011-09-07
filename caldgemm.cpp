@@ -1292,7 +1292,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	cParam.borders_done = false;
 	if (Config->UseCPU == true && Config->UseGPU == true)
 	{
-		if (DGEMM_split_m = (Config->m >= Config->n))
+		if ((DGEMM_split_m = (Config->m >= Config->n)))
 		{
 			size_t virtualm = Config->m + (Config->n % Config->Height) * Config->m / Config->n;
 			if (ExecuteLinpackCallbacks) virtualm += Config->Width * (1.0 + (float) Config->m / Config->n);
@@ -1409,7 +1409,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			tileDistribution = new int[nBlocks];
 			ImprovedSchedPhase1 = 1;
-			for (int l = 0;l < nBlocks;l++)
+			for (size_t l = 0;l < nBlocks;l++)
 			{
 				int k;
 				if (DGEMM_favor_m)
