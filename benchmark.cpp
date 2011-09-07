@@ -172,7 +172,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 	Config->linpack_swap_function = linpack_fake3;
 #endif
 
-	for (int x = 1; x < argc; ++x)
+	for (unsigned int x = 1; x < argc; ++x)
 	{
 		switch(argv[x][1])
 		{

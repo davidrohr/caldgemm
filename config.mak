@@ -16,6 +16,7 @@ INCLUDE_OPENCL				= 0
 INCLUDE_CAL					= 1
 DEFINES						= #_NO_AMD_CPU
 LIBS						=
+EXTRAOBJFILES				=
 
 CONFIG_STATIC				= 0
 EXTRAFLAGSGCC				= 
@@ -45,5 +46,6 @@ DEFINES						+= CALDGEMM_CAL
 endif
 
 ifneq ($(ARCH), i686-pc-cygwin)
-LIBS						+= -lgfortran ../GotoBLAS2/libgoto2.a
+LIBS						+= gfortran
+EXTRAOBJFILES				+= ../GotoBLAS2/libgoto2.a
 endif

@@ -267,7 +267,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	
 	if (Config->PinCPU != -1)
 	{
-	    for (int i = 0;i < max_devices;i++) Config->GPUMapping[i] = Config->PinCPU;
+	    for (unsigned int i = 0;i < max_devices;i++) Config->GPUMapping[i] = Config->PinCPU;
 	}
 
 	CPU_ZERO(&gpumask);
@@ -281,7 +281,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 	
 	if (Config->SlowCPU) Config->DynamicSched = false;
-	if (Config->MultiThread == false) Config->MultiThreadDivide == false;
+	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
 
 	if (ValidateRuntime()) return(1);
 
@@ -1050,7 +1050,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
 	const unsigned long long int double_minus_one = 0xBFF0000000000000;
 #if defined(CALDGEMM_44) && !defined(CALDGEMM_USE_MEMEXPORT)
-	const int kernel_num = ((Config->Width == BufferWidth && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one) ? 2 : (reinterpret_cast<long long int &>(Alpha) == double_one));
+	const int kernel_num = ((Config->Width == BufferWidth && reinterpret_cast<unsigned long long int &>(Beta) == double_one && reinterpret_cast<unsigned long long int &>(Alpha) == double_minus_one) ? 2 : (reinterpret_cast<unsigned long long int &>(Alpha) == double_one));
 #else
 	const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
 #endif
@@ -1432,9 +1432,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		for (int l = 0;l < nDevices;l++)
 		{
 			buffer_pointers_A[l] = new int[mb];
-			for (int ll = 0;ll < mb;ll++) buffer_pointers_A[l][ll] = -1;
+			for (size_t ll = 0;ll < mb;ll++) buffer_pointers_A[l][ll] = -1;
 			buffer_pointers_B[l] = new int[nb];
-			for (int ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
+			for (size_t ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
 		}
 
 		cParam.cpu_k = nBlocks;
@@ -1495,7 +1495,7 @@ restartkloop:
 					}
 
 					pthread_mutex_lock(&scheduleMutex);
-					if (k < cpu_k_barrier)
+					if ((signed) k < cpu_k_barrier)
 					{
 						if ((signed int) k > (signed int) gpu_k_barrier) gpu_k_barrier = k;
 					}
@@ -1556,7 +1556,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						}
 						forcePreparation[use_device] = 0;
 					}
-					if (obuffercount > 1 && lastk[use_device] != -1 && Config->AsyncDMA && k + (nDevices - use_device - 1) % nDevices + 1 < nBlocks && cpu_k_barrier_hit == false)
+					if (obuffercount > 1 && (signed) lastk[use_device] != -1 && Config->AsyncDMA && k + (nDevices - use_device - 1) % nDevices + 1 < nBlocks && cpu_k_barrier_hit == false)
 					{
 						if (ImprovedSchedPhase1) nextk = k + 1;
 						else nextk++;
@@ -1576,7 +1576,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 								DGEMM_getblocks(nextk, nextblockm, nextblockn);
 							}
 						}
-						if (nextk < cpu_k_barrier)
+						if ((signed) nextk < cpu_k_barrier)
 						{
 							WaitForLASWP(nextblockm);
 							Task.PrepareTasks[1].k = nextk;
@@ -1615,7 +1615,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					oldj[use_device] = j[use_device];
 					lastk[use_device] = k;
 				}
-				if ((obuffercount > 1) ? (lastk[use_device] != -1) : (k < nBlocks))
+				if ((obuffercount > 1) ? ((signed) lastk[use_device] != -1) : (k < nBlocks))
 				{
 					if (nBlocks <= k && lastk[use_device] < nBlocks && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0])
 					{
@@ -1648,7 +1648,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 							{
 								for (int ll = 0;ll < nDevices;ll++)
 								{
-									if ((ll != use_device || l != oldj[ll]) && lastk[ll] != -1)
+									if ((ll != use_device || l != oldj[ll]) && (signed) lastk[ll] != -1)
 									{
 										if (Config->Debug) fprintf(STD_OUT, "Waiting to finish merge process for device %d obuffer %d\n", ll, l);
 										if (pthread_mutex_lock(&obufferMutex[ll][l])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1669,7 +1669,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						if (Config->AsyncTiming)
 						{
 							Timers.ATime.Stop();
-							if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001 || Config->Debug) fprintf(STD_OUT, "\t\tWARNING: Wait Time for merge thread: %1.5lf\n", Timers.ATime.GetElapsedTime());
+							if ((!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001) || Config->Debug) fprintf(STD_OUT, "\t\tWARNING: Wait Time for merge thread: %1.5lf\n", Timers.ATime.GetElapsedTime());
 						}
 						if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking outputthread mutex %d to process device %d obuffer %d\n", iMergeThread[use_device], use_device, oldj[use_device]);
 						mParam[use_device][iMergeThread[use_device]].nContext = oldj[use_device];
@@ -1808,8 +1808,6 @@ RunCALDGEMM_end:
 
 int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 {
-	const size_t mb = gpu_m / Config->Height;
-	const size_t nb = gpu_n / Config->Height;
 	for (int l = 0;l < 2;l++)
 	{
 		if (Task.PrepareTasks[l].j != -1)
@@ -1830,7 +1828,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 		if (Config->AsyncTiming)
 		{
 			Timers.ATime.Stop();
-			if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001 || Config->Debug) fprintf(STD_OUT, "\t\tWait Time for output buffer: %1.5lf\n", Timers.ATime.GetElapsedTime());
+			if ((!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001) || Config->Debug) fprintf(STD_OUT, "\t\tWait Time for output buffer: %1.5lf\n", Timers.ATime.GetElapsedTime());
 		}
 	}
 	size_t blockm, blockn;

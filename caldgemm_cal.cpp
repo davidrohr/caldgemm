@@ -1258,7 +1258,7 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 		}
 #endif
 	}
-	for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
+	for (unsigned int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
 	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(Task.device, resourceHandlers[Task.device][Task.j] + numInputs + numConstantBuffers, datas[Task.device][Task.j] + numInputs + numConstantBuffers, numOutputs, &events[Task.device][Task.j], blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 	calCtxFlush(ctxs[Task.device]);
@@ -1602,8 +1602,6 @@ int caldgemm_cal::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 #ifdef CALDGEMM_BENCHMARK_KERNEL
 	return(0);
 #endif
-	const size_t nb = gpu_n / Config->Height;
-	const size_t mb = gpu_m / Config->Height;
 	size_t blockm, blockn;
 	DGEMM_getblocks(k, blockm, blockn);
 
