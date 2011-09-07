@@ -210,7 +210,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 						}
 
 						size_t k = gpu_m / Config->Height * gpu_n / Config->Height;
-						for (int l = 0;l < cParam.dynamic_run2;l++)
+						for (int l = 0;l < (int) cParam.dynamic_run2;l++)
 						{
 							k--;
 							size_t cpublockm, cpublockn;
@@ -479,7 +479,7 @@ int caldgemm::cpuScheduler()
 		pthread_mutex_lock(&scheduleMutex);
 		const size_t k = gpu_k_barrier == -1 ? 0 : gpu_k_barrier;
 
-		if (gpu_k_barrier < nBlocks - 1)
+		if ((size_t) gpu_k_barrier < nBlocks - 1)
 		{
 			size_t blockm, blockn;
 			DGEMM_getblocks(k, blockm, blockn);
@@ -1024,13 +1024,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	C = c;
 	Alpha = alpha;
 	Beta = beta;
-	if (tmp_m != -1) Config->m = tmp_m;
-	if (tmp_n != -1) Config->n = tmp_n;
-	if (tmp_k != -1) Config->Width = tmp_k;
+	if ((signed) tmp_m != -1) Config->m = tmp_m;
+	if ((signed) tmp_n != -1) Config->n = tmp_n;
+	if ((signed) tmp_k != -1) Config->Width = tmp_k;
 
-	A_pitch = Apitch != -1 ? Apitch : Config->Width;
-	B_pitch = Bpitch != -1 ? Bpitch : Config->n;
-	C_pitch = Cpitch != -1 ? Cpitch : Config->n;
+	A_pitch = ((signed) Apitch != -1) ? Apitch : Config->Width;
+	B_pitch = ((signed) Bpitch != -1) ? Bpitch : Config->n;
+	C_pitch = ((signed) Cpitch != -1) ? Cpitch : Config->n;
 	ResetTimers();
 
 	if (order == CblasColMajor)
