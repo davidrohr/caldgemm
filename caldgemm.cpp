@@ -24,60 +24,25 @@
 
 #include "caldgemm.h"
 
-#define ILKernelName ILKernel
-#include "caldgemm.il"
-#undef ILKernelName
-#define ILKernelName ILKernelALPHA1
-#define CALDGEMM_ALPHA1
-#include "caldgemm.il"
-#undef ILKernelName
-#define ILKernelName ILKernelLinpack
-#define CALDGEMM_LINPACK_KERNEL
-#include "caldgemm.il"
-#undef CALDGEMM_LINPACK_KERNEL
-#undef CALDGEMM_ALPHA1
-#undef ILKernelName
-
-const char* caldgemm::ILFakeKernel =
-"il_ps_2_0\n"
-"dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"
-"end\n"
-;
-
-const char* caldgemm::ILConvertKernel =
-"il_ps_2_0\n"
-"dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"
-"dcl_resource_id(0)_type(2d,unnorm)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
-"dcl_resource_id(1)_type(2d,unnorm)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
-"dcl_output_generic o0\n"
-"dcl_output_generic o1\n"
-"dcl_literal l0, 2.0, 1.0, 0.5, 0.0\n"
-"sub r0.xy__, vWinCoord0.xy00, l0.zz00\n"
-"mul r0.xy__, r0.xy00, l0.xy00\n"
-"add r0.xy__, r0.xy00, l0.zz00\n"
-"add r1.xy__, r0.xy00, l0.yw00\n"
-"sample_resource(0)_sampler(0) r13, r0.xy\n"
-"sample_resource(0)_sampler(0) r14, r1.xy\n"
-"sample_resource(1)_sampler(1) r15, r0.xy\n"
-"sample_resource(1)_sampler(1) r16, r1.xy\n"
-"mov o0.xy, r13.xy\n"
-"mov o0.z, r14.x\n"
-"mov o0.w, r14.y\n"
-"mov o1.xy, r15.xy\n"
-"mov o1.z, r16.x\n"
-"mov o1.w, r16.y\n"
-"end\n"
-;
-
+#ifndef _WIN32
 #include <syscall.h>
 #include <errno.h>
 extern "C" {
 #include <common.h>
 }
-#include <math.h>
-#include <unistd.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <unistd.h>
+#else
+static inline int get_num_procs() {return(1);}
+static inline void caldgemm_goto_reserve_cpu(int, int) {}
+static inline void caldgemm_goto_reserve_cpus(int) {}
+static inline void caldgemm_goto_restrict_cpus(int) {}
+static inline void goto_set_num_threads(int) {}
+void cblas_dgemm(enum CBLAS_ORDER Order, enum CBLAS_TRANSPOSE TransA, enum CBLAS_TRANSPOSE TransB, blasint M, blasint N, blasint K,
+				 double alpha, double *A, blasint lda, double *B, blasint ldb, double beta, double *C, blasint ldc) {}
+#endif
+#include <math.h>
 
 #define MPOL_DEFAULT 0
 #define MPOL_PREFERRED 1
@@ -87,13 +52,6 @@ extern "C" {
 #ifndef SHM_HUGETLB
 #define SHM_HUGETLB 04000
 #endif
-
-template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
-template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
-
-#define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {fprintf(STD_OUT, "Error '%s' while " text "\n", calGetErrorString());return(1);}
-#define WAITFOREVENT(ctx, eventnr, devicenr) { CALresult r; if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr); do { r = calCtxIsEventDone(ctx, events[devicenr][eventnr]); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
-#define WAITFOREVENTA(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
 #ifdef DEBUG_MSG_TIMED
 inline void printelapsedtime(bool reset = false)
@@ -202,7 +160,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	MPIRank = -1;
 	PreOut = EmptyOut;
 	GPUClock = 0;
-	for (int i = 0;i < caldgemm::max_devices;i++) GPUMapping[i] = 0;
+	for (unsigned int i = 0;i < caldgemm::max_devices;i++) GPUMapping[i] = 0;
 }
 
 int caldgemm::getcpumask(cpu_set_t* set)
@@ -270,7 +228,10 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 						}
 
 						int ok = isDoubleEqual(M[jj * pitch + ii], M2[jj * pitch + ii]);
-						fprintf(STD_OUT, "\33[%sm%d\33[%sm%+10.3lf\t", ok ? "01;32" : "01;31", ok , tmpcolor, M[jj * pitch + ii]);
+#ifndef _WIN32
+						fprintf(STD_OUT, "\33[%sm%d\33[%sm", ok ? "01;32" : "01;31", ok, tmpcolor);
+#endif
+						fprintf(STD_OUT, "%+10.3lf\t", M[jj * pitch + ii]);
 					}
 					else
 					{
@@ -278,611 +239,13 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 					}
 				}
 			}
-			fprintf(STD_OUT, "\33[0m\n");
+#ifndef _WIN32
+			fprintf(STD_OUT, "\33[0m");
+#endif
+			fprintf(STD_OUT, "\n");
 		}
 	}
 	fprintf(STD_OUT, "Done\n");
-}
-
-#ifdef CALDGEMM_UNALIGNED_ADDRESSES
-#define _mm_load_pd_use _mm_loadu_pd
-#else
-#define _mm_load_pd_use _mm_load_pd
-#endif
-
-#define _mm_store_pd_use _mm_stream_pd
-#define CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-
-int caldgemm::divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose)
-{
-	if (Config->Debug) fprintf(STD_OUT, "\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", (long long int) src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
-
-	if (Config->DivideToGPU)
-		for (unsigned int i = 0;i < numBuffers;i++)
-		{
-			CHKERR(calResMap(&dst[i].ptr_void, &dst[i].pitch, dst[i].res, 0), "mapping input buffer for buffer division");
-			if (((size_t) dst[i].ptr_void) & (vcpysize - 1))
-			{
-				fprintf(STD_OUT, "Invalid alignment\n");
-				return(1);
-			}
-		}
-
-		if (transpose)
-		{
-#if !defined(CALDGEMM_44)
-			if (numBuffers <= 4)
-			{
-				for (int y = 0;y < width;y += 4)
-				{
-					double* saddr = src + (y * pitch);
-					double* saddr2 = src + ((y + 1) * pitch);
-					double* saddr3 = src + ((y + 2) * pitch);
-					double* saddr4 = src + ((y + 3) * pitch);
-
-					double* daddr = dst[0].ptr_double + y;
-					double* daddr2 = dst[1 % numBuffers].ptr_double + (1 / numBuffers) * gpu_width + y;
-					double* daddr3 = dst[2 % numBuffers].ptr_double + (2 / numBuffers) * gpu_width + y;
-					double* daddr4 = dst[3 % numBuffers].ptr_double + (3 / numBuffers) * gpu_width + y;
-
-					const int dpitch = 4 / numBuffers * gpu_width;
-
-					for (int i = 0;i < height;i += 4)
-					{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-						//Prefetching disabled as it currently has a negative performance impact
-						/*_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-						_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
-						_mm_prefetch(saddr3 + 100, _MM_HINT_NTA);
-						_mm_prefetch(saddr4 + 100, _MM_HINT_NTA);*/
-#endif
-						__m128d x1, x2, x3, x4, x5, x6, x7, x8, x9, x10;
-						x1 = _mm_load_pd_use(saddr);
-						x3 = _mm_load_pd_use(saddr + 2);
-						x2 = _mm_load_pd_use(saddr2);
-						x4 = _mm_load_pd_use(saddr2 + 2);
-						x5 = _mm_load_pd_use(saddr3);
-						x7 = _mm_load_pd_use(saddr3 + 2);
-						x6 = _mm_load_pd_use(saddr4);
-						x8 = _mm_load_pd_use(saddr4 + 2);
-
-						x9 = _mm_unpacklo_pd(x1, x2);
-						x10 = _mm_unpackhi_pd(x1, x2);
-						x1 = _mm_unpacklo_pd(x3, x4);
-						x2 = _mm_unpackhi_pd(x3, x4);
-						x3 = _mm_unpacklo_pd(x5, x6);
-						x4 = _mm_unpackhi_pd(x5, x6);
-						x5 = _mm_unpacklo_pd(x7, x8);
-						x6 = _mm_unpackhi_pd(x7, x8);
-
-						_mm_store_pd_use(daddr, x9);
-						_mm_store_pd_use(daddr2, x10);
-						_mm_store_pd_use(daddr + 2, x3);
-						_mm_store_pd_use(daddr2 + 2, x4);
-						_mm_store_pd_use(daddr3, x1);
-						_mm_store_pd_use(daddr4, x2);
-						_mm_store_pd_use(daddr3 + 2, x5);
-						_mm_store_pd_use(daddr4 + 2, x6);
-
-						saddr += 4;
-						saddr2 += 4;
-						saddr3 += 4;
-						saddr4 += 4;
-
-						daddr += dpitch;
-						daddr2 += dpitch;
-						daddr3 += dpitch;
-						daddr4 += dpitch;
-					}
-				}
-			}
-			else
-#endif
-#if (defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B))
-				assert((height & 3) == 0);
-				const int height_4 = height / 4;
-
-				for (int y=0; y < width; y += 4)
-				{
-					const double *__restrict__ saddr0 = &src[(y + 0) * pitch];
-					const double *__restrict__ saddr2 = &src[(y + 2) * pitch];
-
-					double *__restrict__ dstBank0 = &dst[0].ptr_double[y * 2];
-					double *__restrict__ dstBank1 = &dst[1].ptr_double[y * 2];
-
-					for (int i = 0; i < height_4; ++i)
-					{
-						double *__restrict__ daddr0 = &dstBank0[i * gpu_width * 2];
-						double *__restrict__ daddr1 = &dstBank1[i * gpu_width * 2];
-
-						const __m128d x0 = _mm_load_pd_use(&saddr0[0]);
-						const __m128d x1 = _mm_load_pd_use(&saddr0[pitch]);
-						const __m128d x2 = _mm_load_pd_use(&saddr2[0]);
-						const __m128d x3 = _mm_load_pd_use(&saddr2[pitch]);
-						saddr0 += 2;
-						saddr2 += 2;
-
-						const __m128d x4 = _mm_load_pd_use(&saddr0[0]);
-						const __m128d x5 = _mm_load_pd_use(&saddr0[pitch]);
-						const __m128d x6 = _mm_load_pd_use(&saddr2[0]);
-						const __m128d x7 = _mm_load_pd_use(&saddr2[pitch]);
-						saddr0 += 2;
-						saddr2 += 2;
-
-						_mm_stream_pd(&daddr0[0], _mm_unpacklo_pd(x0, x1));
-						_mm_stream_pd(&daddr0[2], _mm_unpackhi_pd(x0, x1));
-						_mm_stream_pd(&daddr0[4], _mm_unpacklo_pd(x2, x3));
-						_mm_stream_pd(&daddr0[6], _mm_unpackhi_pd(x2, x3));
-
-						_mm_stream_pd(&daddr1[0], _mm_unpacklo_pd(x4, x5));
-						_mm_stream_pd(&daddr1[2], _mm_unpackhi_pd(x4, x5));
-						_mm_stream_pd(&daddr1[4], _mm_unpacklo_pd(x6, x7));
-						_mm_stream_pd(&daddr1[6], _mm_unpackhi_pd(x6, x7));
-					}
-				}
-#else
-				for (int y=0; y < width; y += 2)
-				{
-					double* saddr = src + (y * pitch);
-					double* saddr2 = src + ((y + 1) * pitch);
-
-					for (int i = 0;i < height;i += 2)
-					{
-#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
-						int bank = (i / 2) % 2;
-						double* daddr = dst[bank].ptr_double + (i / 4) * gpu_width * 2 + y * 2;
-						double* daddr2 = dst[bank].ptr_double + (i / 4) * gpu_width * 2 + y * 2 + 2;
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-						//Col Interleaved Storage, Numbuffers is either 2 or 4, might be optimized in 2 branches
-						int bank = (y / 2) % numBuffers;
-#ifdef CALDGEMM_DIAGONAL_TEXTURE
-						double* daddr = dst[bank].ptr_double + i * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (gpu_width / 2);
-						double* daddr2 = dst[bank].ptr_double + (i + 1) * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (gpu_width / 2);
-#else
-						double* daddr = dst[bank].ptr_double + (i * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
-						double* daddr2 = dst[bank].ptr_double + ((i + 1) * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
-#endif
-#else
-						//Standard Storage
-						int bank = (i) % numBuffers;
-						int bank2 = (i + 1) % numBuffers;
-						double* daddr = dst[bank].ptr_double + (i / numBuffers) * gpu_width + y;
-						double* daddr2 = dst[bank2].ptr_double + (i / numBuffers) * gpu_width + y;
-#endif
-
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-						_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-						_mm_prefetch(saddr2 + 100, _MM_HINT_NTA);
-#endif
-						__m128d x1, x2, x3, x4;
-						x1 = _mm_load_pd_use(saddr);
-						x2 = _mm_load_pd_use(saddr2);
-						x3 = _mm_unpacklo_pd(x1, x2);
-						x4 = _mm_unpackhi_pd(x1, x2);
-						_mm_store_pd_use(daddr, x3);
-						_mm_store_pd_use(daddr2, x4);
-						saddr += 2;
-						saddr2 += 2;
-					}
-				}
-#endif
-
-		}
-		else
-		{
-#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
-			//Row / Col Interleaved Storage with 2 rows stored in one col
-			for (int y = 0;y < height / 2;y++)
-			{
-				double* daddr = dst[y % 2].ptr_double + y / 2 * gpu_width * 2;
-				double* saddr = src + 2 * y * pitch;
-				double* saddr2 = src + (2 * y + 1) * pitch;
-				for (int i = 0;i < width;i += 4)
-				{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(saddr + 60, _MM_HINT_NTA);
-					_mm_prefetch(saddr2 + 60, _MM_HINT_NTA);
-#endif
-					_mm_store_pd_use(daddr + 0, _mm_load_pd_use(saddr));
-					_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr2));
-					_mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 2));
-					_mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr2 + 2));
-					daddr += 8;
-					saddr += 4;
-					saddr2 += 4;
-				}
-			}
-
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-			//Col Interleaved Storage for transposed A with 4x4, 8x4 and 8x8 tiling
-			if (numBuffers == 4)
-			{
-				double* daddr = dst[0].ptr_double;
-				double* daddr2 = dst[1].ptr_double;
-				double* daddr3 = dst[2].ptr_double;
-				double* daddr4 = dst[3].ptr_double;
-				for (int y=0; y < height; y++)
-				{
-					int count = dst[0].DataSize * width;
-					double* saddr = src + (y * pitch);
-
-					for (int i = 0;i < count;i += 256)
-					{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-						_mm_prefetch(saddr + 30, _MM_HINT_NTA);
-#endif
-						_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
-						_mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));
-						_mm_store_pd_use(daddr3, _mm_load_pd_use(saddr + 4));
-						_mm_store_pd_use(daddr4, _mm_load_pd_use(saddr + 6));
-						_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 8));
-						_mm_store_pd_use(daddr2 + 2, _mm_load_pd_use(saddr + 10));
-						_mm_store_pd_use(daddr3 + 2, _mm_load_pd_use(saddr + 12));
-						_mm_store_pd_use(daddr4 + 2, _mm_load_pd_use(saddr + 14));
-						_mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 16));
-						_mm_store_pd_use(daddr2 + 4, _mm_load_pd_use(saddr + 18));
-						_mm_store_pd_use(daddr3 + 4, _mm_load_pd_use(saddr + 20));
-						_mm_store_pd_use(daddr4 + 4, _mm_load_pd_use(saddr + 22));
-						_mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr + 24));
-						_mm_store_pd_use(daddr2 + 6, _mm_load_pd_use(saddr + 26));
-						_mm_store_pd_use(daddr3 + 6, _mm_load_pd_use(saddr + 28));
-						_mm_store_pd_use(daddr4 + 6, _mm_load_pd_use(saddr + 30));
-						saddr += 32;
-						daddr += 8;
-						daddr2+= 8;
-						daddr3 += 8;
-						daddr4 += 8;
-					}
-					daddr += (gpu_width - width) / numBuffers;
-					daddr2 += (gpu_width - width) / numBuffers;
-					daddr3 += (gpu_width - width) / numBuffers;
-					daddr4 += (gpu_width - width) / numBuffers;
-				}
-			}
-			else
-			{
-				double* daddr = dst[0].ptr_double;
-				double* daddr2 = dst[1].ptr_double;
-				for (int y=0; y < height; y++)
-				{
-					int count = dst[0].DataSize * width;
-					double* saddr = src + (y * pitch);
-
-					for (int i = 0;i < count;i += 64)
-					{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-						_mm_prefetch(saddr + 76, _MM_HINT_NTA);
-#endif
-						_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
-						_mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));
-						_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 4));
-						_mm_store_pd_use(daddr2 + 2, _mm_load_pd_use(saddr + 6));
-						saddr += 8;
-						daddr += 4;
-						daddr2+= 4;
-					}
-					daddr += (gpu_width - width) / numBuffers;
-					daddr2 += (gpu_width - width) / numBuffers;
-				}
-			}
-#else
-			// Array to store the position from which data will be filled in the various output buffers.
-			int* position = new int[numBuffers];
-			memset((void*) position, 0, numBuffers * sizeof(int));
-			for (int y=0; y < height; y++)
-			{
-				int bank = y % numBuffers;
-				double* daddr = dst[bank].ptr_double + position[bank];
-				double* saddr = src + (y * pitch);
-				int count = dst[bank].DataSize * width;
-
-				for (int i = 0;i < count;i += 64)
-				{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-#endif
-					_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
-					_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 2));
-					_mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 4));
-					_mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr + 6));
-					saddr += 8;
-					daddr += 8;
-				}
-
-				position[bank] += gpu_width;
-			}
-			delete[] position;
-#endif
-		}
-
-		if (Config->DivideToGPU)
-			for (unsigned int i = 0;i < numBuffers;i++)
-			{
-				CHKERR(calResUnmap(dst[i].res), "unmapping input buffer for buffer division");
-			}
-			return(0);
-}
-
-int caldgemm::mergeBuffers(double* dst, BufferProperties* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers)
-{
-#ifdef CALDGEMM_BENCHMARK_KERNEL
-	return(0);
-#endif
-	if (Config->DstMemory == 'c' && !Config->KeepBuffersMapped)
-	{
-		for (unsigned int i = 0;i < dwBuffersC;i++)
-		{
-			CHKERR(calResMap(&src[i].ptr_void, &src[i].pitch, src[i].res, 0), "mapping output buffer for merging");
-			if (((size_t) src[i].ptr_void) & (vcpysize - 1))
-			{
-				fprintf(STD_OUT, "Invalid alignment\n");
-				return(1);
-			}
-		}
-	}
-		
-#if defined(CALDGEMM_44) && !defined(CALDGEMM_USE_MEMEXPORT)
-	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
-	const unsigned long long int double_minus_one = 0xBFF0000000000000;
-
-	if (Config->Width == BufferWidth && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one)
-	{
-		//Special Linpack Function
-		for (int y=0; y < height; y++)
-		{
-			int bank = y % 4;
-			double* saddr = src[bank].ptr_double + (y / 4) * (gpu_width / 2);
-			double* saddr2 = src[bank + 4].ptr_double + (y / 4) * (gpu_width / 2);
-			double* daddr = dst + (y * pitch);
-			int count = src[bank].DataSize * width;
-
-
-#undef _mm_store_pd_use
-#define _mm_store_pd_use _mm_store_pd
-				for (int i = 0;i < width;i += 8)
-				{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(saddr + 50, _MM_HINT_NTA);
-					_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-#ifndef _NO_AMD_CPU
-					_m_prefetchw(daddr + 50);
-#else
-					_mm_prefetch(daddr + 50, _MM_HINT_NTA);
-#endif
-#endif
-					_mm_store_pd_use(daddr, _mm_sub_pd(_mm_load_pd(daddr), _mm_load_pd(saddr)));
-					_mm_store_pd_use(daddr + 4, _mm_sub_pd(_mm_load_pd(daddr + 4), _mm_load_pd(saddr + 2)));
-					_mm_store_pd_use(daddr + 2, _mm_sub_pd(_mm_load_pd(daddr + 2), _mm_load_pd(saddr2)));
-					_mm_store_pd_use(daddr + 6, _mm_sub_pd(_mm_load_pd(daddr + 6), _mm_load_pd(saddr2 + 2)));
-
-					saddr += 4;
-					saddr2 += 4;
-					daddr += 8;
-				}
-			
-				
-		}
-	}
-	else
-#endif
-	{
-	// Array to store the position from which data will be pulled in from the input buffers
-	int* position = new int[numBuffers];
-	memset((void*) position, 0, numBuffers * sizeof(int));
-
-	for (int y=0; y < height; y++)
-	{
-		//CALDGEMM_44 Init
-#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
-		int bank = y % 4;
-		double* saddr2 = src[bank + 4].ptr_double + position[bank];
-		double* paddr2 = src[(y + 1) % 4 + 4].ptr_double + position[(y + 1) % 4];
-#else
-		int bank = y % numBuffers;
-#endif
-
-		double* daddr = dst + (y * pitch);
-		double* saddr = src[bank].ptr_double + position[bank];
-		double* paddr = src[(y + 1) % 4].ptr_double + position[(y + 1) % 4];
-		int count = src[bank].DataSize * width;
-
-#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
-
-		if (Config->KeepBuffersMapped)
-		{
-			if (__fpclassify(Beta) == FP_ZERO)
-			{
-				//CALDGEMM_44 BETA=ZERO HACKED LIB
-				for (int i = 0;i < count;i += 64)
-				{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(saddr + 50, _MM_HINT_NTA);
-					_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-#endif
-					_mm_store_pd_use(daddr, _mm_load_pd(saddr));
-					_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
-					_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
-					_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
-					saddr += 4;
-					saddr2 += 4;
-					daddr += 8;
-				}
-			}
-			else
-			{
-				//CALDGEMM_44 GENERAL CASE ORIGINAL LIB
-#undef _mm_store_pd_use
-#define _mm_store_pd_use _mm_store_pd
-				__m128d beta = _mm_set1_pd(Beta);
-				for (int i = 0;i < count;i += 64)
-				{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(saddr + 50, _MM_HINT_NTA);
-					_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-#ifndef _NO_AMD_CPU
-					_m_prefetchw(daddr + 50);
-#else
-					_mm_prefetch(daddr + 50, _MM_HINT_NTA);
-#endif
-#endif
-					_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
-					_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-					_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
-					_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
-
-					saddr += 4;
-					saddr2 += 4;
-					paddr += 4;
-					paddr2 += 4;
-					daddr += 8;
-				}
-			}
-		}
-		else
-		{
-			if (__fpclassify(Beta) == FP_ZERO)
-			{
-				//CALDGEMM_44 BETA=ZERO ORIGINAL LIB
-				for (int i = 0;i < count;i += 128)
-				{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(saddr + 50, _MM_HINT_NTA);
-					_mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-#endif
-					_mm_store_pd_use(daddr, _mm_load_pd(saddr));
-					_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr2));
-					_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 2));
-					_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr2 + 2));
-					_mm_store_pd_use(daddr + 8, _mm_load_pd(saddr + 4));
-					_mm_store_pd_use(daddr + 10, _mm_load_pd(saddr2 + 4));
-					_mm_store_pd_use(daddr + 12, _mm_load_pd(saddr + 6));
-					_mm_store_pd_use(daddr + 14, _mm_load_pd(saddr2 + 6));
-					saddr += 8;
-					saddr2 += 8;
-					daddr += 16;
-				}
-			}
-			else
-			{
-				//CALDGEMM_44 GENERAL CASE ORIGINAL LIB
-#undef _mm_store_pd_use
-#define _mm_store_pd_use _mm_store_pd
-				__m128d beta = _mm_set1_pd(Beta);
-				for (int i = 0;i < count;i += 128)
-				{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					//    		    _mm_prefetch(saddr + 50, _MM_HINT_NTA);
-					//    		    _mm_prefetch(saddr2 + 50, _MM_HINT_NTA);
-#ifndef _NO_AMD_CPU
-					_m_prefetchw(daddr + 50);
-#else
-					_mm_prefetch(daddr + 50, _MM_HINT_NTA);
-#endif
-#endif
-					_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
-					_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-					_mm_store_pd_use(daddr + 8, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 8))));
-					_mm_store_pd_use(daddr + 12, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 12))));
-					_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
-					_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr2 + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
-					_mm_store_pd_use(daddr + 10, _mm_add_pd(_mm_load_pd(saddr2 + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 10))));
-					_mm_store_pd_use(daddr + 14, _mm_add_pd(_mm_load_pd(saddr2 + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 14))));
-					saddr += 8;
-					saddr2 += 8;
-					/*    		    paddr += 8;
-									paddr2 += 8;*/
-					daddr += 16;
-				}
-			}
-		}
-
-		position[bank] += gpu_width / 2;
-#else        
-		if (__fpclassify(Beta) == FP_ZERO)
-		{
-			//CALDGEMM_84 BETA=0
-#undef _mm_store_pd_use
-#define _mm_store_pd_use _mm_stream_pd
-			for (int i = 0;i < count;i += 64)
-			{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-				_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-#endif
-				_mm_store_pd_use(daddr, _mm_load_pd(saddr));
-				_mm_store_pd_use(daddr + 2, _mm_load_pd(saddr + 2));
-				_mm_store_pd_use(daddr + 4, _mm_load_pd(saddr + 4));
-				_mm_store_pd_use(daddr + 6, _mm_load_pd(saddr + 6));
-				saddr += 8;
-				daddr += 8;
-			}
-		}
-		else
-		{
-			//CALDGEMM_82 General Case
-#undef _mm_store_pd_use
-#define _mm_store_pd_use _mm_store_pd
-			__m128d beta = _mm_set1_pd(Beta);
-			for (int i = 0;i < count;i += 64)
-			{
-#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-				_mm_prefetch(saddr + 100, _MM_HINT_NTA);
-#ifndef _NO_AMD_CPU
-				_m_prefetchw(daddr + 100);
-#endif
-#endif
-				_mm_store_pd_use(daddr, _mm_add_pd(_mm_load_pd(saddr), _mm_mul_pd(beta, _mm_load_pd(daddr))));
-				_mm_store_pd_use(daddr + 2, _mm_add_pd(_mm_load_pd(saddr + 2), _mm_mul_pd(beta, _mm_load_pd(daddr + 2))));
-				_mm_store_pd_use(daddr + 4, _mm_add_pd(_mm_load_pd(saddr + 4), _mm_mul_pd(beta, _mm_load_pd(daddr + 4))));
-				_mm_store_pd_use(daddr + 6, _mm_add_pd(_mm_load_pd(saddr + 6), _mm_mul_pd(beta, _mm_load_pd(daddr + 6))));
-				saddr += 8;
-				daddr += 8;
-			}
-		}
-
-		position[bank] += gpu_width;
-#endif //CALDGEMM_44
-	}
-
-	delete[] position;
-	}
-	if (Config->DstMemory == 'c' && !Config->KeepBuffersMapped)
-	{
-		for (unsigned int i = 0;i < dwBuffersC;i++)
-		{
-			CHKERR(calResUnmap(src[i].res), "unmapping output buffer for merging");
-		}
-	}
-	return(0);
-}
-
-void caldgemm::checkCalPatch()
-{
-	unsigned char *RunProgPTL = (unsigned char *)(&calCtxRunProgram);
-	unsigned char **RunProgWrapperFunc = *(unsigned char ***)((size_t)(*(unsigned int *)(RunProgPTL + 2)) + RunProgPTL + 6);
-	//fprintf(STD_OUT, "RunProgWrapperFunc = %p, ddi_interface[?] = %p\n", RunProgWrapperFunc, RunProgWrapperFunc + (0x10f588 - 0x4220)/sizeof(void*));
-	
-	//10.9 ATI Driver
-	unsigned char *RunProgFunc9 = *(RunProgWrapperFunc + (0x10f588 - 0x4220) / sizeof(void*));
-	unsigned char *patchpos9 = RunProgFunc9 + 0x7fffe591b631 - 0x7fffe591b560;
-	
-	//10.10 ATI Driver
-	unsigned char *RunProgFunc10 = *(RunProgWrapperFunc + (0x7ffff7fcc588 - 0x7ffff7ec1220) / sizeof(void*));
-	unsigned char *patchpos10 = RunProgFunc10 + 0x7ffff5933cdf - 0x7ffff5933bd0;
-		
-	if (*patchpos9 == 0x74 || *patchpos10 == 0x74)
-	{
-		if (Config->KeepBuffersMapped && !Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: CAL library not patched, KeepBuffersMapped unavailable\n");
-		Config->KeepBuffersMapped = false;
-	}
-	else if (*patchpos9 != 0xEB && *patchpos10 != 0xEB)
-	{
-		if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Unknown CAL Library found, KeepBuffersMapped unavailable\n");
-		Config->KeepBuffersMapped = false;
-	}
-	else if (Config->Debug)
-	{
-		fprintf(STD_OUT, "Patched CAL library found, KeepBuffersMapped available\n");
-	}
 }
 
 int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
@@ -895,7 +258,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		return(1);
 	}
 
+#ifdef _WIN32
+	strcpy(hostname, "Win32");
+#else
 	gethostname(hostname, 255);
+#endif
 	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);
 	
 	if (Config->PinCPU != -1)
@@ -916,40 +283,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (Config->SlowCPU) Config->DynamicSched = false;
 	if (Config->MultiThread == false) Config->MultiThreadDivide == false;
 
-	if(ValidateCALRuntime())
-	{
-		fprintf(STD_OUT, "Error. Could not find a compatible CAL runtime.\n");
-		return(1);
-	}
-
-#ifdef CALDGEMM_44
-	if (Config->Width % 8)
-	{
-		fprintf(STD_OUT, "Only width of multiples of 8 are computable.\n");
-		return(1);
-	}
-	else if (Config->Width % 64)
-	{
-		fprintf(STD_OUT, "Cannot allocate buffer corresponding to Config->Width, increasing buffer size from %lld to %lld\n", (long long int) Config->Width, (long long int) (Config->Width + 64 - Config->Width % 64));
-		Config->Width += 64 - Config->Width % 64;
-	}
-#else
-	if (Config->Width % 64)
-	{
-		fprintf(STD_OUT, "Only width of size 64 are computable.\n");
-		return(1);
-	}
-#endif
-	if (Config->Height & 0x7)
-	{
-		fprintf(STD_OUT, "Only heights with multiple of 8 are computable.\n" );
-		return(1);
-	}
-	else if (Config->Height % 256)
-	{
-		fprintf(STD_OUT, "Cannot allocate buffer corresponding to Config->Height, increasing buffer size from %lld to %lld\n", (long long int) Config->Height, (long long int) (Config->Height + 256 - Config->Height % 256));
-		Config->Height += 256 - Config->Height % 256;
-	}
+	if (ValidateRuntime()) return(1);
 
 	numInputs = dwBuffersA + dwBuffersB;
 	numOutputs = dwBuffersC;
@@ -969,80 +303,22 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->KeepBuffersMapped = 0;
 	}
 
-	for (int i = 0;i < nDevices;i++)
-	{
-		CALdeviceattribs attribs;
-		attribs.struct_size = sizeof(CALdeviceattribs);
-		if (calDeviceGetAttribs(&attribs, device_nums[i]) != CAL_RESULT_OK)
-		{
-			fprintf(STD_OUT, "Error getting device attributes\n");
-			return 1;
-		}
-		if (!attribs.doublePrecision)
-		{
-			fprintf(STD_OUT, "The device does not support double precision\n");
-			return(1);
-		}
-		conf_gpufreq = attribs.engineClock ? attribs.engineClock : 850;
-		conf_gpushaders = attribs.numberOfSIMD * attribs.wavefrontSize;
-	}
+	if (CheckDevices()) return(1);
 
-	if (Config->KeepBuffersMapped)
-	{
-		if (SetupKernel(ILFakeKernel, &fakeModule, &ctxs[0], device_nums[0], false)) return(1);
-		if (RunProgram(&ctxs[0], &fakeModule, 0, 0, &events[0][0])) {fprintf(STD_OUT, "Error running test kernel on GPU\n"); return(1);}
-		if (Config->KeepBuffersMapped) checkCalPatch();
-		if (calModuleUnload(ctxs[0], fakeModule) != CAL_RESULT_OK )
-		{
-			fprintf(STD_OUT, "Error unloading test module\n");
-			fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
-		}
-	}
 	outputthreads = Config->KeepBuffersMapped || Config->DstMemory == 'g' ? CALDGEMM_OUTPUT_THREADS : CALDGEMM_OUTPUT_THREADS_SLOW;
 	
-	cpu_set_t tmpmask;
+	if (InitDevices()) return(1);
 
-	int min_bbuffers = max_bbuffers;
-	for (int device_num = 0;device_num < nDevices;device_num++)
+	if (Config->MultiThread)
 	{
-		CPU_ZERO(&tmpmask);
-		CPU_SET(Config->GPUMapping[device_num], &tmpmask);
-		sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
-		
-		int num_bbuffers;
-		if (Config->DstMemory == 'g') num_bbuffers =  max_bbuffers_g;
-		else num_bbuffers = max_bbuffers;
-		for (int i = 0;i < num_bbuffers;i++)
+		for (int device_num = 0;device_num < nDevices;device_num++)
 		{
-			if (i < 1)
-			{
-				if (SetupKernel(ILKernel, &modules[device_num][0], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
-					SetupKernel(ILKernelALPHA1, &modules[device_num][1], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
-					SetupKernel(ILKernelLinpack, &modules[device_num][2], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
-					SetupKernel(ILConvertKernel, &modulesConvert[device_num], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)))
-				{
-					return 1;
-				}
-				for (int j = 0;j < kernel_count;j++) progNames[device_num][j] = new CALname[numInputs + numOutputs + numConstantBuffers];
-			}
-
-			datas[device_num][i] = new BufferProperties[numInputs + numOutputs + numConstantBuffers];
-			resourceHandlers[device_num][i] = new CALresource[numInputs + numOutputs + numConstantBuffers];
-			memset(datas[device_num][i], 0, (numInputs + numOutputs + numConstantBuffers) * sizeof(BufferProperties));
-			memset(resourceHandlers[device_num][i], 0, (numInputs + numOutputs + numConstantBuffers) * sizeof(CALresource));
-			if (SetupData(modules[device_num], resourceHandlers[device_num][i], datas[device_num][i], &devices[device_num], &ctxs[device_num], numInputs, numOutputs, numConstantBuffers, progNames[device_num], i, device_num))
-			{
-				if (i < obuffercount) return 1;
-				else break;
-			}
-			bbuffers[device_num] = i + 1;
-
-			if (i < obuffercount && Config->MultiThread)
+			for (int i = 0;i < obuffercount;i++)
 			{
 				pthread_mutex_init(&obufferMutex[device_num][i], NULL);
 			}
 
-			if (i < max_outputthreads && Config->MultiThread)
+			for (int i = 0;i < max_outputthreads;i++)
 			{
 				mParam[device_num][i].num_device = device_num;
 				mParam[device_num][i].cls = this;
@@ -1055,10 +331,9 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 				while (pthread_mutex_trylock(&mParam[device_num][i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[device_num][i].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 			}
 		}
-		if (Config->Debug) fprintf(STD_OUT, "Was able to allocate %d bbuffers on device %d\n", bbuffers[device_num], device_num);
-		if (bbuffers[device_num] < min_bbuffers) min_bbuffers = bbuffers[device_num];
 	}
-	if (!Config->Quiet) fprintf(STD_OUT, "Was able to allocate %d bbuffers\n", min_bbuffers);
+
+	cpu_set_t tmpmask;
 	CPU_ZERO(&tmpmask);
 	CPU_SET(Config->GPUMapping[0], &tmpmask);
 	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
@@ -1122,8 +397,12 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	if (Config->MemPolicy)
 	{
+#ifdef _WIN32
+
+#else
 		unsigned long nodemask = 0xffffff;
 		syscall(SYS_set_mempolicy, MPOL_INTERLEAVE, &nodemask, sizeof(nodemask) * 8);
+#endif
 	}
 
 	/*fprintf(STD_OUT, "Setting FIFO scheduler\n");
@@ -1147,86 +426,12 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	return(0);
 }
 
-void caldgemm::cal_init_constant_data(BufferProperties* &data, double alpha)
-{
-	data[dwBuffersA + dwBuffersB].ptr_float[0] = (float) TILING_Y / Config->Height;			//Scale factor for normalized y pos
-	data[dwBuffersA + dwBuffersB].ptr_float[2] = (float) TILING_X / Config->Height;			//Scale factor for normalized x pos
-#ifdef CALDGEMM_44
-	data[dwBuffersA + dwBuffersB].ptr_float[1] = 1.f / Config->Width;							//Step in K direction
-#ifdef CALDGEMM_44_BT_64_KERNEL
-	data[dwBuffersA + dwBuffersB].ptr_float[4] = static_cast<float>(Config->Width * 2);			//Iterations of loop in IL Kernel
-#else
-	data[dwBuffersA + dwBuffersB].ptr_float[4] = static_cast<float>(Config->Width);			//Iterations of loop in IL Kernel
-#endif
-#else //CALDGEMM_44
-	data[dwBuffersA + dwBuffersB].ptr_float[1] = 2.f / Config->Width;							//Step in K direction
-	data[dwBuffersA + dwBuffersB].ptr_float[4] = static_cast<float>(Config->Width / (dwBuffersB << 2));	//Iterations of loop in IL Kernel
-#endif //CALDGEMM_44
-	data[dwBuffersA + dwBuffersB].ptr_float[3] = 0.f;
-	data[dwBuffersA + dwBuffersB].ptr_float[5] = (float) dwBuffersA / Config->Height;			//For transposed matrix finer y resolution is needed
-	data[dwBuffersA + dwBuffersB].ptr_float[8] = 0.5f - 0.5f / (float) (TILING_Y / dwBuffersA);
-
-	//Constants for Memexport
-	data[dwBuffersA + dwBuffersB].ptr_int[9] = TILING_Y * Config->Height / 2;				//2 for double2
-	data[dwBuffersA + dwBuffersB].ptr_int[10] = TILING_X / 2;						//x tiling in double2
-#if defined(CALDGEMM_84)
-	data[dwBuffersA + dwBuffersB].ptr_int[12] = 0 + 0 * Config->Height / 2;					//8 consecutive entries in x
-	data[dwBuffersA + dwBuffersB].ptr_int[13] = 1 + 0 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[14] = 2 + 0 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[15] = 3 + 0 * Config->Height / 2;
-
-	data[dwBuffersA + dwBuffersB].ptr_int[16] = 0 + 1 * Config->Height / 2;					//Next row
-	data[dwBuffersA + dwBuffersB].ptr_int[17] = 0 + 1 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[18] = 0 + 1 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[19] = 0 + 1 * Config->Height / 2;
-
-	data[dwBuffersA + dwBuffersB].ptr_int[20] = 0 + 2 * Config->Height / 2;					//Proceed by two rows
-	data[dwBuffersA + dwBuffersB].ptr_int[21] = 0 + 2 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[22] = 0 + 2 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[23] = 0 + 2 * Config->Height / 2;
-#elif defined(CALDGEMM_44)
-	data[dwBuffersA + dwBuffersB].ptr_int[12] = 0 + 0 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[13] = 1 + 0 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[14] = 0 + 1 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[15] = 1 + 1 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[16] = 0 + 2 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[17] = 1 + 2 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[18] = 0 + 3 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[19] = 1 + 3 * Config->Height / 2;
-#ifdef CALDGEMM_SGEMM
-	data[dwBuffersA + dwBuffersB].ptr_int[20] = Config->Height * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[21] = Config->Height * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[22] = Config->Height * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[23] = Config->Height * Config->Height / 2;
-#endif
-#ifdef CALDGEMM_48
-	data[dwBuffersA + dwBuffersB].ptr_int[20] = 0 + 4 * Config->Height / 2;					//Proceed by 4 rows
-	data[dwBuffersA + dwBuffersB].ptr_int[21] = 0 + 4 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[22] = 0 + 4 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[23] = 0 + 4 * Config->Height / 2;
-#endif
-#else
-	data[dwBuffersA + dwBuffersB].ptr_int[12] = 0 + 0 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[13] = 0 + 4 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[14] = 0 + 1 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[15] = 0 + 5 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[16] = 0 + 2 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[17] = 0 + 6 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[18] = 0 + 3 * Config->Height / 2;
-	data[dwBuffersA + dwBuffersB].ptr_int[19] = 0 + 7 * Config->Height / 2;
-#endif
-#ifdef CALDGEMM_DIAGONAL_TEXTURE
-	data[dwBuffersA + dwBuffersB].ptr_float[11] = 8.f / Config->Height;						//Offset for diagonal texture read
-#endif
-	data[dwBuffersA + dwBuffersB].ptr_double[3] = alpha;
-}
-
 int caldgemm::broadcastcore()
 {
 	return(outputthreads + 1);
 }
 
-void* linpack_wrapper(void* arg)
+void* caldgemm::linpack_wrapper(void* arg)
 {
 	caldgemm* cls = (caldgemm*) arg;
 	volatile caldgemm::caldgemm_config* Config = cls->Config;
@@ -1366,7 +571,7 @@ int caldgemm::reserve_cpu_cores()
 	return(nthreads);
 }
 
-void* cblas_wrapper(void* arg)
+void* caldgemm::cblas_wrapper(void* arg)
 {
 	volatile caldgemm::cblasParameters* par = (caldgemm::cblasParameters*) arg;
 	volatile caldgemm::caldgemm_config* Config = par->cls->Config;
@@ -1637,7 +842,7 @@ void* cblas_wrapper(void* arg)
 	return(NULL);
 }
 
-void* divide_wrapper(void* arg)
+void* caldgemm::divide_wrapper(void* arg)
 {
 	caldgemm::divideParameters* par = (caldgemm::divideParameters*) arg;
 	if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread %d for core %d started\n", par->nThread, par->CPUCore);
@@ -1677,7 +882,7 @@ void* divide_wrapper(void* arg)
 	return(NULL);
 }
 
-void* merge_wrapper(void* arg)
+void* caldgemm::merge_wrapper(void* arg)
 {
 	caldgemm::mergeParameters* par = (caldgemm::mergeParameters*) arg;
 
@@ -1705,7 +910,7 @@ void* merge_wrapper(void* arg)
 		    mergeTimer.Reset();
 		    mergeTimer.Start();
 		}
-		par->cls->mergeBuffers(par->dst, par->src, par->cls->Config->Height, par->cls->Config->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch, par->cls->dwBuffersC);
+		par->cls->RunMergeBuffers(par->dst, par->num_device, par->nContext, par->cls->Config->Height, par->cls->Config->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch, par->cls->dwBuffersC);
 		if (par->cls->Config->Debug)
 		{
 		    mergeTimer.Stop();
@@ -1897,7 +1102,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (Config->Iterations > 1 || !Config->UseCPU);
 	else if (Config->Width % 8 || Config->Width < 256) forceCPU = true;
 	else if (MaxGpuM < 512 || MaxGpuN < 512) forceCPU = true;
+#ifdef _WIN32
+	else if (Alpha == 0.) forceCPU = true;
+#else
 	else if (__fpclassify(Alpha) == FP_ZERO) forceCPU = true;
+#endif
 	else if (((size_t) A) & (vcpysize - 1) || ((size_t) B) & (vcpysize - 1) || ((size_t) C) & (vcpysize - 1) ||
 		A_pitch & (vcpysize / sizeof(double) - 1) || B_pitch & (vcpysize / sizeof(double) - 1) || C_pitch & (vcpysize / sizeof(double) - 1))
 	{
@@ -2012,24 +1221,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (forceReinit)
 	{
 		if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Reinit for increased buffer width / height\n");
-		for (int num_device = 0;num_device < nDevices;num_device++)
-		{
-			for (int i = 0;i < bbuffers[num_device];i++)
-			{
-				CleanupData(&ctxs[num_device], resourceHandlers[num_device][i], datas[num_device][i], numInputs + numOutputs + numConstantBuffers, i, num_device);
-				SetupData(modules[num_device], resourceHandlers[num_device][i], datas[num_device][i], &devices[num_device], &ctxs[num_device], numInputs, numOutputs, numConstantBuffers, progNames[num_device], i, num_device);
-			}
-		}
+		if (ReinitDevices()) return(1);
 	}
 
-	if (Config->Debug) fprintf(STD_OUT, "Initiliazing GPU Constant Buffers...");
-	for (int i = 0;i < nDevices;i++)
-	{
-		if (Config->Debug) fprintf(STD_OUT, "%d", i);
-		cal_init_constant_data(datas[i][0], alpha);
-		if (CopyDataToGPU(&ctxs[i], resourceHandlers[i][0] + numInputs, datas[i][0] + numInputs, numConstantBuffers, true, &events[i][0], i)) return(1);
-	}
-	if (Config->Debug) fprintf(STD_OUT, "   Done\n");
+	InitConstantData(alpha);
 
 	if (Config->SlowCPU)
 	{
@@ -2251,7 +1446,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			for (size_t k = 0;k < nBlocks + 2 * nDevices;k++)
 			{
 restartkloop:
-				CALcontext* ctx_main = &ctxs[use_device];
 				//fprintf(STD_OUT, "!!!!! k %lld nd k %lld nextk %lld\n", k, next_device_k[use_device], nextk);
 				if (Config->ImprovedScheduler && !ImprovedSchedPhase1 && tileDistribution[next_device_k[use_device]] < 0) next_device_k[use_device] = 0;
 				if (next_device_k[use_device] != 0) k = next_device_k[use_device];
@@ -2343,7 +1537,6 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					DGEMMPrepareAndExecuteTask& Task = DGEMMTasks[use_device];
 					Task.PrepareTasks[0].j = Task.PrepareTasks[1].j = -1;
 					Task.device = use_device;
-					Task.ctx = ctx_main;
 					Task.kernel_num = kernel_num;
 					Task.k = k;
 					Task.j = j[use_device];
@@ -2431,12 +1624,12 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					}
 					size_t lastm, lastn;
 					DGEMM_getblocks(lastk[use_device], lastm, lastn);
-					WAITFOREVENT(*ctx_main, oldj[use_device], use_device);
+					if (WaitForEvent(oldj[use_device], use_device)) return(1);
 					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
 					if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
 					{
-						if (CopyDataFromGPU(ctx_main, resourceHandlers[use_device][oldj[use_device]] + numInputs + numConstantBuffers, datas[use_device][oldj[use_device]] + numInputs + numConstantBuffers, numOutputs, &events[use_device][oldj[use_device]], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
-						WAITFOREVENT(*ctx_main, oldj[use_device], use_device);
+						if (FetchResult(use_device, oldj[use_device], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
+						if (WaitForEvent(oldj[use_device], use_device)) return(1);
 					}
 					if (Config->VerboseTiming) Timers.CounterMerge.Start();
 
@@ -2445,7 +1638,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						if (lastk[use_device] < nBlocks)
 						{
 							if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
-							if (mergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, datas[use_device][oldj[use_device]] + numInputs + numConstantBuffers, Config->Height, Config->Height, BufferHeight, BufferHeight, C_pitch, dwBuffersC)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
+							if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], Config->Height, Config->Height, BufferHeight, BufferHeight, C_pitch, dwBuffersC)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
 							if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex devuce %d obuffer %d\n", use_device, oldj[use_device]);
 							if (pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 						}
@@ -2481,7 +1674,6 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking outputthread mutex %d to process device %d obuffer %d\n", iMergeThread[use_device], use_device, oldj[use_device]);
 						mParam[use_device][iMergeThread[use_device]].nContext = oldj[use_device];
 						mParam[use_device][iMergeThread[use_device]].dst = C + (lastn * Config->Height + lastm * C_pitch * Config->Height);
-						mParam[use_device][iMergeThread[use_device]].src = datas[use_device][oldj[use_device]] + numInputs + numConstantBuffers;
 						mParam[use_device][iMergeThread[use_device]].k = lastk[use_device];
 						if (pthread_mutex_unlock(&mParam[use_device][iMergeThread[use_device]].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 						iMergeThread[use_device] = (iMergeThread[use_device] + 1) % outputthreads;
@@ -2614,22 +1806,6 @@ RunCALDGEMM_end:
 	return(0);
 }
 
-inline void caldgemm::DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn)
-{
-	if (DGEMM_favor_m)
-	{
-		const int nb = gpu_n / Config->Height;
-		blockn = k % nb;
-		blockm = k / nb;
-	}
-	else
-	{
-		const int mb = gpu_m / Config->Height;
-		blockm = k % mb;
-		blockn = k / mb;
-	}
-}
-
 int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 {
 	const size_t mb = gpu_m / Config->Height;
@@ -2665,194 +1841,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 		if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING, Buffer falsified by previous iteration, need to retransfer\n");
 		DGEMM_prepare(Task.k, Task.j, Task.device);
 	}
-	WAITFOREVENT(*Task.ctx, Task.j, Task.device);
-
-	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
-#ifdef REUSE_BBUFFERS
-	if (!DGEMM_favor_m && buffersSwitchable)
-	{
-		const int buffer_pos = buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : 2);
-		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pos][dwBuffersA + l].dstMem), "setting kernel memory A");
-		for (int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2][l].dstMem), "setting kernel memory B");
-#ifdef CALDGEMM_44_BT_64_CONVERT
-		for (int ll = 0;ll < 2;ll++)
-		{
-			BufferProperties* const chkBuffer = ((ll == 1) ? datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2] : &datas[Task.device][buffer_pos][dwBuffersA]);
-			if (chkBuffer[0].conversionBuffer != NULL)
-			{
-				if (Config->Debug) fprintf(STD_OUT, "\tStarting conversion kernel for device %d input matrix %d (path 1)\n", Task.device, ll);
-				for (unsigned int i = 0; i < ((ll == 1) ? dwBuffersB : dwBuffersA); ++i)
-				{
-					CHKERR(calCtxSetMem(*Task.ctx, progNamesConvert[Task.device][i], chkBuffer[0].conversionBuffer[i].tmpmem), "setting convert kernel memory in");
-					CHKERR(calCtxSetMem(*Task.ctx, progNamesConvert[Task.device][i + dwBuffersA], chkBuffer[i].dstMem), "setting convert kernel memory out");
-				}
-				if (RunProgram(Task.ctx, &modulesConvert[Task.device], chkBuffer[0].Width, chkBuffer[0].Height, &events[Task.device][Task.j]))
-				{
-					fprintf(STD_OUT, "Error running conversion kernel\n");
-					return(1);
-				}
-				chkBuffer[0].conversionBuffer = NULL;
-			}
-		}
-#endif
-	}
-	else
-#endif
-	{
-#ifdef REUSE_BBUFFERS
-		const bool buffersSufficiant = buffer_pointers_B[Task.device][blockn] < bbuffers[Task.device];
-#else
-		const bool buffersSufficiant = false;
-#endif
-		for (int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % 2][l].dstMem), "setting kernel memory A");
-		for (int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][l].dstMem), "setting kernel memory B");
-#ifdef CALDGEMM_44_BT_64_CONVERT
-		for (int ll = 0;ll < 2;ll++)
-		{
-			BufferProperties* const chkBuffer = ((ll == 1) ? &datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][dwBuffersA] : datas[Task.device][buffer_pointers_A[Task.device][blockm] % 2]);
-			if (chkBuffer[0].conversionBuffer != NULL)
-			{
-				if (Config->Debug) fprintf(STD_OUT, "\tStarting conversion kernel for device %d input matrix %d (path 2)\n", Task.device, ll);
-				for (unsigned int i = 0; i < ((ll == 1) ? dwBuffersB : dwBuffersA); ++i)
-				{
-					CHKERR(calCtxSetMem(*Task.ctx, progNamesConvert[Task.device][i], chkBuffer[0].conversionBuffer[i].tmpmem), "setting convert kernel memory in");
-					CHKERR(calCtxSetMem(*Task.ctx, progNamesConvert[Task.device][i + dwBuffersA], chkBuffer[i].dstMem), "setting convert kernel memory out");
-				}
-				if (RunProgram(Task.ctx, &modulesConvert[Task.device], chkBuffer[0].Width, chkBuffer[0].Height, &events[Task.device][Task.j]))
-				{
-					fprintf(STD_OUT, "Error running conversion kernel\n");
-					return(1);
-				}
-				chkBuffer[0].conversionBuffer = NULL;
-			}
-		}
-#endif
-	}
-	for (int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(*Task.ctx, progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
-	if (RunProgram(Task.ctx, &modules[Task.device][Task.kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
-	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(Task.ctx, resourceHandlers[Task.device][Task.j] + numInputs + numConstantBuffers, datas[Task.device][Task.j] + numInputs + numConstantBuffers, numOutputs, &events[Task.device][Task.j], blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
-	calCtxFlush(*Task.ctx);
-	return(0);
-}
-
-int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
-{
-#ifdef CALDGEMM_BENCHMARK_KERNEL
-	return(0);
-#endif
-	const size_t nb = gpu_n / Config->Height;
-	const size_t mb = gpu_m / Config->Height;
-	size_t blockm, blockn;
-	DGEMM_getblocks(k, blockm, blockn);
-
-	bool buffersSufficiant0, buffersSufficiant;
-#ifdef REUSE_BBUFFERS
-	if (DGEMM_favor_m)
-	{
-		buffersSufficiant0 = true;
-		buffersSufficiant = next_buffer_B[num_device] < bbuffers[num_device];
-	}
-	else
-	{
-		buffersSufficiant0 = buffersSwitchable;
-		buffersSufficiant = buffersSwitchable && next_buffer_A[num_device] < bbuffers[num_device];
-	}
-#else
-	buffersSufficiant0 = buffersSufficiant = false;
-#endif
-
-
-	if (Config->VerboseTiming) Timers.CounterDivide.Start();
-	
-	if (Config->Debug) fprintf(STD_OUT, "Running Preprocessing device = %d k = %lld\n", num_device, (long long int) k);
-	//if (Config->Debug) fprintf(STD_OUT, "device %d Favor %d major %d minor %d blockm %d blockn %d\n", (int) num_device, (int) DGEMM_favor_m, (int) buffersMajor[num_device], (int) buffersMinor[num_device][DGEMM_favor_m ? blockn : blockm], (int) blockm, (int) blockn);
-	
-	const bool prepareM = DGEMM_favor_m ? (buffersMajor[num_device] < (signed long long int) blockm) : (!buffersSufficiant0 || buffer_pointers_A[num_device][blockm] == -1);
-	const bool prepareN = DGEMM_favor_m ? (!buffersSufficiant0 || buffer_pointers_B[num_device][blockn] == -1) : (buffersMajor[num_device] < (signed long long int) blockn);
-
-	if (prepareM)
-	{
-		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, buffer = %d)\n", num_device, (long long int) k, next_buffer_A[num_device] % 2);
-		Timers.divideA++;
-#ifdef CALDGEMM_TRANSPOSED_A
-		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Config->Height, Config->Width, BufferHeight, BufferWidth, A_pitch, dwBuffersA, TransposeA == CblasNoTrans)) return(1);
-#else
-		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Config->Width, Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA == CblasTrans)) return(1);
-#endif
-		if (DGEMM_favor_m) buffersMajor[num_device] = blockm;
-		else if (buffersSufficiant0)
-		{
-			const int buffer_pos = next_buffer_A[num_device] % (buffersSufficiant ? bbuffers[num_device] : 2);
-			if (buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]] != -1)
-			{
-				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockm %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], (int) blockm, buffer_pos);
-				buffer_pointers_A[num_device][buffersMinor[num_device][buffer_pos]] = -1;
-				
-			}
-			buffersMinor[num_device][buffer_pos] = blockm;
-		}
-		buffer_pointers_A[num_device][blockm] = next_buffer_A[num_device];
-	}
-	if (prepareN)
-	{
-		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, buffer = %d)\n", num_device, (long long int) k, next_buffer_B[num_device] % 2);
-		Timers.divideB++;
-#ifdef CALDGEMM_TRANSPOSED_B
-		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1), Config->Width, Config->Height, BufferWidth, BufferHeight, B_pitch, dwBuffersB, TransposeB == CblasNoTrans);
-#else
-		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1), Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB == CblasTrans);
-#endif
-		if (!DGEMM_favor_m) buffersMajor[num_device] = blockn;
-		else if (buffersSufficiant0)
-		{
-			const int buffer_pos = next_buffer_B[num_device] % (buffersSufficiant ? bbuffers[num_device] : 2);
-			if (buffersMinor[num_device][buffer_pos] != -1)
-			{
-				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockn %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], (int) blockn, buffer_pos);
-				buffer_pointers_B[num_device][buffersMinor[num_device][buffer_pos]] = -1;
-			}
-			buffersMinor[num_device][buffer_pos] = blockn;
-		}
-		buffer_pointers_B[num_device][blockn] = next_buffer_B[num_device];
-	}
-	if (Config->VerboseTiming) Timers.CounterDivide.Stop();
-
-	if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
-	if (Config->DivideToGPU == false)
-	{
-		if (prepareM)
-		{
-			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
-			if (!DGEMM_favor_m && buffersSufficiant0)
-			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], num_device, datas[num_device][buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying A to GPU (minor)\n"); return(1);}
-			}
-			else
-			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], num_device)) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
-			}
-		}
-		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of A (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
-
-		if (prepareN)
-		{
-			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
-			if (!DGEMM_favor_m && buffersSufficiant0)
-			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][next_buffer_B[num_device] % 2])) {fprintf(STD_OUT, "Error copying B to GPU (major)\n"); return(1);}
-			}
-			else
-			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
-			}
-		}
-		else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
-	}
-	if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
-	calCtxFlush(ctxs[num_device]);
-	
-	if (prepareM) next_buffer_A[num_device]++;
-	if (prepareN) next_buffer_B[num_device]++;
+	if (ExecuteKernels(Task, blockm, blockn)) return(1);
 	return(0);
 }
 
@@ -2864,18 +1853,12 @@ int caldgemm::ExitCALDGEMM()
 		return(1);
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Uninitializing CALDGEMM\n");
-	for (int num_device = 0;num_device < nDevices;num_device++)
+	if (ExitDevices()) return(1);
+	if (Config->MultiThread)
 	{
-		for (int i = 0;i < bbuffers[num_device];i++)
+		for (int num_device = 0;num_device < nDevices;num_device++)
 		{
-#ifdef DEBUG_MSG_ALLOCATION
-			if (Config->Debug) fprintf(STD_OUT, "Uninitializing buffers for device %d context %d\n", num_device, i);
-#endif
-			if (Cleanup(&devices[num_device], &ctxs[num_device], modules[num_device], resourceHandlers[num_device][i], datas[num_device][i], numInputs + numOutputs + numConstantBuffers, i, num_device))
-			{
-				return 1;
-			}
-			if (i < max_outputthreads && Config->MultiThread)
+			for (int i = 0;i < max_outputthreads;i++)
 			{
 				if (Config->Debug) fprintf(STD_OUT, "Trying to terminate merge slave %d\n", i);
 				mParam[num_device][i].terminate = true;
@@ -2884,33 +1867,7 @@ int caldgemm::ExitCALDGEMM()
 		}
 	}
 
-	for (int i = 0;i < nDevices;i++)
-	{
-#ifdef DEBUG_MSG_ALLOCATION
-		if (Config->Debug) fprintf(STD_OUT, "Uninitializing context for device %d\n", i);
-#endif
-		if (ctxs[i]) calCtxDestroy(ctxs[i]);
-		if (devices[i])
-		{
-			if (calDeviceClose(devices[i]) != CAL_RESULT_OK)
-			{
-				fprintf(STD_OUT, "There was an error closing the device.\n");
-				fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
-			}
-		}
-	}
-
-#ifdef DEBUG_MSG_ALLOCATION
-	if (Config->Debug) fprintf(STD_OUT, "Uninitializing CAL runtime\n");
-#endif
-
-	if (gpu_available && calShutdown() != CAL_RESULT_OK)
-	{
-		fprintf(STD_OUT, "There was an error during cal shutdown.\n");
-		fprintf(STD_OUT, "Error string is %s\n", calGetErrorString());
-	}
-
-	for (int i = 0;i < nDevices;i++) for (int j = 0;j < kernel_count;j++) delete[] progNames[i][j];
+	ExitRuntime();
 
 	if (Config->UseCPU && Config->UseGPU)
 	{
@@ -3010,6 +1967,7 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
 	nDoubles += 40 * 1024 * 1024;
 #endif
 	double* ptr;
+#ifndef _WIN32
 	if (huge_pages)
 	{
 		if (nHugeAddresses >= MAX_HUGE_ADDRESSES - 1)
@@ -3048,6 +2006,7 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
 
 	}
 	else
+#endif
 	{
 		ptr = new double[nDoubles];
 	}
@@ -3056,12 +2015,14 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
 	nDoubles -= 40 * 1024 * 1024;
 	ptr += 20 * 1024 * 1024;
 #endif
+#ifndef _WIN32
 	if (!huge_pages && page_locked && mlock(ptr, nDoubles * sizeof(double)))
 	{
 		fprintf(STD_OUT, "ERROR locking Pages\n");
 		if (!huge_pages) delete[] ptr;
 		return(NULL);
 	}
+#endif
 	return(ptr);
 }
 
@@ -3070,6 +2031,7 @@ void caldgemm::FreeMemory(double* ptr)
 #ifdef WASTE_MEMORY
 	ptr -= 20 * 1024 * 1024;
 #endif
+#ifndef _WIN32
 	for (int i = 0;i < nHugeAddresses;i++)
 	{
 		if (huge_page_addresses[i] == ptr)
@@ -3079,6 +2041,7 @@ void caldgemm::FreeMemory(double* ptr)
 			return;
 		}
 	}
+#endif
 	delete[] ptr;
 }
 
@@ -3228,295 +2191,6 @@ unsigned int caldgemm::AnalyzeResults()
 	return(errors == 0);
 }
 
-int caldgemm::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties* &data, CALdevice *device, CALcontext *ctx, unsigned int numInputs, unsigned int numOutputs, unsigned int numConstantBuffers, CALname** ctxProgNames, int nContext, unsigned int num_device)
-{
-	BufferHeight = Config->Height;
-	BufferWidth = Config->Width;
-	const unsigned int bStop = dwBuffersA + dwBuffersB;
-	const unsigned int fStop = bStop + numConstantBuffers;
-	const unsigned int cStop = fStop + dwBuffersC;
-	CALresult r = CAL_RESULT_OK;
-
-	for (unsigned int i = 0; i < cStop; ++i)
-	{
-		if (nContext >= 1 && i == dwBuffersA + dwBuffersB) continue;
-		if (nContext >= 2 && i < dwBuffersA) continue;
-		if (nContext >= obuffercount && (i < dwBuffersA || i >= bStop)) continue;
-		unsigned int tWidth = 0;
-		unsigned int tHeight = 0;
-		CALresallocflags flag = static_cast<CALresallocflags>(0);
-		char mem = 'g';
-		unsigned int mComponents = 2;
-		if (i < dwBuffersA)
-		{
-#if defined(CALDGEMM_48) & defined(CALDGEMM_TRANSPOSED_A)
-			tWidth = Config->Height / 8;
-			tHeight = Config->Width;
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-			tWidth = Config->Height / 4;
-			tHeight = Config->Width;
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
-			tHeight = Config->Height / 4;
-			tWidth = Config->Width;
-#elif defined(CALDGEMM_TRANSPOSED_A)
-			/* A matrix sizes are shrunk by 2 (double2) in the width and 8 (8 resources) in the height */
-			tWidth = Config->Height / 2;
-			tHeight = Config->Width / dwBuffersA;
-#else
-			tWidth = Config->Width / 2;
-			tHeight = Config->Height / dwBuffersA;
-#endif
-			mem = 'g';
-		}
-		else if (i >= dwBuffersA && i < bStop)
-		{
-#if defined(CALDGEMM_84) & defined(CALDGEMM_TRANSPOSED_A)
-			tWidth = Config->Height / 8;
-			tHeight = Config->Width;
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-			tWidth = Config->Height / 4;
-			tHeight = Config->Width;
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
-			tHeight = Config->Height / 4;
-			tWidth = Config->Width;
-#elif defined (CALDGEMM_TRANSPOSED_B)
-			tWidth = Config->Width / 2;
-			tHeight = Config->Height / dwBuffersB;
-#else
-			/* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
-			tWidth = Config->Height / 2;
-			tHeight = Config->Width / dwBuffersB;
-#endif
-			mem = 'g';
-		}
-		else if (i >= bStop && i < fStop)
-		{
-			tWidth = 8;
-			tHeight = 1;
-			flag = static_cast<CALresallocflags>(0);
-		}
-		else if (i >= fStop && i < cStop)
-		{
-#if defined(CALDGEMM_44) & !defined(CALDGEMM_USE_MEMEXPORT)
-			tWidth = tHeight = Config->Height / 4;
-#else
-			tWidth = Config->Height / 2;
-			tHeight = Config->Height / dwBuffersC;
-#endif
-#ifdef CALDGEMM_SGEMM
-			tHeight *= 2;
-#endif
-			mem = Config->DstMemory;
-			flag = (CALresallocflags) (flag | CAL_RESALLOC_CACHEABLE);
-		}
-		
-
-		CALformat bufferformat;
-
-		data[i].DataSize = sizeof(double);
-		data[i].Width = tWidth;
-		data[i].Height = tHeight;
-		data[i].VectorSize = mComponents;
-		bool allocated = false;
-
-#ifdef CALDGEMM_44_BT_64
-#ifdef CALDGEMM_44_BT_64_CONVERT
-		if (i < dwBuffersA + dwBuffersB && nContext < 2)
-#else
-		if (i < dwBuffersA + dwBuffersB)
-#endif
-		{
-			tWidth *= 2;					//Change size after storing to data[i] to make divide/mergebuffer run on original size
-			bufferformat = CAL_FORMAT_UNSIGNED_INT32_2;
-			mComponents = 1;
-		}
-		else
-#endif
-		{
-			bufferformat = CAL_FORMAT_UNSIGNED_INT32_4;
-		}
-
-		if (tHeight > 1)
-		{
-			data[i].CALMemory = true;
-			if ((Config->DstMemory == 'g' || i < dwBuffersA + dwBuffersB) && (Config->DivideToGPU == false || i >= dwBuffersA + dwBuffersB) && (nContext < 2 || (Config->DstMemory == 'g' && i >= dwBuffersA + dwBuffersB + numConstantBuffers)))
-			{
-				allocated = true;
-#ifdef DEBUG_MSG_ALLOCATION
-				if (Config->Debug) fprintf(STD_OUT, "Allocating Host buffer for device %d obuffer %d buffer %d\n", num_device, nContext, i);
-#endif
-				CHKERR(calResAllocRemote2D(&data[i].res, device, 1, tWidth, tHeight, bufferformat, flag), "allocattion of remote memory");
-				CHKERR(calCtxGetMem(&data[i].mem, *ctx, data[i].res), "getting remote memory for context");
-				CHKERR(calResMap(&data[i].ptr_void, &data[i].pitch, data[i].res, 0), "mapping of remote memory");
-				if (((size_t) data[i].ptr_void) & (vcpysize - 1))
-				{
-					fprintf(STD_OUT, "Memory not aligned correctly\n");
-					return(1);
-				}
-			}
-		}
-		else
-		{
-			if (nContext == 0)
-			{
-#ifdef DEBUG_MSG_ALLOCATION
-				if (Config->Debug) fprintf(STD_OUT, "Allocating Host memory for device %d obuffer %d buffer %d\n", num_device, nContext, i);
-#endif
-				data[i].ptr_char = new char[tWidth * sizeof(double) * mComponents * tHeight];
-				allocated = true;
-			}
-			data[i].CALMemory = false;
-		}
-		if (allocated)
-		{
-#ifdef DEBUG_MSG_ALLOCATION
-			if (Config->Debug) fprintf(STD_OUT, "Clearing Memory at %p, Width = %d, Height = %d, components = %d, type=double\n", (void*) data[i].ptr_char, (int) tWidth, (int) tHeight, (int) mComponents);
-#endif
-			memset((void*)data[i].ptr_char, 0, tWidth * sizeof(double) * mComponents * tHeight);
-		}
-
-		flag = (CALresallocflags) NULL;
-		mem = 'g';
-		if (i >= fStop && i < cStop)
-		{
-			mem = Config->DstMemory;
-			if (mem == 'c') flag = static_cast<CALresallocflags>(flag | CAL_RESALLOC_CACHEABLE);
-		}
-		else if (i >= bStop && i < fStop)
-		{
-			continue;
-		}
-
-#ifdef CALDGEMM_USE_MEMEXPORT
-		if (i >= fStop)
-		{
-			flag = (CALresallocflags) (flag | CAL_RESALLOC_GLOBAL_BUFFER);
-		}
-#endif
-#ifdef DEBUG_MSG_ALLOCATION
-		if (Config->Debug) fprintf(STD_OUT, "Allocating device buffer for device %d obuffer %d buffer %d\n", num_device, nContext, i);
-#endif
-
-		CALresource* resuse;
-		CALmem* memuse;
-#ifdef CALDGEMM_44_BT_64_CONVERT
-		if (i <= dwBuffersA + dwBuffersB && nContext < 2)
-		{
-#ifdef DEBUG_MSG_ALLOCATION
-			if (Config->Debug) fprintf(STD_OUT, "Allocating temporary device buffer for device %d context %d buffer %d\n", num_device, nContext, i);
-#endif
-			if (calResAllocLocal2D(&_Res[i], *device, tWidth / 2, tHeight, CAL_FORMAT_UNSIGNED_INT32_4, flag) != CAL_RESULT_OK)
-			{
-				fprintf(STD_OUT, "Error allocating GPU memory\n");
-				return(1);
-			}
-			CHKERR(calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]), "binding temporary memory to context");
-			resuse = &data[i].tmpres;
-			memuse = &data[i].tmpmem;
-		}
-		else
-#endif
-		{
-			resuse = &_Res[i];
-			memuse = &data[i].dstMem;
-		}
-
-		switch(mem)
-		{
-		case 'g':
-			r = calResAllocLocal2D(resuse, *device, tWidth, tHeight, bufferformat, flag);
-
-			break;
-		case 'c':
-			r = calResAllocRemote2D(resuse, device, 1, tWidth, tHeight, bufferformat, flag);
-			break;
-		}
-		if (r != CAL_RESULT_OK)
-		{
-			for (unsigned int j = dwBuffersA;j < i;j++)
-			{
-				calCtxReleaseMem(*ctx, data[j].dstMem);
-				calResFree(_Res[j]);
-			}
-
-			if (nContext < obuffercount)
-			{
-				fprintf(STD_OUT, "There was an error in allocating resources and binding them to memory (Error code %d)\n", r);
-			}
-			else if (Config->Debug)
-			{
-				fprintf(STD_OUT, "No more memory available for bbuffers\n");
-			}
-			return(1);
-		}
-		CHKERR(calCtxGetMem(memuse, *ctx, *resuse), "binding memory to context");
-		if ((Config->DstMemory == 'c' && i >= fStop) || (Config->DivideToGPU && i < bStop))
-		{
-			data[i].mem = data[i].dstMem;
-			data[i].res = _Res[i];
-		}
-		if (Config->DstMemory == 'c' && i >= fStop && Config->KeepBuffersMapped)
-		{
-			CHKERR(calResMap(&data[i].ptr_void, &data[i].pitch, data[i].res, 0), "mapping of remote output memory");
-		}
-	}
-
-	if (nContext >= 1) return(0);
-
-	for (unsigned int i = bStop; i < fStop; ++i)
-	{
-		int cWidth = data[i].Width * data[i].Height;
-#ifdef DEBUG_MSG_ALLOCATION
-		if (Config->Debug) fprintf(STD_OUT, "Allocating Host Constant buffer device %d context %d buffer %d\n", num_device, nContext, i);
-#endif
-		CHKERR(calResAllocRemote1D(&_Res[i], device, 1, cWidth, CAL_FORMAT_FLOAT_4, 0), "allocating constant memory");
-		CHKERR(calCtxGetMem(&data[i].dstMem, *ctx, _Res[i]), "binding constant memory to context");
-	}
-
-	for (int i = 0;i < kernel_count;i++)
-	{
-		for (unsigned int j = 0; j < cStop; ++j)
-		{
-			char buffer[10];
-			if (j < bStop)
-			{
-				sprintf(buffer,"i%d", j);
-			}
-			else if (j >= fStop && j < cStop)
-			{
-#ifdef CALDGEMM_USE_MEMEXPORT
-				sprintf(buffer, "g[]", j - fStop);
-#else
-				sprintf(buffer,"o%d", j - fStop);
-#endif
-			}
-			else if (j >= bStop && j < fStop)
-			{
-				sprintf(buffer,"cb%d", j - bStop);
-			}
-#ifdef DEBUG_MSG_ALLOCATION
-			if (Config->Debug) fprintf(STD_OUT, "Getting module buffer name for device %d context %d kernel %d buffer %d name %s\n", num_device, nContext, i, j, buffer);
-#endif
-			CHKERR(calModuleGetName(&ctxProgNames[i][j], *ctx, module[i], buffer), "getting buffer name");
-			if (j >= bStop && j < fStop)
-			{
-				CHKERR(calCtxSetMem(*ctx, ctxProgNames[i][j], data[j].dstMem), "setting memory buffer to context");
-			}
-		}
-	}
-	
-	for (unsigned int j = 0;j < dwBuffersA;j++)
-	{
-		char buffer[10];
-		sprintf(buffer, "i%d", j);
-		CHKERR(calModuleGetName(&progNamesConvert[num_device][j], *ctx, modulesConvert[num_device], buffer), "getting buffer name");
-		sprintf(buffer, "o%d", j);
-		CHKERR(calModuleGetName(&progNamesConvert[num_device][j + dwBuffersA], *ctx, modulesConvert[num_device], buffer), "getting buffer name");
-	}
-
-	return(0);
-}
-
 bool caldgemm::isDoubleEqual(double a, double b)
 {
 	double epsilon1 = 1e-6;
@@ -3530,340 +2204,6 @@ bool caldgemm::isDoubleEqual(double a, double b)
 	{
 		return (fabs((a-b)/b) < epsilon2);
 	}
-}
-
-HighResTimer::HighResTimer()
-{
-	ElapsedTime = 0;
-#ifdef ATI_OS_WIN
-	__int64 ifreq;
-	QueryPerformanceFrequency((LARGE_INTEGER*)&ifreq);
-	Frequency = (double) ifreq;
-#endif
-
-#ifdef ATI_OS_LINUX
-	Frequency = 1.0E9;
-#endif
-}
-
-HighResTimer::~HighResTimer() {}
-
-void HighResTimer::Start()
-{
-#ifdef ATI_OS_WIN
-	i64 istart;
-	QueryPerformanceCounter((LARGE_INTEGER*)&istart);
-	_start = (double) istart;
-#endif
-
-#ifdef ATI_OS_LINUX
-	timespec tv;
-	clock_gettime(CLOCK_REALTIME, &tv);
-	StartTime = (double)tv.tv_sec * 1.0E9 + (double) tv.tv_nsec;
-#endif
-}
-
-void HighResTimer::Stop()
-{
-	double EndTime = 0;
-#ifdef ATI_OS_WIN
-	__int64 iend;
-	QueryPerformanceCounter((LARGE_INTEGER*) &iend);
-	EndTime = (double) iend;
-#endif
-
-#ifdef ATI_OS_LINUX
-	timespec tv;
-	clock_gettime(CLOCK_REALTIME, &tv);
-	EndTime = (double)tv.tv_sec * 1.0E9 + (double) tv.tv_nsec;
-#endif
-	ElapsedTime += EndTime - StartTime;
-}
-
-void HighResTimer::Reset()
-{
-	ElapsedTime = 0;
-	StartTime = 0;
-}
-
-double HighResTimer::GetElapsedTime()
-{
-	return ElapsedTime / Frequency;
-}
-
-static void log_callback(const char *msg)
-{
-	fprintf(STD_OUT, "%s", msg);
-}
-
-int caldgemm::Initialize(int deviceNum, bool nocalinit)
-{
-	if (!nocalinit) CHKERR(calInit(), "initializing CAL");
-	if (deviceNum == -1 && obuffercount > 1 && Config->MultiThread)
-	{
-		CALuint tmp;
-		calDeviceGetCount(&tmp);
-		nDevices = tmp;
-		if (nDevices > max_devices) nDevices = max_devices;
-		if (nDevices > Config->NumDevices) nDevices = Config->NumDevices;
-		for (int i = 0;i < nDevices;i++)
-		{
-			device_nums[i] = i;
-		}
-	}
-	else
-	{
-		if (deviceNum == -1)
-		{
-			if (obuffercount == 1)
-			{
-				fprintf(STD_OUT, "Cannot use multiple devices with obuffercount = 1\n");
-			}
-			if (!Config->MultiThread)
-			{
-				fprintf(STD_OUT, "Cannot use multiple devices without multithreading\n");
-			}
-			deviceNum = 0;
-		}
-		nDevices = 1;
-		device_nums[0] = deviceNum;
-	}
-	if (Config->Debug) fprintf(STD_OUT, "Initializing CALDGEMM for %d devices\n", nDevices);
-	gpu_available = (nDevices > 0);
-	for (int i = 0;i < nDevices;i++)
-	{
-	    devices[i] = 0;
-	    CHKERR(calDeviceOpen(&devices[i], device_nums[i]), "opening CAL device");
-	    CHKERR(calCtxCreate(&ctxs[i], devices[i]), "creating CAL context");
-	}
-	return(0);
-}
-
-int caldgemm::SetupKernel(const char* ILKernel, CALmodule* module, CALcontext* ctx, unsigned int device_num, bool disassemble)
-{
-	CALimage image = NULL;
-	bool success = false;
-
-	CALdeviceattribs attribs;
-	attribs.struct_size = sizeof(CALdeviceattribs);
-	CHKERR(calDeviceGetAttribs(&attribs, device_num), "getting device attributes");
-
-	CALobject obj;
-	char* ILKernelUse = (char*) malloc(strlen(ILKernel) + 1024);
-#ifdef CALDGEMM_44_BT_64_KERNEL
-	sprintf(ILKernelUse, ILKernel, Config->Width * 2);
-#else
-	sprintf(ILKernelUse, ILKernel, Config->Width);
-#endif
-	if (Config->PrintILKernel) fprintf(STD_OUT, "Kernel:\n%s\n", ILKernelUse);
-	CHKERR(calclCompile(&obj, CAL_LANGUAGE_IL, ILKernelUse, attribs.target), "compiling the kernel");
-	free(ILKernelUse);
-
-	CHKERR(calclLink(&image, &obj, 1), "linking the kernel");
-	CHKERR(calclFreeObject(obj), "freeing the object file");
-	if (disassemble == true)
-	{
-		calclDisassembleImage(image, log_callback);
-	}
-
-	CHKERR(calModuleLoad(module, *ctx, image), "loading the module to the context");
-	CHKERR(calclFreeImage(image), "freeing kernel image");
-
-	return(0);
-}
-
-int caldgemm::RunProgram(CALcontext *ctx, CALmodule *module, unsigned int Width, unsigned int Height, CALevent* event)
-{
-	CALfunc func;
-	CALresult r = CAL_RESULT_ERROR;
-	CHKERR(calModuleGetEntry(&func, *ctx, *module, "main"), "finding module entry point");
-
-	CALdomain rect;
-	rect.x = 0;
-	rect.y = 0;
-	rect.width = Width;
-	rect.height = Height;
-
-	if (Config->VerboseTiming) Timers.Kernel.Start();
-#ifdef CALDGEMM_BENCHMARK_KERNEL
-	for (int i = 0;i < CALDGEMM_BENCHMARK_KERNEL;i++)
-#endif
-	CHKERR(calCtxRunProgram(event, *ctx, func, &rect), "executing kernel");
-
-	if (Config->VerboseTiming)
-	{
-		if (event) WAITFOREVENTA(*ctx, *event);
-		Timers.Kernel.Stop();
-		if (Config->Debug) fprintf(STD_OUT, "\tTotal Kernel Time: %2.4lf\n", Timers.Kernel.GetElapsedTime());
-	}
-
-	return(0);
-}
-
-int caldgemm::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device)
-{
-	if (data)
-	{
-		for (unsigned int i = 0; i < numHandles;++i)
-		{
-			if ((nContext == 0 || i != dwBuffersA + dwBuffersB) && (nContext < 2 || i >= dwBuffersA) && (nContext < obuffercount || i < dwBuffersA + dwBuffersB) && data[i].ptr_char)
-			{
-#ifdef DEBUG_MSG_ALLOCATION
-				if (Config->Debug) fprintf(STD_OUT, "Freeing CAL Host memory, device %d context %d buffer %d\n", num_device, nContext, i);
-#endif
-				if (data[i].CALMemory)
-				{
-					if ((Config->DstMemory == 'g' || i <= dwBuffersA + dwBuffersB) && (Config->DivideToGPU == false || i >= dwBuffersA + dwBuffersB + numConstantBuffers) && nContext < 2)
-					{
-						calResUnmap(data[i].res);
-						calCtxReleaseMem(*ctx, data[i].mem);
-						calResFree(data[i].res);
-					}
-				}
-				else
-				{
-					if (nContext == 0) delete [] data[i].ptr_char;
-				}
-				data[i].ptr_char = NULL;
-			}
-#ifdef CALDGEMM_44_BT_64_CONVERT
-			if (nContext < 2 && i < dwBuffersA + dwBuffersB)
-			{
-#ifdef DEBUG_MSG_ALLOCATION
-				if (Config->Debug) fprintf(STD_OUT, "Freeing temporary CAL memory, device %d context %d buffer %d\n", num_device, nContext, i);
-#endif
-				CHKERR(calCtxReleaseMem(*ctx, data[i].tmpmem), "releasing temporary CAL memory");
-				CHKERR(calResFree(data[i].tmpres), "releasing temporary CAL resources");
-			}
-#endif
-		}
-	}
-
-	if (resourceHandler)
-	{
-		for (unsigned int i = 0; i < numHandles; i++)
-		{
-			if ((nContext == 0 || i != dwBuffersA + dwBuffersB) && (nContext < 2 || i >= dwBuffersA) && (nContext < obuffercount || i < dwBuffersA + dwBuffersB) && resourceHandler[i])
-			{
-#ifdef DEBUG_MSG_ALLOCATION
-				if (Config->Debug) fprintf(STD_OUT, "Freeing CAL GPU memory, device %d context %d buffer %d\n", num_device, nContext, i);
-#endif
-				if (Config->DstMemory == 'c' && i >= dwBuffersA + dwBuffersB + numConstantBuffers && Config->KeepBuffersMapped)
-				{
-					CHKERR(calResUnmap(data[i].res), "mapping of remote output memory");
-				}
-				CHKERR(calCtxReleaseMem(*ctx, data[i].dstMem), "releasing CAL memory");
-				CHKERR(calResFree(resourceHandler[i]), "releasing CAL resources");
-			}
-		}
-	}
-	return(0);
-}
-
-int caldgemm::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device)
-{
-	CleanupData(ctx, resourceHandler, data, numHandles, nContext, num_device);
-
-	if (nContext < 1)
-	{
-		for (int i = 0;i < kernel_count;i++)
-		{
-			if (module[i])
-			{
-				CHKERR(calModuleUnload(*ctx, module[i]), "unloading module");
-			}
-		}
-		CHKERR(calModuleUnload(*ctx, modulesConvert[num_device]), "unloading module");
-	}
-	delete[] resourceHandler;
-	delete[] data;
-
-	return(0);
-}
-
-int caldgemm::CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event, size_t lastm, size_t lastn)
-{
-	if (Config->DstMemory == 'c') return 0;
-	if (Config->VerboseTiming) Timers.CounterCopyFrom.Start();
-	if (Config->Debug == true) fprintf(STD_OUT, "\tFetching part of C from GPU (m = %lld, n = %lld)\n", (long long int) lastm, (long long int) lastn);
-	unsigned int pitch;
-	CALresult r;
-	char* ptr;
-	if (Config->ImplicitDriverSync == 0) WAITFOREVENTA(*ctx, *event);
-	for (unsigned int i = 0; i < num; ++i)
-	{
-		if (data[i].CALMemory)
-		{
-			//if (Config->Debug) fprintf(STD_OUT, "GPUHandle: %d, CPUHandle: %d\n", data[i].dstMem, data[i].mem);
-			CHKERR(calMemCopy(event, *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
-			continue;
-		}
-		CHKERR(calResMap((void**)&ptr, &pitch, _Res[i], 0), "mapping buffer");
-		memcpy(data[i].ptr_char, ptr, data[i].DataSize * data[i].VectorSize * data[i].Width * data[i].Height);
-		CHKERR(calResUnmap(_Res[i]), "unmapping buffer");
-	}
-	if (Config->VerboseTiming) WAITFOREVENTA(*ctx, *event);
-	if (Config->VerboseTiming) Timers.CounterCopyFrom.Stop();
-	return 0;
-}
-
-int caldgemm::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, int num_device, BufferProperties* dest_data)
-{
-	if (dest_data == NULL) dest_data = data;
-	unsigned int pitch;
-	CALresult r;
-	char* ptr;
-	for (unsigned int i = 0; i < num; ++i)
-	{
-		if (data[i].CALMemory == constants) continue;
-		if (data[i].CALMemory)
-		{
-#ifdef CALDGEMM_44_BT_64_CONVERT
-			CHKERR(calMemCopy(event, *ctx, data[i].mem, data[i].tmpmem, 0), "copying to gpu");
-#else
-			CHKERR(calMemCopy(event, *ctx, data[i].mem, dest_data[i].dstMem, 0), "copying data to gpu");
-#endif
-			continue;
-		}
-		CHKERR(calResMap((void**)&ptr, &pitch, _Res[i], 0), "Mapping Buffer");
-		memcpy(ptr, data[i].ptr_char, data[i].DataSize * data[i].VectorSize * data[i].Width * data[i].Height);
-		CHKERR(calResUnmap(_Res[i]), "unmapping buffer");
-	}
-	if (Config->VerboseTiming && constants == false) WAITFOREVENTA(*ctx, *event);
-#ifdef CALDGEMM_44_BT_64_CONVERT
-	if (!constants)
-	{
-		dest_data[0].conversionBuffer = data;
-	}
-#endif
-	return 0;
-}
-
-int caldgemm::ValidateCALRuntime()
-{
-	CALVersion available;
-	calGetVersion(&available.major, &available.minor, &available.imp);
-	
-	if (Config->ImplicitDriverSync == -1)
-	{
-		if (available.major > 2 || available.minor > 4 || (available.minor == 4 && available.imp > 900)) Config->ImplicitDriverSync = 0;
-		else Config->ImplicitDriverSync = 1;
-		if (Config->DstMemory == 'g' && !Config->Quiet) fprintf(STD_OUT, "Implicit driver sync automatically set to %d\n", Config->ImplicitDriverSync);
-	}
-	
-	if (available.major < 1) return(1);
-	if (available.major > 2) return(0);
-	if (available.minor < 3 || available.minor == 3 && available.imp < 185) return(1);
-	if (available.minor < 4 || available.minor == 4 && available.imp < 815)
-	{
-		if (Config->AsyncDMA && !Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Asynchronous DMA not supported by CAL Runtime Version\n");
-		Config->AsyncDMA = false;
-	}
-	if (Config->Debug)
-	{
-		fprintf(STD_OUT, "CAL Runtime Version:%d.%d.%d\n", available.major, available.minor, available.imp);
-	}
-	return(0);
 }
 
 // vim: ts=4 sw=4 noet sts=4 tw=100

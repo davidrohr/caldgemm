@@ -320,7 +320,7 @@ MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1_12.xy, a2_12.xy, a1_12.zw, a2_12.zw, a
 #define UNNORM_TYPE
 #endif
 
-const char *caldgemm::ILKernelName =
+const char *caldgemm_cal::ILKernelName =
 "il_ps_2_0\n"
 "dcl_cb cb0[4]\n"
 "dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"

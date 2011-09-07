@@ -22,11 +22,35 @@
  * along with CALDGEMM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "caldgemm_config_load.h"
+#ifndef CALDGEMM_H
+#define CALDGEMM_H
 
-#include <cal.h>
-#include <cal_ext.h>
-#include <calcl.h>
+#include "caldgemm_config_load.h"
+#ifdef _WIN32
+#define __INTRIN_H_
+#define _Complex
+#define __restrict__
+
+#ifdef INTEL_RUNTIME
+#pragma warning(disable : 1786)
+#pragma warning(disable : 1478)
+#pragma warning(disable : 161)
+#pragma warning(disable : 94)
+#pragma warning(disable : 1229)
+#endif //INTEL_RUNTIME
+
+#ifdef VSNET_RUNTIME
+#pragma warning(disable : 4616)
+#pragma warning(disable : 4996)
+#pragma warning(disable : 1684)
+#endif //VSNET_RUNTIME 
+#endif
+
+#ifndef _WIN32
+#define CAST_FOR_MMPREFETCH
+#else
+#define CAST_FOR_MMPREFETCH (char*)
+#endif
 
 #include <cstdio>
 #include <cstring>
@@ -37,8 +61,14 @@
 #include <iomanip>
 
 #include <emmintrin.h>
-#include <mm3dnow.h>
+#ifdef _WIN32
+#include "pthread_mutex_win32_wrapper.h"
+#include "sched_affinity_win32_wrapper.h"
+#else
 #include <pthread.h>
+#include <mm3dnow.h>
+#endif
+
 #include <signal.h>
 typedef int blasint;
 extern "C" {
@@ -53,41 +83,25 @@ extern "C" {
 #include <sys/time.h>
 #endif
 
-void* merge_wrapper(void* arg);
-void* divide_wrapper(void* arg);
-void* cblas_wrapper(void* arg);
-void* linpack_wrapper(void* arg);
+template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
+template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 
-class HighResTimer {
 
-public:
-	HighResTimer();
-	~HighResTimer();
-	void Start();
-	void Stop();
-	void Reset();
-	double GetElapsedTime();
-
-private:
-
-	double Frequency;
-	double ElapsedTime;
-	double StartTime;
-};
+#include "timer.h"
 
 class caldgemm
 {
-	friend void* merge_wrapper(void* arg);
-	friend void* divide_wrapper(void* arg);
-	friend void* cblas_wrapper(void* arg);
-	friend void* linpack_wrapper(void* arg);
+	static void* merge_wrapper(void* arg);
+	static void* divide_wrapper(void* arg);
+	static void* cblas_wrapper(void* arg);
+	static void* linpack_wrapper(void* arg);
 protected:
 	static const unsigned int max_devices = 8;
 
 public:
 
 	caldgemm();
-	~caldgemm();
+	virtual ~caldgemm();
 
 	class caldgemm_config								//Run Parameters
 	{
@@ -163,35 +177,24 @@ public:
 	double avggflops;
 	int avgngflops;
 
-private:
+protected:
 
-	struct BufferProperties
-	{
-		union
-		{
-			float*  ptr_float;
-			unsigned int*   ptr_uint;
-			int*    ptr_int;
-			double* ptr_double;
-			char*   ptr_char;
-			void*   ptr_void;
-		};
-		unsigned int Width;
-		unsigned int Height;
-		unsigned int VectorSize;
-		unsigned int DataSize;
+	struct BufferProperties;
+	unsigned int numInputs, numOutputs, numConstantBuffers;
 
-		bool CALMemory;
-		CALresource res;
-		CALmem mem;
-		CALmem dstMem;
-		unsigned int pitch;
-		CALresource tmpres;
-		CALmem tmpmem;
-		
-		BufferProperties* conversionBuffer;
-	};
-	
+	virtual int ValidateRuntime() = 0;
+	virtual int CheckDevices() = 0;
+	virtual int InitDevices() = 0;
+	virtual int ReinitDevices() = 0;
+	virtual int InitConstantData(double alpha) = 0;
+	virtual int ExitRuntime() = 0;
+	virtual int WaitForEvent(int, int) = 0;
+	virtual int FetchResult(int device, int j, int m, int n) = 0;
+	virtual int ExitDevices() = 0;
+
+	virtual	int Initialize (int deviceNum, bool nocalinit) = 0;
+	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers) = 0;
+
 	static const int obuffercount = 3;				//Not cal context count but number of copies of data buffers etc.
 	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
 	static const int vcpysize = 16;
@@ -208,14 +211,25 @@ private:
 	int *buffer_pointers_A[max_devices];
 	int *buffer_pointers_B[max_devices];
 
-	int divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose);
-	int mergeBuffers(double* dst, BufferProperties* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers);
+	virtual int DGEMM_prepare(size_t k, int j, unsigned int num_device) = 0;
+	inline void DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn)
+	{
+		if (DGEMM_favor_m)
+		{
+			const int nb = gpu_n / Config->Height;
+			blockn = k % nb;
+			blockm = k / nb;
+		}
+		else
+		{
+			const int mb = gpu_m / Config->Height;
+			blockm = k % mb;
+			blockn = k / mb;
+		}
+	}
 
-	int DGEMM_prepare(size_t k, int j, unsigned int num_device);
-	inline void DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn);
+
 	inline void WaitForLASWP(size_t n);
-	void checkCalPatch();
-	void cal_init_constant_data(BufferProperties* &data, double alpha);
 	void print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2 = NULL);
 	int cpuScheduler();
 	int getcpumask(cpu_set_t* set);
@@ -226,7 +240,6 @@ private:
 	{
 		caldgemm* cls;
 		double* dst;
-		BufferProperties* src;
 		int nMergeThread;
 		int nContext;
 		int num_device;
@@ -268,19 +281,7 @@ private:
 	static const bool buffersSwitchable = false;
 #endif
 
-	struct CALVersion {unsigned int major, minor, imp;};
-
-	int Initialize (int deviceNum, bool nocalinit);
-	int SetupKernel(const char* ILKernel, CALmodule* module, CALcontext* ctx, unsigned int device_num, bool disassemble = false);
-	int RunProgram(CALcontext* ctx, CALmodule* module, unsigned int Width, unsigned int Height, CALevent* event);
-	int CleanupData(CALcontext* ctx, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device);
-	int Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device);
-	CALformat getFormat(unsigned int formatSize, unsigned int dataSize, bool isInt = false);
 	unsigned int AnalyzeResults();
-	int SetupData(CALmodule* module, CALresource* &_Res, BufferProperties* &data, CALdevice* device, CALcontext* ctx, unsigned int numInputs, unsigned int numOutputs, unsigned int numConstantBuffers, CALname** ctxProgNames, int nContext, unsigned int num_device);
-	int CopyDataFromGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event, size_t lastm, size_t lastn);
-	int CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, int num_device, BufferProperties* dest_data = NULL);
-	int ValidateCALRuntime();
 	void displayMatrixTiming(const char* name);
 	bool isDoubleEqual(double a, double b);
 
@@ -335,21 +336,7 @@ private:
 
 	caldgemm_config* Config;
 
-	BufferProperties* datas[max_devices][max_bbuffers];
-	unsigned int numInputs, numOutputs, numConstantBuffers;
-	CALdevice devices[max_devices];
-	CALcontext ctxs[max_devices];
-	CALresource* resourceHandlers[max_devices][max_bbuffers];
-	CALmodule modules[max_devices][kernel_count];
-	CALmodule modulesConvert[max_devices];
-	CALmodule fakeModule;
-	CALname *progNames[max_devices][kernel_count];
-	CALname progNamesConvert[max_devices][2 * dwBuffersA];
-	CALevent events[max_devices][obuffercount];
-	unsigned int device_nums[max_devices];
 	int nDevices;
-
-	static const char *ILKernel, *ILKernelALPHA1, *ILKernelLinpack, *ILFakeKernel, *ILConvertKernel;
 
 	struct cblasParameters
 	{
@@ -374,11 +361,11 @@ private:
 		int k;
 		int j;
 		int device;
-		CALcontext* ctx;
 		int kernel_num;
 		pthread_mutex_t mutex_start, mutex_finished;
 	} DGEMMTasks[max_devices];
 	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task);
+	virtual int ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn) = 0;
 	
 	struct divideParameters
 	{
@@ -414,3 +401,5 @@ private:
 	
 	int conf_numprocs, conf_cpufreq, conf_numgpus, conf_gpufreq, conf_gpushaders;
 };
+
+#endif
