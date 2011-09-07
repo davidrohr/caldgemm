@@ -180,7 +180,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 	{
 		for (size_t jj = j;jj < j + suby && jj < height;jj++)
 		{
-			for (isize_tnt i = 0;i < width;i += stridex)
+			for (size_t i = 0;i < width;i += stridex)
 			{
 				for (size_t ii = i;ii < i + subx && ii < width;ii++)
 				{
@@ -206,7 +206,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 						}
 						else
 						{
-							if (jj >= Config->m - Config->m & Config->Height || ii >= Config->n - cParam.cblas_size) sprintf(tmpcolor, "01;34");
+							if (jj >= Config->m - Config->m % Config->Height || ii >= Config->n - cParam.cblas_size) sprintf(tmpcolor, "01;34");
 						}
 
 						size_t k = gpu_m / Config->Height * gpu_n / Config->Height;
