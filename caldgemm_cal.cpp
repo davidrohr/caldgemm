@@ -98,7 +98,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 
 	if (Config->DivideToGPU)
 	{
-		for (unsigned int i = 0;i < numBuffers;i++)
+		for (int i = 0;i < numBuffers;i++)
 		{
 			CHKERR(calResMap(&dst[i].ptr_void, &dst[i].pitch, dst[i].res, 0), "mapping input buffer for buffer division");
 			if (((size_t) dst[i].ptr_void) & (vcpysize - 1))
@@ -398,7 +398,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 
 	if (Config->DivideToGPU)
 	{
-		for (unsigned int i = 0;i < numBuffers;i++)
+		for (int i = 0;i < numBuffers;i++)
 		{
 			CHKERR(calResUnmap(dst[i].res), "unmapping input buffer for buffer division");
 		}
@@ -428,7 +428,7 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
 	const unsigned long long int double_minus_one = 0xBFF0000000000000;
 
-	if (Config->Width == BufferWidth && reinterpret_cast<long long int &>(Beta) == double_one && reinterpret_cast<long long int &>(Alpha) == double_minus_one)
+	if (Config->Width == BufferWidth && reinterpret_cast<unsigned long long int &>(Beta) == double_one && reinterpret_cast<unsigned long long int &>(Alpha) == double_minus_one)
 	{
 		//Special Linpack Function
 		for (int y=0; y < height; y++)
@@ -437,7 +437,7 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 			double* saddr = src[bank].ptr_double + (y / 4) * (gpu_width / 2);
 			double* saddr2 = src[bank + 4].ptr_double + (y / 4) * (gpu_width / 2);
 			double* daddr = dst + (y * pitch);
-			int count = src[bank].DataSize * width;
+			//int count = src[bank].DataSize * width;
 
 
 #undef _mm_store_pd_use
@@ -782,7 +782,7 @@ int caldgemm_cal::Initialize(int deviceNum, bool nocalinit)
 		CALuint tmp;
 		calDeviceGetCount(&tmp);
 		nDevices = tmp;
-		if (nDevices > max_devices) nDevices = max_devices;
+		if (nDevices > (signed) max_devices) nDevices = max_devices;
 		if (nDevices > Config->NumDevices) nDevices = Config->NumDevices;
 		for (int i = 0;i < nDevices;i++)
 		{
@@ -825,7 +825,6 @@ static void log_callback(const char *msg)
 int caldgemm_cal::SetupKernel(const char* ILKernel, CALmodule* module, CALcontext* ctx, unsigned int device_num, bool disassemble)
 {
 	CALimage image = NULL;
-	bool success = false;
 
 	CALdeviceattribs attribs;
 	attribs.struct_size = sizeof(CALdeviceattribs);
@@ -858,7 +857,6 @@ int caldgemm_cal::SetupKernel(const char* ILKernel, CALmodule* module, CALcontex
 int caldgemm_cal::RunProgram(CALcontext *ctx, CALmodule *module, unsigned int Width, unsigned int Height, CALevent* event)
 {
 	CALfunc func;
-	CALresult r = CAL_RESULT_ERROR;
 	CHKERR(calModuleGetEntry(&func, *ctx, *module, "main"), "finding module entry point");
 
 	CALdomain rect;
@@ -971,7 +969,6 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 	if (Config->VerboseTiming) Timers.CounterCopyFrom.Start();
 	if (Config->Debug == true) fprintf(STD_OUT, "\tFetching part of C from GPU (m = %lld, n = %lld)\n", (long long int) lastm, (long long int) lastn);
 	unsigned int pitch;
-	CALresult r;
 	char* ptr;
 	if (Config->ImplicitDriverSync == 0) WAITFOREVENTA(*ctx, *event);
 	for (unsigned int i = 0; i < num; ++i)
@@ -995,7 +992,6 @@ int caldgemm_cal::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProper
 {
 	if (dest_data == NULL) dest_data = data;
 	unsigned int pitch;
-	CALresult r;
 	char* ptr;
 	for (unsigned int i = 0; i < num; ++i)
 	{
@@ -1037,8 +1033,8 @@ int caldgemm_cal::ValidateCALRuntime()
 	
 	if (available.major < 1) return(1);
 	if (available.major > 2) return(0);
-	if (available.minor < 3 || available.minor == 3 && available.imp < 185) return(1);
-	if (available.minor < 4 || available.minor == 4 && available.imp < 815)
+	if (available.minor < 3 || (available.minor == 3 && available.imp < 185)) return(1);
+	if (available.minor < 4 || (available.minor == 4 && available.imp < 815))
 	{
 		if (Config->AsyncDMA && !Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Asynchronous DMA not supported by CAL Runtime Version\n");
 		Config->AsyncDMA = false;

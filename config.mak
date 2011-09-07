@@ -15,6 +15,7 @@ LIBPATHS					=
 INCLUDE_OPENCL				= 0
 INCLUDE_CAL					= 1
 DEFINES						= #_NO_AMD_CPU
+LIBS						=
 
 CONFIG_STATIC				= 0
 EXTRAFLAGSGCC				= 
@@ -41,4 +42,8 @@ ifeq ($(INCLUDE_CAL), 1)
 CONFIG_CAL					= 1
 CPPFILES					+= caldgemm_cal.cpp
 DEFINES						+= CALDGEMM_CAL
+endif
+
+ifneq ($(ARCH), i686-pc-cygwin)
+LIBS						+= -lgfortran ../GotoBLAS2/libgoto2.a
 endif
