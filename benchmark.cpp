@@ -330,7 +330,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			if (x + 1 >= argc) return(1);
 			int gpuid;
 			sscanf(&argv[x++][2], "%d", &gpuid);
-			if (gpuid >= sizeof(Config->GPUMapping) / sizeof(Config->GPUMapping[0]))
+			if ((unsigned) gpuid >= sizeof(Config->GPUMapping) / sizeof(Config->GPUMapping[0]))
 			{
 			    fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
 			    break;

@@ -1370,7 +1370,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		const size_t mb = gpu_m / Config->Height;
 		const size_t nb = gpu_n / Config->Height;
-		size_t blockm, blockn;
+		size_t blockm = 0, blockn = 0;
 		unsigned long long int lastk[max_devices];
 		for (int l = 0;l < nDevices;l++) lastk[l] = -1;
 		size_t nBlocks = mb * nb;
@@ -1401,7 +1401,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			}
 		}
 
-		int* tileDistribution;
+		int* tileDistribution = NULL;
 		int ImprovedSchedPhase1 = 0;
 		int forcePreparation[max_devices];
 		for (int l = 0;l < nDevices;l++) forcePreparation[l] = 0;
@@ -1974,7 +1974,7 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
 			return(NULL);
 		}
 		int shmid;
-		void *address;
+		void *address = NULL;
 
 		if (Config->Debug)  fprintf(STD_OUT, "Running Huge Maloc\n");
 
@@ -2086,7 +2086,7 @@ void caldgemm::displayMatrixTiming(const char* name)
 				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.2lf Corrected: %2.2lf Guessed: %2.2lf , m*n: %.1E, CPU Wait Time: %2.3lf", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, gpu_ratio_used, (double) (Config->m * Config->n), cpu_wait_time);
 			}
 			sprintf(timingoutput, "\n");
-			const int nwritten = fwrite(timingoutputbase, 1, strlen(timingoutputbase), STD_OUT);
+			fwrite(timingoutputbase, 1, strlen(timingoutputbase), STD_OUT);
 		}
 		gpu_ratio_used = gpu_ratio_used_new;
 	}
@@ -2173,9 +2173,9 @@ unsigned int caldgemm::AnalyzeResults()
 		if (!Config->Quiet && errors)
 		{
 			fprintf(STD_OUT, "Number of errors in tiles\n");
-			for (int i = 0;i < Config->m;i += Config->Height)
+			for (size_t i = 0;i < Config->m;i += Config->Height)
 			{
-				for (int j = 0;j < Config->n;j += Config->Height)
+				for (size_t j = 0;j < Config->n;j += Config->Height)
 				{
 					fprintf(STD_OUT, "%8d\t", errortiles[j / Config->Height * nblocksm + i / Config->Height]);
 				}

@@ -54,7 +54,7 @@ CUDADEFINES					= $(DEFINESUSE:%=--compiler-options %)
 
 OBJFILES					= $(CPPFILES:%.cpp=$(WORKPATH)/%.obj) $(CXXFILES:%.cxx=$(WORKPATH)/%.cxobj) $(CUFILES:%.cu=$(WORKPATH)/%.cuobj) $(ASMFILES:%.asm=$(WORKPATH)/%.asmobj) \
 								$(CPPFILES_DBG:%.cpp=$(WORKPATH)/%.objdbg) $(CPPFILES_ICC:%.cpp=$(WORKPATH)/%.objicc) $(CPPFILES_VCC:%.cpp=$(WORKPATH)/%.objvcc) $(CPPFILES_GCC:%.cpp=$(WORKPATH)/%.objgcc) \
-								$(CPPFILES_MSCC:%.cpp=$(WORKPATH)/%.objmscc) $(EXTRAOBJFILES)
+								$(CPPFILES_MSCC:%.cpp=$(WORKPATH)/%.objmscc)
 
 DEPENDS						= $(CPPFILES:%.cpp=$(WORKPATH)/%.d) $(CXXFILES:%.cxx=$(WORKPATH)/%.cxd) $(CUFILES:%.cu=$(WORKPATH)/%.cud) $(ASMFILES:%.asm=$(WORKPATH)/%.asmd) \
 								$(CPPFILES_DBG:%.cpp=$(WORKPATH)/%.dbgd) $(CPPFILES_ICC:%.cpp=$(WORKPATH)/%.iccd) $(CPPFILES_VCC:%.cpp=$(WORKPATH)/%.vccd) $(CPPFILES_GCC:%.cpp=$(WORKPATH)/%.gccd) \
@@ -70,8 +70,8 @@ LIBFILES					= $(LIBSUSE)
 
 .SECONDARY:					$(CUFILES:%.cu=$(WORKPATH)/%.cucpp) $(ASMFILES:%.asm=$(WORKPATH)/%.asmcpp)
 
-$(EXECUTABLE):				$(EXTRADEPS) $(OBJFILES) $(ALLDEP)
-							$(LINK) $(LIBPATHSUSE) $(OBJFILES) $(LIBFILES) $(LINKFLAGSUSE) $(LINKOUTPUT) $(LINKTARGETTYPE)
+$(EXECUTABLE):				$(EXTRADEPS) $(OBJFILES) $(EXTRAOBJFILES) $(ALLDEP)
+							$(LINK) $(LIBPATHSUSE) $(OBJFILES) $(EXTRAOBJFILES) $(LIBFILES) $(LINKFLAGSUSE) $(LINKOUTPUT) $(LINKTARGETTYPE)
 							$(HIDEECHO)if [ -e "$(BUILDSCRIPT)" ]; then ./$(BUILDSCRIPT); fi
 
 $(WORKPATH)/%.obj:			%.cpp $(ALLDEP)
