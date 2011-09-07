@@ -1,0 +1,45 @@
+INTELARCH					= SSE4.2
+CUDAVERSION					= 20
+CUDAREGS					= 64
+ARCHBITS					= 64
+
+HIDEECHO					= @
+#HIDEECHO					= -
+CC_x86_64-pc-linux-gnu		= GCC
+CC_i686-pc-cygwin			= ICC
+
+EXTRAFLAGSGCC				= -Weffc++
+EXTRAOBJFILES				= objfile.obj
+EXTRADEPS					= non_obj_file_required.dat
+
+INCLUDEPATHS				= include subdir/include
+DEFINES						= SAMPLE_DEFINE=1
+LIBPATHS					= /usr/local/lib/sample
+LIBS						= sample
+
+#CONFIG_STATIC				= 1
+
+CONFIG_OPENCL				= 1
+CONFIG_OPENGL				= 0
+CONFIG_CAL					= 0
+#CONFIG_DDRAW				=
+#CONFIG_VIDEO_EDIT			=
+
+include						config_common.mak
+
+TARGET						= ca
+SUBTARGETS					= libAliHLTTPCCAGPUSA
+
+TARGETTYPE					= LIB
+WORKPATHSUFFIX				= $(TARGETTYPE)
+
+CPPFILES					= sample.cpp
+CXXFILES					= subdir/sample.cxx \
+								subdir/sample2.cxx
+ASMFILES					= sample.asm
+CUFILES						= sample.cu
+
+INTELFLAGSUSE				= $(INTELFLAGSOPT)
+VSNETFLAGSUSE				= $(VSNETFLAGSOPT)
+GCCFLAGSUSE					= $(GCCFLAGSOPT)
+NVCCFLAGSUSE				= $(NVCCFLAGSOPT)
