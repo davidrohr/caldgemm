@@ -1,6 +1,13 @@
 all							: all_tmp
 
 ARCH						:= $(shell sort <<< $$MACHTYPE)
+ifneq ($(ARCH), i686-pc-cygwin)
+ifneq ($(ARCH), i686-pc-linux-gnu)
+ifneq ($(ARCH), x86_64-pc-linux-gnu)
+ARCH						:= x86_64-pc-linux-gnu
+endif
+endif
+endif
 ARCHFILE					= $(ARCH).mak
 
 ifeq ($(CONFIGFILE), )
