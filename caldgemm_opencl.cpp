@@ -104,8 +104,6 @@ int caldgemm_opencl::ValidateRuntime()
 {
 	fprintf(STD_OUT, "OPENCL ValidateRuntime\n");
 
-	cl_int ocl_error;
-
 	cl_uint num_platforms;
 	if (clGetPlatformIDs(0, NULL, &num_platforms) != CL_SUCCESS) ERRRET("Error getting OpenCL Platform Count\n");
 	if (num_platforms == 0) ERRRET("No OpenCL Platform found\n");
@@ -125,7 +123,7 @@ int caldgemm_opencl::ValidateRuntime()
 		if (Config->Debug) fprintf(STD_OUT, "Platform %d: (%s %s) %s %s\n", i, platform_profile, platform_version, platform_vendor, platform_name);
 	}
 
-	if (CalDGEMM_OpenCL_Platform >= num_platforms) ERRRET("OpenCL Platform %d not available\n", CalDGEMM_OpenCL_Platform);
+	if (CalDGEMM_OpenCL_Platform >= (signed) num_platforms) ERRRET("OpenCL Platform %d not available\n", CalDGEMM_OpenCL_Platform);
 	ocl_platform = platforms[CalDGEMM_OpenCL_Platform];
 	delete[] platforms;
 

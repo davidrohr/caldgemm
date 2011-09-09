@@ -12,8 +12,8 @@ TARGET						= dgemm_bench
 LIBS						= 
 LIBPATHS					= 
 
-INCLUDE_OPENCL				= 1
-INCLUDE_CAL					= 0
+INCLUDE_OPENCL				= 0
+INCLUDE_CAL					= 1
 DEFINES						= #_NO_AMD_CPU
 LIBS						=
 EXTRAOBJFILES				=
