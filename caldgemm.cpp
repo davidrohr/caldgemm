@@ -39,8 +39,11 @@ static inline void caldgemm_goto_reserve_cpu(int, int) {}
 static inline void caldgemm_goto_reserve_cpus(int) {}
 static inline void caldgemm_goto_restrict_cpus(int) {}
 static inline void goto_set_num_threads(int) {}
-void cblas_dgemm(enum CBLAS_ORDER Order, enum CBLAS_TRANSPOSE TransA, enum CBLAS_TRANSPOSE TransB, blasint M, blasint N, blasint K,
-				 double alpha, double *A, blasint lda, double *B, blasint ldb, double beta, double *C, blasint ldc) {}
+extern "C"
+{
+	void ___chkstk() {}
+	void __imp__cprintf() {}
+}
 #endif
 #include <math.h>
 
@@ -368,7 +371,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		for (int i = 0;i < nDevices;i++)
 		{
 			pthread_mutex_init(&DGEMMTasks[i].mutex_start, NULL);
-			pthread_mutex_lock(&DGEMMTasks[i].mutex_start);
+			if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking divide start mutex (%d)\n", i);
 			pthread_mutex_init(&DGEMMTasks[i].mutex_finished, NULL);
 			if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", i);
 			if (Config->GPUMapping[i] == Config->GPUMapping[0]) continue;
@@ -1494,7 +1497,7 @@ restartkloop:
 						}
 					}
 
-					pthread_mutex_lock(&scheduleMutex);
+					if (Config->MultiThread) pthread_mutex_lock(&scheduleMutex);
 					if ((signed) k < cpu_k_barrier)
 					{
 						if ((signed int) k > (signed int) gpu_k_barrier) gpu_k_barrier = k;
@@ -1508,7 +1511,7 @@ restartkloop:
 						next_device_k[use_device] = 0;
 						cpu_k_barrier_hit = true;
 					}
-					pthread_mutex_unlock(&scheduleMutex);
+					if (Config->MultiThread) pthread_mutex_unlock(&scheduleMutex);
 				}
 
 				if (ImprovedSchedPhase1 && k >= nBlocks)
@@ -1607,7 +1610,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					else
 					{
 						if (DGEMMPrepareAndExecute(Task)) return(1);
-						if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+						if (Config->MultiThreadDivide && pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
 				}
 				if (obuffercount == 1)
@@ -1640,7 +1643,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 							if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
 							if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], Config->Height, Config->Height, BufferHeight, BufferHeight, C_pitch, dwBuffersC)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
 							if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex devuce %d obuffer %d\n", use_device, oldj[use_device]);
-							if (pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+							if (Config->MultiThread && pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 						}
 						if (Config->MultiThread)
 						{
@@ -2006,21 +2009,43 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
 	else
 #endif
 	{
+#ifdef _WIN32
+		ptr = (double*) VirtualAlloc(NULL, nDoubles * sizeof(double), MEM_COMMIT, PAGE_READWRITE);
+#else
 		ptr = new double[nDoubles];
+#endif
 	}
 	if (ptr == NULL) return(NULL);
 #ifdef WASTE_MEMORY
 	nDoubles -= 40 * 1024 * 1024;
 	ptr += 20 * 1024 * 1024;
 #endif
-#ifndef _WIN32
-	if (!huge_pages && page_locked && mlock(ptr, nDoubles * sizeof(double)))
+	if (!huge_pages && page_locked)
 	{
-		fprintf(STD_OUT, "ERROR locking Pages\n");
-		if (!huge_pages) delete[] ptr;
-		return(NULL);
-	}
+#ifdef _WIN32
+		size_t minp, maxp;
+		HANDLE pid = GetCurrentProcess();
+		if (GetProcessWorkingSetSize(pid, &minp, &maxp) == 0) fprintf(STD_OUT, "Error getting minimum working set size\n");
+		if (SetProcessWorkingSetSize(pid, minp + nDoubles * sizeof(double), maxp + nDoubles * sizeof(double)) == 0) fprintf(STD_OUT, "Error settings maximum working set size\n");
+		if (VirtualLock(ptr, nDoubles * sizeof(double)) == 0)
+#else
+		if (mlock(ptr, nDoubles * sizeof(double)))
 #endif
+		{
+			fprintf(STD_OUT, "ERROR locking Pages\n");
+			if (!huge_pages)
+			{
+#ifdef _WIN32
+				DWORD err = GetLastError();
+				fprintf(STD_OUT, "Error Number: %d\n", err);
+				VirtualFree(ptr, 0, MEM_RELEASE);
+#else
+				delete[] ptr;
+#endif
+			}
+			return(NULL);
+		}
+	}
 	return(ptr);
 }
 
@@ -2040,7 +2065,12 @@ void caldgemm::FreeMemory(double* ptr)
 		}
 	}
 #endif
+
+#ifdef _WIN32
+	VirtualFree(ptr, 0, MEM_RELEASE);
+#else
 	delete[] ptr;
+#endif
 }
 
 void caldgemm::displayMatrixTiming(const char* name)

@@ -152,14 +152,21 @@ int caldgemm_opencl::InitDevices()
 	if (Config->DstMemory == 'g') num_bbuffers =  max_bbuffers_g;
 	else num_bbuffers = max_bbuffers;
 
+	BufferHeight = Config->Height;
+	BufferWidth = Config->Width;
+
+	cl_image_format ocl_image_format;
+	ocl_image_format.image_channel_order = CL_RGBA;
+	ocl_image_format.image_channel_data_type = CL_UNSIGNED_INT32;
+
 	for (int i = 0;i < nDevices;i++)
 	{
-		ocl_abuffers[i] = clCreateBuffer(ocl_contexts[i], CL_MEM_READ_ONLY, 1024 * 1024, NULL, &ocl_error);
+		ocl_abuffers[i] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_ONLY, &ocl_image_format, BufferHeight, BufferWidth, 0, NULL, &ocl_error);
 		if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory (A)\n");
 
 		for (int j = 0;j < num_bbuffers;j++)
 		{
-			ocl_bbuffers[i][j] = clCreateBuffer(ocl_contexts[i], CL_MEM_READ_ONLY, 1024 * 1024, NULL, &ocl_error);
+			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_ONLY, &ocl_image_format, BufferHeight, BufferWidth, 0, NULL, &ocl_error);
 			if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory (B)\n");
 			bbuffers[i] = j + 1;
 		}

@@ -22,6 +22,10 @@
  * along with CALDGEMM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if !defined(CALDGEMM_CAL) & !defined(CALDGEMM_OPENCL)
+#error Please enable either CAL or OpenCL!
+#endif
+
 #ifdef CALDGEMM_OPENCL
 #include "caldgemm_opencl.h"
 #endif
@@ -64,6 +68,8 @@ size_t height_a, height_b;
 bool mem_page_lock = true;
 bool mem_huge_table = false;
 bool linpack_callbacks = false;
+
+bool use_opencl_not_cal = false;
 
 int random_seed = 0;
 
@@ -305,6 +311,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 		case 'f':
 			fastinit = true;
 			break;
+		case 'O':
+			use_opencl_not_cal = true;
+			break;
 		case 'o':
 			if (++x >= argc) return(1);
 			Config->DstMemory = argv[x][0];
@@ -451,7 +460,9 @@ void fastmatgen(int SEED, double* A, size_t size)
 	fastrand_size = size;
 	
 #ifdef _WIN32
-	nfastmatthreads = 1;
+	SYSTEM_INFO sysinfo;
+	GetSystemInfo( &sysinfo );
+	nfastmatthreads = sysinfo.dwNumberOfProcessors;
 #else
 	nfastmatthreads = sysconf(_SC_NPROCESSORS_CONF);
 #endif
@@ -660,10 +671,25 @@ int main(int argc, char** argv)
 	}
 
 #ifndef CALDGEMM_CAL
-	dgemm = new caldgemm_opencl;
-#else
-	dgemm = new caldgemm_cal;
+	use_opencl_not_cal = true;
 #endif
+#ifndef CALDGEMM_OPENCL
+	use_opencl_not_cal = false;
+#endif
+
+	if (use_opencl_not_cal)
+	{
+#ifdef CALDGEMM_CAL
+		dgemm = new caldgemm_opencl;
+#endif
+	}
+	else
+	{
+
+#ifdef CALDGEMM_OPENCL
+		dgemm = new caldgemm_cal;
+#endif
+	}
 
 	
 	if (dgemm == NULL)

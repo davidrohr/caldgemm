@@ -7,7 +7,7 @@ GCCPATH						= c:/Utility/Speeches/gcc
 CYGWINPATH					= /cygdrive/c/Utility/Cygwin
 WINPATH						= /cygdrive/c/Windows
 CUDAPATH					= c:/Utility/Speeches/cuda/v4.0
-AMDPATH						= c:/Utility/Speeches/stream/dev
+AMDPATH						= c:/Utility/Speeches/stream/2.5/
 
 ICCPATH32					= $(ICCPATH)bin/ia32
 ICCPATH64					= $(ICCPATH)bin/intel64

@@ -12,7 +12,7 @@ TARGET						= dgemm_bench
 LIBS						= 
 LIBPATHS					= 
 
-INCLUDE_OPENCL				= 0
+INCLUDE_OPENCL				= 1
 INCLUDE_CAL					= 1
 DEFINES						= #_NO_AMD_CPU
 LIBS						=
@@ -45,7 +45,9 @@ CPPFILES					+= caldgemm_cal.cpp
 DEFINES						+= CALDGEMM_CAL
 endif
 
-ifneq ($(ARCH), i686-pc-cygwin)
+ifeq ($(ARCH), i686-pc-cygwin)
+EXTRAOBJFILES				+= ../GotoBLAS2/libgoto2.lib
+else
 LIBS						+= gfortran
 EXTRAOBJFILES				+= ../GotoBLAS2/libgoto2.a
 endif
