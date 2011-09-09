@@ -51,10 +51,11 @@ private:
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers);
 
 	cl_platform_id ocl_platform;
-	cl_device_id ocl_device;
-	cl_context ocl_context;
-	cl_command_queue ocl_command_queue;
-	cl_mem ocl_buffers[2];
+	cl_device_id ocl_devices[max_devices];
+	cl_context ocl_contexts[max_devices];
+	cl_command_queue ocl_command_queues[max_devices][2];
+	cl_mem ocl_abuffers[max_devices];
+	cl_mem ocl_bbuffers[max_devices][max_bbuffers];
 	cl_program ocl_program;
 	cl_kernel ocl_kernel;
 

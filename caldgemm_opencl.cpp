@@ -53,17 +53,13 @@ int caldgemm_opencl::WaitForEvent(int a, int b) {return(0);}
 int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 {
 	fprintf(STD_OUT, "OPENCL Initialice\n");
-
-	if (deviceNum < 0) deviceNum = 0;
-	gpu_available = (nDevices > 0);
-
 	cl_int ocl_error;
 
 	cl_device_id* devices = new cl_device_id[nDevices];
 	if (devices == NULL) ERRRET("Memory allocation error\n");
 	if (clGetDeviceIDs(ocl_platform, CL_DEVICE_TYPE_ALL, nDevices, devices, NULL) != CL_SUCCESS) ERRRET("Error getting OpenCL devices\n");
 
-	for (unsigned int i = 0;i < nDevices;i++)
+	for (int i = 0;i < nDevices;i++)
 	{
 		char device_vendor[64], device_name[64];
 		clGetDeviceInfo(devices[i], CL_DEVICE_NAME, 64, device_name, NULL);
@@ -71,21 +67,36 @@ int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 		if (Config->Debug) fprintf(STD_OUT, "Device %d: %s %s\n", i, device_vendor, device_name);
 	}
 
+	if (nDevices > (signed) max_devices) nDevices = max_devices;
+	if (nDevices > Config->NumDevices) nDevices = Config->NumDevices;
+
 	if (deviceNum >= nDevices) ERRRET("OpenCL Device %d not available\n", deviceNum);
-	ocl_device = devices[deviceNum];
+	if (deviceNum < 0) nDevices = 1;
+	gpu_available = (nDevices > 0);
+
+	for (int i = 0;i < nDevices;i++)
+	{
+		if (deviceNum >= 0) ocl_devices[i] = devices[deviceNum];
+		else ocl_devices[i] = devices[i];
+	}
+	
 	delete[] devices;
 
-	ocl_context = clCreateContext(NULL, 1, &ocl_device, NULL, NULL, &ocl_error);
-	if (ocl_error != CL_SUCCESS) ERRRET("Error creating OpenCL context\n");
-
-	ocl_command_queue = clCreateCommandQueue(ocl_context, ocl_device, 0, &ocl_error);
-	if (ocl_error != CL_SUCCESS) ERRRET("Error creating OpenCL command queue\n");
-
-	for (int i = 0;i < 2;i++)
+	for (int i = 0;i < nDevices;i++)
 	{
-		ocl_buffers[i] = clCreateBuffer(ocl_context, i ? CL_MEM_WRITE_ONLY : CL_MEM_READ_ONLY, 1024 * 1024, NULL, &ocl_error);
-		if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory\n");
+		ocl_contexts[i] = clCreateContext(NULL, 1, &ocl_devices[i], NULL, NULL, &ocl_error);
+		if (ocl_error != CL_SUCCESS) ERRRET("Error creating OpenCL context\n");
 	}
+
+	for (int i = 0;i < nDevices;i++)
+	{
+		for (int j = 0;j < 2;j++)
+		{
+			ocl_command_queues[i][j] = clCreateCommandQueue(ocl_contexts[i], ocl_devices[i], 0, &ocl_error);
+			if (ocl_error != CL_SUCCESS) ERRRET("Error creating OpenCL command queue\n");
+		}
+	}
+
 	return(0);
 }
 
@@ -137,6 +148,26 @@ int caldgemm_opencl::InitDevices()
 {
 	fprintf(STD_OUT, "OPENCL InitDevices\n");
 
+	cl_int ocl_error;
+
+	int num_bbuffers;
+	if (Config->DstMemory == 'g') num_bbuffers =  max_bbuffers_g;
+	else num_bbuffers = max_bbuffers;
+
+	for (int i = 0;i < nDevices;i++)
+	{
+		ocl_abuffers[i] = clCreateBuffer(ocl_contexts[i], CL_MEM_READ_ONLY, 1024 * 1024, NULL, &ocl_error);
+		if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory (A)\n");
+
+		for (int j = 0;j < num_bbuffers;j++)
+		{
+			ocl_bbuffers[i][j] = clCreateBuffer(ocl_contexts[i], CL_MEM_READ_ONLY, 1024 * 1024, NULL, &ocl_error);
+			if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory (B)\n");
+			bbuffers[i] = j + 1;
+		}
+		if (Config->Debug) fprintf(STD_OUT, "Allocated %d BBuffers on Device %d\n", bbuffers[i], i);
+	}
+
 	return(0);
 }
 
@@ -161,6 +192,16 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 int caldgemm_opencl::ExitRuntime()
 {
 	fprintf(STD_OUT, "OPENCL ExitRuntime\n");
+
+	for (int i = 0;i < nDevices;i++)
+	{
+		for (int j = 0;j < 2;j++)
+		{
+			clReleaseCommandQueue(ocl_command_queues[i][j]);
+		}
+		clReleaseContext(ocl_contexts[i]);
+	}
+
 	return(0);
 }
 
@@ -188,12 +229,13 @@ int caldgemm_opencl::ExitDevices()
 
 	//clReleaseKernel(ocl_kernel);
 	//clReleaseProgram(ocl_program);
-	for (int i = 0;i < 2;i++)
+	for (int i = 0;i < nDevices;i++)
 	{
-		clReleaseMemObject(ocl_buffers[i]);
+		clReleaseMemObject(ocl_abuffers[i]);
+		for (int j = 0;j < bbuffers[i];j++)
+		{
+			clReleaseMemObject(ocl_bbuffers[i][j]);
+		}
 	}
-	clReleaseCommandQueue(ocl_command_queue);
-	clReleaseContext(ocl_context);
-
 	return(0);
 }
