@@ -38,6 +38,9 @@ public:
 	virtual ~caldgemm_cal();
 
 private:
+	virtual int UseOutputPthreads();
+	virtual int UseInputPthreads();
+
 	struct BufferProperties
 	{
 		union
@@ -108,6 +111,7 @@ private:
 	virtual int WaitForEvent(int, int);
 	virtual int FetchResult(int device, int j, int m, int n);
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers);
+	virtual int reserve_cpu_cores();
 };
 
 #endif

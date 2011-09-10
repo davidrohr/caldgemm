@@ -36,6 +36,9 @@ public:
 	virtual ~caldgemm_opencl();
 
 private:
+	virtual int UseOutputPthreads();
+	virtual int UseInputPthreads();
+
 	virtual int DGEMM_prepare(size_t k, int j, unsigned int num_device);
 	virtual	int Initialize (int deviceNum, bool nocalinit);
 	virtual int ValidateRuntime();
@@ -49,17 +52,18 @@ private:
 	virtual int WaitForEvent(int, int);
 	virtual int FetchResult(int device, int j, int m, int n);
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers);
+	virtual int reserve_cpu_cores();
 
 	cl_platform_id ocl_platform;
 	cl_device_id ocl_devices[max_devices];
 	cl_context ocl_contexts[max_devices];
-	cl_command_queue ocl_command_queues[max_devices][2];
-	cl_mem ocl_abuffers[max_devices];
+	cl_command_queue ocl_command_queues[max_devices][obuffercount];
+	cl_mem ocl_abuffers[max_devices][2];
 	cl_mem ocl_bbuffers[max_devices][max_bbuffers];
+	cl_mem ocl_cbuffers[max_devices][obuffercount];
+	cl_event ocl_events[max_devices][obuffercount];
 	cl_program ocl_program;
 	cl_kernel ocl_kernel;
-
-	static const int CalDGEMM_OpenCL_Platform = 0;
 
 	static const char *OCLKernel, *OCLKernelALPHA1, *OCLKernelLinpack, *OCLConvertKernel;
 };

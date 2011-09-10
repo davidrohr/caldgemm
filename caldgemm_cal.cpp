@@ -1733,3 +1733,36 @@ int caldgemm_cal::ExitDevices()
 	}
 	return(0);
 }
+
+int caldgemm_cal::UseOutputPthreads() {return(1);}
+int caldgemm_cal::UseInputPthreads() {return(1);}
+
+int caldgemm_cal::reserve_cpu_cores()
+{
+	int nthreads = 0;
+	for (int i = 0;i < nDevices;i++)
+	{
+		int offset = 0;
+		for (int j = 0;j < i;j++)
+		{
+			if (Config->GPUMapping[i] == Config->GPUMapping[j]) offset++;
+		}
+		if (offset == 0)
+		{
+			if (Config->MultiThreadDivide || i == 0)
+			{
+				caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
+				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
+				nthreads++;
+			}
+		}
+		for (int j = 0;j < outputthreads;j++)
+		{
+			caldgemm_goto_reserve_cpu(Config->GPUMapping[i] + 1 + offset * outputthreads + j, 1);
+			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", Config->GPUMapping[i] + 1 + offset * outputthreads + j);
+		}
+		nthreads += outputthreads;
+	}
+	if (Config->Debug) fprintf(STD_OUT, "Reserved %d cores\n", nthreads);
+	return(nthreads);
+}

@@ -27,24 +27,17 @@
 #ifndef _WIN32
 #include <syscall.h>
 #include <errno.h>
-extern "C" {
-#include <common.h>
-}
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
 #else
-static inline int get_num_procs() {return(1);}
-static inline void caldgemm_goto_reserve_cpu(int, int) {}
-static inline void caldgemm_goto_reserve_cpus(int) {}
-static inline void caldgemm_goto_restrict_cpus(int) {}
-static inline void goto_set_num_threads(int) {}
 extern "C"
 {
 	void ___chkstk() {}
 	void __imp__cprintf() {}
 }
 #endif
+
 #include <math.h>
 
 #define MPOL_DEFAULT 0
@@ -131,6 +124,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	DeviceNum = -1;
 	ImprovedScheduler = false;
 	NumDevices = max_devices;
+	OpenCLPlatform = 0;
 	Width = 1024;
 	Height = 4096;
 	AutoHeight = true;
@@ -312,7 +306,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	
 	if (InitDevices()) return(1);
 
-	if (Config->MultiThread)
+	if (Config->MultiThread && UseOutputPthreads())
 	{
 		for (int device_num = 0;device_num < nDevices;device_num++)
 		{
@@ -367,33 +361,35 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		pthread_mutex_init(&scheduleMutex, NULL);
 		
 		divideThreads = 0;
-		if (Config->MultiThreadDivide)
-		for (int i = 0;i < nDevices;i++)
+		if (Config->MultiThreadDivide && UseInputPthreads())
 		{
-			pthread_mutex_init(&DGEMMTasks[i].mutex_start, NULL);
-			if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking divide start mutex (%d)\n", i);
-			pthread_mutex_init(&DGEMMTasks[i].mutex_finished, NULL);
-			if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", i);
-			if (Config->GPUMapping[i] == Config->GPUMapping[0]) continue;
-			int found = 0;
-			for (int j = 1;j < i;j++)
+			for (int i = 0;i < nDevices;i++)
 			{
-				if (Config->GPUMapping[i] == Config->GPUMapping[j])
+				pthread_mutex_init(&DGEMMTasks[i].mutex_start, NULL);
+				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking divide start mutex (%d)\n", i);
+				pthread_mutex_init(&DGEMMTasks[i].mutex_finished, NULL);
+				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", i);
+				if (Config->GPUMapping[i] == Config->GPUMapping[0]) continue;
+				int found = 0;
+				for (int j = 1;j < i;j++)
 				{
-					found = 1;
-					break;
+					if (Config->GPUMapping[i] == Config->GPUMapping[j])
+					{
+						found = 1;
+						break;
+					}
 				}
-			}
-			if (found == 0)
-			{
-				pthread_t thr;
-				dParam[divideThreads].cls = this;
-				dParam[divideThreads].CPUCore = Config->GPUMapping[i];
-				dParam[divideThreads].nThread = divideThreads;
-				dParam[divideThreads].terminate = 0;
-				pthread_create(&thr, NULL, divide_wrapper, &dParam[divideThreads]);
-				if (pthread_mutex_lock(&DGEMMTasks[divideThreads].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", divideThreads);
-				divideThreads++;
+				if (found == 0)
+				{
+					pthread_t thr;
+					dParam[divideThreads].cls = this;
+					dParam[divideThreads].CPUCore = Config->GPUMapping[i];
+					dParam[divideThreads].nThread = divideThreads;
+					dParam[divideThreads].terminate = 0;
+					pthread_create(&thr, NULL, divide_wrapper, &dParam[divideThreads]);
+					if (pthread_mutex_lock(&DGEMMTasks[divideThreads].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", divideThreads);
+					divideThreads++;
+				}
 			}
 		}
 	}
@@ -544,35 +540,7 @@ TryThirdRun:
 	return(retVal);
 }
 
-int caldgemm::reserve_cpu_cores()
-{
-	int nthreads = 0;
-	for (int i = 0;i < nDevices;i++)
-	{
-		int offset = 0;
-		for (int j = 0;j < i;j++)
-		{
-			if (Config->GPUMapping[i] == Config->GPUMapping[j]) offset++;
-		}
-		if (offset == 0)
-		{
-			if (Config->MultiThreadDivide || i == 0)
-			{
-				caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
-				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
-				nthreads++;
-			}
-		}
-		for (int j = 0;j < outputthreads;j++)
-		{
-			caldgemm_goto_reserve_cpu(Config->GPUMapping[i] + 1 + offset * outputthreads + j, 1);
-			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", Config->GPUMapping[i] + 1 + offset * outputthreads + j);
-		}
-		nthreads += outputthreads;
-	}
-	if (Config->Debug) fprintf(STD_OUT, "Reserved %d cores\n", nthreads);
-	return(nthreads);
-}
+
 
 void* caldgemm::cblas_wrapper(void* arg)
 {
@@ -1396,7 +1364,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		if (!Config->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers[use_device]) fprintf(STD_OUT, "WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
 		
-		if (Config->MultiThreadDivide)
+		if (Config->MultiThreadDivide && UseInputPthreads())
 		{
 			for (int l = 0;l < nDevices;l++)
 			{
@@ -1531,7 +1499,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 				{
 					if (Config->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (device %d obuffer %d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device, j[use_device]);
 
-					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0])
+					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0] && UseInputPthreads())
 					{
 						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d\n", use_device);
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1602,7 +1570,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					
 					if (Config->ImprovedScheduler) tileDistribution[k] = -1;
 
-					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0] && cpu_k_barrier_hit == false)
+					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0] && cpu_k_barrier_hit == false && UseInputPthreads())
 					{
 						if (Config->Debug) fprintf(STD_OUT, "Starting PrepareAndExecute task on divide thread for device %d (k = %lld)\n", use_device, (long long int) k);
 						if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1610,7 +1578,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					else
 					{
 						if (DGEMMPrepareAndExecute(Task)) return(1);
-						if (Config->MultiThreadDivide && pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+						if (Config->MultiThreadDivide && UseInputPthreads() && pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
 				}
 				if (obuffercount == 1)
@@ -1620,7 +1588,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 				}
 				if ((obuffercount > 1) ? ((signed) lastk[use_device] != -1) : (k < nBlocks))
 				{
-					if (nBlocks <= k && lastk[use_device] < nBlocks && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0])
+					if (nBlocks <= k && lastk[use_device] < nBlocks && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->GPUMapping[0] && UseInputPthreads())
 					{
 						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (late phase, k=%lld lastk = %lld)\n", use_device, (long long int)k, lastk[use_device]);
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1636,16 +1604,16 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					}
 					if (Config->VerboseTiming) Timers.CounterMerge.Start();
 
-					if (k == nBlocks + 2 * nDevices - 1 || Config->MultiThread == false)
+					if (k == nBlocks + 2 * nDevices - 1 || Config->MultiThread == false || UseOutputPthreads() == 0)
 					{
 						if (lastk[use_device] < nBlocks)
 						{
 							if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
 							if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], Config->Height, Config->Height, BufferHeight, BufferHeight, C_pitch, dwBuffersC)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
 							if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex devuce %d obuffer %d\n", use_device, oldj[use_device]);
-							if (Config->MultiThread && pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+							if (Config->MultiThread && UseOutputPthreads() && pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 						}
-						if (Config->MultiThread)
+						if (Config->MultiThread && UseOutputPthreads())
 						{
 							for (int l = 0;l < obuffercount;l++)
 							{
@@ -1691,7 +1659,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 			}
 			if(Config->Verify && i < Config->Iterations - 1) AnalyzeResults();
 		}
-		if (Config->MultiThreadDivide)
+		if (Config->MultiThreadDivide && UseInputPthreads())
 		{
 			for (int l = 0;l < nDevices;l++)
 			{
@@ -1819,7 +1787,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 		}
 	}
 	
-	if (Config->MultiThread)
+	if (Config->MultiThread && UseOutputPthreads())
 	{
 		if (Config->Debug) fprintf(STD_OUT, "\tLocking obuffer mutex %d/%d\n", Task.device, Task.j);
 		if (Config->AsyncTiming)
@@ -1855,7 +1823,7 @@ int caldgemm::ExitCALDGEMM()
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Uninitializing CALDGEMM\n");
 	if (ExitDevices()) return(1);
-	if (Config->MultiThread)
+	if (Config->MultiThread && UseOutputPthreads())
 	{
 		for (int num_device = 0;num_device < nDevices;num_device++)
 		{
@@ -1887,13 +1855,16 @@ int caldgemm::ExitCALDGEMM()
 		while (pthread_mutex_trylock(&linpackParameters.linpackMutex[0]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 		if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR unlocking blasMutex 1\n");
 
-		if (Config->Debug) fprintf(STD_OUT, "Waiting for merge threads to terminate\n");
-		for (int i = 0;i < max_outputthreads;i++)
+		if (UseOutputPthreads())
 		{
-			for (int num_device = 0;num_device < nDevices;num_device++)
+			if (Config->Debug) fprintf(STD_OUT, "Waiting for merge threads to terminate\n");
+			for (int i = 0;i < max_outputthreads;i++)
 			{
-				while (pthread_mutex_trylock(&mParam[num_device][i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-				if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mergeMutex %d/1\n", i);
+				for (int num_device = 0;num_device < nDevices;num_device++)
+				{
+					while (pthread_mutex_trylock(&mParam[num_device][i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+					if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mergeMutex %d/1\n", i);
+				}
 			}
 		}
 		if (Config->UseCPU && Config->UseGPU)
@@ -1903,12 +1874,14 @@ int caldgemm::ExitCALDGEMM()
 			if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking blasMutex 1\n");
 		}
 		
-		if (Config->MultiThreadDivide)
-		for (int i = 0;i < divideThreads;i++)
+		if (Config->MultiThreadDivide && UseInputPthreads())
 		{
-			dParam[i].terminate = 1;
-			pthread_mutex_unlock(&DGEMMTasks[dParam[i].curDevice].mutex_start);
-			while (pthread_mutex_trylock(&DGEMMTasks[dParam[i].curDevice].mutex_start) != EBUSY) if (pthread_mutex_unlock(&DGEMMTasks[dParam[i].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+			for (int i = 0;i < divideThreads;i++)
+			{
+				dParam[i].terminate = 1;
+				pthread_mutex_unlock(&DGEMMTasks[dParam[i].curDevice].mutex_start);
+				while (pthread_mutex_trylock(&DGEMMTasks[dParam[i].curDevice].mutex_start) != EBUSY) if (pthread_mutex_unlock(&DGEMMTasks[dParam[i].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+			}
 		}
 	}
 
@@ -1918,20 +1891,25 @@ int caldgemm::ExitCALDGEMM()
 	}
 	if (Config->MultiThread)
 	{
-		for (int num_device = 0;num_device < nDevices;num_device++)
+		if (UseOutputPthreads())
 		{
-			for (int i = 0;i < obuffercount;i++) if (pthread_mutex_destroy(&obufferMutex[num_device][i])) fprintf(STD_OUT, "ERROR destroying obuffermutex %d for device %d\n", i, num_device);
-			for (int i = 0;i < max_outputthreads;i++) for (int j = 0;j < 2;j++) if (pthread_mutex_destroy(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "ERROR destroying merge thread mutex %d/%d for device %d\n", i, j, num_device);
+			for (int num_device = 0;num_device < nDevices;num_device++)
+			{
+				for (int i = 0;i < obuffercount;i++) if (pthread_mutex_destroy(&obufferMutex[num_device][i])) fprintf(STD_OUT, "ERROR destroying obuffermutex %d for device %d\n", i, num_device);
+				for (int i = 0;i < max_outputthreads;i++) for (int j = 0;j < 2;j++) if (pthread_mutex_destroy(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "ERROR destroying merge thread mutex %d/%d for device %d\n", i, j, num_device);
+			}
 		}
 		if (pthread_mutex_destroy(&scheduleMutex)) fprintf(STD_OUT, "ERROR destroying schedule mutex\n");
 		
-		if (Config->MultiThreadDivide)
-		for (int i = 0;i < nDevices;i++)
+		if (Config->MultiThreadDivide && UseInputPthreads())
 		{
-			if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR unlocking divide start mutex (%d)\n", i);
-			if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finished mutex (%d)\n", i);
-			if (pthread_mutex_destroy(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR destroying divide start mutex (%d)\n", i);
-			pthread_mutex_destroy(&DGEMMTasks[i].mutex_finished); //TODO, check why this fails
+			for (int i = 0;i < nDevices;i++)
+			{
+				if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR unlocking divide start mutex (%d)\n", i);
+				if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finished mutex (%d)\n", i);
+				if (pthread_mutex_destroy(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR destroying divide start mutex (%d)\n", i);
+				pthread_mutex_destroy(&DGEMMTasks[i].mutex_finished); //TODO, check why this fails
+			}
 		}
 	}
 

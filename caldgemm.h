@@ -74,6 +74,17 @@ typedef int blasint;
 extern "C" {
 #include <cblas.h>
 }
+#ifndef _WIN32
+extern "C" {
+#include <common.h>
+}
+#else
+static inline int get_num_procs() {return(1);}
+static inline void caldgemm_goto_reserve_cpu(int, int) {}
+static inline void caldgemm_goto_reserve_cpus(int) {}
+static inline void caldgemm_goto_restrict_cpus(int) {}
+static inline void goto_set_num_threads(int) {}
+#endif
 
 #ifdef ATI_OS_WIN
 #include <windows.h>
@@ -122,6 +133,7 @@ public:
 		bool UseCPU;				//use CPU for DGEMM
 		bool UseGPU;				//use GPUs for DGEMM
 
+		int OpenCLPlatform;			//OpenCL Platform ID to use
 		int DeviceNum;				//CAL Device to use (-1 for all devices)
 		int NumDevices;				//Number of devices to use in parallel at max
 		bool ImprovedScheduler;			//Tries to save bbuffers, replaces the round-robin scheduler
@@ -179,6 +191,9 @@ public:
 
 protected:
 
+	virtual int UseOutputPthreads() = 0;
+	virtual int UseInputPthreads() = 0;
+
 	struct BufferProperties;
 	unsigned int numInputs, numOutputs, numConstantBuffers;
 
@@ -233,7 +248,7 @@ protected:
 	void print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2 = NULL);
 	int cpuScheduler();
 	int getcpumask(cpu_set_t* set);
-	int reserve_cpu_cores();
+	virtual int reserve_cpu_cores() = 0;
 	int broadcast_cpu_core;
 
 	struct mergeParameters

@@ -129,7 +129,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-A        Do the DMA transfer to GPU asynchronously\n" );
 	fprintf(STD_OUT, "\t-L        Memory Organisation like in HPL (LINPACK)\n" );
 	fprintf(STD_OUT, "\t-C        Call fake LINPACK callback functions\n" );
-	fprintf(STD_OUT, "\t-P  <int> LDA=LDB=LDC = vel for HPL like memory\n" );
+	fprintf(STD_OUT, "\t-P  <int> LDA=LDB=LDC = val for HPL like memory\n" );
 	fprintf(STD_OUT, "\t-T        Allocate Memory using Huge Tables\n" );
 	fprintf(STD_OUT, "\t-B        Keep DMA Buffers mapped during kernel execution\n" );
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
@@ -139,6 +139,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
 	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n" );
+	fprintf(STD_OUT, "\t-O        Backend to use: 0 = CAL, 1 = OpenCL\n" );
+	fprintf(STD_OUT, "\t-F        OpenCL Platform ID to use\n" );
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -313,6 +315,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'O':
 			use_opencl_not_cal = true;
+			break;
+		case 'F':
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->OpenCLPlatform);
 			break;
 		case 'o':
 			if (++x >= argc) return(1);

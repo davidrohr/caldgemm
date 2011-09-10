@@ -48,7 +48,8 @@ caldgemm_opencl::~caldgemm_opencl()
 {
 }
 
-int caldgemm_opencl::WaitForEvent(int a, int b) {return(0);}
+#define WAITFOREVENT(eventnr, devicenr) { if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr); if (clWaitForEvents(1, &ocl_events[devicenr][eventnr]) != CL_SUCCESS) { fprintf(STD_OUT, "Error while waiting for event\n"); return(1);}}
+int caldgemm_opencl::WaitForEvent(int a, int b) {WAITFOREVENT(a, b);return(0);}
 
 int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 {
@@ -90,7 +91,7 @@ int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		for (int j = 0;j < 2;j++)
+		for (int j = 0;j < obuffercount;j++)
 		{
 			ocl_command_queues[i][j] = clCreateCommandQueue(ocl_contexts[i], ocl_devices[i], 0, &ocl_error);
 			if (ocl_error != CL_SUCCESS) ERRRET("Error creating OpenCL command queue\n");
@@ -123,8 +124,8 @@ int caldgemm_opencl::ValidateRuntime()
 		if (Config->Debug) fprintf(STD_OUT, "Platform %d: (%s %s) %s %s\n", i, platform_profile, platform_version, platform_vendor, platform_name);
 	}
 
-	if (CalDGEMM_OpenCL_Platform >= (signed) num_platforms) ERRRET("OpenCL Platform %d not available\n", CalDGEMM_OpenCL_Platform);
-	ocl_platform = platforms[CalDGEMM_OpenCL_Platform];
+	if (Config->OpenCLPlatform >= (signed) num_platforms) ERRRET("OpenCL Platform %d not available\n", Config->OpenCLPlatform);
+	ocl_platform = platforms[Config->OpenCLPlatform];
 	delete[] platforms;
 
 	cl_uint num_devices;
@@ -161,12 +162,21 @@ int caldgemm_opencl::InitDevices()
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		ocl_abuffers[i] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_ONLY, &ocl_image_format, BufferHeight, BufferWidth, 0, NULL, &ocl_error);
-		if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory (A)\n");
+		for (int j = 0;j < 2;j++)
+		{
+			ocl_abuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight, BufferWidth, 0, NULL, &ocl_error);
+			if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory (A)\n");
+		}
+
+		for (int j = 0;j < obuffercount;j++)
+		{
+			ocl_cbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight, BufferHeight, 0, NULL, &ocl_error);
+			if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory (C)\n");
+		}
 
 		for (int j = 0;j < num_bbuffers;j++)
 		{
-			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_ONLY, &ocl_image_format, BufferHeight, BufferWidth, 0, NULL, &ocl_error);
+			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight, BufferWidth, 0, NULL, &ocl_error);
 			if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory (B)\n");
 			bbuffers[i] = j + 1;
 		}
@@ -200,7 +210,7 @@ int caldgemm_opencl::ExitRuntime()
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		for (int j = 0;j < 2;j++)
+		for (int j = 0;j < obuffercount;j++)
 		{
 			clReleaseCommandQueue(ocl_command_queues[i][j]);
 		}
@@ -236,11 +246,27 @@ int caldgemm_opencl::ExitDevices()
 	//clReleaseProgram(ocl_program);
 	for (int i = 0;i < nDevices;i++)
 	{
-		clReleaseMemObject(ocl_abuffers[i]);
+		for (int j = 0;j < 2;j++)
+		{
+			clReleaseMemObject(ocl_abuffers[i][j]);
+		}
+		for (int j = 0;j < obuffercount;j++)
+		{
+			clReleaseMemObject(ocl_cbuffers[i][j]);
+		}
 		for (int j = 0;j < bbuffers[i];j++)
 		{
 			clReleaseMemObject(ocl_bbuffers[i][j]);
 		}
 	}
+	return(0);
+}
+
+int caldgemm_opencl::UseOutputPthreads() {return(0);}
+int caldgemm_opencl::UseInputPthreads() {return(0);}
+
+int caldgemm_opencl::reserve_cpu_cores()
+{
+
 	return(0);
 }

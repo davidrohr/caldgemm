@@ -224,6 +224,18 @@ Set slow CPU option (see below)
 Do not use a round robin scheduler for multi-GPU but split the matrix along the not favored direction and
 process each part by a distinct GPU. This saves BBuffers.
 
+-E (default: 0)
+Define random seed to use for matrix initialization. Use 0 for time.
+
+-O (default: 0)
+Define backend to use. Available options are:
+0: CAL
+1: OpenCL
+
+-F (default: 0)
+Define OpenCL Platform ID to use.
+
+
 Other CALDGEMM Options:
 
 The CALDGEMM config allow the SlowCPU option which should be used when the CPU is comparably slow compared
