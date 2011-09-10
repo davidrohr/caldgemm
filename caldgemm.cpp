@@ -1218,7 +1218,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Config->Height < 1024) GPURatio *= (double) Config->Height / (double) 1024 * (double) Config->Height / (double) 1024;
 		
 		const int require_threads = outputthreads * nDevices + 1 + (ExecLinpack && Config->LinpackNodes > 1);
-		const double CPUscale = (double) (conf_cpufreq * (conf_numprocs - require_threads)) / (double) (2100 * (24 - require_threads));
+		const double CPUscale = (double) (conf_cpufreq * mymax(conf_numprocs - require_threads, 1)) / (double) (2100 * (24 - require_threads));
 		const double GPUscale = (double) nDevices * conf_gpushaders * conf_gpufreq / (double) (850 * 20 * 64);
 		if (Config->Debug) fprintf(STD_OUT, "GPU Curve Ration: %1.2lf, CPUScale %1.2lf, GPUScale %1.2lf\n", GPURatio, CPUscale, GPUscale);
 		GPURatio = GPUscale * GPURatio / (GPUscale * GPURatio + (1.0 - GPURatio) * CPUscale);
@@ -1929,7 +1929,7 @@ void caldgemm::ResetTimers()
 	Timers.CPUTimer.Reset();
 	Timers.TotalCPUTimer.Reset();
 	Timers.GPUTimer.Reset();
-	Timers.divideA = Timers.divideB = 0;
+	Timers.divideA = Timers.divideB = Timers.divideC = 0;
 	Timers.LinpackTimer1.Reset();
 	Timers.LinpackTimer2.Reset();
 	Timers.LinpackTimer3.Reset();
@@ -2104,7 +2104,7 @@ void caldgemm::displayMatrixTiming(const char* name)
 #ifdef CALDGEMM_BENCHMARK_KERNEL
 		gflops *= (double) CALDGEMM_BENCHMARK_KERNEL;
 #endif
-		double copyto = Config->DivideToGPU ? 0 : ((double) 1e-09 * (Config->Height * Timers.divideA + Config->Height * Timers.divideB) * Config->Width * sizeof(double) * (double)Config->Iterations / Timers.CounterCopyTo.GetElapsedTime());
+		double copyto = Config->DivideToGPU ? 0 : ((double) 1e-09 * ((Config->Height * Timers.divideA + Config->Height * Timers.divideB) * Config->Width + Timers.divideC * Config->Height * Config->Height) * sizeof(double) * (double)Config->Iterations / Timers.CounterCopyTo.GetElapsedTime());
 		double copyfrom = Config->DstMemory == 'g' ? ((double) 1e-09 * Config->m * Config->n * sizeof(double) * (double)Config->Iterations / Timers.CounterCopyFrom.GetElapsedTime()) : 0;
 		double copyMerge = Config->MultiThread ? 0 :((double) 1e-09 * Config->m * Config->n * sizeof(double) * (double)Config->Iterations / Timers.CounterMerge.GetElapsedTime());
 		double copyDivide = (double) 1e-09 * (Config->Height * Timers.divideA + Config->Height * Timers.divideB) * Config->Width * sizeof(double) * (double)Config->Iterations / Timers.CounterDivide.GetElapsedTime();
@@ -2214,7 +2214,75 @@ bool caldgemm::isDoubleEqual(double a, double b)
 
 int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 {
-	return(DGEMM_prepare_backend(k, j, num_device));
+#ifdef CALDGEMM_BENCHMARK_KERNEL
+	return(0);
+#endif
+	size_t blockm, blockn;
+	DGEMM_getblocks(k, blockm, blockn);
+
+	bool buffersSufficiant0, buffersSufficiant;
+#ifdef REUSE_BBUFFERS
+	if (DGEMM_favor_m)
+	{
+		buffersSufficiant0 = true;
+		buffersSufficiant = next_buffer_B[num_device] < bbuffers[num_device];
+	}
+	else
+	{
+		buffersSufficiant0 = buffersSwitchable;
+		buffersSufficiant = buffersSwitchable && next_buffer_A[num_device] < bbuffers[num_device];
+	}
+#else
+	buffersSufficiant0 = buffersSufficiant = false;
+#endif
+
+	if (Config->Debug) fprintf(STD_OUT, "Running Preprocessing device = %d k = %lld\n", num_device, (long long int) k);
+	//if (Config->Debug) fprintf(STD_OUT, "device %d Favor %d major %d minor %d blockm %d blockn %d\n", (int) num_device, (int) DGEMM_favor_m, (int) buffersMajor[num_device], (int) buffersMinor[num_device][DGEMM_favor_m ? blockn : blockm], (int) blockm, (int) blockn);
+	
+	const bool prepareM = DGEMM_favor_m ? (buffersMajor[num_device] < (signed long long int) blockm) : (!buffersSufficiant0 || buffer_pointers_A[num_device][blockm] == -1);
+	const bool prepareN = DGEMM_favor_m ? (!buffersSufficiant0 || buffer_pointers_B[num_device][blockn] == -1) : (buffersMajor[num_device] < (signed long long int) blockn);
+
+	if (prepareM)
+	{
+		if (DGEMM_favor_m) buffersMajor[num_device] = blockm;
+		else if (buffersSufficiant0)
+		{
+			const int buffer_pos = next_buffer_A[num_device] % (buffersSufficiant ? bbuffers[num_device] : 2);
+			if (buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]] != -1)
+			{
+				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockm %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], (int) blockm, buffer_pos);
+				buffer_pointers_A[num_device][buffersMinor[num_device][buffer_pos]] = -1;
+				
+			}
+			buffersMinor[num_device][buffer_pos] = blockm;
+		}
+		buffer_pointers_A[num_device][blockm] = next_buffer_A[num_device];
+	}
+	else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of A (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
+
+	if (prepareN)
+	{
+		if (!DGEMM_favor_m) buffersMajor[num_device] = blockn;
+		else if (buffersSufficiant0)
+		{
+			const int buffer_pos = next_buffer_B[num_device] % (buffersSufficiant ? bbuffers[num_device] : 2);
+			if (buffersMinor[num_device][buffer_pos] != -1)
+			{
+				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockn %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], (int) blockn, buffer_pos);
+				buffer_pointers_B[num_device][buffersMinor[num_device][buffer_pos]] = -1;
+			}
+			buffersMinor[num_device][buffer_pos] = blockn;
+		}
+		buffer_pointers_B[num_device][blockn] = next_buffer_B[num_device];
+	}
+	else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
+
+	if(DGEMM_prepare_backend(k, j, num_device, prepareM, prepareN, buffersSufficiant, buffersSufficiant0)) return(1);
+
+	if (prepareM) next_buffer_A[num_device]++;
+	if (prepareN) next_buffer_B[num_device]++;
+
+	return(0);
 }
 
 // vim: ts=4 sw=4 noet sts=4 tw=100

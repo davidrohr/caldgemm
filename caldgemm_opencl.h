@@ -39,7 +39,7 @@ private:
 	virtual int UseOutputPthreads();
 	virtual int UseInputPthreads();
 
-	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device);
+	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0);
 	virtual	int Initialize (int deviceNum, bool nocalinit);
 	virtual int ValidateRuntime();
 	virtual int CheckDevices();
@@ -61,6 +61,10 @@ private:
 	cl_mem ocl_abuffers[max_devices][2];
 	cl_mem ocl_bbuffers[max_devices][max_bbuffers];
 	cl_mem ocl_cbuffers[max_devices][obuffercount];
+	cl_mem ocl_tmp_abuffers[max_devices][obuffercount];
+	cl_mem ocl_tmp_abuffers_t[max_devices][obuffercount];
+	cl_mem ocl_tmp_bbuffers[max_devices][obuffercount];
+	cl_mem ocl_tmp_bbuffers_t[max_devices][obuffercount];
 	cl_event ocl_events[max_devices][obuffercount];
 	cl_program ocl_program;
 	cl_kernel ocl_kernel;

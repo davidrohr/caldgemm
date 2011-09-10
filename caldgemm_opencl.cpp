@@ -38,7 +38,67 @@
 #undef CALDGEMM_ALPHA1
 #undef OCLKernelName
 
+static const char* opencl_error_string(int errorcode)
+{
+	switch (errorcode)
+	{
+		case CL_SUCCESS:                            return "Success!";
+		case CL_DEVICE_NOT_FOUND:                   return "Device not found.";
+		case CL_DEVICE_NOT_AVAILABLE:               return "Device not available";
+		case CL_COMPILER_NOT_AVAILABLE:             return "Compiler not available";
+		case CL_MEM_OBJECT_ALLOCATION_FAILURE:      return "Memory object allocation failure";
+		case CL_OUT_OF_RESOURCES:                   return "Out of resources";
+		case CL_OUT_OF_HOST_MEMORY:                 return "Out of host memory";
+		case CL_PROFILING_INFO_NOT_AVAILABLE:       return "Profiling information not available";
+		case CL_MEM_COPY_OVERLAP:                   return "Memory copy overlap";
+		case CL_IMAGE_FORMAT_MISMATCH:              return "Image format mismatch";
+		case CL_IMAGE_FORMAT_NOT_SUPPORTED:         return "Image format not supported";
+		case CL_BUILD_PROGRAM_FAILURE:              return "Program build failure";
+		case CL_MAP_FAILURE:                        return "Map failure";
+		case CL_INVALID_VALUE:                      return "Invalid value";
+		case CL_INVALID_DEVICE_TYPE:                return "Invalid device type";
+		case CL_INVALID_PLATFORM:                   return "Invalid platform";
+		case CL_INVALID_DEVICE:                     return "Invalid device";
+		case CL_INVALID_CONTEXT:                    return "Invalid context";
+		case CL_INVALID_QUEUE_PROPERTIES:           return "Invalid queue properties";
+		case CL_INVALID_COMMAND_QUEUE:              return "Invalid command queue";
+		case CL_INVALID_HOST_PTR:                   return "Invalid host pointer";
+		case CL_INVALID_MEM_OBJECT:                 return "Invalid memory object";
+		case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR:    return "Invalid image format descriptor";
+		case CL_INVALID_IMAGE_SIZE:                 return "Invalid image size";
+		case CL_INVALID_SAMPLER:                    return "Invalid sampler";
+		case CL_INVALID_BINARY:                     return "Invalid binary";
+		case CL_INVALID_BUILD_OPTIONS:              return "Invalid build options";
+		case CL_INVALID_PROGRAM:                    return "Invalid program";
+		case CL_INVALID_PROGRAM_EXECUTABLE:         return "Invalid program executable";
+		case CL_INVALID_KERNEL_NAME:                return "Invalid kernel name";
+		case CL_INVALID_KERNEL_DEFINITION:          return "Invalid kernel definition";
+		case CL_INVALID_KERNEL:                     return "Invalid kernel";
+		case CL_INVALID_ARG_INDEX:                  return "Invalid argument index";
+		case CL_INVALID_ARG_VALUE:                  return "Invalid argument value";
+		case CL_INVALID_ARG_SIZE:                   return "Invalid argument size";
+		case CL_INVALID_KERNEL_ARGS:                return "Invalid kernel arguments";
+		case CL_INVALID_WORK_DIMENSION:             return "Invalid work dimension";
+		case CL_INVALID_WORK_GROUP_SIZE:            return "Invalid work group size";
+		case CL_INVALID_WORK_ITEM_SIZE:             return "Invalid work item size";
+		case CL_INVALID_GLOBAL_OFFSET:              return "Invalid global offset";
+		case CL_INVALID_EVENT_WAIT_LIST:            return "Invalid event wait list";
+		case CL_INVALID_EVENT:                      return "Invalid event";
+		case CL_INVALID_OPERATION:                  return "Invalid operation";
+		case CL_INVALID_GL_OBJECT:                  return "Invalid OpenGL object";
+		case CL_INVALID_BUFFER_SIZE:                return "Invalid buffer size";
+		case CL_INVALID_MIP_LEVEL:                  return "Invalid mip-map level";
+		default: return "Unknown Errorcode";
+	}
+}
+
 #define ERRRET(...) {fprintf(STD_OUT, __VA_ARGS__);return(1);}
+#define CHKRET(result, ...) \
+	if (result != CL_SUCCESS) \
+	{ \
+		fprintf(STD_OUT, "OpenCL Error %d: %s\n", result, opencl_error_string(result)); \
+		ERRRET(__VA_ARGS__); \
+	}
 
 caldgemm_opencl::caldgemm_opencl() : caldgemm()
 {
@@ -58,7 +118,7 @@ int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 
 	cl_device_id* devices = new cl_device_id[nDevices];
 	if (devices == NULL) ERRRET("Memory allocation error\n");
-	if (clGetDeviceIDs(ocl_platform, CL_DEVICE_TYPE_ALL, nDevices, devices, NULL) != CL_SUCCESS) ERRRET("Error getting OpenCL devices\n");
+	CHKRET(clGetDeviceIDs(ocl_platform, CL_DEVICE_TYPE_ALL, nDevices, devices, NULL), "Error getting OpenCL devices\n");
 
 	for (int i = 0;i < nDevices;i++)
 	{
@@ -86,7 +146,7 @@ int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 	for (int i = 0;i < nDevices;i++)
 	{
 		ocl_contexts[i] = clCreateContext(NULL, 1, &ocl_devices[i], NULL, NULL, &ocl_error);
-		if (ocl_error != CL_SUCCESS) ERRRET("Error creating OpenCL context\n");
+		CHKRET(ocl_error, "Error creating OpenCL context\n");
 	}
 
 	for (int i = 0;i < nDevices;i++)
@@ -94,7 +154,7 @@ int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 		for (int j = 0;j < obuffercount;j++)
 		{
 			ocl_command_queues[i][j] = clCreateCommandQueue(ocl_contexts[i], ocl_devices[i], 0, &ocl_error);
-			if (ocl_error != CL_SUCCESS) ERRRET("Error creating OpenCL command queue\n");
+			CHKRET(ocl_error, "Error creating OpenCL command queue\n");
 		}
 	}
 
@@ -106,13 +166,13 @@ int caldgemm_opencl::ValidateRuntime()
 	fprintf(STD_OUT, "OPENCL ValidateRuntime\n");
 
 	cl_uint num_platforms;
-	if (clGetPlatformIDs(0, NULL, &num_platforms) != CL_SUCCESS) ERRRET("Error getting OpenCL Platform Count\n");
+	CHKRET(clGetPlatformIDs(0, NULL, &num_platforms), "Error getting OpenCL Platform Count\n");
 	if (num_platforms == 0) ERRRET("No OpenCL Platform found\n");
 	if (Config->Debug) fprintf(STD_OUT, "%d OpenCL Platforms found\n", num_platforms);
 
 	cl_platform_id* platforms = new cl_platform_id[num_platforms];
 	if (platforms == NULL) ERRRET("Memory allocation error");
-	if (clGetPlatformIDs(num_platforms, platforms, NULL) != CL_SUCCESS) ERRRET("Error getting OpenCL Platforms\n");
+	CHKRET(clGetPlatformIDs(num_platforms, platforms, NULL), "Error getting OpenCL Platforms\n");
 
 	for (unsigned int i = 0;i < num_platforms;i++)
 	{
@@ -164,20 +224,32 @@ int caldgemm_opencl::InitDevices()
 	{
 		for (int j = 0;j < 2;j++)
 		{
-			ocl_abuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight, BufferWidth, 0, NULL, &ocl_error);
-			if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory (A)\n");
+			ocl_abuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight / 2, BufferWidth, 0, NULL, &ocl_error);
+			CHKRET(ocl_error, "Error allocating device memory (A)\n");
 		}
 
 		for (int j = 0;j < obuffercount;j++)
 		{
-			ocl_cbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight, BufferHeight, 0, NULL, &ocl_error);
-			if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory (C)\n");
+			ocl_cbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight / 2, BufferHeight, 0, NULL, &ocl_error);
+			CHKRET(ocl_error, "Error allocating device memory (C)\n");
+
+			ocl_tmp_abuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_ONLY, &ocl_image_format, BufferWidth / 2, BufferHeight, 0, NULL, &ocl_error);
+			CHKRET(ocl_error, "Error allocating device memory (C)\n");
+
+			ocl_tmp_abuffers_t[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_ONLY, &ocl_image_format, BufferHeight / 2, BufferWidth, 0, NULL, &ocl_error);
+			CHKRET(ocl_error, "Error allocating device memory (C)\n");
+
+			ocl_tmp_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_ONLY, &ocl_image_format, BufferHeight / 2, BufferWidth, 0, NULL, &ocl_error);
+			CHKRET(ocl_error, "Error allocating device memory (C)\n");
+
+			ocl_tmp_bbuffers_t[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_ONLY, &ocl_image_format, BufferWidth / 2, BufferHeight, 0, NULL, &ocl_error);
+			CHKRET(ocl_error, "Error allocating device memory (C)\n");
 		}
 
 		for (int j = 0;j < num_bbuffers;j++)
 		{
-			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight, BufferWidth, 0, NULL, &ocl_error);
-			if (ocl_error != CL_SUCCESS) ERRRET("Error allocating device memory (B)\n");
+			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight / 2, BufferWidth, 0, NULL, &ocl_error);
+			CHKRET(ocl_error, "Error allocating device memory (B)\n");
 			bbuffers[i] = j + 1;
 		}
 		if (Config->Debug) fprintf(STD_OUT, "Allocated %d BBuffers on Device %d\n", bbuffers[i], i);
@@ -200,6 +272,11 @@ int caldgemm_opencl::InitConstantData(double alpha)
 
 int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn)
 {
+	size_t origin[3] = {0, 0, 0};
+	size_t region[3] = {Config->Height / 2, Config->Height, 1};
+	CHKRET(clEnqueueReadImage(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, region, C_pitch, 0, C + blockm + blockn * Config->Height * C_pitch, 0, NULL, &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
+	clFlush(ocl_command_queues[Task.device][Task.j]);
+
 	fprintf(STD_OUT, "OPENCL ExecuteKernels\n");
 	return(0);
 }
@@ -232,9 +309,79 @@ int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, 
 	return(0);
 }
 
-int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device)
+int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0)
 {
 	fprintf(STD_OUT, "OPENCL DGEMM_prepare k=%lld j=%d device=%d\n", k, j, num_device);
+	
+	size_t blockm, blockn;
+	DGEMM_getblocks(k, blockm, blockn);
+
+	size_t origin[3] = {0, 0, 0};
+	size_t region[3];
+	region[2] = 1;
+
+	if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
+
+	if (prepareM)
+	{
+		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
+		Timers.divideA++;
+
+		cl_mem *dest_image;
+		cl_mem dest_image_tmp = (TransposeA == CblasTrans ? ocl_tmp_abuffers_t[num_device][j] : ocl_tmp_abuffers[num_device][j]);
+		region[0] = (TransposeA == CblasTrans ? Config->Height : Config->Width) / 2;
+		region[1] = (TransposeA == CblasTrans ? Config->Width : Config->Height);
+		size_t pitch = A_pitch;
+		void* src_ptr = A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch);
+		
+		if (!DGEMM_favor_m && buffersSufficiant0)
+		{
+			dest_image = &ocl_bbuffers[num_device][buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2)];
+		}
+		else
+		{
+			dest_image = &ocl_abuffers[num_device][next_buffer_A[num_device] % 2];
+		}
+
+		CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], dest_image_tmp, CL_FALSE, origin, region, pitch, 0, src_ptr, 0, NULL, NULL), "Error copying A\n");
+	}
+
+	if (prepareN)
+	{
+		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
+		Timers.divideB++;
+
+		cl_mem *dest_image;
+		cl_mem dest_image_tmp = (TransposeB == CblasTrans ? ocl_tmp_bbuffers_t[num_device][j] : ocl_tmp_bbuffers[num_device][j]);
+		region[0] = (TransposeB == CblasTrans ? Config->Width : Config->Height) / 2;
+		region[1] = (TransposeB == CblasTrans ? Config->Height : Config->Width);
+		size_t pitch = B_pitch;
+		void* src_ptr = B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1);
+
+		if (!DGEMM_favor_m && buffersSufficiant0)
+		{
+			dest_image = &ocl_abuffers[num_device][next_buffer_B[num_device] % 2];
+		}
+		else
+		{
+			dest_image = &ocl_bbuffers[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)];
+		}
+
+		CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], dest_image_tmp, CL_FALSE, origin, region, pitch, 0, src_ptr, 0, NULL, NULL), "Error copying B\n");
+	}
+
+	region[0] = Config->Height / 2;
+	region[1] = Config->Height;
+	Timers.divideC++;
+	CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], ocl_cbuffers[num_device][j], CL_FALSE, origin, region, C_pitch, 0, C + blockm + blockn * Config->Height * C_pitch, 0, NULL, NULL), "Error copying C\n");
+	clFlush(ocl_command_queues[num_device][j]);
+
+	if (Config->VerboseTiming)
+	{
+		clFinish(ocl_command_queues[num_device][j]);
+		Timers.CounterCopyTo.Stop();
+	}
+
 	return(0);
 }
 
@@ -253,6 +400,10 @@ int caldgemm_opencl::ExitDevices()
 		for (int j = 0;j < obuffercount;j++)
 		{
 			clReleaseMemObject(ocl_cbuffers[i][j]);
+			clReleaseMemObject(ocl_tmp_abuffers[i][j]);
+			clReleaseMemObject(ocl_tmp_abuffers_t[i][j]);
+			clReleaseMemObject(ocl_tmp_bbuffers[i][j]);
+			clReleaseMemObject(ocl_tmp_bbuffers_t[i][j]);
 		}
 		for (int j = 0;j < bbuffers[i];j++)
 		{

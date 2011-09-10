@@ -227,7 +227,7 @@ protected:
 	int *buffer_pointers_B[max_devices];
 
 	int DGEMM_prepare(size_t k, int j, unsigned int num_device);
-	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device) = 0;
+	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0) = 0;
 	inline void DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn)
 	{
 		if (DGEMM_favor_m)
@@ -304,7 +304,7 @@ protected:
 	struct TimerInfo
 	{
 		HighResTimer System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer, TotalCPUTimer, ATime, LinpackTimer1, LinpackTimer2, LinpackTimer3, BcastTimer;
-		int divideA, divideB;
+		int divideA, divideB, divideC;
 	} Timers;
 
 	int DumpMatrix(double* A, double* B, double* C, double alpha, double beta, int m, int k, int n, int Apitch, int Bpitch, int Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB);
