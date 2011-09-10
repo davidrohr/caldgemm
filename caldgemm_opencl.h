@@ -39,7 +39,7 @@ private:
 	virtual int UseOutputPthreads();
 	virtual int UseInputPthreads();
 
-	virtual int DGEMM_prepare(size_t k, int j, unsigned int num_device);
+	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device);
 	virtual	int Initialize (int deviceNum, bool nocalinit);
 	virtual int ValidateRuntime();
 	virtual int CheckDevices();

@@ -139,7 +139,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
 	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n" );
-	fprintf(STD_OUT, "\t-O        Backend to use: 0 = CAL, 1 = OpenCL\n" );
+	fprintf(STD_OUT, "\t-O        Backend to use: not set = CAL, set = OpenCL\n" );
 	fprintf(STD_OUT, "\t-F        OpenCL Platform ID to use\n" );
 }
 

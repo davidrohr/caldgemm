@@ -227,10 +227,10 @@ process each part by a distinct GPU. This saves BBuffers.
 -E (default: 0)
 Define random seed to use for matrix initialization. Use 0 for time.
 
--O (default: 0)
+-O (default: enabled)
 Define backend to use. Available options are:
-0: CAL
-1: OpenCL
+disabled: CAL
+enabled: OpenCL
 
 -F (default: 0)
 Define OpenCL Platform ID to use.

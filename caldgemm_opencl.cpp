@@ -232,9 +232,9 @@ int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, 
 	return(0);
 }
 
-int caldgemm_opencl::DGEMM_prepare(size_t k, int j, unsigned int num_device)
+int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device)
 {
-	fprintf(STD_OUT, "OPENCL DGEMM_prepare\n");
+	fprintf(STD_OUT, "OPENCL DGEMM_prepare k=%lld j=%d device=%d\n", k, j, num_device);
 	return(0);
 }
 

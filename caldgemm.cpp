@@ -2212,4 +2212,9 @@ bool caldgemm::isDoubleEqual(double a, double b)
 	}
 }
 
+int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
+{
+	return(DGEMM_prepare_backend(k, j, num_device));
+}
+
 // vim: ts=4 sw=4 noet sts=4 tw=100
