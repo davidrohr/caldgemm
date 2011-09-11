@@ -23,7 +23,7 @@ EXTRAFLAGSGCC				=
 
 INCLUDEPATHS				= ../GotoBLAS2
 
-CPPFILES					= caldgemm.cpp benchmark.cpp timer.cpp
+CPPFILES					= caldgemm.cpp benchmark.cpp cmodules/timer.cpp
 CXXFILES					=
 ASMFILES					=
 CUFILES						=

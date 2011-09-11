@@ -12,8 +12,9 @@ public:
 	double GetElapsedTime();
 
 private:
+	static double Frequency;
+	static double GetFrequency();
 
-	double Frequency;
 	double ElapsedTime;
 	double StartTime;
 }; 

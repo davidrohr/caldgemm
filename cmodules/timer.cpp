@@ -9,13 +9,6 @@
 HighResTimer::HighResTimer()
 {
 	ElapsedTime = 0;
-#ifdef _WIN32
-	__int64 ifreq;
-	QueryPerformanceFrequency((LARGE_INTEGER*)&ifreq);
-	Frequency = (double) ifreq;
-#else
-	Frequency = 1.0E9;
-#endif
 }
 
 HighResTimer::~HighResTimer() {}
@@ -58,3 +51,16 @@ double HighResTimer::GetElapsedTime()
 {
 	return ElapsedTime / Frequency;
 }
+
+double HighResTimer::GetFrequency()
+{
+#ifdef _WIN32
+	__int64 ifreq;
+	QueryPerformanceFrequency((LARGE_INTEGER*)&ifreq);
+	return((double) ifreq);
+#else
+	return(1.0E9);
+#endif
+}
+
+double HighResTimer::Frequency = HighResTimer::GetFrequency();

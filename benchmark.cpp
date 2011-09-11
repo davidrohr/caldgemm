@@ -40,7 +40,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #else
-#include "pthread_mutex_win32_wrapper.h"
+#include "cmodules/pthread_mutex_win32_wrapper.h"
 #endif
 
 #define FASTRAND_THREADS_MAX 24

@@ -62,8 +62,8 @@
 
 #include <emmintrin.h>
 #ifdef _WIN32
-#include "pthread_mutex_win32_wrapper.h"
-#include "sched_affinity_win32_wrapper.h"
+#include "cmodules/pthread_mutex_win32_wrapper.h"
+#include "cmodules/sched_affinity_win32_wrapper.h"
 #else
 #include <pthread.h>
 #include <mm3dnow.h>
@@ -98,7 +98,7 @@ template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
 template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 
 
-#include "timer.h"
+#include "cmodules/timer.h"
 
 class caldgemm
 {
