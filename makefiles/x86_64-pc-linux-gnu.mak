@@ -1,6 +1,6 @@
 CUDAPATH					= /usr/local/cuda
 CUDASDKPATH					= $(CUDAPATH)/sdk
-AMDPATH						= $(ATISTREAMSDKROOT)
+AMDPATH						= $(AMDAPPSDKROOT)
 
 GCC3264						= c++
 ICC32						= icc
@@ -108,4 +108,4 @@ NVCCARCHS					:= `for i in $(CUDAVERSION); do echo -n -gencode arch=compute_$$i,
 NVCC_GREP					= "^#line\|^$$\|^# [0-9]* "
 DCUDAEMU					= -DCUDA_DEVICE_EMULATION
 
-COMMONINCLUDEPATHS			= "$(CUDASDKPATH)/C/common/inc" "$(AMDPATH)/include"
+COMMONINCLUDEPATHS			= "$(CUDASDKPATH)/C/common/inc" "$(AMDPATH)/include" "$(AMDPATH)/include/CAL"

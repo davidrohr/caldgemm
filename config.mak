@@ -14,7 +14,7 @@ LIBPATHS					=
 
 INCLUDE_OPENCL				= 1
 INCLUDE_CAL					= 1
-DEFINES						= #_NO_AMD_CPU
+#DEFINES						= _NO_AMD_CPU
 LIBS						=
 EXTRAOBJFILES				=
 
