@@ -23,6 +23,7 @@
  */
 
 #include "caldgemm.h"
+#include "caldgemm_common.h"
 
 #ifndef _WIN32
 #include <syscall.h>
