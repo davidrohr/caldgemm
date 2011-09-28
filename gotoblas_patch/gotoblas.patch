@@ -32,7 +32,7 @@ diff -u -r gotoblas_org/GotoBLAS2/common_thread.h GotoBLAS2/common_thread.h
  
 diff -u -r gotoblas_org/GotoBLAS2/driver/others/blas_server.c GotoBLAS2/driver/others/blas_server.c
 --- gotoblas_org/GotoBLAS2/driver/others/blas_server.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2/driver/others/blas_server.c	2011-03-29 12:37:28.874938806 +0200
++++ GotoBLAS2/driver/others/blas_server.c	2011-09-28 18:56:52.232306769 +0200
 @@ -42,6 +42,10 @@
  #include <sys/resource.h>
  #endif
@@ -90,9 +90,9 @@ diff -u -r gotoblas_org/GotoBLAS2/driver/others/blas_server.c GotoBLAS2/driver/o
  
        } else {
 -	while(thread_status[i].queue) {
-+	while(thread_status[i].queue || i < caldgemm_reserve_cpus || reserved_cpu_cores[i]) {
++	while(thread_status[i].queue || cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]]) {
 +#ifdef SMP_DEBUG
-+		if (i < caldgemm_reserve_cpus || reserved_cpu_cores[i]) printf("Ommiting thread %d\n", i);
++		if (cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]]) printf("Ommiting thread %d\n", i);
 +#endif
  	  i ++;
  	  if (i >= blas_num_threads - 1) i = 0;
@@ -100,9 +100,9 @@ diff -u -r gotoblas_org/GotoBLAS2/driver/others/blas_server.c GotoBLAS2/driver/o
        }
  #else
 -      while(thread_status[i].queue) {
-+        while(thread_status[i].queue || i < caldgemm_reserve_cpus || reserved_cpu_cores[i]) {
++        while(thread_status[i].queue || cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]]) {
 +#ifdef SMP_DEBUG
-+		if (i < caldgemm_reserve_cpus || reserved_cpu_cores[i]) printf("Ommiting thread %d\n", i);
++		if (cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]]) printf("Ommiting thread %d\n", i);
 +#endif
  	i ++;
  	if (i >= blas_num_threads - 1) i = 0;
@@ -436,7 +436,7 @@ diff -u -r gotoblas_org/GotoBLAS2/interface/axpy.c GotoBLAS2/interface/axpy.c
  #endif
 diff -u -r gotoblas_org/GotoBLAS2/interface/gemm.c GotoBLAS2/interface/gemm.c
 --- gotoblas_org/GotoBLAS2/interface/gemm.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2/interface/gemm.c	2011-03-29 10:54:28.051531906 +0200
++++ GotoBLAS2/interface/gemm.c	2011-04-05 21:47:54.575951460 +0200
 @@ -398,6 +398,20 @@
  
    args.common = NULL;
@@ -534,6 +534,7 @@ diff -u -r gotoblas_org/GotoBLAS2/interface/trsm.c GotoBLAS2/interface/trsm.c
  
    if (args.nthreads == 1) {
  #endif
+Only in GotoBLAS2: lapack-3.1.1.tgz
 diff -u -r gotoblas_org/GotoBLAS2/Makefile GotoBLAS2/Makefile
 --- gotoblas_org/GotoBLAS2/Makefile	2010-01-20 21:54:38.000000000 +0100
 +++ GotoBLAS2/Makefile	2011-03-29 11:03:33.454897208 +0200
@@ -571,7 +572,16 @@ diff -u -r gotoblas_org/GotoBLAS2/Makefile GotoBLAS2/Makefile
  libs :
 diff -u -r gotoblas_org/GotoBLAS2/Makefile.rule GotoBLAS2/Makefile.rule
 --- gotoblas_org/GotoBLAS2/Makefile.rule	2010-02-05 17:02:04.000000000 +0100
-+++ GotoBLAS2/Makefile.rule	2011-03-29 11:00:04.720626031 +0200
++++ GotoBLAS2/Makefile.rule	2011-06-06 18:20:37.557024686 +0200
+@@ -7,7 +7,7 @@
+ 
+ # You can specify the target architecture, otherwise it's
+ # automatically detected.
+-# TARGET = PENRYN
++TARGET = BARCELONA
+ 
+ # If you want to support multiple architecture in one binary
+ # DYNAMIC_ARCH = 1
 @@ -59,6 +59,12 @@
  # If you want to disable CPU/Memory affinity on Linux.
  # NO_AFFINITY = 1
