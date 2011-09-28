@@ -60,6 +60,11 @@
 #include <iostream>
 #include <iomanip>
 
+typedef int blasint;
+extern "C" {
+#include <cblas.h>
+}
+
 #include <emmintrin.h>
 #ifdef _WIN32
 #include "cmodules/pthread_mutex_win32_wrapper.h"

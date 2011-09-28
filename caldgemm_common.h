@@ -1,8 +1,4 @@
 #include <signal.h>
-typedef int blasint;
-extern "C" {
-#include <cblas.h>
-}
 #ifndef _WIN32
 extern "C" {
 #include <common.h>
