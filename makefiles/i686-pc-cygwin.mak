@@ -4,10 +4,12 @@ VSPATH8						= ${VS80COMNTOOLS}../..
 VSPATH6						= c:/Utility/Speeches/Visual Studio 6
 ICCPATH						= ${ICPP_COMPILER11}
 GCCPATH						= c:/Utility/Speeches/gcc
-CYGWINPATH					= /cygdrive/c/Utility/Cygwin
+VECTORCPATH					= c:/Utility/speeches/Codeplay
 WINPATH						= /cygdrive/c/Windows
-CUDAPATH					= c:/Utility/Speeches/cuda/v4.0
-AMDPATH						= c:/Utility/Speeches/stream/2.5/
+CUDAPATH					= $(CUDA_PATH)
+AMDPATH						= $(AMDAPPSDKSAMPLESROOT)
+CUDASDKPATH					= $(CUDAPATH)sdk
+DIRECTXPATH					= $(DXSDK_DIR)
 
 ICCPATH32					= $(ICCPATH)bin/ia32
 ICCPATH64					= $(ICCPATH)bin/intel64
@@ -18,7 +20,7 @@ MSCC32						= $(HIDEECHO) $(CALLVC) "$(VSPATH)/vc/bin/vcvars32.bat" $(HIDEVARS) 
 MSCC64						= $(HIDEECHO) $(CALLVC) "$(VSPATH)/vc/bin/amd64/vcvarsamd64.bat" $(HIDEVARS) "$(VSPATH)/vc/bin/amd64/cl.exe"
 MASM32						= $(HIDEECHO) $(CALLVC) "$(VSPATH)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(VSPATH)/vc/bin/ml.exe"
 MASM64						= $(HIDEECHO) $(CALLVC) "$(VSPATH)/vc/bin/amd64/vcvarsamd64.bat" $(HIDEVARS) "$(VSPATH)/vc/bin/amd64/ml64.exe"
-VCC32						= $(HIDEECHO) "c:/Utility/speeches/Codeplay/vectorc86.exe"
+VCC32						= $(HIDEECHO) "$(VECTORCPATH)/vectorc86.exe"
 
 MSLINK32GCC					= $(HIDEECHO) $(CALLVC) "$(ICCPATH32)/iclvars_ia32.bat" $(HIDEVARS) "$(VSPATH8)/VC/bin/link.exe"
 MSLINK32					= $(HIDEECHO) $(CALLVC) "$(VSPATH)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(VSPATH)/VC/bin/link.exe"
@@ -27,7 +29,7 @@ ICCLINK32					= $(HIDEECHO) $(CALLVC) "$(ICCPATH32)/iclvars_ia32.bat" $(HIDEVARS
 ICCLINK64					= $(HIDEECHO) $(CALLVC) "$(ICCPATH64)/iclvars_intel64.bat" $(HIDEVARS) "$(ICCPATH64)/xilink.exe" -quseenv
 
 #Linker Optionss
-LINKFLAGSCOMMON				= /fixed:no /nologo /subsystem:console /incremental:no /debug $(MULTITHREADLIBS) $(DNDVERSION) /MANIFEST:NO $(HOARD) /pdb:"$(WORKPATH)/$(TARGET).pdb"
+LINKFLAGSCOMMON				= /fixed:no /nologo /subsystem:console /incremental:no /debug $(MULTITHREADLIBS) /MANIFEST:NO $(HOARD) /pdb:"$(WORKPATH)/$(TARGET).pdb"
 LINKFLAGS32					= $(LINKFLAGSCOMMON) /machine:I386
 LINKFLAGS64					= $(LINKFLAGSCOMMON) /machine:X64
 
@@ -82,12 +84,9 @@ ifndef HIDEVARS
 HIDEVARS					= 1
 endif
 
-CUDASDKPATH					= $(CUDAPATH)/sdk
-DIRECTXPATH					= c:/Utility/Speeches/sdk/directx
-
 CALLVC						= $(HIDEECHO) cmd /C "makefiles\callvc.bat"
 
-PATH						= $(CYGWINPATH)/bin:$(CYGWINPATH)/usr/bin:$(WINPATH):$(WINPATH)/system32
+PATH						= /bin:/usr/bin:$(WINPATH):$(WINPATH)/system32
 
 ifeq ($(ARCHBITS), 64)
 ICC							= $(ICC64) $(INTELFLAGS64) $(CFLAGS64)
@@ -98,7 +97,7 @@ MSLINK						= $(MSLINK64) $(LINKFLAGS64)
 GCC							= $(GCC64) $(GCCFLAGS64)
 MASM						= $(MASM64)
 CCCUDA						= $(MSCC) /TP
-LIBPATHSUSE					= /LIBPATH:"$(CUDAPATH)/lib/x64" /LIBPATH:"$(AMDPATH)/lib" /LIBPATH:"$(AMDPATH)/lib/x86_64" /LIBPATH:"$(CUDAPATH)/sdk/C/common/lib" /LIBPATH:"$(DIRECTXPATH)/lib/x64" /LIBPATH:"$(ICCPATH)/lib/intel64"
+LIBPATHSUSE					= /LIBPATH:"$(CUDAPATH)lib/x64" /LIBPATH:"$(AMDPATH)lib" /LIBPATH:"$(AMDPATH)lib/x86_64" /LIBPATH:"$(CUDAPATH)sdk/C/common/lib" /LIBPATH:"$(DIRECTXPATH)lib/x64" /LIBPATH:"$(ICCPATH)/lib/intel64"
 else
 ICC							= $(ICC32) $(INTELFLAGS32) $(CFLAGS32)
 CCDBG						= $(MSCC32) $(CFLAGS32) $(DEBUGFLAGS)
@@ -110,7 +109,7 @@ VCC							= $(VCC32) /outfile $@ $(VECTORCFLAGS) $(CFLAGS32)
 GCC							= $(GCC32) $(GCCFLAGS32)
 MASM						= $(MASM32)
 CCCUDA						= $(MSCC32) $(VSNETFLAGS32) $(CFLAGS32) /TP /Gd
-LIBPATHSUSE					= /LIBPATH:"$(CUDAPATH)/lib/win32" /LIBPATH:"$(AMDPATH)/lib" /LIBPATH:"$(AMDPATH)/lib/x86" /LIBPATH:"$(DIRECTXPATH)/lib/x86" /LIBPATH:"$(ICCPATH)/lib/ia32"
+LIBPATHSUSE					= /LIBPATH:"$(CUDAPATH)lib/win32" /LIBPATH:"$(AMDPATH)lib" /LIBPATH:"$(AMDPATH)lib/x86" /LIBPATH:"$(DIRECTXPATH)lib/x86" /LIBPATH:"$(ICCPATH)/lib/ia32"
 endif
 
 LIBPATHSUSE					+= $(LIBPATHS:%=/LIBPATH:%)
@@ -133,7 +132,7 @@ GCC3264						= $(GCC)
 
 ASM							= $(MASM)
 ASMPRE						= $(MSCC32)
-NVCC						= $(HIDEECHO) $(CALLVC) "$(VSPATH)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(CUDAPATH)/bin/nvcc"
+NVCC						= $(HIDEECHO) $(CALLVC) "$(VSPATH)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(CUDAPATH)bin/nvcc"
 
 MULTITHREADGCC				= -mthreads -D_MT
 
@@ -177,7 +176,7 @@ LINKTARGETTYPE				=
 EXECUTABLE					= $(TARGET).exe
 endif
 
-COMMONINCLUDEPATHS			= "$(DIRECTXPATH)/include" "$(CUDAPATH)/include" $(AMDPATH)/include "$(CUDASDKPATH)/C/common/inc"
+COMMONINCLUDEPATHS			= "$(DIRECTXPATH)include" "$(CUDAPATH)include" $(AMDPATH)include "$(CUDASDKPATH)/C/common/inc"
 
 ifeq ($(CC_i686-pc-cygwin), GCC)
 COMPILEOUTPUT				= -o $@
