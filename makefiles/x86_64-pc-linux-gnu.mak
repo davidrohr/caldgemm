@@ -114,9 +114,9 @@ COMMONINCLUDEPATHS			+= "$(CUDASDKPATH)/C/common/inc"
 endif
 
 ifeq ("$(CONFIG_OPENCL)", "1")
-COMMONINCLUDEPATHS			+= $(AMDPATH)include
+COMMONINCLUDEPATHS			+= $(AMDPATH)/include
 endif
 
 ifeq ("$(CONFIG_CAL)", "1")
-COMMONINCLUDEPATHS			+= $(AMDPATH)include/CAL
+COMMONINCLUDEPATHS			+= $(AMDPATH)/include/CAL
 endif
