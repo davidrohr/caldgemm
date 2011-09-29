@@ -22,6 +22,7 @@ LIBS						= sample
 CONFIG_OPENCL				= 1
 CONFIG_OPENGL				= 0
 CONFIG_CAL					= 0
+CONFIG_CUDA					=
 #CONFIG_DDRAW				=
 #CONFIG_VIDEO_EDIT			=
 

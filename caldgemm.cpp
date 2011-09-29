@@ -575,10 +575,10 @@ void* caldgemm::cblas_wrapper(void* arg)
 		const size_t A_pitch = par->cls->A_pitch;
 		const size_t B_pitch = par->cls->B_pitch;
 		const size_t C_pitch = par->cls->C_pitch;
-		const size_t A_pitch_use = (par->cls->TransposeA == CblasTrans ? 1 : A_pitch);
-		const size_t B_pitch_use = (par->cls->TransposeB == CblasTrans ? B_pitch : 1);
-		const CBLAS_TRANSPOSE TransposeA = par->cls->TransposeA;
-		const CBLAS_TRANSPOSE TransposeB = par->cls->TransposeB;
+		const size_t A_pitch_use = (par->cls->TransposeA ? 1 : A_pitch);
+		const size_t B_pitch_use = (par->cls->TransposeB ? B_pitch : 1);
+		const CBLAS_TRANSPOSE TransposeA = par->cls->TransposeA ? CblasTrans : CblasNoTrans;
+		const CBLAS_TRANSPOSE TransposeB = par->cls->TransposeB ? CblasTrans : CblasNoTrans;
 		if (!Config->Quiet) fprintf(STD_OUT, "\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld (%lld), dynamic: %lld/%lld, cpu_k: %lld)\n", (long long int) Config->m, (long long int) Config->n, (long long int) par->cblas_size, (long long int) Config->Height, (long long int) par->dynamic_run, (long long int) par->dynamic_size, (long long int) par->cpu_k);
 
 
@@ -897,7 +897,7 @@ void* caldgemm::merge_wrapper(void* arg)
 	return(NULL);
 }
 
-int caldgemm::DumpMatrix(double* a, double* b, double* c, double alpha, double beta, int tmp_m, int tmp_k, int tmp_n, int Apitch, int Bpitch, int Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB)
+int caldgemm::DumpMatrix(double* a, double* b, double* c, double alpha, double beta, int tmp_m, int tmp_k, int tmp_n, int Apitch, int Bpitch, int Cpitch)
 {
 	int i = 0;
 	char filename[256];
@@ -949,7 +949,7 @@ void caldgemm::WaitForLASWP(size_t n)
 	}
 }
 
-int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB, int ExecuteLinpackCallbacks)
+int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB, int ExecuteLinpackCallbacks)
 {
 	if (!caldgemm_initialized)
 	{
@@ -1005,18 +1005,18 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	C_pitch = ((signed) Cpitch != -1) ? Cpitch : Config->n;
 	ResetTimers();
 
-	if (order == CblasColMajor)
+	if (orderColMajor)
 	{
 		double* tmpd;
 		size_t tmpi;
-		CBLAS_TRANSPOSE tmpt;
+		bool tmpt;
 		tmpd = A; A = B; B = tmpd;
 		tmpi = Config->m; Config->m = Config->n; Config->n = tmpi;
 		tmpi = A_pitch; A_pitch = B_pitch; B_pitch = tmpi;
 		tmpt = TransA;TransA = TransB;TransB = tmpt;
 	}
 
-	if (!Config->Quiet) fprintf(STD_OUT, "Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", (long long int) Config->m, (long long int) Config->Width, (long long int) Config->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA == CblasTrans), (int) (TransB == CblasTrans), (int) (order == CblasColMajor), (long long int) A, (long long int) B, (long long int) C, (long long int) ((size_t) C - (size_t) A) / sizeof(double), (long long int) ((size_t) C - (size_t) B) / sizeof(double) / Config->Width);
+	if (!Config->Quiet) fprintf(STD_OUT, "Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", (long long int) Config->m, (long long int) Config->Width, (long long int) Config->n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA), (int) (TransB), (int) (orderColMajor), (long long int) A, (long long int) B, (long long int) C, (long long int) ((size_t) C - (size_t) A) / sizeof(double), (long long int) ((size_t) C - (size_t) B) / sizeof(double) / Config->Width);
 
 	//Check for double == 1.0 is unsafe and causes compiler warning
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
@@ -1048,7 +1048,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		memcpy(D, C, Config->m * C_pitch * sizeof(double));
 	}
 
-	if (Config->DumpMatrix) DumpMatrix(A, B, C, Alpha, Beta, Config->m, Config->Width, Config->n, A_pitch, B_pitch, C_pitch, CblasRowMajor, TransposeA, TransposeB);
+	if (Config->DumpMatrix) DumpMatrix(A, B, C, Alpha, Beta, Config->m, Config->Width, Config->n, A_pitch, B_pitch, C_pitch);
 
 	Timers.System.Start();
 
@@ -1152,7 +1152,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (ExecuteLinpackCallbacks)
 		{
 			Timers.CPUTimer.Start();
-			cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->Width, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
+			cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, Config->Width, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 			Timers.CPUTimer.Stop();
 
 			if (Config->Debug) fprintf(STD_OUT, "DGEMM was running on CPU only, executing linpack callback functions\n");
@@ -1167,12 +1167,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			}
 
 			Config->m -= Config->Width;
-			A += Config->Width * (TransposeA == CblasTrans ? 1 : A_pitch);
+			A += Config->Width * (TransposeA ? 1 : A_pitch);
 			C += Config->Width * (C_pitch);
 		}
 #endif
 		Timers.CPUTimer.Start();
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, Config->m, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 		Timers.CPUTimer.Stop();
 		CPUOnlyRun = true;
 		goto RunCALDGEMM_end;
@@ -1255,7 +1255,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (ExecuteLinpackCallbacks)
 	{
 		Config->m -= Config->Width;
-		A += Config->Width * (TransposeA == CblasTrans ? 1 : A_pitch);
+		A += Config->Width * (TransposeA ? 1 : A_pitch);
 		C += Config->Width * (C_pitch);
 	}
 
@@ -2129,7 +2129,7 @@ unsigned int caldgemm::AnalyzeResults()
 		HighResTimer Timer;
 		Timer.Reset();
 		Timer.Start();
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
+		cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, Config->m, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
 		Timer.Stop();
 		if (!Config->Quiet) fprintf(STD_OUT, "CPU Time: %lf Gflops: %lf\n", Timer.GetElapsedTime(), (double)1e-09 * 2 * Config->m * Config->n * Config->Width / Timer.GetElapsedTime());
 

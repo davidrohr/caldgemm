@@ -328,11 +328,11 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		Timers.divideA++;
 
 		cl_mem *dest_image;
-		cl_mem dest_image_tmp = (TransposeA == CblasTrans ? ocl_tmp_abuffers_t[num_device][j] : ocl_tmp_abuffers[num_device][j]);
-		region[0] = (TransposeA == CblasTrans ? Config->Height : Config->Width) / 2;
-		region[1] = (TransposeA == CblasTrans ? Config->Width : Config->Height);
+		cl_mem dest_image_tmp = (TransposeA ? ocl_tmp_abuffers_t[num_device][j] : ocl_tmp_abuffers[num_device][j]);
+		region[0] = (TransposeA ? Config->Height : Config->Width) / 2;
+		region[1] = (TransposeA ? Config->Width : Config->Height);
 		size_t pitch = A_pitch;
-		void* src_ptr = A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch);
+		void* src_ptr = A + blockm * Config->Height * (TransposeA ? 1 : A_pitch);
 		
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{
@@ -352,11 +352,11 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		Timers.divideB++;
 
 		cl_mem *dest_image;
-		cl_mem dest_image_tmp = (TransposeB == CblasTrans ? ocl_tmp_bbuffers_t[num_device][j] : ocl_tmp_bbuffers[num_device][j]);
-		region[0] = (TransposeB == CblasTrans ? Config->Width : Config->Height) / 2;
-		region[1] = (TransposeB == CblasTrans ? Config->Height : Config->Width);
+		cl_mem dest_image_tmp = (TransposeB ? ocl_tmp_bbuffers_t[num_device][j] : ocl_tmp_bbuffers[num_device][j]);
+		region[0] = (TransposeB ? Config->Width : Config->Height) / 2;
+		region[1] = (TransposeB ? Config->Height : Config->Width);
 		size_t pitch = B_pitch;
-		void* src_ptr = B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1);
+		void* src_ptr = B + blockn * Config->Height * (TransposeB ? B_pitch : 1);
 
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{

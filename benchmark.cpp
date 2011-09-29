@@ -802,7 +802,7 @@ int main(int argc, char** argv)
 			Config.Debug = false;
 			if (Config.m > 2 * Config.Height) Config.m = 2 * Config.Height;
 			if (Config.n > 2 * Config.Height) Config.n = 2 * Config.Height;
-			if (dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+			if (dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb))
 			{
 				fprintf(STD_OUT, "Error running CALDGEMM\nexiting\n");
 				return(1);
@@ -835,11 +835,11 @@ int main(int argc, char** argv)
 			{
 				if (iterations > 1 && !quietbench) fprintf(STD_OUT, "\nDGEMM Call Iteration %d\n\n", iter);
 #ifdef TESTMODE
-				if (dgemm->RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+				if (dgemm->RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb))
 #else
 				size_t tmpn = Config.m > Config.n ? Config.m : Config.n;
 				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
-				if (dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans, linpack_callbacks))
+				if (dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb, linpack_callbacks))
 #endif
 				{
 					fprintf(STD_OUT, "Error running CALDGEMM\n");
@@ -847,7 +847,7 @@ int main(int argc, char** argv)
 				}
 				if (torture)
 				{
-					dgemm->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans, linpack_callbacks);
+					dgemm->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb, linpack_callbacks);
 				}
 			}
 		} while (benchmark && (Config.n += Config.Height) < 70000 && (Config.m += Config.Height) < 70000 && SetupUserData(Config) == 0);
@@ -877,7 +877,7 @@ int main(int argc, char** argv)
 		Config.UseCPU = true;
 		Config.Verify = false;
 		Config.Quiet = true;
-		dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
+		dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb);
 		fprintf(STD_OUT, "CPU DGEMM Comparison run complete, comparing results\n");
 		int verifyok = 1;
 		for (size_t i = 0;i < Config.m;i++)
@@ -897,9 +897,6 @@ int main(int argc, char** argv)
 	}
 #else //TEST_PARAMETERS
 	char* mem = new char[(size_t) 40 * 1024 * 1024 * 1024];
-
-	//CALDGEMM_dgemm (ORDER=CblasColMajor, TRANSA=CblasNoTrans, TRANSB=CblasTrans, M=4096, N=4096, K=1024, ALPHA=-1, A=0x2aab136ea040, LDA=4096, B=0x2aab15eec080, LDB=4096, BETA=1, C=0x2aab09495040, LDC=4104)
-	//int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB);
 	{
 		size_t tmpmem = (size_t) mem;
 		fprintf(STD_OUT, "tmpmem = 0x%llx\n", tmpmem);
@@ -920,8 +917,8 @@ int main(int argc, char** argv)
 		double BETA = 1.0;
 		size_t M = 3072, N = 3072, K = 1024;
 		size_t APITCH = 4104, BPITCH = 3072, CPITCH = 4104;
-		CBLAS_ORDER ORDER = CblasColMajor;
-		CBLAS_TRANSPOSE TRANSA = CblasNoTrans, TRANSB = CblasTrans;
+		bool ORDER = true;
+		bool TRANSA = false, TRANSB = true;
 		fprintf(STD_OUT, "Filling Source Matrices with random data\n");
 		for (int i = 0;i < APITCH * (M > K ? M : K);i++) AA[i] = i % 257;
 		for (int i = 0;i < BPITCH * (N > K ? N : K);i++) BB[i] = i % 97;

@@ -1,18 +1,18 @@
 #Set these Compiler Paths and Variables to your needs! 
-VSPATH						= ${VS90COMNTOOLS}../..
-VSPATH8						= ${VS80COMNTOOLS}../..
-VSPATH6						= c:/Utility/Speeches/Visual Studio 6
-ICCPATH						= ${ICPP_COMPILER11}
-GCCPATH						= c:/Utility/Speeches/gcc
-VECTORCPATH					= c:/Utility/speeches/Codeplay
-WINPATH						= /cygdrive/c/Windows
-CUDAPATH					= $(CUDA_PATH)
-AMDPATH						= $(AMDAPPSDKSAMPLESROOT)
-CUDASDKPATH					= $(CUDAPATH)sdk
-DIRECTXPATH					= $(DXSDK_DIR)
+VSPATH						:= ${VS90COMNTOOLS}../..
+VSPATH8						:= ${VS80COMNTOOLS}../..
+VSPATH6						:= c:/Utility/Speeches/Visual Studio 6
+ICCPATH						:= ${ICPP_COMPILER11}
+GCCPATH						:= c:/Utility/Speeches/gcc
+VECTORCPATH					:= c:/Utility/speeches/Codeplay
+WINPATH						:= /cygdrive/c/Windows
+CUDAPATH					:= $(CUDA_PATH)
+AMDPATH						:= $(AMDAPPSDKSAMPLESROOT)
+CUDASDKPATH					:= $(CUDAPATH)sdk
+DIRECTXPATH					:= $(DXSDK_DIR)
 
-ICCPATH32					= $(ICCPATH)bin/ia32
-ICCPATH64					= $(ICCPATH)bin/intel64
+ICCPATH32					:= $(ICCPATH)bin/ia32
+ICCPATH64					:= $(ICCPATH)bin/intel64
 
 ICC32						= $(HIDEECHO) $(CALLVC) "$(ICCPATH32)/iclvars_ia32.bat" $(HIDEVARS) "$(ICCPATH32)/icl.exe"
 ICC64						= $(HIDEECHO) $(CALLVC) "$(ICCPATH64)/iclvars_intel64.bat" $(HIDEVARS) "$(ICCPATH64)/icl.exe"
@@ -176,7 +176,17 @@ LINKTARGETTYPE				=
 EXECUTABLE					= $(TARGET).exe
 endif
 
-COMMONINCLUDEPATHS			= "$(DIRECTXPATH)include" "$(CUDAPATH)include" $(AMDPATH)include "$(CUDASDKPATH)/C/common/inc"
+COMMONINCLUDEPATHS			= "$(DIRECTXPATH)include" 
+ifeq ("$(CONFIG_CUDA)", "1")
+COMMONINCLUDEPATHS			+= "$(CUDAPATH)include" "$(CUDASDKPATH)/C/common/inc"
+endif
+
+ifeq ("$(CONFIG_OPENCL)", "1")
+COMMONINCLUDEPATHS			+= "$(AMDPATH)include"
+endif
+ifeq ("$(CONFIG_CAL)", "1")
+COMMONINCLUDEPATHS			+= "$(AMDPATH)include/CAL"
+endif
 
 ifeq ($(CC_i686-pc-cygwin), GCC)
 COMPILEOUTPUT				= -o $@

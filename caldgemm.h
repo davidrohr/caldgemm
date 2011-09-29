@@ -27,9 +27,6 @@
 
 #include "caldgemm_config_load.h"
 #ifdef _WIN32
-#define __INTRIN_H_
-#define _Complex
-#define __restrict__
 
 #ifdef INTEL_RUNTIME
 #pragma warning(disable : 1786)
@@ -46,12 +43,6 @@
 #endif //VSNET_RUNTIME 
 #endif
 
-#ifndef _WIN32
-#define CAST_FOR_MMPREFETCH
-#else
-#define CAST_FOR_MMPREFETCH (char*)
-#endif
-
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -59,11 +50,6 @@
 #include <cassert>
 #include <iostream>
 #include <iomanip>
-
-typedef int blasint;
-extern "C" {
-#include <cblas.h>
-}
 
 #include <emmintrin.h>
 #ifdef _WIN32
@@ -168,7 +154,7 @@ public:
 	//The Width (k in matrix multiply) is fixed and cannot be changed without reinitializing
 	int InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit = false);
 	int ExitCALDGEMM();
-	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = -1, size_t k = -1, size_t n = -1, size_t Apitch = -1, size_t Bpitch = -1, size_t Cpitch = -1, CBLAS_ORDER order = CblasRowMajor, CBLAS_TRANSPOSE TransA = CblasNoTrans, CBLAS_TRANSPOSE TransB = CblasNoTrans, int ExecuteLinpackCallbacks = 0);
+	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = -1, size_t k = -1, size_t n = -1, size_t Apitch = -1, size_t Bpitch = -1, size_t Cpitch = -1, bool orderColMajor = false, bool TransA = false, bool TransB = false, int ExecuteLinpackCallbacks = 0);
 	double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages);
 	void FreeMemory(double* ptr);
 	void ResetTimers();
@@ -295,7 +281,7 @@ protected:
 		int divideA, divideB, divideC;
 	} Timers;
 
-	int DumpMatrix(double* A, double* B, double* C, double alpha, double beta, int m, int k, int n, int Apitch, int Bpitch, int Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB);
+	int DumpMatrix(double* A, double* B, double* C, double alpha, double beta, int m, int k, int n, int Apitch, int Bpitch, int Cpitch);
 
 	double* A;
 	double* B;
@@ -304,8 +290,8 @@ protected:
 	double Alpha, Beta;
 
 	size_t A_pitch, B_pitch, C_pitch;
-	CBLAS_TRANSPOSE TransposeA;
-	CBLAS_TRANSPOSE TransposeB;
+	bool TransposeA;
+	bool TransposeB;
 
 #ifdef CALDGEMM_44
 #if !defined(CALDGEMM_48)
