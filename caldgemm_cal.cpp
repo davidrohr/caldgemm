@@ -42,6 +42,8 @@
 const char* caldgemm_cal::ILFakeKernel =
 "il_ps_2_0\n"
 "dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"
+"dcl_output_generic o0\n"
+"mov o0, vWinCoord0.0000\n"
 "end\n"
 ;
 
@@ -1110,8 +1112,26 @@ int caldgemm_cal::CheckDevices()
 	if (Config->KeepBuffersMapped)
 	{
 		if (SetupKernel(ILFakeKernel, &fakeModule, &ctxs[0], device_nums[0], false)) return(1);
-		if (RunProgram(&ctxs[0], &fakeModule, 0, 0, &events[0][0])) {fprintf(STD_OUT, "Error running test kernel on GPU\n"); return(1);}
-		if (Config->KeepBuffersMapped) checkCalPatch();
+		CALresource tmpres = 0;
+		CHKERR(calResAllocLocal2D(&tmpres, devices[0], 128, 128, CAL_FORMAT_FLOAT_4, 0), "checking for CAL patch");
+		void* tmpptr;
+		unsigned int tmppitch;
+		CHKERR(calResMap((CALvoid**) &tmpptr, &tmppitch, tmpres, 0), "checking for CAL patch");
+		CALname tmpname;
+		CHKERR(calModuleGetName(&tmpname, ctxs[0], fakeModule, "o0"), "checking for CAL patch");
+		CALmem tmpmem;
+		CHKERR(calCtxGetMem(&tmpmem, ctxs[0], tmpres), "checking for CAL patch");
+		CHKERR(calCtxSetMem(ctxs[0], tmpname, tmpmem), "checking for CAL patch");
+
+		if (RunProgram(&ctxs[0], &fakeModule, 0, 0, &events[0][0]))
+		{
+			fprintf(STD_OUT, "Error running test kernel on GPU\nKeepBuffersMapped disabled\n");
+			Config->KeepBuffersMapped = false;
+		}
+		//if (Config->KeepBuffersMapped) checkCalPatch();
+
+		calCtxReleaseMem(ctxs[0], tmpmem);
+		calResFree(tmpres);
 		if (calModuleUnload(ctxs[0], fakeModule) != CAL_RESULT_OK )
 		{
 			fprintf(STD_OUT, "Error unloading test module\n");
