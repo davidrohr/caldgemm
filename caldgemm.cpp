@@ -1288,13 +1288,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			gpu_m -= gpu_m % Config->Height;
 			if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) Config->m, (long long int) Config->n - gpu_n);
 		}
-		/*if (cParam.cblas_size == 0 && Config->DynamicSched == true)
-		{
-		cParam.dynamic_size = Config->Height;
-		cParam.dynamic_run = (1.0f - GPURatio) * (float) mymax(gpu_m, gpu_n);
-		cParam.dynamic_run -= cParam.dynamic_run % Config->Height;
-		if (!Config->Quiet) fprintf(STD_OUT, "Scheduling initial dynamic run over %lldx%lld blocks\n", cParam.dynamic_run, cParam.dynamic_size);
-		}*/
 	}
 	else
 	{
@@ -1319,7 +1312,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 	    Config->linpack_swap_function();
 	}
-	
 
 	Timers.GPUTimer.Start();
 
