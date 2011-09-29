@@ -158,6 +158,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	MPIRank = -1;
 	PreOut = EmptyOut;
 	GPUClock = 0;
+	SmallTiles = false;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++) GPUMapping[i] = 0;
 }
 
@@ -207,7 +208,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 							if (jj >= Config->m - Config->m % Config->Height || ii >= Config->n - cParam.cblas_size) sprintf(tmpcolor, "01;34");
 						}
 
-						size_t k = gpu_m / Config->Height * gpu_n / Config->Height;
+						size_t k = ((gpu_m + Config->Height - 1) / Config->Height) * ((gpu_n + Config->Height - 1) / Config->Height);
 						for (int l = 0;l < (int) cParam.dynamic_run2;l++)
 						{
 							k--;
@@ -278,7 +279,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		return(1);
 	}
 	
-	if (Config->SlowCPU) Config->DynamicSched = false;
+	if (Config->SlowCPU)
+	{
+		Config->DynamicSched = false;
+		Config->SmallTiles = true;
+	}
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
 
 	if (ValidateRuntime()) return(1);
@@ -472,8 +477,8 @@ int caldgemm::cpuScheduler()
 	int retVal = 0;
 	if (Config->UseCPU && Config->MultiThread && Config->DynamicSched)
 	{
-		const size_t mb = gpu_m / Config->Height;
-		const size_t nb = gpu_n / Config->Height;
+		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
+		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
 		size_t nBlocks = mb * nb;
 
 		pthread_mutex_lock(&scheduleMutex);
@@ -1270,10 +1275,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			if (ExecuteLinpackCallbacks) virtualm += Config->Width * (1.0 + (float) Config->m / Config->n);
 			gpu_m = GPURatio * (float) virtualm + (Config->Height - 1);
 			if (gpu_m > Config->m) gpu_m = Config->m;
-			gpu_m -= gpu_m % Config->Height;
+			gpu_m -= gpu_m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
 			cParam.cblas_size = Config->m - gpu_m;
 			gpu_n = Config->n;
-			gpu_n -= gpu_n % Config->Height;
+			gpu_n -= gpu_n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
 			if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) Config->m - gpu_m, (long long int) gpu_n);
 		}
 		else
@@ -1282,10 +1287,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			if (ExecuteLinpackCallbacks) virtualn += Config->Width * (1.0 + (float) Config->n / Config->m);
 			gpu_n = GPURatio * (float) virtualn + (Config->Height - 1);
 			if (gpu_n > Config->n) gpu_n = Config->n;
-			gpu_n -= gpu_n % Config->Height;
+			gpu_n -= gpu_n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
 			cParam.cblas_size = Config->n - gpu_n;
 			gpu_m = Config->m;
-			gpu_m -= gpu_m % Config->Height;
+			gpu_m -= gpu_m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
 			if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) Config->m, (long long int) Config->n - gpu_n);
 		}
 	}
@@ -1332,8 +1337,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		memset(iMergeThread, 0, nDevices * sizeof(int));
 		int use_device = 0;
 
-		const size_t mb = gpu_m / Config->Height;
-		const size_t nb = gpu_n / Config->Height;
+		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
+		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
 		size_t blockm = 0, blockn = 0;
 		unsigned long long int lastk[max_devices];
 		for (int l = 0;l < nDevices;l++) lastk[l] = -1;

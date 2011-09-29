@@ -140,7 +140,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
 	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n" );
 	fprintf(STD_OUT, "\t-O        Backend to use: not set = CAL, set = OpenCL\n" );
-	fprintf(STD_OUT, "\t-F        OpenCL Platform ID to use\n" );
+	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n" );
+	fprintf(STD_OUT, "\t-J        Allow small tiles to process the remainder on GPU\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -226,6 +227,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'A':
 			Config->AsyncDMA = true;
+			break;
+		case 'J':
+			Config->SmallTiles = true;
 			break;
 		case 'B':
 			Config->KeepBuffersMapped = true;
