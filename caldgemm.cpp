@@ -749,9 +749,9 @@ void* caldgemm::cblas_wrapper(void* arg)
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, Config->n - cblas2, Config->Width, Alpha, A + (Config->m - par->cblas_size) * A_pitch_use, A_pitch, B + cblas2 * B_pitch_use, B_pitch, Beta, C + (Config->m - par->cblas_size) * C_pitch + cblas2, C_pitch);
 					}
 
-					if (Config->n % Config->Height && par->borders_done == false)
+					if (Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height) && par->borders_done == false)
 					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m - par->cblas_size, Config->n % Config->Height, Config->Width, Alpha, A, A_pitch, B + (Config->n - Config->n % Config->Height) * B_pitch_use, B_pitch, Beta, C + Config->n - Config->n % Config->Height, C_pitch);
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m - par->cblas_size, Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height), Config->Width, Alpha, A, A_pitch, B + (Config->n - Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * B_pitch_use, B_pitch, Beta, C + Config->n - Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height), C_pitch);
 					}
 				}
 				else
@@ -786,9 +786,9 @@ void* caldgemm::cblas_wrapper(void* arg)
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m - cblas2, par->cblas_size, Config->Width, Alpha, A + cblas2 * A_pitch_use, A_pitch, B + (Config->n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + cblas2 * C_pitch + Config->n - par->cblas_size, C_pitch);
 					}
 
-					if (Config->m % Config->Height && par->borders_done == false)
+					if (Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height) && par->borders_done == false)
 					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m % Config->Height, Config->n - par->cblas_size, Config->Width, Alpha, A + (Config->m - Config->m % Config->Height) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Config->m - Config->m % Config->Height) * C_pitch, C_pitch);
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height), Config->n - par->cblas_size, Config->Width, Alpha, A + (Config->m - Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Config->m - Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * C_pitch, C_pitch);
 					}
 				}
 			}
@@ -882,12 +882,14 @@ void* caldgemm::merge_wrapper(void* arg)
 	while (pthread_mutex_lock(&par->mergeThreadMutex[0]) == 0 && par->terminate == false)
 	{
 		if (par->cls->Config->Debug) fprintf(STD_OUT, "\t\tSlave thread %d (device %d) starting merge process for obuffer %d (k = %lld)\n", par->nMergeThread, par->num_device, par->nContext, (long long int) par->k);
+		size_t blockm, blockn;
+		par->cls->DGEMM_getblocks(par->k, blockm, blockn);
 		if (par->cls->Config->Debug)
 		{
 		    mergeTimer.Reset();
 		    mergeTimer.Start();
 		}
-		par->cls->RunMergeBuffers(par->dst, par->num_device, par->nContext, par->cls->Config->Height, par->cls->Config->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch, par->cls->dwBuffersC);
+		par->cls->RunMergeBuffers(par->dst, par->num_device, par->nContext, (blockn == par->cls->gpu_n / par->cls->Config->Height) ? (par->cls->gpu_n % par->cls->Config->Height) : par->cls->Config->Height, (blockm == par->cls->gpu_m / par->cls->Config->Height) ? (par->cls->gpu_m % par->cls->Config->Height) : par->cls->Config->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch, par->cls->dwBuffersC);
 		if (par->cls->Config->Debug)
 		{
 		    mergeTimer.Stop();
@@ -1094,7 +1096,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (Config->AutoHeight)
 	{
-		if (ExecuteLinpackCallbacks >= 2)
+		if (ExecuteLinpackCallbacks >= 2 && !Config->SmallTiles)
 		{
 			if (MaxGpuM < 1024 || MaxGpuN < 1024)
 			{
@@ -1139,7 +1141,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 				Config->Height = 4096;
 			}
-			while (Config->SlowCPU && Config->Height > 1024 && (MaxGpuM % Config->Height > 1024 || MaxGpuN % Config->Height > 1024)) Config->Height -= 1024;
+			while (Config->SlowCPU && !Config->SmallTiles && Config->Height > 1024 && (MaxGpuM % Config->Height > 1024 || MaxGpuN % Config->Height > 1024)) Config->Height -= 1024;
 		}
 		if ((Config->Height != BufferHeight && !Config->Quiet) || Config->Debug)  fprintf(STD_OUT, "Using Height %lld of max %lld\n", (long long int) Config->Height, (long long int) BufferHeight);
 	}
@@ -1607,7 +1609,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						if (lastk[use_device] < nBlocks)
 						{
 							if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
-							if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], Config->Height, Config->Height, BufferHeight, BufferHeight, C_pitch, dwBuffersC)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
+							if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], (lastn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, (lastm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferHeight, BufferHeight, C_pitch, dwBuffersC)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
 							if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex devuce %d obuffer %d\n", use_device, oldj[use_device]);
 							if (Config->MultiThread && UseOutputPthreads() && pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 						}
