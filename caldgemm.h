@@ -117,6 +117,7 @@ public:
 		bool Verify;							//Verify the result
 
 		int GPUMapping[max_devices];			//Mapping of GPU devices to CPU cores. Affects DivideBuffer Threads, merge threads take the succeeding cores.
+		int PinMainThread;						//Pin main thread to specific device. Default: Use the first GPU preprocessing core
 		int PinCPU;								//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
 		

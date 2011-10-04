@@ -135,6 +135,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
 	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n" );
 	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n" );
+	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread for DMA handling to core n\n" );
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n" );
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
@@ -344,6 +345,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 		case 't':
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", &Config->PinCPU);
+			break;
+		case 'K':
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->PinMainThread);
 			break;
 		case 'G':
 			if (x + 1 >= argc) return(1);

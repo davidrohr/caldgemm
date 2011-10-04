@@ -149,6 +149,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	KeepBuffersMapped = true;
 	NoPerformanceWarnings = false;
 	PinCPU = -1;
+	PinMainThread = -1;
 	SlowCPU = false;
 	m = 0;
 	n = 0;
@@ -270,7 +271,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 
 	CPU_ZERO(&gpumask);
-	CPU_SET(Config->GPUMapping[0], &gpumask);
+	CPU_SET(Config->PinMainThread == -1 ? Config->GPUMapping[0] : Config->PinMainThread, &gpumask);
 
 	if (Config->Debug) fprintf(STD_OUT, "Init Caldgemm, setting CPU mask %X\n", getcpumask(&gpumask));
 	if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
@@ -338,7 +339,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	cpu_set_t tmpmask;
 	CPU_ZERO(&tmpmask);
-	CPU_SET(Config->GPUMapping[0], &tmpmask);
+	CPU_SET(Config->PinMainThread == -1 ? Config->GPUMapping[0] : Config->PinMainThread, &tmpmask);
 	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 
 	if (Config->UseCPU)
@@ -497,8 +498,13 @@ int caldgemm::cpuScheduler()
 				{
 					cParam.dynamic_run = 1 + cParam.dynamic_size / mymin(gpu_m, gpu_n);
 					cParam.dynamic_size /= cParam.dynamic_run;
-					cParam.dynamic_size -= cParam.dynamic_size % Config->Height;
+					cParam.dynamic_size -= cParam.dynamic_size % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
 					cParam.dynamic_run *= Config->Height;
+					if (cParam.dynamic_run && (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height)
+					{
+						cParam.dynamic_run -= Config->Height;
+						cParam.dynamic_run += (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height;
+					}
 
 					while (DGEMM_favor_m ? (blockm * Config->Height >= gpu_m - cParam.dynamic_run && blockn * Config->Height >= gpu_n - cParam.dynamic_size) :
 						(blockn * Config->Height >= gpu_n - cParam.dynamic_run && blockm * Config->Height >= gpu_m - cParam.dynamic_size))
@@ -682,7 +688,7 @@ void* caldgemm::cblas_wrapper(void* arg)
 			{
 				size_t blockm, blockn;
 				par->cls->DGEMM_getblocks(par->cpu_k, blockm, blockn);
-				cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->Height, Config->Height, Config->Width, Alpha, A + blockm * Config->Height * A_pitch_use, A_pitch, B + blockn * Config->Height * B_pitch_use, B_pitch, Beta, C + blockm * Config->Height * C_pitch + blockn * Config->Height, C_pitch);
+				cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, blockm == par->cls->gpu_m / Config->Height ? (par->cls->gpu_m % Config->Height) : Config->Height, blockn == par->cls->gpu_n / Config->Height ? (par->cls->gpu_n % Config->Height) : Config->Height, Config->Width, Alpha, A + blockm * Config->Height * A_pitch_use, A_pitch, B + blockn * Config->Height * B_pitch_use, B_pitch, Beta, C + blockm * Config->Height * C_pitch + blockn * Config->Height, C_pitch);
 			}
 			else
 			{
@@ -1191,11 +1197,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		outputthreads = mymin(CALDGEMM_OUTPUT_THREADS_SLOW, outputthreads + CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK);
 	}
 
-	cpu_set_t divide_mask;
-	CPU_ZERO(&divide_mask);
-	CPU_SET(Config->GPUMapping[0], &divide_mask);
-	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&divide_mask));
-	sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
+	cpu_set_t main_mask;
+	CPU_ZERO(&main_mask);
+	CPU_SET(Config->PinMainThread == -1 ? Config->GPUMapping[0] : Config->PinMainThread, &main_mask);
+	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&main_mask));
+	sched_setaffinity(0, sizeof(cpu_set_t), &main_mask);
 
 	if (forceReinit)
 	{
