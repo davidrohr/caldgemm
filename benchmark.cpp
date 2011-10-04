@@ -807,7 +807,7 @@ int main(int argc, char** argv)
 			unsigned int tmpm = Config.m, tmpn = Config.n, tmpdebug = Config.Debug;
 			Config.Quiet = true;
 			Config.Verify = false;
-			Config.Iterations = 2;
+			Config.Iterations = 1;
 			Config.Debug = false;
 			if (Config.m > 2 * Config.Height) Config.m = 2 * Config.Height;
 			if (Config.n > 2 * Config.Height) Config.n = 2 * Config.Height;
