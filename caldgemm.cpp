@@ -1005,7 +1005,7 @@ void caldgemm::WaitForLASWP(size_t n)
 {
 	if (Config->LinpackSwapN != NULL)
 	{
-		while (*Config->LinpackSwapN < (n + 1) * Config->Height + (ExecLinpack ? Config->Width : 0))
+		while (*Config->LinpackSwapN < (n + 1) * Config->Height + (ExecLinpack ? Config->Width : 0) && *Config->LinpackSwapN < gpu_m)
 		{
 			if (Config->Debug) fprintf(STD_OUT, "Waiting for LASWP / DTRSM... %lld of %lld\n", (long long int) *Config->LinpackSwapN, (long long int) (n + 1) * Config->Height);
 		}
