@@ -171,8 +171,7 @@ protected:
 	virtual int UseInputPthreads() = 0;
 
 	struct BufferProperties;
-	unsigned int numInputs, numOutputs, numConstantBuffers;
-
+	
 	virtual int ValidateRuntime() = 0;
 	virtual int CheckDevices() = 0;
 	virtual int InitDevices() = 0;
@@ -184,7 +183,7 @@ protected:
 	virtual int ExitDevices() = 0;
 
 	virtual	int Initialize (int deviceNum, bool nocalinit) = 0;
-	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers) = 0;
+	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch) = 0;
 
 	static const int obuffercount = 3;				//Not cal context count but number of copies of data buffers etc.
 	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
@@ -224,6 +223,7 @@ protected:
 	inline void WaitForLASWP(size_t n);
 	void print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2 = NULL);
 	int cpuScheduler();
+	bool cpuUsed(int cpu);
 	int getcpumask(cpu_set_t* set);
 	virtual int reserve_cpu_cores() = 0;
 	int broadcast_cpu_core;
@@ -295,31 +295,6 @@ protected:
 	bool TransposeA;
 	bool TransposeB;
 
-#ifdef CALDGEMM_44
-#if !defined(CALDGEMM_48)
-	static const unsigned int dwBuffersA = 2;
-#else
-	static const unsigned int dwBuffersA = 4;
-#endif
-#if !defined(CALDGEMM_84)
-	static const unsigned int dwBuffersB = 2;
-#else
-	static const unsigned int dwBuffersB = 4;
-#endif
-#else //CALDGEMM_44
-#ifdef CALDGEMM_TRANSPOSED_A
-	static const unsigned int dwBuffersA = 2;
-#else
-	static const unsigned int dwBuffersA = 8;
-#endif
-	static const unsigned int dwBuffersB = 2;
-#endif //CALDGEMM_44
-
-#ifdef CALDGEMM_USE_MEMEXPORT
-	static const unsigned int dwBuffersC = 1;
-#else
-	static const unsigned int dwBuffersC = 8;
-#endif
 	int bbuffers[max_devices];
 	int outputthreads;
 

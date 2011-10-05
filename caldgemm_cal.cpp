@@ -780,6 +780,11 @@ void caldgemm_cal::cal_init_constant_data(BufferProperties* &data, double alpha)
 int caldgemm_cal::Initialize(int deviceNum, bool nocalinit)
 {
 	if (!nocalinit) CHKERR(calInit(), "initializing CAL");
+
+	numInputs = dwBuffersA + dwBuffersB;
+	numOutputs = dwBuffersC;
+	numConstantBuffers = 1;
+
 	if (deviceNum == -1 && obuffercount > 1 && Config->MultiThread)
 	{
 		CALuint tmp;
@@ -1613,9 +1618,9 @@ int caldgemm_cal::FetchResult(int device, int j, int m, int n)
 	return(CopyDataFromGPU(device, resourceHandlers[device][j] + numInputs + numConstantBuffers, datas[device][j] + numInputs + numConstantBuffers, numOutputs, &events[device][j], m, n));
 }
 
-int caldgemm_cal::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers)
+int caldgemm_cal::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch)
 {
-	return(mergeBuffers(dst, datas[device][j] + numInputs + numConstantBuffers, width, height, gpu_width, gpu_height, pitch, numBuffers));
+	return(mergeBuffers(dst, datas[device][j] + numInputs + numConstantBuffers, width, height, gpu_width, gpu_height, pitch, dwBuffersC));
 }
 
 int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0)

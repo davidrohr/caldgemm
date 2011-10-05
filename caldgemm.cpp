@@ -264,14 +264,22 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	gethostname(hostname, 255);
 #endif
 	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);
-	
+
+#ifndef _WIN32
+	for (int i = 0;i < conf_numprocs;i++)
+	{
+		if (CPU_ISSET(i, &oldcpumask) && cpuUsed(i)) fprintf(STD_OUT, "WARNING: Core %d used by GotoBLAS main thread and CALDGEMM\n");
+	}
+#endif
+
 	if (Config->PinCPU != -1)
 	{
 	    for (unsigned int i = 0;i < max_devices;i++) Config->GPUMapping[i] = Config->PinCPU;
 	}
 
 	CPU_ZERO(&gpumask);
-	CPU_SET(Config->PinMainThread == -1 ? Config->GPUMapping[0] : Config->PinMainThread, &gpumask);
+	if (Config->PinMainThread == -1) Config->PinMainThread = Config->GPUMapping[0];
+	CPU_SET(Config->PinMainThread, &gpumask);
 
 	if (Config->Debug) fprintf(STD_OUT, "Init Caldgemm, setting CPU mask %X\n", getcpumask(&gpumask));
 	if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
@@ -288,10 +296,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
 
 	if (ValidateRuntime()) return(1);
-
-	numInputs = dwBuffersA + dwBuffersB;
-	numOutputs = dwBuffersC;
-	numConstantBuffers = 1;
 
 	if (Config->Debug) fprintf(STD_OUT, "Initializing CAL\n");
 	if (Config->UseGPU == 0 || Initialize(Config->DeviceNum, nocalinit))
@@ -339,7 +343,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	cpu_set_t tmpmask;
 	CPU_ZERO(&tmpmask);
-	CPU_SET(Config->PinMainThread == -1 ? Config->GPUMapping[0] : Config->PinMainThread, &tmpmask);
+	CPU_SET(Config->PinMainThread, &tmpmask);
 	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 
 	if (Config->UseCPU)
@@ -376,7 +380,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking divide start mutex (%d)\n", i);
 				pthread_mutex_init(&DGEMMTasks[i].mutex_finished, NULL);
 				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", i);
-				if (Config->GPUMapping[i] == (Config->PinMainThread == -1 ? Config->GPUMapping[0] : Config->PinMainThread)) continue;
+				if (Config->GPUMapping[i] == Config->PinMainThread) continue;
 				int found = 0;
 				for (int j = 1;j < i;j++)
 				{
@@ -437,6 +441,22 @@ int caldgemm::broadcastcore()
 	return(outputthreads + 1);
 }
 
+bool caldgemm::cpuUsed(int cpu)
+{
+	if (cpu == Config->PinMainThread) return(true);
+	for (int i = 0;i < nDevices;i++)
+	{
+		int procsreq = 1 + outputthreads;
+		for (int j = i + 1;i < nDevices;i++)
+		{
+			if (Config->GPUMapping[i] == Config->GPUMapping[j]) procsreq += outputthreads;
+		}
+		if (cpu >= Config->GPUMapping[i] && cpu < Config->GPUMapping[i] + procsreq) return(true);
+	}
+
+	return(false);
+}
+
 void* caldgemm::linpack_wrapper(void* arg)
 {
 	caldgemm* cls = (caldgemm*) arg;
@@ -445,14 +465,15 @@ void* caldgemm::linpack_wrapper(void* arg)
 
 	cpu_set_t linpack_mask;
 	CPU_ZERO(&linpack_mask);
-	//CPU_SET(0, &linpack_mask);
-	int linpackCPU = Config->GPUMapping[0] + cls->outputthreads + 1 + (Config->PinMainThread != -1);
-	for (int i = 1;i < cls->nDevices;i++)
+	
+	int linpackCPU = 0;
+	while (linpackCPU < cls->conf_numprocs)
 	{
-		if (Config->GPUMapping[i] == Config->GPUMapping[0]) linpackCPU += cls->outputthreads;
+		if (cls->cpuUsed(linpackCPU) == false) break;
+		linpackCPU++;
 	}
-	cls->broadcast_cpu_core = linpackCPU;
 	if (linpackCPU >= cls->conf_numprocs) linpackCPU = 0;
+	cls->broadcast_cpu_core = linpackCPU;
 	CPU_SET(linpackCPU, &linpack_mask);
 	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", cls->getcpumask(&linpack_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
@@ -895,7 +916,7 @@ void* caldgemm::merge_wrapper(void* arg)
 		    mergeTimer.Reset();
 		    mergeTimer.Start();
 		}
-		par->cls->RunMergeBuffers(par->dst, par->num_device, par->nContext, (blockn == par->cls->gpu_n / par->cls->Config->Height) ? (par->cls->gpu_n % par->cls->Config->Height) : par->cls->Config->Height, (blockm == par->cls->gpu_m / par->cls->Config->Height) ? (par->cls->gpu_m % par->cls->Config->Height) : par->cls->Config->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch, par->cls->dwBuffersC);
+		par->cls->RunMergeBuffers(par->dst, par->num_device, par->nContext, (blockn == par->cls->gpu_n / par->cls->Config->Height) ? (par->cls->gpu_n % par->cls->Config->Height) : par->cls->Config->Height, (blockm == par->cls->gpu_m / par->cls->Config->Height) ? (par->cls->gpu_m % par->cls->Config->Height) : par->cls->Config->Height, par->cls->BufferHeight, par->cls->BufferHeight, par->cls->C_pitch);
 		if (par->cls->Config->Debug)
 		{
 		    mergeTimer.Stop();
@@ -1199,7 +1220,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	cpu_set_t main_mask;
 	CPU_ZERO(&main_mask);
-	CPU_SET(Config->PinMainThread == -1 ? Config->GPUMapping[0] : Config->PinMainThread, &main_mask);
+	CPU_SET(Config->PinMainThread, &main_mask);
 	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&main_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &main_mask);
 
@@ -1505,7 +1526,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 				{
 					if (Config->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (device %d obuffer %d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device, j[use_device]);
 
-					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != (Config->PinMainThread == -1 ? Config->GPUMapping[0] : Config->PinMainThread) && UseInputPthreads())
+					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads())
 					{
 						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d\n", use_device);
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1576,7 +1597,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					
 					if (Config->ImprovedScheduler) tileDistribution[k] = -1;
 
-					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != (Config->PinMainThread == -1 ? Config->GPUMapping[0] : Config->PinMainThread) && cpu_k_barrier_hit == false && UseInputPthreads())
+					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && cpu_k_barrier_hit == false && UseInputPthreads())
 					{
 						if (Config->Debug) fprintf(STD_OUT, "Starting PrepareAndExecute task on divide thread for device %d (k = %lld)\n", use_device, (long long int) k);
 						if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1594,7 +1615,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 				}
 				if ((obuffercount > 1) ? ((signed) lastk[use_device] != -1) : (k < nBlocks))
 				{
-					if (nBlocks <= k && lastk[use_device] < nBlocks && Config->MultiThreadDivide && Config->GPUMapping[use_device] != (Config->PinMainThread == -1 ? Config->GPUMapping[0] : Config->PinMainThread) && UseInputPthreads())
+					if (nBlocks <= k && lastk[use_device] < nBlocks && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads())
 					{
 						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (late phase, k=%lld lastk = %lld)\n", use_device, (long long int)k, lastk[use_device]);
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1615,7 +1636,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						if (lastk[use_device] < nBlocks)
 						{
 							if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
-							if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], (lastn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, (lastm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferHeight, BufferHeight, C_pitch, dwBuffersC)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
+							if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], (lastn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, (lastm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferHeight, BufferHeight, C_pitch)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
 							if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex devuce %d obuffer %d\n", use_device, oldj[use_device]);
 							if (Config->MultiThread && UseOutputPthreads() && pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 						}

@@ -303,7 +303,7 @@ int caldgemm_opencl::FetchResult(int device, int j, int m, int n)
 	return(0);
 }
 
-int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers)
+int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch)
 {
 	fprintf(STD_OUT, "OPENCL RunMergeBuffers\n");
 	return(0);
