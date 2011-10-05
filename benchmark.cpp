@@ -69,6 +69,8 @@ bool mem_page_lock = true;
 bool mem_huge_table = false;
 bool linpack_callbacks = false;
 
+bool wait_key = false;
+
 bool use_opencl_not_cal = false;
 
 int random_seed = 0;
@@ -145,6 +147,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-O        Backend to use: not set = CAL, set = OpenCL\n" );
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n" );
 	fprintf(STD_OUT, "\t-J        Allow small tiles to process the remainder on GPU\n");
+	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -194,6 +197,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			return(1);
 		case 'q':
 			Config->Quiet = true;
+			break;
+		case 'Q':
+			wait_key = true;
 			break;
 		case '?':
 			PrintUsage();
@@ -965,5 +971,11 @@ int main(int argc, char** argv)
 #endif
 
 	delete dgemm;
+
+	if (wait_key)
+	{
+		fprintf(STD_OUT, "Press return to exit!\n");
+		getchar();
+	}
 	return 0;
 }
