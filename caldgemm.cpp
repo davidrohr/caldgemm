@@ -1085,6 +1085,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
 	const unsigned long long int double_minus_one = 0xBFF0000000000000;
 	double_compare c_alpha, c_beta;
+	c_alpha.i = 0;
 	c_alpha.d = Alpha;
 	c_beta.d = Beta;
 #if defined(CALDGEMM_44) && !defined(CALDGEMM_USE_MEMEXPORT)
