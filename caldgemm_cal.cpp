@@ -1713,6 +1713,7 @@ int caldgemm_cal::UseInputPthreads() {return(1);}
 int caldgemm_cal::reserve_cpu_cores()
 {
 	int nthreads = 0;
+	int mainfound = 0;
 	for (int i = 0;i < nDevices;i++)
 	{
 		int offset = 0;
@@ -1735,6 +1736,12 @@ int caldgemm_cal::reserve_cpu_cores()
 			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", Config->GPUMapping[i] + 1 + offset * outputthreads + j);
 		}
 		nthreads += outputthreads;
+		if (Config->GPUMapping[i] == Config->PinMainThread) mainfound = 1;
+	}
+	if (mainfound == 0)
+	{
+		caldgemm_goto_reserve_cpu(Config->PinMainThread, 1);
+		nthreads++;
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Reserved %d cores\n", nthreads);
 	return(nthreads);
