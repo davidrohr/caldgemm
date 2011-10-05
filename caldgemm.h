@@ -98,6 +98,8 @@ public:
 		char DstMemory;							//Dst memory of kernel on GPU (g) or CPU (c)
 		int ImplicitDriverSync;					//Assume the CAL driver enforces an explicit sync when starting CAL kernel
 		bool DynamicSched;						//Dynamically schedule CPU DGEMM
+		bool SecondPhaseDynamicRuns;			//3rd phase in dynamic scheduling
+		bool ThirdPhaseDynamicRuns;				//3rd phase in dynamic scheduling
 		bool KeepBuffersMapped;					//Do not unmap CAL buffers before kernel execution
 		bool MemPolicy;							//Set memory allocation policy to interleaved
 		bool MultiThread;						//Use multiple threads

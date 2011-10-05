@@ -113,6 +113,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-f        Fast Init (Empty Matrices)\n" );
 	fprintf(STD_OUT, "\t-j  <dbl> GPU to CPU ratio\n" );
 	fprintf(STD_OUT, "\t-s        Dynamic CPU GPU scheduling\n" );
+	fprintf(STD_OUT, "\t-M        Disable third phase in dynamic scheduling\n" );
+	fprintf(STD_OUT, "\t-N        Disable second phase in dynamic scheduling\n" );
 	fprintf(STD_OUT, "\t-p        Interleaving Memory Policy\n" );
 	fprintf(STD_OUT, "\t-u        Dump Test Matrix\n" );
 	fprintf(STD_OUT, "\t-1        Transpose A Matrix\n" );
@@ -300,6 +302,12 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 's':
 			Config->DynamicSched = true;
+			break;
+		case 'M':
+			Config->ThirdPhaseDynamicRuns = false;
+			break;
+		case 'N':
+			Config->SecondPhaseDynamicRuns = false;
 			break;
 		case 'S':
 			Config->SlowCPU = true;

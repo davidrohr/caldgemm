@@ -142,6 +142,8 @@ caldgemm::caldgemm_config::caldgemm_config()
 	UseCPU = true;
 	GPURatio = -1.0;
 	DynamicSched = true;
+	ThirdPhaseDynamicRuns = true;
+	SecondPhaseDynamicRuns = true;
 	MemPolicy = true;
 	DumpMatrix = false;
 	DivideToGPU = false;
@@ -514,7 +516,7 @@ int caldgemm::cpuScheduler()
 			size_t blockm, blockn;
 			DGEMM_getblocks(k, blockm, blockn);
 
-			if (cParam.dynamic_run == 0)
+			if (cParam.dynamic_run == 0 && Config->SecondPhaseDynamicRuns)
 			{
 				cParam.dynamic_size = ((1.0f - gpu_ratio_used) * (float) (nBlocks - k - 1) + 0.5) * Config->Height;
 				if (cParam.dynamic_size > (nBlocks - k - 1) * Config->Height) cParam.dynamic_size = (nBlocks - k - 1) * Config->Height;
@@ -552,22 +554,25 @@ int caldgemm::cpuScheduler()
 			else
 			{
 TryThirdRun:
-				size_t test_cpu_k = cpu_k_barrier - 1;
-				size_t cpublockm, cpublockn;
-				DGEMM_getblocks(test_cpu_k, cpublockm, cpublockn);
-				while (test_cpu_k > k && (DGEMM_favor_m ? (cpublockm * Config->Height >= gpu_m - cParam.dynamic_run && cpublockn * Config->Height >= gpu_n - cParam.dynamic_size) :
-					(cpublockn * Config->Height >= gpu_n - cParam.dynamic_run && cpublockm * Config->Height >= gpu_m - cParam.dynamic_size)))
+				if (Config->ThirdPhaseDynamicRuns)
 				{
-					test_cpu_k--;
+					size_t test_cpu_k = cpu_k_barrier - 1;
+					size_t cpublockm, cpublockn;
 					DGEMM_getblocks(test_cpu_k, cpublockm, cpublockn);
-				}
-				if ((long long int) test_cpu_k > 0 && k < test_cpu_k - 1)
-				{
-					if (!Config->Quiet) fprintf(STD_OUT, "Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", (long long int) test_cpu_k, (long long int) cpublockm, (long long int) cpublockn);
-					cParam.dynamic_run2++;
-					cParam.cpu_k = test_cpu_k;
-					cpu_k_barrier = test_cpu_k;
-					retVal = 1;
+					while (test_cpu_k > k && (DGEMM_favor_m ? (cpublockm * Config->Height >= gpu_m - cParam.dynamic_run && cpublockn * Config->Height >= gpu_n - cParam.dynamic_size) :
+						(cpublockn * Config->Height >= gpu_n - cParam.dynamic_run && cpublockm * Config->Height >= gpu_m - cParam.dynamic_size)))
+					{
+						test_cpu_k--;
+						DGEMM_getblocks(test_cpu_k, cpublockm, cpublockn);
+					}
+					if ((long long int) test_cpu_k > 0 && k < test_cpu_k - 1)
+					{
+						if (!Config->Quiet) fprintf(STD_OUT, "Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", (long long int) test_cpu_k, (long long int) cpublockm, (long long int) cpublockn);
+						cParam.dynamic_run2++;
+						cParam.cpu_k = test_cpu_k;
+						cpu_k_barrier = test_cpu_k;
+						retVal = 1;
+					}
 				}
 			}
 		}
