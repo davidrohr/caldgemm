@@ -746,11 +746,11 @@ void* caldgemm::cblas_wrapper(void* arg)
 				{
 					if (par->cls->DGEMM_favor_m)
 					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Config->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_run) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_run) * C_pitch + par->cls->gpu_n - par->dynamic_size, C_pitch);
+						//cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Config->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_run) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_run) * C_pitch + par->cls->gpu_n - par->dynamic_size, C_pitch);
 					}
 					else
 					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Config->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_size) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_size) * C_pitch + par->cls->gpu_n - par->dynamic_run, C_pitch);
+						//cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Config->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_size) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_size) * C_pitch + par->cls->gpu_n - par->dynamic_run, C_pitch);
 					}
 				}
 
@@ -1363,6 +1363,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		gpu_m = Config->m;
 	}
 	DGEMM_favor_m = (gpu_m >= gpu_n);
+	
+	fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n');
+	
 	if (Config->UseCPU)
 	{
 		if (!Config->MultiThread)
@@ -1486,7 +1489,7 @@ restartkloop:
 					{
 						while (k < nBlocks && tileDistribution[k] != use_device)
 						{
-							if (Config->Debug) fprintf(STD_OUT, "Skipping tile %lld for device %d\n", (long long int) k, use_device);
+							if (Config->Debug) fprintf(STD_OUT, "Skipping tile %lld (m=%lld n=%lld) for device %d\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device);
 							k++;
 						}
 						if (k == nBlocks) goto endimprovedphase;
@@ -1495,7 +1498,7 @@ restartkloop:
 					{
 						if (tileDistribution[k] < 0)
 						{
-							if (Config->Debug) fprintf(STD_OUT, "Tile %lld already processed, skipping\n", (long long int) k);
+							if (Config->Debug) fprintf(STD_OUT, "Tile %lld (m=%lld n=%lld) already processed, skipping\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 							continue;
 						}
 					}
@@ -1507,7 +1510,7 @@ restartkloop:
 						{
 							if (blockm * Config->Height >= gpu_m - cParam.dynamic_run && blockn * Config->Height >= gpu_n - cParam.dynamic_size)
 							{
-								if (Config->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", (long long int) k);
+								if (Config->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (m=%lld n=%lld) (Dynamic Run 2nd Phase)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 								continue;
 							}
 						}
@@ -1515,7 +1518,7 @@ restartkloop:
 						{
 							if (blockn * Config->Height >= gpu_n - cParam.dynamic_run && blockm * Config->Height >= gpu_m - cParam.dynamic_size)
 							{
-								if (Config->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (Dynamic Run 2nd Phase)\n", (long long int) k);
+								if (Config->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (m=%lld n=%lld)(Dynamic Run 2nd Phase)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 								continue;
 							}
 						}
@@ -1528,7 +1531,7 @@ restartkloop:
 					}
 					else
 					{
-						if (Config->Debug) fprintf(STD_OUT, "gpu_k %lld reached cpu_k_barrier %lld, skipping remaining k (Dynamic Run 3rd Phase)\n", (long long int) k, (long long int) cpu_k_barrier);
+						if (Config->Debug) fprintf(STD_OUT, "gpu_k %lld (m=%lld n=%lld) reached cpu_k_barrier %lld, skipping remaining k (Dynamic Run 3rd Phase)\n", (long long int) k, (long long int) blockm, (long long int) blockn, (long long int) cpu_k_barrier);
 						
 						k = nBlocks;
 						if (nextk < nBlocks) nextk = nBlocks;
