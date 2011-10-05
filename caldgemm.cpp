@@ -1328,7 +1328,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	SmallTileHeight = (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
 	if (Config->UseCPU == true && Config->UseGPU == true)
 	{
-		if ((DGEMM_split_m = (Config->m >= Config->n)))
+		if ((DGEMM_split_m = (Config->LinpackSwapN == NULL ? (Config->m >= Config->n) : 0)))
 		{
 			size_t virtualm = Config->m + (Config->n % SmallTileHeight) * Config->m / Config->n;
 			if (ExecuteLinpackCallbacks) virtualm += Config->Width * (1.0 + (float) Config->m / Config->n);
@@ -1363,7 +1363,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		gpu_n = Config->n;
 		gpu_m = Config->m;
 	}
-	DGEMM_favor_m = (gpu_m >= gpu_n);
+	DGEMM_favor_m = Config->LinpackSwapN == NULL ? (gpu_m >= gpu_n) : 1;
 	
 	if (!Config->Quiet) fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n');
 	
