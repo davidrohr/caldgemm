@@ -167,6 +167,8 @@ public:
 	double avggflops;
 	int avgngflops;
 
+	bool cpuUsed(int cpu);
+
 protected:
 
 	virtual int UseOutputPthreads() = 0;
@@ -225,7 +227,6 @@ protected:
 	inline void WaitForLASWP(size_t n);
 	void print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2 = NULL);
 	int cpuScheduler();
-	bool cpuUsed(int cpu);
 	int getcpumask(cpu_set_t* set);
 	virtual int reserve_cpu_cores() = 0;
 	int broadcast_cpu_core;
