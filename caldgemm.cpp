@@ -526,15 +526,15 @@ int caldgemm::cpuScheduler()
 					cParam.dynamic_size /= cParam.dynamic_run;
 					cParam.dynamic_size -= cParam.dynamic_size % Config->Height;
 					cParam.dynamic_run *= Config->Height;
-					if (cParam.dynamic_size && (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height)
+					if (cParam.dynamic_size && (DGEMM_favor_m ? gpu_n : gpu_m) % Config->Height)
 					{
-						const size_t adjustment = Config->Height - (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height;
+						const size_t adjustment = Config->Height - (DGEMM_favor_m ? gpu_n : gpu_m) % Config->Height;
 						fprintf(STD_OUT, "Adjusting second phase run size for small tiles: %lld - %lld = %lld\n", (long long int) cParam.dynamic_size, (long long int) adjustment, (long long int) cParam.dynamic_size - adjustment);
 						cParam.dynamic_size -= adjustment;
 					}
-					if (cParam.dynamic_run && (DGEMM_favor_m ? gpu_n : gpu_m) % Config->Height)
+					if (cParam.dynamic_run && (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height)
 					{
-						const size_t adjustment = Config->Height - (DGEMM_favor_m ? gpu_n : gpu_m) % Config->Height;
+						const size_t adjustment = Config->Height - (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height;
 						fprintf(STD_OUT, "Adjusting second phase run row size for small tiles: %lld - %lld = %lld\n", (long long int) cParam.dynamic_run, (long long int) adjustment, (long long int) cParam.dynamic_run - adjustment);
 						cParam.dynamic_run -= adjustment;
 					}
@@ -746,11 +746,11 @@ void* caldgemm::cblas_wrapper(void* arg)
 				{
 					if (par->cls->DGEMM_favor_m)
 					{
-						//cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Config->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_run) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_run) * C_pitch + par->cls->gpu_n - par->dynamic_size, C_pitch);
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Config->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_run) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_run) * C_pitch + par->cls->gpu_n - par->dynamic_size, C_pitch);
 					}
 					else
 					{
-						//cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Config->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_size) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_size) * C_pitch + par->cls->gpu_n - par->dynamic_run, C_pitch);
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Config->Width, Alpha, A + (par->cls->gpu_m - par->dynamic_size) * A_pitch_use, A_pitch, B + (par->cls->gpu_n - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (par->cls->gpu_m - par->dynamic_size) * C_pitch + par->cls->gpu_n - par->dynamic_run, C_pitch);
 					}
 				}
 
@@ -1364,7 +1364,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
 	DGEMM_favor_m = (gpu_m >= gpu_n);
 	
-	fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n');
+	if (!Config->Quiet) fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n');
 	
 	if (Config->UseCPU)
 	{
