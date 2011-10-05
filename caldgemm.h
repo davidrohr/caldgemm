@@ -370,12 +370,6 @@ protected:
 	char hostname[256];							//Store hostname of node for host dependant debug code
 	
 	int conf_numprocs, conf_cpufreq, conf_numgpus, conf_gpufreq, conf_gpushaders;
-
-	struct double_compare
-	{
-		double d;
-		unsigned long long int i;
-	};
 };
 
 #endif
