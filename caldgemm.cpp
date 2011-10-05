@@ -524,20 +524,40 @@ int caldgemm::cpuScheduler()
 				{
 					cParam.dynamic_run = 1 + cParam.dynamic_size / mymin(gpu_m, gpu_n);
 					cParam.dynamic_size /= cParam.dynamic_run;
-					cParam.dynamic_size -= cParam.dynamic_size % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
+					cParam.dynamic_size -= cParam.dynamic_size % Config->Height;
 					cParam.dynamic_run *= Config->Height;
-					if (cParam.dynamic_run && (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height)
+					if (cParam.dynamic_size && (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height)
 					{
 						const size_t adjustment = Config->Height - (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height;
-						fprintf(STD_OUT, "Adjusting second phase run size for small tiles: %lld - %lld = %lld\n", cParam.dynamic_run, adjustment, cParam.dynamic_run - adjustment);
+						fprintf(STD_OUT, "Adjusting second phase run size for small tiles: %lld - %lld = %lld\n", cParam.dynamic_size, adjustment, cParam.dynamic_size - adjustment);
+						cParam.dynamic_size -= adjustment;
+					}
+					if (cParam.dynamic_run && (DGEMM_favor_m ? gpu_n : gpu_m) % Config->Height)
+					{
+						const size_t adjustment = Config->Height - (DGEMM_favor_m ? gpu_n : gpu_m) % Config->Height;
+						fprintf(STD_OUT, "Adjusting second phase run row count for small tiles: %lld - %lld = %lld\n", cParam.dynamic_run, adjustment, cParam.dynamic_run - adjustment);
 						cParam.dynamic_run -= adjustment;
 					}
 
 					while (DGEMM_favor_m ? (blockm * Config->Height >= gpu_m - cParam.dynamic_run && blockn * Config->Height >= gpu_n - cParam.dynamic_size) :
 						(blockn * Config->Height >= gpu_n - cParam.dynamic_run && blockm * Config->Height >= gpu_m - cParam.dynamic_size))
 					{
-						cParam.dynamic_run -= Config->Height;
-						cParam.dynamic_size = mymin(gpu_m, gpu_n);
+						if (cParam.dynamic_run > Config->Height)
+						{
+							cParam.dynamic_run -= Config->Height;
+							cParam.dynamic_size = mymin(gpu_m, gpu_n);
+						}
+						else
+						{
+							if (cParam.dynamic_size > Config->Height)
+							{
+								cParam.dynamic_size -= Config->Height;
+							}
+							else
+							{
+								cParam.dynamic_run = cParam.dynamic_size = 0;
+							}
+						}
 						if (Config->Debug) fprintf(STD_OUT, "cParam dynamic size reduced to: %lld blockrows (%lld), %lld blocks (%lld)\n", (long long int) cParam.dynamic_run / Config->Height, (long long int) cParam.dynamic_run, (long long int) cParam.dynamic_size / Config->Height, (long long int) cParam.dynamic_size);
 					}
 
