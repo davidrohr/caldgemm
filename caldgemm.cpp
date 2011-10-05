@@ -528,8 +528,9 @@ int caldgemm::cpuScheduler()
 					cParam.dynamic_run *= Config->Height;
 					if (cParam.dynamic_run && (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height)
 					{
-						cParam.dynamic_run -= Config->Height;
-						cParam.dynamic_run += (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height;
+						const size_t adjustment = Config->Height - (DGEMM_favor_m ? gpu_m : gpu_n) % Config->Height;
+						fprintf(STD_OUT, "Adjusting second phase run size for small tiles: %lld - %lld = %lld\n", cParam.dynamic_run, adjustment, cParam.dynamic_run - adjustment);
+						cParam.dynamic_run -= adjustment;
 					}
 
 					while (DGEMM_favor_m ? (blockm * Config->Height >= gpu_m - cParam.dynamic_run && blockn * Config->Height >= gpu_n - cParam.dynamic_size) :
