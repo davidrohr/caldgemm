@@ -311,7 +311,7 @@ int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, 
 
 int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0)
 {
-	fprintf(STD_OUT, "OPENCL DGEMM_prepare k=%lld j=%d device=%d\n", k, j, num_device);
+	fprintf(STD_OUT, "OPENCL DGEMM_prepare k=%lld j=%d device=%d\n", (long long int) k, j, num_device);
 	
 	size_t blockm, blockn;
 	DGEMM_getblocks(k, blockm, blockn);
