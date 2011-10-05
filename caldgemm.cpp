@@ -266,9 +266,12 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
 #ifndef _WIN32
-	for (int i = 0;i < conf_numprocs;i++)
+	if (Config->UseCPU && Config->UseGPU)
 	{
-		if (CPU_ISSET(i, &oldcpumask) && cpuUsed(i)) fprintf(STD_OUT, "WARNING: Core %d used by GotoBLAS main thread and CALDGEMM\n", i);
+		for (int i = 0;i < conf_numprocs;i++)
+		{
+			if (CPU_ISSET(i, &oldcpumask) && cpuUsed(i)) fprintf(STD_OUT, "WARNING: Core %d used by GotoBLAS main thread and CALDGEMM\n", i);
+		}
 	}
 #endif
 
@@ -532,12 +535,12 @@ int caldgemm::cpuScheduler()
 					{
 						cParam.dynamic_run -= Config->Height;
 						cParam.dynamic_size = mymin(gpu_m, gpu_n);
-						if (Config->Debug) fprintf(STD_OUT, "cParam dynamic size reduced to: %lld blockrows, %lld blocks\n", (long long int) cParam.dynamic_run / Config->Height, (long long int) cParam.dynamic_size / Config->Height);
+						if (Config->Debug) fprintf(STD_OUT, "cParam dynamic size reduced to: %lld blockrows (%lld), %lld blocks (%lld)\n", (long long int) cParam.dynamic_run / Config->Height, (long long int) cParam.dynamic_run, (long long int) cParam.dynamic_size / Config->Height, (long long int) cParam.dynamic_size);
 					}
 
 					if (nBlocks >= 256 && nBlocks - k - 1 > 16 && cParam.dynamic_run == Config->Height && cParam.dynamic_size < mymin(gpu_m, gpu_n)) cParam.dynamic_size += Config->Height;
 
-					if (!Config->Quiet) fprintf(STD_OUT, "Scheduling Additional CPU DGEMM Run over %lld blockrows, %lld blocks\n", (long long int) cParam.dynamic_run / Config->Height, (long long int) cParam.dynamic_size / Config->Height);
+					if (!Config->Quiet) fprintf(STD_OUT, "Scheduling Additional CPU DGEMM Run over %lld blockrows (%lld), %lld blocks (%lld)\n", (long long int) cParam.dynamic_run / Config->Height, (long long int) cParam.dynamic_run, (long long int) cParam.dynamic_size / Config->Height, (long long int) cParam.dynamic_size);
 					retVal = 1;
 				}
 				else
