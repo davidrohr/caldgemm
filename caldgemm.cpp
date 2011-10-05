@@ -452,7 +452,7 @@ bool caldgemm::cpuUsed(int cpu)
 	for (int i = 0;i < nDevices;i++)
 	{
 		int procsreq = 1 + outputthreads;
-		for (int j = i + 1;i < nDevices;i++)
+		for (int j = i + 1;j < nDevices;j++)
 		{
 			if (Config->GPUMapping[i] == Config->GPUMapping[j]) procsreq += outputthreads;
 		}
