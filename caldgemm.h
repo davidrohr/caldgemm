@@ -302,6 +302,7 @@ protected:
 
 	size_t BufferHeight;						//Height to which the buffers were originally initialized
 	size_t BufferWidth;							//Same for width
+	size_t SmallTileHeight;						//Height of small tiles
 
 	caldgemm_config* Config;
 

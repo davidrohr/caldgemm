@@ -805,9 +805,9 @@ void* caldgemm::cblas_wrapper(void* arg)
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, Config->n - cblas2, Config->Width, Alpha, A + (Config->m - par->cblas_size) * A_pitch_use, A_pitch, B + cblas2 * B_pitch_use, B_pitch, Beta, C + (Config->m - par->cblas_size) * C_pitch + cblas2, C_pitch);
 					}
 
-					if (Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height) && par->borders_done == false)
+					if (Config->n % par->cls->SmallTileHeight && par->borders_done == false)
 					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m - par->cblas_size, Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height), Config->Width, Alpha, A, A_pitch, B + (Config->n - Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * B_pitch_use, B_pitch, Beta, C + Config->n - Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height), C_pitch);
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m - par->cblas_size, Config->n % par->cls->SmallTileHeight, Config->Width, Alpha, A, A_pitch, B + (Config->n - Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * B_pitch_use, B_pitch, Beta, C + Config->n - Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height), C_pitch);
 					}
 				}
 				else
@@ -842,9 +842,9 @@ void* caldgemm::cblas_wrapper(void* arg)
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m - cblas2, par->cblas_size, Config->Width, Alpha, A + cblas2 * A_pitch_use, A_pitch, B + (Config->n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + cblas2 * C_pitch + Config->n - par->cblas_size, C_pitch);
 					}
 
-					if (Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height) && par->borders_done == false)
+					if (Config->m % par->cls->SmallTileHeight && par->borders_done == false)
 					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height), Config->n - par->cblas_size, Config->Width, Alpha, A + (Config->m - Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Config->m - Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * C_pitch, C_pitch);
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m % par->cls->SmallTileHeight, Config->n - par->cblas_size, Config->Width, Alpha, A + (Config->m - Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Config->m - Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * C_pitch, C_pitch);
 					}
 				}
 			}
@@ -1085,7 +1085,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
 	const unsigned long long int double_minus_one = 0xBFF0000000000000;
 #if defined(CALDGEMM_44) && !defined(CALDGEMM_USE_MEMEXPORT)
-	const int kernel_num = ((Config->Width == BufferWidth && reinterpret_cast<unsigned long long int &>(Beta) == double_one && reinterpret_cast<unsigned long long int &>(Alpha) == double_minus_one) ? 2 : (reinterpret_cast<unsigned long long int &>(Alpha) == double_one));
+	const int kernel_num = ((Config->Width == BufferWidth && reinterpret_cast<unsigned long long int &>(reinterpret_cast<char &>(Beta)) == double_one && reinterpret_cast<unsigned long long int &>(reinterpret_cast<char &>(Alpha)) == double_minus_one) ? 2 : (reinterpret_cast<unsigned long long int &>(reinterpret_cast<char &>(Alpha)) == double_one));
 #else
 	const int kernel_num = (reinterpret_cast<long long int &>(Alpha) == double_one);
 #endif
@@ -1325,30 +1325,31 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	cParam.dynamic_run = 0;
 	cParam.dynamic_run2 = 0;
 	cParam.borders_done = false;
+	SmallTileHeight = (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
 	if (Config->UseCPU == true && Config->UseGPU == true)
 	{
 		if ((DGEMM_split_m = (Config->m >= Config->n)))
 		{
-			size_t virtualm = Config->m + (Config->n % Config->Height) * Config->m / Config->n;
+			size_t virtualm = Config->m + (Config->n % SmallTileHeight) * Config->m / Config->n;
 			if (ExecuteLinpackCallbacks) virtualm += Config->Width * (1.0 + (float) Config->m / Config->n);
 			gpu_m = GPURatio * (float) virtualm + (Config->Height - 1);
 			if (gpu_m > Config->m) gpu_m = Config->m;
-			gpu_m -= gpu_m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
+			gpu_m -= gpu_m % SmallTileHeight;
 			cParam.cblas_size = Config->m - gpu_m;
 			gpu_n = Config->n;
-			gpu_n -= gpu_n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
+			gpu_n -= gpu_n % SmallTileHeight;
 			if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) Config->m - gpu_m, (long long int) gpu_n);
 		}
 		else
 		{
-			size_t virtualn = Config->n + (Config->m % Config->Height) * Config->n / Config->m;
+			size_t virtualn = Config->n + (Config->m % SmallTileHeight) * Config->n / Config->m;
 			if (ExecuteLinpackCallbacks) virtualn += Config->Width * (1.0 + (float) Config->n / Config->m);
 			gpu_n = GPURatio * (float) virtualn + (Config->Height - 1);
 			if (gpu_n > Config->n) gpu_n = Config->n;
-			gpu_n -= gpu_n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
+			gpu_n -= gpu_n % SmallTileHeight;
 			cParam.cblas_size = Config->n - gpu_n;
 			gpu_m = Config->m;
-			gpu_m -= gpu_m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
+			gpu_m -= gpu_m % SmallTileHeight;
 			if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) Config->m, (long long int) Config->n - gpu_n);
 		}
 	}
