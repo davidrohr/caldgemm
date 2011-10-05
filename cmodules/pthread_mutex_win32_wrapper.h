@@ -13,13 +13,13 @@ typedef HANDLE pthread_t;
 static inline int pthread_mutex_init(pthread_mutex_t *mutex, const void* attr)
 {
 	*mutex = CreateSemaphore(NULL, 1, 1, NULL);
-	printf("INIT %d\n", *mutex);
+	//printf("INIT %d\n", *mutex);
 	return((*mutex) == NULL);
 }
 
 static inline int pthread_mutex_lock(pthread_mutex_t *mutex)
 {
-	printf("LOCK %d\n", *mutex);
+	//printf("LOCK %d\n", *mutex);
 	return(WaitForSingleObject(*mutex, INFINITE) == WAIT_FAILED);
 }
 
@@ -27,14 +27,14 @@ static inline int pthread_mutex_trylock(pthread_mutex_t *mutex)
 {
 	DWORD retVal = WaitForSingleObject(*mutex, 0);
 	if (retVal == WAIT_TIMEOUT) return(EBUSY);
-	printf("TRYLOCK %d\n", *mutex);
+	//printf("TRYLOCK %d\n", *mutex);
 	if (retVal == WAIT_OBJECT_0) return(0);
 	return(1);
 }
 
 static inline int pthread_mutex_unlock(pthread_mutex_t *mutex)
 {
-	printf("UNLOCK %d\n", *mutex);
+	//printf("UNLOCK %d\n", *mutex);
 	return(ReleaseSemaphore(*mutex, 1, NULL) == 0);
 }
 

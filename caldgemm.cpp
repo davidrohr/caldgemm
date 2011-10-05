@@ -387,7 +387,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", i);
 				if (Config->GPUMapping[i] == Config->PinMainThread) continue;
 				int found = 0;
-				for (int j = 1;j < i;j++)
+				for (int j = 0;j < i;j++)
 				{
 					if (Config->GPUMapping[i] == Config->GPUMapping[j])
 					{
