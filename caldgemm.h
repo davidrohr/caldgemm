@@ -292,6 +292,9 @@ protected:
 	double* B;
 	double* C;
 
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER)
+	__attribute__((__may_alias__))
+#endif
 	double Alpha, Beta;
 
 	size_t A_pitch, B_pitch, C_pitch;
