@@ -320,6 +320,9 @@ MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1_12.xy, a2_12.xy, a1_12.zw, a2_12.zw, a
 #define UNNORM_TYPE
 #endif
 
+#define qon_mstr(a) #a
+#define qon_mxstr(a) qon_mstr(a)
+
 const char *caldgemm_cal::ILKernelName =
 "il_ps_2_0\n"
 "dcl_cb cb0[4]\n"
@@ -344,7 +347,11 @@ const char *caldgemm_cal::ILKernelName =
 #ifdef CALDGEMM_44_BT_64_KERNEL
 "dcl_literal l1, %d.0, 2.0, -1.5, 4.0\n"
 #else
+#ifdef CALDGEMM_FORCE_K
+"dcl_literal l1, " qon_mxstr(CALDGEMM_FORCE_K) ".0, 1.0, -0.5, 2.0\n"
+#else
 "dcl_literal l1, %d.0, 1.0, -0.5, 2.0\n"
+#endif
 #endif
 "mov r3, l0\n"
 "mov r4, l0\n"
@@ -416,7 +423,7 @@ const char *caldgemm_cal::ILKernelName =
 #ifdef CALDGEMM_44_BT_64_KERNEL
 "    add r1.xyzw, r0.xyzw, l1.0011\n"
 #endif
-#if defined(CALDGEMM_LINPACK_KERNEL) | defined(CALDGEMM_BENCHMARK_KERNEL)
+#if defined(CALDGEMM_LINPACK_KERNEL) | defined(CALDGEMM_BENCHMARK_KERNEL) | defined(CALDGEMM_FORCE_K)
 "    ge r13.z, r0.w, l1.x\n"				//cmp with width
 #else
 "    ge r13.z, r0.w, cb0[1].x\n"				//cmp with width

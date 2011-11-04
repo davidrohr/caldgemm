@@ -37,7 +37,7 @@
 //#define CALDGEMM_UNALIGNED_ADDRESSES
 //#define CALDGEMM_UNEQUAL_PINNING				//Do not ensure good CPU core pinning
 #define STD_OUT stdout							//Output for all messages
-#define CALDGEMM_OUTPUT_THREADS 1				//Number of Output threads
+#define CALDGEMM_OUTPUT_THREADS 2				//Number of Output threads
 #define CALDGEMM_OUTPUT_THREADS_SLOW 2			//Number of output threads when KeepBuffersMapped = false
 #define CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK 0	//Number of additional output threads when running in linpack mode
 #define RERESERVE_LINPACK_CPUS					//Use the Linpack CPU cores for DGEMM after they finished the broadcast
@@ -57,3 +57,5 @@
 //#define CALDGEMM_BGEMM						//Experimental
 
 #define CALDGEMM_MIN_TILE_DIM 256				//Min dimension of small tile
+
+//#define CALDGEMM_FORCE_K 16					//Force K Parameter to simulate different kernel perfoemance
