@@ -173,6 +173,7 @@ protected:
 
 	virtual int UseOutputPthreads() = 0;
 	virtual int UseInputPthreads() = 0;
+	virtual int UseMutexPerDevice() = 0;
 
 	struct BufferProperties;
 	
@@ -182,7 +183,7 @@ protected:
 	virtual int ReinitDevices() = 0;
 	virtual int InitConstantData(double alpha) = 0;
 	virtual int ExitRuntime() = 0;
-	virtual int WaitForEvent(int, int) = 0;
+	virtual int WaitForEvent(int, int, int lock = 0) = 0;
 	virtual int FetchResult(int device, int j, int m, int n) = 0;
 	virtual int ExitDevices() = 0;
 
@@ -204,6 +205,8 @@ protected:
 	int next_buffer_B[max_devices];
 	int *buffer_pointers_A[max_devices];
 	int *buffer_pointers_B[max_devices];
+	
+	pthread_mutex_t device_mutex[max_devices];
 
 	int DGEMM_prepare(size_t k, int j, unsigned int num_device);
 	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0) = 0;

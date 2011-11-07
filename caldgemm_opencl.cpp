@@ -109,7 +109,7 @@ caldgemm_opencl::~caldgemm_opencl()
 }
 
 #define WAITFOREVENT(eventnr, devicenr) { if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr); if (clWaitForEvents(1, &ocl_events[devicenr][eventnr]) != CL_SUCCESS) { fprintf(STD_OUT, "Error while waiting for event\n"); return(1);}}
-int caldgemm_opencl::WaitForEvent(int a, int b) {WAITFOREVENT(a, b);return(0);}
+int caldgemm_opencl::WaitForEvent(int a, int b, int) {WAITFOREVENT(a, b);return(0);}
 
 int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 {
@@ -415,6 +415,7 @@ int caldgemm_opencl::ExitDevices()
 
 int caldgemm_opencl::UseOutputPthreads() {return(0);}
 int caldgemm_opencl::UseInputPthreads() {return(0);}
+int caldgemm_opencl::UseMutexPerDevice() {return(0);}
 
 int caldgemm_opencl::reserve_cpu_cores()
 {

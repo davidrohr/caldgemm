@@ -73,10 +73,22 @@ const char* caldgemm_cal::ILConvertKernel =
 ;
 
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {fprintf(STD_OUT, "Error '%s' while " text "\n", calGetErrorString());return(1);}
-#define WAITFOREVENT(eventnr, devicenr) { CALresult r; if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr); do { r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr]); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 #define WAITFOREVENTA(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
-int caldgemm_cal::WaitForEvent(int a, int b) {WAITFOREVENT(a, b);return(0);}
+int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
+{
+	CALresult r;
+	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr);
+	do
+	{
+		if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
+		r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr]);
+		if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
+		if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString());
+		return(1);}
+	} while (r == CAL_RESULT_PENDING);
+	return(0);
+}
 
 #ifdef CALDGEMM_UNALIGNED_ADDRESSES
 #define _mm_load_pd_use _mm_loadu_pd
@@ -970,7 +982,7 @@ int caldgemm_cal::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module,
 	return(0);
 }
 
-int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event, size_t lastm, size_t lastn)
+int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, int nContext, size_t lastm, size_t lastn)
 {
 	if (Config->DstMemory == 'c') return 0;
 	CALcontext* ctx = &ctxs[nDevice];
@@ -978,21 +990,24 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 	if (Config->Debug == true) fprintf(STD_OUT, "\tFetching part of C from GPU (m = %lld, n = %lld)\n", (long long int) lastm, (long long int) lastn);
 	unsigned int pitch;
 	char* ptr;
-	if (Config->ImplicitDriverSync == 0) WAITFOREVENTA(*ctx, *event);
+	if (Config->ImplicitDriverSync == 0) WaitForEvent(nContext, nDevice);
 	for (unsigned int i = 0; i < num; ++i)
 	{
 		if (data[i].CALMemory)
 		{
 			//if (Config->Debug) fprintf(STD_OUT, "GPUHandle: %d, CPUHandle: %d\n", data[i].dstMem, data[i].mem);
-			CHKERR(calMemCopy(event, *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
+			CHKERR(calMemCopy(&events[nDevice][nContext], *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
 			continue;
 		}
 		CHKERR(calResMap((void**)&ptr, &pitch, _Res[i], 0), "mapping buffer");
 		memcpy(data[i].ptr_char, ptr, data[i].DataSize * data[i].VectorSize * data[i].Width * data[i].Height);
 		CHKERR(calResUnmap(_Res[i]), "unmapping buffer");
 	}
-	if (Config->VerboseTiming) WAITFOREVENTA(*ctx, *event);
-	if (Config->VerboseTiming) Timers.CounterCopyFrom.Stop();
+	if (Config->VerboseTiming)
+	{
+		WaitForEvent(nContext, nDevice);
+		Timers.CounterCopyFrom.Stop();
+	}
 	return 0;
 }
 
@@ -1221,7 +1236,7 @@ int caldgemm_cal::InitConstantData(double alpha)
 
 int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn)
 {
-	WAITFOREVENT(Task.j, Task.device);
+	if (WaitForEvent(Task.j, Task.device)) return(1);
 
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 #ifdef REUSE_BBUFFERS
@@ -1286,7 +1301,7 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 	}
 	for (unsigned int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) / TILING_X, (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
-	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(Task.device, resourceHandlers[Task.device][Task.j] + numInputs + numConstantBuffers, datas[Task.device][Task.j] + numInputs + numConstantBuffers, numOutputs, &events[Task.device][Task.j], blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(Task.device, resourceHandlers[Task.device][Task.j] + numInputs + numConstantBuffers, datas[Task.device][Task.j] + numInputs + numConstantBuffers, numOutputs, Task.j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 	calCtxFlush(ctxs[Task.device]);
 	return(0);
 }
@@ -1615,7 +1630,7 @@ int caldgemm_cal::ExitRuntime()
 
 int caldgemm_cal::FetchResult(int device, int j, int m, int n)
 {
-	return(CopyDataFromGPU(device, resourceHandlers[device][j] + numInputs + numConstantBuffers, datas[device][j] + numInputs + numConstantBuffers, numOutputs, &events[device][j], m, n));
+	return(CopyDataFromGPU(device, resourceHandlers[device][j] + numInputs + numConstantBuffers, datas[device][j] + numInputs + numConstantBuffers, numOutputs, j, m, n));
 }
 
 int caldgemm_cal::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch)
@@ -1706,6 +1721,7 @@ int caldgemm_cal::ExitDevices()
 
 int caldgemm_cal::UseOutputPthreads() {return(1);}
 int caldgemm_cal::UseInputPthreads() {return(1);}
+int caldgemm_cal::UseMutexPerDevice() {return(1);}
 
 int caldgemm_cal::reserve_cpu_cores()
 {

@@ -345,6 +345,14 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 			}
 		}
 	}
+	
+	if (Config->MultiThreadDivide && UseMutexPerDevice())
+	{
+	    for (int i = 0;i < nDevices;i++)
+	    {
+		pthread_mutex_init(&device_mutex[i], NULL);
+	    }
+	}
 
 	cpu_set_t tmpmask;
 	CPU_ZERO(&tmpmask);
@@ -1660,7 +1668,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					}
 					size_t lastm, lastn;
 					DGEMM_getblocks(lastk[use_device], lastm, lastn);
-					if (WaitForEvent(oldj[use_device], use_device)) return(1);
+					if (WaitForEvent(oldj[use_device], use_device, 1)) return(1);
 					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
 					if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
 					{
@@ -1844,6 +1852,7 @@ RunCALDGEMM_end:
 
 int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 {
+	pthread_mutex_lock(&device_mutex[Task.device]);
 	for (int l = 0;l < 2;l++)
 	{
 		if (Task.PrepareTasks[l].j != -1)
@@ -1876,6 +1885,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 		DGEMM_prepare(Task.k, Task.j, Task.device);
 	}
 	if (ExecuteKernels(Task, blockm, blockn)) return(1);
+	pthread_mutex_unlock(&device_mutex[Task.device]);
 	return(0);
 }
 
@@ -1949,6 +1959,7 @@ int caldgemm::ExitCALDGEMM()
 			}
 		}
 	}
+	
 
 	for (int j = 0;j < 2;j++)
 	{
@@ -1974,6 +1985,13 @@ int caldgemm::ExitCALDGEMM()
 				if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finished mutex (%d)\n", i);
 				if (pthread_mutex_destroy(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR destroying divide start mutex (%d)\n", i);
 				pthread_mutex_destroy(&DGEMMTasks[i].mutex_finished); //TODO, check why this fails
+			}
+		}
+		if (Config->MultiThreadDivide && UseMutexPerDevice())
+		{
+			for (int i = 0;i < nDevices;i++)
+			{
+				pthread_mutex_destroy(&device_mutex[i]);
 			}
 		}
 	}
