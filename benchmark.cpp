@@ -141,6 +141,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n" );
 	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread for DMA handling to core n\n" );
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n" );
+	fprintf(STD_OUT, "\t-Ux <int> Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping\n" );
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
 	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n" );
@@ -375,6 +376,17 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			}
 			sscanf(argv[x], "%d", &Config->GPUMapping[gpuid]);
 			printf("Set CPU core for GPU %d to %d\n", gpuid, Config->GPUMapping[gpuid]);
+			break;
+		case 'U':
+			if (x + 1 >= argc) return(1);
+			sscanf(&argv[x++][2], "%d", &gpuid);
+			if ((unsigned) gpuid >= sizeof(Config->PostprocessMapping) / sizeof(Config->PostprocessMapping[0]))
+			{
+			    fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+			    break;
+			}
+			sscanf(argv[x], "%d", &Config->PostprocessMapping[gpuid]);
+			printf("Set CPU core for postprocessing of GPU %d to %d\n", gpuid, Config->PostprocessMapping[gpuid]);
 			break;
 		case 'h':
 			if (++x >= argc) return(1);

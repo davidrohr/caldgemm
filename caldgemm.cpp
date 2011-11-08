@@ -162,7 +162,11 @@ caldgemm::caldgemm_config::caldgemm_config()
 	PreOut = EmptyOut;
 	GPUClock = 0;
 	SmallTiles = false;
-	for (unsigned int i = 0;i < caldgemm::max_devices;i++) GPUMapping[i] = 0;
+	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
+	{
+		GPUMapping[i] = 0;
+		PostprocessMapping[i] = -1;
+	}
 }
 
 int caldgemm::getcpumask(cpu_set_t* set)
@@ -931,10 +935,19 @@ void* caldgemm::merge_wrapper(void* arg)
 
 	cpu_set_t merge_mask;
 	CPU_ZERO(&merge_mask);
-	int merge_core = par->cls->Config->GPUMapping[par->num_device] + par->nMergeThread + 1;
-	for (int i = 0;i < par->num_device;i++)
+	int merge_core;
+	
+	if (par->cls->Config->PostprocessMapping[par->num_device] == -1)
 	{
-		if (par->cls->Config->GPUMapping[i] == par->cls->Config->GPUMapping[par->num_device]) merge_core += par->cls->outputthreads;
+		merge_core = par->cls->Config->GPUMapping[par->num_device] + par->nMergeThread + 1;
+		for (int i = 0;i < par->num_device;i++)
+		{
+			if (par->cls->Config->GPUMapping[i] == par->cls->Config->GPUMapping[par->num_device]) merge_core += par->cls->outputthreads;
+		}
+	}
+	else
+	{
+		merge_core = par->cls->Config->PostprocessMapping[par->num_device] + par->nMergeThread;
 	}
 	CPU_SET(merge_core % par->cls->conf_numprocs, &merge_mask);
 	if (par->cls->Config->Debug) fprintf(STD_OUT, "Merge Thread %d, setting CPU mask %X\n", par->nMergeThread, par->cls->getcpumask(&merge_mask));
