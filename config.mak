@@ -51,3 +51,8 @@ else
 LIBS						+= gfortran
 EXTRAOBJFILES				+= ../GotoBLAS2/libgoto2.a
 endif
+
+caldgemm_config.h:			caldgemm_config.sample
+							cp caldgemm_config.sample caldgemm_config.h
+
+ALLDEP						+= caldgemm_config.h

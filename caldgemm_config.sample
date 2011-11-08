@@ -58,4 +58,4 @@
 
 #define CALDGEMM_MIN_TILE_DIM 256				//Min dimension of small tile
 
-#define CALDGEMM_FORCE_K 16					//Force K Parameter to simulate different kernel perfoemance
+//#define CALDGEMM_FORCE_K 16					//Force K Parameter to simulate different kernel perfoemance
