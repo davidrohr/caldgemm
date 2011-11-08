@@ -1320,6 +1320,12 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 		if (nContext >= 1 && i == dwBuffersA + dwBuffersB) continue;
 		if (nContext >= 2 && i < dwBuffersA) continue;
 		if (nContext >= obuffercount && (i < dwBuffersA || i >= bStop)) continue;
+
+		cpu_set_t tmpmask;
+		CPU_ZERO(&tmpmask);
+		CPU_SET(i >= fStop && Config->PostprocessMapping[num_device] != -1 ? Config->PostprocessMapping[num_device] : Config->GPUMapping[num_device], &tmpmask);
+		sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+
 		unsigned int tWidth = 0;
 		unsigned int tHeight = 0;
 		CALresallocflags flag = static_cast<CALresallocflags>(0);
@@ -1539,6 +1545,11 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 		}
 	}
 
+	cpu_set_t tmpmask;
+	CPU_ZERO(&tmpmask);
+	CPU_SET(Config->GPUMapping[num_device], &tmpmask);
+	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+
 	if (nContext >= 1) return(0);
 
 	for (unsigned int i = bStop; i < fStop; ++i)
@@ -1732,7 +1743,7 @@ int caldgemm_cal::reserve_cpu_cores()
 		int offset = 0;
 		for (int j = 0;j < i;j++)
 		{
-			if (Config->GPUMapping[i] == Config->GPUMapping[j]) offset++;
+			if (Config->GPUMapping[i] == Config->GPUMapping[j] && Config->PostprocessMapping[j] != -1) offset++;
 		}
 		if (offset == 0)
 		{
@@ -1745,8 +1756,9 @@ int caldgemm_cal::reserve_cpu_cores()
 		}
 		for (int j = 0;j < outputthreads;j++)
 		{
-			caldgemm_goto_reserve_cpu(Config->GPUMapping[i] + 1 + offset * outputthreads + j, 1);
-			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", Config->GPUMapping[i] + 1 + offset * outputthreads + j);
+			const int merge_core = Config->PostprocessMapping[i] == -1 ? (Config->GPUMapping[i] + 1 + offset * outputthreads + j) : (Config->PostprocessMapping[i] + j);
+			caldgemm_goto_reserve_cpu(merge_core, 1);
+			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", merge_core);
 		}
 		nthreads += outputthreads;
 		if (Config->GPUMapping[i] == Config->PinMainThread) mainfound = 1;
