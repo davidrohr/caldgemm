@@ -1682,7 +1682,13 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					}
 					size_t lastm, lastn;
 					DGEMM_getblocks(lastk[use_device], lastm, lastn);
-					if (WaitForEvent(oldj[use_device], use_device, 1)) return(1);
+					int must_lock = 0;
+					for (int ii = 0;ii < nDevices;ii++) if (Config->GPUMapping[ii] != Config->PinMainThread)
+					{
+						must_lock = 1;
+						break;
+					}
+					if (WaitForEvent(oldj[use_device], use_device, must_lock)) return(1);
 					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
 					if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
 					{
