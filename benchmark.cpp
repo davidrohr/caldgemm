@@ -390,7 +390,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 					break;
 				}
 				sscanf(argv[x], "%d", &Config->AllocMapping[gpuid]);
-				printf("Allocating memory for GPU %d on core %d\n", gpuid, Config->PostprocessMapping[gpuid]);
+				printf("Allocating memory for GPU %d on core %d\n", gpuid, Config->AllocMapping[gpuid]);
 			}
 			else
 			{
