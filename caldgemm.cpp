@@ -272,11 +272,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
 #ifndef _WIN32
-	if (Config->UseCPU && Config->UseGPU)
+	if (Config->UseGPU)
 	{
 		for (int i = 0;i < conf_numprocs;i++)
 		{
-			if (CPU_ISSET(i, &oldcpumask) && cpuUsed(i)) fprintf(STD_OUT, "WARNING: Core %d used by GotoBLAS main thread and CALDGEMM\n", i);
+			if (CPU_ISSET(i, &oldcpumask) && cpuUsed(i)) fprintf(STD_OUT, "WARNING: Core %d used by GotoBLAS main thread and CALDGEMM, be sure not to use CPU and GPU at the same time!\n", i);
 		}
 	}
 #endif
