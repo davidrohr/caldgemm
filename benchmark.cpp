@@ -142,6 +142,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread for DMA handling to core n\n" );
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n" );
 	fprintf(STD_OUT, "\t-Ux <int> Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping\n" );
+	fprintf(STD_OUT, "\t-UAx <int>Allocate memory for GPU x for die <int>, -1 = default mapping\n" );
 	fprintf(STD_OUT, "\t-V        Thread save GPU driver\n" );
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
@@ -380,14 +381,28 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'U':
 			if (x + 1 >= argc) return(1);
-			sscanf(&argv[x++][2], "%d", &gpuid);
-			if ((unsigned) gpuid >= sizeof(Config->PostprocessMapping) / sizeof(Config->PostprocessMapping[0]))
+			if (argv[x][2] == 'A')
 			{
-			    fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
-			    break;
+				sscanf(&argv[x++][3], "%d", &gpuid);
+				if ((unsigned) gpuid >= sizeof(Config->AllocMapping) / sizeof(Config->AllocMapping[0]))
+				{
+					fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+					break;
+				}
+				sscanf(argv[x], "%d", &Config->AllocMapping[gpuid]);
+				printf("Allocating memory for GPU %d on core %d\n", gpuid, Config->PostprocessMapping[gpuid]);
 			}
-			sscanf(argv[x], "%d", &Config->PostprocessMapping[gpuid]);
-			printf("Set CPU core for postprocessing of GPU %d to %d\n", gpuid, Config->PostprocessMapping[gpuid]);
+			else
+			{
+				sscanf(&argv[x++][2], "%d", &gpuid);
+				if ((unsigned) gpuid >= sizeof(Config->PostprocessMapping) / sizeof(Config->PostprocessMapping[0]))
+				{
+					fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+					break;
+				}
+				sscanf(argv[x], "%d", &Config->PostprocessMapping[gpuid]);
+				printf("Set CPU core for postprocessing of GPU %d to %d\n", gpuid, Config->PostprocessMapping[gpuid]);
+			}
 			break;
 		case 'h':
 			if (++x >= argc) return(1);

@@ -1323,7 +1323,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 
 		cpu_set_t tmpmask;
 		CPU_ZERO(&tmpmask);
-		CPU_SET(i >= fStop && Config->PostprocessMapping[num_device] != -1 ? Config->PostprocessMapping[num_device] : Config->GPUMapping[num_device], &tmpmask);
+		CPU_SET(Config->AllocMapping[num_device] == -1 ? (i >= fStop && Config->PostprocessMapping[num_device] != -1 ? Config->PostprocessMapping[num_device] : Config->GPUMapping[num_device]) : Config->AllocMapping[num_device], &tmpmask);
 		sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 
 		unsigned int tWidth = 0;

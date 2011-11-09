@@ -167,6 +167,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	{
 		GPUMapping[i] = 0;
 		PostprocessMapping[i] = -1;
+		AllocMapping[i] = -1;
 	}
 }
 
