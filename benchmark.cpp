@@ -142,6 +142,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread for DMA handling to core n\n" );
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n" );
 	fprintf(STD_OUT, "\t-Ux <int> Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping\n" );
+	fprintf(STD_OUT, "\t-V        Thread save GPU driver\n" );
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
 	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n" );
@@ -411,6 +412,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'v':
 			Config->VerboseTiming = true;
+			break;
+		case 'V':
+			Config->ThreadSaveDriver = true;
 			break;
 		case 'k':
 			Config->AsyncTiming = true;

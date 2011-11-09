@@ -162,6 +162,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	PreOut = EmptyOut;
 	GPUClock = 0;
 	SmallTiles = false;
+	ThreadSaveDriver = false;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -1684,7 +1685,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					size_t lastm, lastn;
 					DGEMM_getblocks(lastk[use_device], lastm, lastn);
 					int must_lock = 0;
-					for (int ii = 0;ii < nDevices;ii++) if (Config->GPUMapping[ii] != Config->PinMainThread)
+					if (!Config->ThreadSaveDriver) for (int ii = 0;ii < nDevices;ii++) if (Config->GPUMapping[ii] != Config->PinMainThread)
 					{
 						must_lock = 1;
 						break;
