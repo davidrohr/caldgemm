@@ -27,9 +27,6 @@
 
 #include "caldgemm_config_load.h"
 #ifdef _WIN32
-#define __INTRIN_H_
-#define _Complex
-#define __restrict__
 
 #ifdef INTEL_RUNTIME
 #pragma warning(disable : 1786)
@@ -46,12 +43,6 @@
 #endif //VSNET_RUNTIME 
 #endif
 
-#ifndef _WIN32
-#define CAST_FOR_MMPREFETCH
-#else
-#define CAST_FOR_MMPREFETCH (char*)
-#endif
-
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -59,11 +50,6 @@
 #include <cassert>
 #include <iostream>
 #include <iomanip>
-
-typedef int blasint;
-extern "C" {
-#include <cblas.h>
-}
 
 #include <emmintrin.h>
 #ifdef _WIN32
@@ -102,60 +88,67 @@ public:
 	caldgemm();
 	virtual ~caldgemm();
 
-	class caldgemm_config								//Run Parameters
+	class caldgemm_config						//Run Parameters
 	{
 	public:
 		caldgemm_config();
 
-		bool AsyncDMA;				//Run DMA transfer and kernel execution in parallel
-		bool AutoHeight;						//Automatically adjust height
-		bool DivideToGPU;			//Write preprocessed data difrectly to GPU
-		char DstMemory;				//Dst memory of kernel on GPU (g) or CPU (c)
-		int ImplicitDriverSync;			//Assume the CAL driver enforces an explicit sync when starting CAL kernel
-		bool DynamicSched;			//Dynamically schedule CPU DGEMM
-		bool KeepBuffersMapped;			//Do not unmap CAL buffers before kernel execution
-		bool MemPolicy;				//Set memory allocation policy to interleaved
-		bool MultiThread;			//Use multiple threads
-		bool MultiThreadDivide;			//Use multiple threads for DivideBuffer as well
-		double GPURatio;			//Fraction of the matrix processed by GPU
-		bool UseCPU;				//use CPU for DGEMM
-		bool UseGPU;				//use GPUs for DGEMM
+		bool AsyncDMA;							//Run DMA transfer and kernel execution in parallel
+		bool DivideToGPU;						//Write preprocessed data difrectly to GPU
+		char DstMemory;							//Dst memory of kernel on GPU (g) or CPU (c)
+		int ImplicitDriverSync;					//Assume the CAL driver enforces an explicit sync when starting CAL kernel
+		bool DynamicSched;						//Dynamically schedule CPU DGEMM
+		bool SecondPhaseDynamicRuns;			//3rd phase in dynamic scheduling
+		bool ThirdPhaseDynamicRuns;				//3rd phase in dynamic scheduling
+		bool KeepBuffersMapped;					//Do not unmap CAL buffers before kernel execution
+		bool MemPolicy;							//Set memory allocation policy to interleaved
+		bool MultiThread;						//Use multiple threads
+		bool MultiThreadDivide;					//Use multiple threads for DivideBuffer as well
+		double GPURatio;						//Fraction of the matrix processed by GPU
+		bool UseCPU;							//use CPU for DGEMM
+		bool UseGPU;							//use GPUs for DGEMM
 
-		int OpenCLPlatform;			//OpenCL Platform ID to use
-		int DeviceNum;				//CAL Device to use (-1 for all devices)
-		int NumDevices;				//Number of devices to use in parallel at max
-		bool ImprovedScheduler;			//Tries to save bbuffers, replaces the round-robin scheduler
+		int OpenCLPlatform;						//OpenCL Platform ID to use
+		int DeviceNum;							//CAL Device to use (-1 for all devices)
+		int NumDevices;							//Number of devices to use in parallel at max
+		bool ImprovedScheduler;					//Tries to save bbuffers, replaces the round-robin scheduler
 
-		bool Debug;				//Activate debig output
-		bool DumpMatrix;			//Dump input matrix to file
-		unsigned int Iterations;		//Run multiple iterations (for benchmark and debugging purpose only)
-		bool Verify;				//Verify the result
+		bool Debug;								//Activate debig output
+		bool DumpMatrix;						//Dump input matrix to file
+		unsigned int Iterations;				//Run multiple iterations (for benchmark and debugging purpose only)
+		bool Verify;							//Verify the result
 
-		int GPUMapping[max_devices];		//Mapping of GPU devices to CPU cores. Affects DivideBuffer Threads, merge threads take the succeeding cores.
-		int PinCPU;				//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
-		bool SlowCPU;				//Try to put as many load as possible on the GPU as CPU is slow
+		int GPUMapping[max_devices];			//Mapping of GPU devices to CPU cores. Affects DivideBuffer Threads, merge threads take the succeeding cores.
+		int PostprocessMapping[max_devices];	//Mapping for postprocessing threads, default -1 = same mapping as GPU
+		int AllocMapping[max_devices];			//Core (die with that core in fact) where the memory for dma transfer is allocated
+		int PinMainThread;						//Pin main thread to specific device. Default: Use the first GPU preprocessing core
+		bool ThreadSaveDriver;					//Assume GPU driver to be thread save
+		int PinCPU;								//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
+		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
 		
 		size_t Height;							//height of subblock od A, width of subblock of B
-		size_t m, n;								//height of A, width of B, must be multiple of height
+		size_t m, n;							//height of A, width of B, must be multiple of height
 		size_t Width;							//k for matrix multiply
+		bool AutoHeight;						//Automatically adjust height
+		bool SmallTiles;						//ScheduleSmallTiles for alowing better GPU processing of the remainder parts
 
-		bool Disassemble;			//Print the disassembled IL kernel
-		bool PrintILKernel;			//Print the IL kernel source
+		bool Disassemble;						//Print the disassembled IL kernel
+		bool PrintILKernel;						//Print the IL kernel source
 
-		bool AsyncTiming;			//Print additional asynchronous timing information
-		bool DisplayTiming;					//Display Final Timing Information even when quiet
-		bool NoPerformanceWarnings;			//Suppress also performance warnings, will usually be shown even in quiet mode
-		const char* PreOut;			//Prefix timing output with user defined string (for MPI-runs)
-		bool Quiet;				//Quiet mode
-		bool TabularTiming;			//Output a table with timing information
-		bool VerboseTiming;			//Verbose timing information, disables asynchronous processing
+		bool AsyncTiming;						//Print additional asynchronous timing information
+		bool DisplayTiming;						//Display Final Timing Information even when quiet
+		bool NoPerformanceWarnings;				//Suppress also performance warnings, will usually be shown even in quiet mode
+		const char* PreOut;						//Prefix timing output with user defined string (for MPI-runs)
+		bool Quiet;								//Quiet mode
+		bool TabularTiming;						//Output a table with timing information
+		bool VerboseTiming;						//Verbose timing information, disables asynchronous processing
 
-		int LinpackNodes;			//Number of nodes contributing to MPI HPL run
-		int MPIRank;				//MPI Rank to display in debug info
-		int GPUClock;				//GPU clock of the device used (to display throttling information)
+		int LinpackNodes;						//Number of nodes contributing to MPI HPL run
+		int MPIRank;							//MPI Rank to display in debug info
+		int GPUClock;							//GPU clock of the device used (to display throttling information)
 		
-		int HPLFactorizeRestrictCPUs;		//Set 1 to restrct thread count to 8, 2 for dynamic restriction
-		volatile size_t *LinpackSwapN;		//Current status of linpack pivoting process
+		int HPLFactorizeRestrictCPUs;			//Set 1 to restrct thread count to 8, 2 for dynamic restriction
+		volatile size_t *LinpackSwapN;			//Current status of linpack pivoting process
 		void (*linpack_factorize_function)();	//Linpack callback functions
 		void (*linpack_broadcast_function)();
 		void (*linpack_swap_function)();
@@ -168,7 +161,7 @@ public:
 	//The Width (k in matrix multiply) is fixed and cannot be changed without reinitializing
 	int InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit = false);
 	int ExitCALDGEMM();
-	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = -1, size_t k = -1, size_t n = -1, size_t Apitch = -1, size_t Bpitch = -1, size_t Cpitch = -1, CBLAS_ORDER order = CblasRowMajor, CBLAS_TRANSPOSE TransA = CblasNoTrans, CBLAS_TRANSPOSE TransB = CblasNoTrans, int ExecuteLinpackCallbacks = 0);
+	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = -1, size_t k = -1, size_t n = -1, size_t Apitch = -1, size_t Bpitch = -1, size_t Cpitch = -1, bool orderColMajor = false, bool TransA = false, bool TransB = false, int ExecuteLinpackCallbacks = 0);
 	double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages);
 	void FreeMemory(double* ptr);
 	void ResetTimers();
@@ -177,26 +170,28 @@ public:
 	double avggflops;
 	int avgngflops;
 
+	bool cpuUsed(int cpu);
+
 protected:
 
 	virtual int UseOutputPthreads() = 0;
 	virtual int UseInputPthreads() = 0;
+	virtual int UseMutexPerDevice() = 0;
 
 	struct BufferProperties;
-	unsigned int numInputs, numOutputs, numConstantBuffers;
-
+	
 	virtual int ValidateRuntime() = 0;
 	virtual int CheckDevices() = 0;
 	virtual int InitDevices() = 0;
 	virtual int ReinitDevices() = 0;
 	virtual int InitConstantData(double alpha) = 0;
 	virtual int ExitRuntime() = 0;
-	virtual int WaitForEvent(int, int) = 0;
+	virtual int WaitForEvent(int, int, int lock = 0) = 0;
 	virtual int FetchResult(int device, int j, int m, int n) = 0;
 	virtual int ExitDevices() = 0;
 
 	virtual	int Initialize (int deviceNum, bool nocalinit) = 0;
-	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers) = 0;
+	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch) = 0;
 
 	static const int obuffercount = 3;				//Not cal context count but number of copies of data buffers etc.
 	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
@@ -213,6 +208,8 @@ protected:
 	int next_buffer_B[max_devices];
 	int *buffer_pointers_A[max_devices];
 	int *buffer_pointers_B[max_devices];
+	
+	pthread_mutex_t device_mutex[max_devices];
 
 	int DGEMM_prepare(size_t k, int j, unsigned int num_device);
 	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0) = 0;
@@ -220,13 +217,13 @@ protected:
 	{
 		if (DGEMM_favor_m)
 		{
-			const int nb = gpu_n / Config->Height;
+			const int nb = (gpu_n + Config->Height - 1) / Config->Height;
 			blockn = k % nb;
 			blockm = k / nb;
 		}
 		else
 		{
-			const int mb = gpu_m / Config->Height;
+			const int mb = (gpu_m + Config->Height - 1) / Config->Height;
 			blockm = k % mb;
 			blockn = k / mb;
 		}
@@ -295,48 +292,27 @@ protected:
 		int divideA, divideB, divideC;
 	} Timers;
 
-	int DumpMatrix(double* A, double* B, double* C, double alpha, double beta, int m, int k, int n, int Apitch, int Bpitch, int Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB);
+	int DumpMatrix(double* A, double* B, double* C, double alpha, double beta, int m, int k, int n, int Apitch, int Bpitch, int Cpitch);
 
 	double* A;
 	double* B;
 	double* C;
 
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER)
+	__attribute__((__may_alias__))
+#endif
 	double Alpha, Beta;
 
 	size_t A_pitch, B_pitch, C_pitch;
-	CBLAS_TRANSPOSE TransposeA;
-	CBLAS_TRANSPOSE TransposeB;
+	bool TransposeA;
+	bool TransposeB;
 
-#ifdef CALDGEMM_44
-#if !defined(CALDGEMM_48)
-	static const unsigned int dwBuffersA = 2;
-#else
-	static const unsigned int dwBuffersA = 4;
-#endif
-#if !defined(CALDGEMM_84)
-	static const unsigned int dwBuffersB = 2;
-#else
-	static const unsigned int dwBuffersB = 4;
-#endif
-#else //CALDGEMM_44
-#ifdef CALDGEMM_TRANSPOSED_A
-	static const unsigned int dwBuffersA = 2;
-#else
-	static const unsigned int dwBuffersA = 8;
-#endif
-	static const unsigned int dwBuffersB = 2;
-#endif //CALDGEMM_44
-
-#ifdef CALDGEMM_USE_MEMEXPORT
-	static const unsigned int dwBuffersC = 1;
-#else
-	static const unsigned int dwBuffersC = 8;
-#endif
 	int bbuffers[max_devices];
 	int outputthreads;
 
 	size_t BufferHeight;						//Height to which the buffers were originally initialized
 	size_t BufferWidth;							//Same for width
+	size_t SmallTileHeight;						//Height of small tiles
 
 	caldgemm_config* Config;
 

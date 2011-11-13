@@ -69,6 +69,8 @@ bool mem_page_lock = true;
 bool mem_huge_table = false;
 bool linpack_callbacks = false;
 
+bool wait_key = false;
+
 bool use_opencl_not_cal = false;
 
 int random_seed = 0;
@@ -113,6 +115,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-f        Fast Init (Empty Matrices)\n" );
 	fprintf(STD_OUT, "\t-j  <dbl> GPU to CPU ratio\n" );
 	fprintf(STD_OUT, "\t-s        Dynamic CPU GPU scheduling\n" );
+	fprintf(STD_OUT, "\t-M        Disable third phase in dynamic scheduling\n" );
+	fprintf(STD_OUT, "\t-N        Disable second phase in dynamic scheduling\n" );
 	fprintf(STD_OUT, "\t-p        Interleaving Memory Policy\n" );
 	fprintf(STD_OUT, "\t-u        Dump Test Matrix\n" );
 	fprintf(STD_OUT, "\t-1        Transpose A Matrix\n" );
@@ -135,12 +139,18 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
 	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n" );
 	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n" );
+	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread for DMA handling to core n\n" );
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n" );
+	fprintf(STD_OUT, "\t-Ux <int> Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping\n" );
+	fprintf(STD_OUT, "\t-UAx <int>Allocate memory for GPU x for die <int>, -1 = default mapping\n" );
+	fprintf(STD_OUT, "\t-V        Thread save GPU driver\n" );
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
 	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n" );
 	fprintf(STD_OUT, "\t-O        Backend to use: not set = CAL, set = OpenCL\n" );
-	fprintf(STD_OUT, "\t-F        OpenCL Platform ID to use\n" );
+	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n" );
+	fprintf(STD_OUT, "\t-J        Allow small tiles to process the remainder on GPU\n");
+	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -191,6 +201,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 		case 'q':
 			Config->Quiet = true;
 			break;
+		case 'Q':
+			wait_key = true;
+			break;
 		case '?':
 			PrintUsage();
 			return(1);
@@ -226,6 +239,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'A':
 			Config->AsyncDMA = true;
+			break;
+		case 'J':
+			Config->SmallTiles = true;
 			break;
 		case 'B':
 			Config->KeepBuffersMapped = true;
@@ -296,6 +312,12 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 		case 's':
 			Config->DynamicSched = true;
 			break;
+		case 'M':
+			Config->ThirdPhaseDynamicRuns = false;
+			break;
+		case 'N':
+			Config->SecondPhaseDynamicRuns = false;
+			break;
 		case 'S':
 			Config->SlowCPU = true;
 			break;
@@ -341,6 +363,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", &Config->PinCPU);
 			break;
+		case 'K':
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->PinMainThread);
+			break;
 		case 'G':
 			if (x + 1 >= argc) return(1);
 			int gpuid;
@@ -352,6 +378,31 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			}
 			sscanf(argv[x], "%d", &Config->GPUMapping[gpuid]);
 			printf("Set CPU core for GPU %d to %d\n", gpuid, Config->GPUMapping[gpuid]);
+			break;
+		case 'U':
+			if (x + 1 >= argc) return(1);
+			if (argv[x][2] == 'A')
+			{
+				sscanf(&argv[x++][3], "%d", &gpuid);
+				if ((unsigned) gpuid >= sizeof(Config->AllocMapping) / sizeof(Config->AllocMapping[0]))
+				{
+					fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+					break;
+				}
+				sscanf(argv[x], "%d", &Config->AllocMapping[gpuid]);
+				printf("Allocating memory for GPU %d on core %d\n", gpuid, Config->AllocMapping[gpuid]);
+			}
+			else
+			{
+				sscanf(&argv[x++][2], "%d", &gpuid);
+				if ((unsigned) gpuid >= sizeof(Config->PostprocessMapping) / sizeof(Config->PostprocessMapping[0]))
+				{
+					fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+					break;
+				}
+				sscanf(argv[x], "%d", &Config->PostprocessMapping[gpuid]);
+				printf("Set CPU core for postprocessing of GPU %d to %d\n", gpuid, Config->PostprocessMapping[gpuid]);
+			}
 			break;
 		case 'h':
 			if (++x >= argc) return(1);
@@ -376,6 +427,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'v':
 			Config->VerboseTiming = true;
+			break;
+		case 'V':
+			Config->ThreadSaveDriver = true;
 			break;
 		case 'k':
 			Config->AsyncTiming = true;
@@ -798,11 +852,11 @@ int main(int argc, char** argv)
 			unsigned int tmpm = Config.m, tmpn = Config.n, tmpdebug = Config.Debug;
 			Config.Quiet = true;
 			Config.Verify = false;
-			Config.Iterations = 2;
+			Config.Iterations = 1;
 			Config.Debug = false;
 			if (Config.m > 2 * Config.Height) Config.m = 2 * Config.Height;
 			if (Config.n > 2 * Config.Height) Config.n = 2 * Config.Height;
-			if (dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+			if (dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb))
 			{
 				fprintf(STD_OUT, "Error running CALDGEMM\nexiting\n");
 				return(1);
@@ -835,11 +889,11 @@ int main(int argc, char** argv)
 			{
 				if (iterations > 1 && !quietbench) fprintf(STD_OUT, "\nDGEMM Call Iteration %d\n\n", iter);
 #ifdef TESTMODE
-				if (dgemm->RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans))
+				if (dgemm->RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb))
 #else
 				size_t tmpn = Config.m > Config.n ? Config.m : Config.n;
 				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
-				if (dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans, linpack_callbacks))
+				if (dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb, linpack_callbacks))
 #endif
 				{
 					fprintf(STD_OUT, "Error running CALDGEMM\n");
@@ -847,7 +901,7 @@ int main(int argc, char** argv)
 				}
 				if (torture)
 				{
-					dgemm->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans, linpack_callbacks);
+					dgemm->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb, linpack_callbacks);
 				}
 			}
 		} while (benchmark && (Config.n += Config.Height) < 70000 && (Config.m += Config.Height) < 70000 && SetupUserData(Config) == 0);
@@ -877,7 +931,7 @@ int main(int argc, char** argv)
 		Config.UseCPU = true;
 		Config.Verify = false;
 		Config.Quiet = true;
-		dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans);
+		dgemm->RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb);
 		fprintf(STD_OUT, "CPU DGEMM Comparison run complete, comparing results\n");
 		int verifyok = 1;
 		for (size_t i = 0;i < Config.m;i++)
@@ -897,9 +951,6 @@ int main(int argc, char** argv)
 	}
 #else //TEST_PARAMETERS
 	char* mem = new char[(size_t) 40 * 1024 * 1024 * 1024];
-
-	//CALDGEMM_dgemm (ORDER=CblasColMajor, TRANSA=CblasNoTrans, TRANSB=CblasTrans, M=4096, N=4096, K=1024, ALPHA=-1, A=0x2aab136ea040, LDA=4096, B=0x2aab15eec080, LDB=4096, BETA=1, C=0x2aab09495040, LDC=4104)
-	//int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, CBLAS_ORDER order, CBLAS_TRANSPOSE TransA, CBLAS_TRANSPOSE TransB);
 	{
 		size_t tmpmem = (size_t) mem;
 		fprintf(STD_OUT, "tmpmem = 0x%llx\n", tmpmem);
@@ -920,8 +971,8 @@ int main(int argc, char** argv)
 		double BETA = 1.0;
 		size_t M = 3072, N = 3072, K = 1024;
 		size_t APITCH = 4104, BPITCH = 3072, CPITCH = 4104;
-		CBLAS_ORDER ORDER = CblasColMajor;
-		CBLAS_TRANSPOSE TRANSA = CblasNoTrans, TRANSB = CblasTrans;
+		bool ORDER = true;
+		bool TRANSA = false, TRANSB = true;
 		fprintf(STD_OUT, "Filling Source Matrices with random data\n");
 		for (int i = 0;i < APITCH * (M > K ? M : K);i++) AA[i] = i % 257;
 		for (int i = 0;i < BPITCH * (N > K ? N : K);i++) BB[i] = i % 97;
@@ -951,5 +1002,11 @@ int main(int argc, char** argv)
 #endif
 
 	delete dgemm;
+
+	if (wait_key)
+	{
+		fprintf(STD_OUT, "Press return to exit!\n");
+		getchar();
+	}
 	return 0;
 }

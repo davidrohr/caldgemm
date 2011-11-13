@@ -23,6 +23,7 @@
  */
 
 #include "caldgemm_cal.h"
+#include "caldgemm_common.h"
 
 #define ILKernelName ILKernel
 #include "caldgemm.il"
@@ -41,6 +42,8 @@
 const char* caldgemm_cal::ILFakeKernel =
 "il_ps_2_0\n"
 "dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"
+"dcl_output_generic o0\n"
+"mov o0, vWinCoord0.0000\n"
 "end\n"
 ;
 
@@ -70,10 +73,22 @@ const char* caldgemm_cal::ILConvertKernel =
 ;
 
 #define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {fprintf(STD_OUT, "Error '%s' while " text "\n", calGetErrorString());return(1);}
-#define WAITFOREVENT(eventnr, devicenr) { CALresult r; if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr); do { r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr]); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 #define WAITFOREVENTA(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
-int caldgemm_cal::WaitForEvent(int a, int b) {WAITFOREVENT(a, b);return(0);}
+int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
+{
+	CALresult r;
+	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr);
+	do
+	{
+		if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
+		r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr]);
+		if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
+		if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString());
+		return(1);}
+	} while (r == CAL_RESULT_PENDING);
+	return(0);
+}
 
 #ifdef CALDGEMM_UNALIGNED_ADDRESSES
 #define _mm_load_pd_use _mm_loadu_pd
@@ -433,7 +448,7 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 		//Special Linpack Function
 		for (int y=0; y < height; y++)
 		{
-			int bank = y % 4;
+			const int bank = y % 4;
 			double* saddr = src[bank].ptr_double + (y / 4) * (gpu_width / 2);
 			double* saddr2 = src[bank + 4].ptr_double + (y / 4) * (gpu_width / 2);
 			double* daddr = dst + (y * pitch);
@@ -777,6 +792,11 @@ void caldgemm_cal::cal_init_constant_data(BufferProperties* &data, double alpha)
 int caldgemm_cal::Initialize(int deviceNum, bool nocalinit)
 {
 	if (!nocalinit) CHKERR(calInit(), "initializing CAL");
+
+	numInputs = dwBuffersA + dwBuffersB;
+	numOutputs = dwBuffersC;
+	numConstantBuffers = 1;
+
 	if (deviceNum == -1 && obuffercount > 1 && Config->MultiThread)
 	{
 		CALuint tmp;
@@ -962,7 +982,7 @@ int caldgemm_cal::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module,
 	return(0);
 }
 
-int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event, size_t lastm, size_t lastn)
+int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, int nContext, size_t lastm, size_t lastn)
 {
 	if (Config->DstMemory == 'c') return 0;
 	CALcontext* ctx = &ctxs[nDevice];
@@ -970,21 +990,24 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 	if (Config->Debug == true) fprintf(STD_OUT, "\tFetching part of C from GPU (m = %lld, n = %lld)\n", (long long int) lastm, (long long int) lastn);
 	unsigned int pitch;
 	char* ptr;
-	if (Config->ImplicitDriverSync == 0) WAITFOREVENTA(*ctx, *event);
+	if (Config->ImplicitDriverSync == 0) WaitForEvent(nContext, nDevice);
 	for (unsigned int i = 0; i < num; ++i)
 	{
 		if (data[i].CALMemory)
 		{
 			//if (Config->Debug) fprintf(STD_OUT, "GPUHandle: %d, CPUHandle: %d\n", data[i].dstMem, data[i].mem);
-			CHKERR(calMemCopy(event, *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
+			CHKERR(calMemCopy(&events[nDevice][nContext], *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
 			continue;
 		}
 		CHKERR(calResMap((void**)&ptr, &pitch, _Res[i], 0), "mapping buffer");
 		memcpy(data[i].ptr_char, ptr, data[i].DataSize * data[i].VectorSize * data[i].Width * data[i].Height);
 		CHKERR(calResUnmap(_Res[i]), "unmapping buffer");
 	}
-	if (Config->VerboseTiming) WAITFOREVENTA(*ctx, *event);
-	if (Config->VerboseTiming) Timers.CounterCopyFrom.Stop();
+	if (Config->VerboseTiming)
+	{
+		WaitForEvent(nContext, nDevice);
+		Timers.CounterCopyFrom.Stop();
+	}
 	return 0;
 }
 
@@ -1109,8 +1132,26 @@ int caldgemm_cal::CheckDevices()
 	if (Config->KeepBuffersMapped)
 	{
 		if (SetupKernel(ILFakeKernel, &fakeModule, &ctxs[0], device_nums[0], false)) return(1);
-		if (RunProgram(&ctxs[0], &fakeModule, 0, 0, &events[0][0])) {fprintf(STD_OUT, "Error running test kernel on GPU\n"); return(1);}
-		if (Config->KeepBuffersMapped) checkCalPatch();
+		CALresource tmpres = 0;
+		CHKERR(calResAllocLocal2D(&tmpres, devices[0], 128, 128, CAL_FORMAT_FLOAT_4, 0), "checking for CAL patch");
+		void* tmpptr;
+		unsigned int tmppitch;
+		CHKERR(calResMap((CALvoid**) &tmpptr, &tmppitch, tmpres, 0), "checking for CAL patch");
+		CALname tmpname;
+		CHKERR(calModuleGetName(&tmpname, ctxs[0], fakeModule, "o0"), "checking for CAL patch");
+		CALmem tmpmem;
+		CHKERR(calCtxGetMem(&tmpmem, ctxs[0], tmpres), "checking for CAL patch");
+		CHKERR(calCtxSetMem(ctxs[0], tmpname, tmpmem), "checking for CAL patch");
+
+		if (RunProgram(&ctxs[0], &fakeModule, 0, 0, &events[0][0]))
+		{
+			fprintf(STD_OUT, "Error running test kernel on GPU\nKeepBuffersMapped disabled\n");
+			Config->KeepBuffersMapped = false;
+		}
+		//if (Config->KeepBuffersMapped) checkCalPatch();
+
+		calCtxReleaseMem(ctxs[0], tmpmem);
+		calResFree(tmpres);
 		if (calModuleUnload(ctxs[0], fakeModule) != CAL_RESULT_OK )
 		{
 			fprintf(STD_OUT, "Error unloading test module\n");
@@ -1195,7 +1236,7 @@ int caldgemm_cal::InitConstantData(double alpha)
 
 int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn)
 {
-	WAITFOREVENT(Task.j, Task.device);
+	if (WaitForEvent(Task.j, Task.device)) return(1);
 
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 #ifdef REUSE_BBUFFERS
@@ -1259,8 +1300,8 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 #endif
 	}
 	for (unsigned int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
-	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], Config->Height / TILING_X, Config->Height / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
-	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(Task.device, resourceHandlers[Task.device][Task.j] + numInputs + numConstantBuffers, datas[Task.device][Task.j] + numInputs + numConstantBuffers, numOutputs, &events[Task.device][Task.j], blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) / TILING_X, (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
+	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(Task.device, resourceHandlers[Task.device][Task.j] + numInputs + numConstantBuffers, datas[Task.device][Task.j] + numInputs + numConstantBuffers, numOutputs, Task.j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 	calCtxFlush(ctxs[Task.device]);
 	return(0);
 }
@@ -1279,6 +1320,12 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 		if (nContext >= 1 && i == dwBuffersA + dwBuffersB) continue;
 		if (nContext >= 2 && i < dwBuffersA) continue;
 		if (nContext >= obuffercount && (i < dwBuffersA || i >= bStop)) continue;
+
+		cpu_set_t tmpmask;
+		CPU_ZERO(&tmpmask);
+		CPU_SET(Config->AllocMapping[num_device] == -1 ? (i >= fStop && Config->PostprocessMapping[num_device] != -1 ? Config->PostprocessMapping[num_device] : Config->GPUMapping[num_device]) : Config->AllocMapping[num_device], &tmpmask);
+		sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+
 		unsigned int tWidth = 0;
 		unsigned int tHeight = 0;
 		CALresallocflags flag = static_cast<CALresallocflags>(0);
@@ -1498,6 +1545,11 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 		}
 	}
 
+	cpu_set_t tmpmask;
+	CPU_ZERO(&tmpmask);
+	CPU_SET(Config->GPUMapping[num_device], &tmpmask);
+	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+
 	if (nContext >= 1) return(0);
 
 	for (unsigned int i = bStop; i < fStop; ++i)
@@ -1589,12 +1641,12 @@ int caldgemm_cal::ExitRuntime()
 
 int caldgemm_cal::FetchResult(int device, int j, int m, int n)
 {
-	return(CopyDataFromGPU(device, resourceHandlers[device][j] + numInputs + numConstantBuffers, datas[device][j] + numInputs + numConstantBuffers, numOutputs, &events[device][j], m, n));
+	return(CopyDataFromGPU(device, resourceHandlers[device][j] + numInputs + numConstantBuffers, datas[device][j] + numInputs + numConstantBuffers, numOutputs, j, m, n));
 }
 
-int caldgemm_cal::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers)
+int caldgemm_cal::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch)
 {
-	return(mergeBuffers(dst, datas[device][j] + numInputs + numConstantBuffers, width, height, gpu_width, gpu_height, pitch, numBuffers));
+	return(mergeBuffers(dst, datas[device][j] + numInputs + numConstantBuffers, width, height, gpu_width, gpu_height, pitch, dwBuffersC));
 }
 
 int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0)
@@ -1608,9 +1660,9 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 		if (Config->VerboseTiming) Timers.CounterDivide.Start();
 		Timers.divideA++;
 #ifdef CALDGEMM_TRANSPOSED_A
-		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Config->Height, Config->Width, BufferHeight, BufferWidth, A_pitch, dwBuffersA, TransposeA == CblasNoTrans)) return(1);
+		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA ? 1 : A_pitch), (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, Config->Width, BufferHeight, BufferWidth, A_pitch, dwBuffersA, TransposeA == false)) return(1);
 #else
-		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch), Config->Width, Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA == CblasTrans)) return(1);
+		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA ? 1 : A_pitch), Config->Width, (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA)) return(1);
 #endif
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)
@@ -1635,9 +1687,9 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 		if (Config->VerboseTiming) Timers.CounterDivide.Start();
 		Timers.divideB++;
 #ifdef CALDGEMM_TRANSPOSED_B
-		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1), Config->Width, Config->Height, BufferWidth, BufferHeight, B_pitch, dwBuffersB, TransposeB == CblasNoTrans);
+		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), Config->Width, (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, BufferWidth, BufferHeight, B_pitch, dwBuffersB, TransposeB == false);
 #else
-		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1), Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB == CblasTrans);
+		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), Config->Height, Config->Width, (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, BufferWidth, B_pitch, dwBuffersB, TransposeB);
 #endif
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)
@@ -1680,16 +1732,18 @@ int caldgemm_cal::ExitDevices()
 
 int caldgemm_cal::UseOutputPthreads() {return(1);}
 int caldgemm_cal::UseInputPthreads() {return(1);}
+int caldgemm_cal::UseMutexPerDevice() {return(1);}
 
 int caldgemm_cal::reserve_cpu_cores()
 {
 	int nthreads = 0;
+	int mainfound = 0;
 	for (int i = 0;i < nDevices;i++)
 	{
 		int offset = 0;
 		for (int j = 0;j < i;j++)
 		{
-			if (Config->GPUMapping[i] == Config->GPUMapping[j]) offset++;
+			if (Config->GPUMapping[i] == Config->GPUMapping[j] && Config->PostprocessMapping[j] != -1) offset++;
 		}
 		if (offset == 0)
 		{
@@ -1702,10 +1756,17 @@ int caldgemm_cal::reserve_cpu_cores()
 		}
 		for (int j = 0;j < outputthreads;j++)
 		{
-			caldgemm_goto_reserve_cpu(Config->GPUMapping[i] + 1 + offset * outputthreads + j, 1);
-			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", Config->GPUMapping[i] + 1 + offset * outputthreads + j);
+			const int merge_core = Config->PostprocessMapping[i] == -1 ? (Config->GPUMapping[i] + 1 + offset * outputthreads + j) : (Config->PostprocessMapping[i] + j);
+			caldgemm_goto_reserve_cpu(merge_core, 1);
+			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", merge_core);
 		}
 		nthreads += outputthreads;
+		if (Config->GPUMapping[i] == Config->PinMainThread) mainfound = 1;
+	}
+	if (mainfound == 0)
+	{
+		caldgemm_goto_reserve_cpu(Config->PinMainThread, 1);
+		nthreads++;
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Reserved %d cores\n", nthreads);
 	return(nthreads);

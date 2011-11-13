@@ -109,7 +109,7 @@ caldgemm_opencl::~caldgemm_opencl()
 }
 
 #define WAITFOREVENT(eventnr, devicenr) { if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr); if (clWaitForEvents(1, &ocl_events[devicenr][eventnr]) != CL_SUCCESS) { fprintf(STD_OUT, "Error while waiting for event\n"); return(1);}}
-int caldgemm_opencl::WaitForEvent(int a, int b) {WAITFOREVENT(a, b);return(0);}
+int caldgemm_opencl::WaitForEvent(int a, int b, int) {WAITFOREVENT(a, b);return(0);}
 
 int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 {
@@ -303,7 +303,7 @@ int caldgemm_opencl::FetchResult(int device, int j, int m, int n)
 	return(0);
 }
 
-int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers)
+int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch)
 {
 	fprintf(STD_OUT, "OPENCL RunMergeBuffers\n");
 	return(0);
@@ -311,7 +311,7 @@ int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, 
 
 int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0)
 {
-	fprintf(STD_OUT, "OPENCL DGEMM_prepare k=%lld j=%d device=%d\n", k, j, num_device);
+	fprintf(STD_OUT, "OPENCL DGEMM_prepare k=%lld j=%d device=%d\n", (long long int) k, j, num_device);
 	
 	size_t blockm, blockn;
 	DGEMM_getblocks(k, blockm, blockn);
@@ -328,11 +328,11 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		Timers.divideA++;
 
 		cl_mem *dest_image;
-		cl_mem dest_image_tmp = (TransposeA == CblasTrans ? ocl_tmp_abuffers_t[num_device][j] : ocl_tmp_abuffers[num_device][j]);
-		region[0] = (TransposeA == CblasTrans ? Config->Height : Config->Width) / 2;
-		region[1] = (TransposeA == CblasTrans ? Config->Width : Config->Height);
+		cl_mem dest_image_tmp = (TransposeA ? ocl_tmp_abuffers_t[num_device][j] : ocl_tmp_abuffers[num_device][j]);
+		region[0] = (TransposeA ? Config->Height : Config->Width) / 2;
+		region[1] = (TransposeA ? Config->Width : Config->Height);
 		size_t pitch = A_pitch;
-		void* src_ptr = A + blockm * Config->Height * (TransposeA == CblasTrans ? 1 : A_pitch);
+		void* src_ptr = A + blockm * Config->Height * (TransposeA ? 1 : A_pitch);
 		
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{
@@ -352,11 +352,11 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		Timers.divideB++;
 
 		cl_mem *dest_image;
-		cl_mem dest_image_tmp = (TransposeB == CblasTrans ? ocl_tmp_bbuffers_t[num_device][j] : ocl_tmp_bbuffers[num_device][j]);
-		region[0] = (TransposeB == CblasTrans ? Config->Width : Config->Height) / 2;
-		region[1] = (TransposeB == CblasTrans ? Config->Height : Config->Width);
+		cl_mem dest_image_tmp = (TransposeB ? ocl_tmp_bbuffers_t[num_device][j] : ocl_tmp_bbuffers[num_device][j]);
+		region[0] = (TransposeB ? Config->Width : Config->Height) / 2;
+		region[1] = (TransposeB ? Config->Height : Config->Width);
 		size_t pitch = B_pitch;
-		void* src_ptr = B + blockn * Config->Height * (TransposeB == CblasTrans ? B_pitch : 1);
+		void* src_ptr = B + blockn * Config->Height * (TransposeB ? B_pitch : 1);
 
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{
@@ -415,6 +415,7 @@ int caldgemm_opencl::ExitDevices()
 
 int caldgemm_opencl::UseOutputPthreads() {return(0);}
 int caldgemm_opencl::UseInputPthreads() {return(0);}
+int caldgemm_opencl::UseMutexPerDevice() {return(0);}
 
 int caldgemm_opencl::reserve_cpu_cores()
 {

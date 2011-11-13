@@ -40,6 +40,35 @@ public:
 private:
 	virtual int UseOutputPthreads();
 	virtual int UseInputPthreads();
+	virtual int UseMutexPerDevice();
+
+	unsigned int numInputs, numOutputs, numConstantBuffers;
+
+#ifdef CALDGEMM_44
+#if !defined(CALDGEMM_48)
+	static const unsigned int dwBuffersA = 2;
+#else
+	static const unsigned int dwBuffersA = 4;
+#endif
+#if !defined(CALDGEMM_84)
+	static const unsigned int dwBuffersB = 2;
+#else
+	static const unsigned int dwBuffersB = 4;
+#endif
+#else //CALDGEMM_44
+#ifdef CALDGEMM_TRANSPOSED_A
+	static const unsigned int dwBuffersA = 2;
+#else
+	static const unsigned int dwBuffersA = 8;
+#endif
+	static const unsigned int dwBuffersB = 2;
+#endif //CALDGEMM_44
+
+#ifdef CALDGEMM_USE_MEMEXPORT
+	static const unsigned int dwBuffersC = 1;
+#else
+	static const unsigned int dwBuffersC = 8;
+#endif
 
 	struct BufferProperties
 	{
@@ -82,7 +111,7 @@ private:
 	int CleanupData(CALcontext* ctx, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device);
 	int Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device);
 	int SetupData(CALmodule* module, CALresource* &_Res, BufferProperties* &data, CALdevice* device, CALcontext* ctx, unsigned int numInputs, unsigned int numOutputs, unsigned int numConstantBuffers, CALname** ctxProgNames, int nContext, unsigned int num_device);
-	int CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, CALevent* event, size_t lastm, size_t lastn);
+	int CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, int nContext, size_t lastm, size_t lastn);
 	int CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, int num_device, BufferProperties* dest_data = NULL);
 	int ValidateCALRuntime();
 
@@ -108,9 +137,9 @@ private:
 	virtual int ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn);
 	virtual int ExitRuntime();
 	virtual int ExitDevices();
-	virtual int WaitForEvent(int, int);
+	virtual int WaitForEvent(int, int, int lock = 0);
 	virtual int FetchResult(int device, int j, int m, int n);
-	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers);
+	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch);
 	virtual int reserve_cpu_cores();
 };
 

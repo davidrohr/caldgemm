@@ -108,4 +108,15 @@ NVCCARCHS					:= `for i in $(CUDAVERSION); do echo -n -gencode arch=compute_$$i,
 NVCC_GREP					= "^#line\|^$$\|^# [0-9]* "
 DCUDAEMU					= -DCUDA_DEVICE_EMULATION
 
-COMMONINCLUDEPATHS			= "$(CUDASDKPATH)/C/common/inc" "$(AMDPATH)/include" "$(AMDPATH)/include/CAL"
+COMMONINCLUDEPATHS			=
+ifeq ("$(CONFIG_CUDA)", "1")
+COMMONINCLUDEPATHS			+= "$(CUDASDKPATH)/C/common/inc"
+endif
+
+ifeq ("$(CONFIG_OPENCL)", "1")
+COMMONINCLUDEPATHS			+= $(AMDPATH)/include
+endif
+
+ifeq ("$(CONFIG_CAL)", "1")
+COMMONINCLUDEPATHS			+= $(AMDPATH)/include/CAL
+endif

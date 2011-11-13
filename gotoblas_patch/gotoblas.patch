@@ -1,6 +1,6 @@
 diff -u -r gotoblas_org/GotoBLAS2/common.h GotoBLAS2/common.h
 --- gotoblas_org/GotoBLAS2/common.h	2010-11-05 14:56:22.000000000 +0100
-+++ GotoBLAS2/common.h	2011-03-29 11:52:33.922501236 +0200
++++ GotoBLAS2/common.h	2011-10-31 20:15:47.329987499 +0100
 @@ -410,6 +410,9 @@
  #endif
  
@@ -13,7 +13,7 @@ diff -u -r gotoblas_org/GotoBLAS2/common.h GotoBLAS2/common.h
  void gotoblas_affinity_quit(void);
 diff -u -r gotoblas_org/GotoBLAS2/common_thread.h GotoBLAS2/common_thread.h
 --- gotoblas_org/GotoBLAS2/common_thread.h	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2/common_thread.h	2011-03-29 10:58:05.055625469 +0200
++++ GotoBLAS2/common_thread.h	2011-10-31 20:15:47.330987450 +0100
 @@ -47,6 +47,7 @@
  
  /* Global Parameter */
@@ -32,7 +32,7 @@ diff -u -r gotoblas_org/GotoBLAS2/common_thread.h GotoBLAS2/common_thread.h
  
 diff -u -r gotoblas_org/GotoBLAS2/driver/others/blas_server.c GotoBLAS2/driver/others/blas_server.c
 --- gotoblas_org/GotoBLAS2/driver/others/blas_server.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2/driver/others/blas_server.c	2011-09-28 18:56:52.232306769 +0200
++++ GotoBLAS2/driver/others/blas_server.c	2011-10-31 20:15:47.336716407 +0100
 @@ -42,6 +42,10 @@
  #include <sys/resource.h>
  #endif
@@ -136,7 +136,7 @@ diff -u -r gotoblas_org/GotoBLAS2/driver/others/blas_server.c GotoBLAS2/driver/o
  int gotoblas_pthread(int numthreads, void *function, void *args, int stride) {
 diff -u -r gotoblas_org/GotoBLAS2/driver/others/init.c GotoBLAS2/driver/others/init.c
 --- gotoblas_org/GotoBLAS2/driver/others/init.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2/driver/others/init.c	2011-03-29 12:28:57.375500235 +0200
++++ GotoBLAS2/driver/others/init.c	2011-10-31 20:15:47.336716407 +0100
 @@ -70,17 +70,19 @@
    int num_nodes;
    int num_procs;
@@ -364,7 +364,7 @@ diff -u -r gotoblas_org/GotoBLAS2/driver/others/init.c GotoBLAS2/driver/others/i
  
 diff -u -r gotoblas_org/GotoBLAS2/driver/others/memory.c GotoBLAS2/driver/others/memory.c
 --- gotoblas_org/GotoBLAS2/driver/others/memory.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2/driver/others/memory.c	2011-03-29 10:50:43.686531848 +0200
++++ GotoBLAS2/driver/others/memory.c	2011-10-31 20:15:47.337987367 +0100
 @@ -37,7 +37,6 @@
  /*********************************************************************/
  
@@ -416,13 +416,13 @@ diff -u -r gotoblas_org/GotoBLAS2/driver/others/memory.c GotoBLAS2/driver/others
  
 diff -u -r gotoblas_org/GotoBLAS2/interface/axpy.c GotoBLAS2/interface/axpy.c
 --- gotoblas_org/GotoBLAS2/interface/axpy.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2/interface/axpy.c	2011-03-29 10:55:57.651532068 +0200
++++ GotoBLAS2/interface/axpy.c	2011-10-31 20:17:38.583883751 +0100
 @@ -79,7 +79,15 @@
    if (incy < 0) y -= (n - 1) * incy;
  
  #ifdef SMP
 -  nthreads = num_cpu_avail(1);
-+  if (caldgemm_restrict_cpus)
++  if (caldgemm_restrict_cpus > 2)
 +  {
 +    nthreads = 8;
 +    if (nthreads > num_cpu_avail(1)) nthreads = num_cpu_avail(1);
@@ -436,7 +436,7 @@ diff -u -r gotoblas_org/GotoBLAS2/interface/axpy.c GotoBLAS2/interface/axpy.c
  #endif
 diff -u -r gotoblas_org/GotoBLAS2/interface/gemm.c GotoBLAS2/interface/gemm.c
 --- gotoblas_org/GotoBLAS2/interface/gemm.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2/interface/gemm.c	2011-04-05 21:47:54.575951460 +0200
++++ GotoBLAS2/interface/gemm.c	2011-10-31 20:18:14.755841959 +0100
 @@ -398,6 +398,20 @@
  
    args.common = NULL;
@@ -460,7 +460,7 @@ diff -u -r gotoblas_org/GotoBLAS2/interface/gemm.c GotoBLAS2/interface/gemm.c
  #endif
 diff -u -r gotoblas_org/GotoBLAS2/interface/gemv.c GotoBLAS2/interface/gemv.c
 --- gotoblas_org/GotoBLAS2/interface/gemv.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2/interface/gemv.c	2011-03-29 10:56:51.093543219 +0200
++++ GotoBLAS2/interface/gemv.c	2011-10-31 20:17:12.803758179 +0100
 @@ -211,8 +211,30 @@
    buffer = (FLOAT *)blas_memory_alloc(1);
  
@@ -484,7 +484,7 @@ diff -u -r gotoblas_org/GotoBLAS2/interface/gemv.c GotoBLAS2/interface/gemv.c
 +	else if (tflops < 3686400) nthreads = 3;
 +	else nthreads = 4;
 +    }
-+    if (nthreads > 8) nthreads = 8;
++    if (caldgemm_restrict_cpus > 2 && nthreads > 8) nthreads = 8;
 +    if (nthreads > num_cpu_avail(2)) nthreads = num_cpu_avail(2);
 +  }
 +  else
@@ -496,13 +496,13 @@ diff -u -r gotoblas_org/GotoBLAS2/interface/gemv.c GotoBLAS2/interface/gemv.c
      
 diff -u -r gotoblas_org/GotoBLAS2/interface/scal.c GotoBLAS2/interface/scal.c
 --- gotoblas_org/GotoBLAS2/interface/scal.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2/interface/scal.c	2011-03-29 10:55:33.693531905 +0200
++++ GotoBLAS2/interface/scal.c	2011-10-31 20:16:52.632758147 +0100
 @@ -76,7 +76,15 @@
  
  
  #ifdef SMP
 -  nthreads = num_cpu_avail(1);
-+  if (caldgemm_restrict_cpus)
++  if (caldgemm_restrict_cpus > 2)
 +  {
 +    nthreads = 8;
 +    if (nthreads > num_cpu_avail(1)) nthreads = num_cpu_avail(1);
@@ -516,7 +516,7 @@ diff -u -r gotoblas_org/GotoBLAS2/interface/scal.c GotoBLAS2/interface/scal.c
  #endif
 diff -u -r gotoblas_org/GotoBLAS2/interface/trsm.c GotoBLAS2/interface/trsm.c
 --- gotoblas_org/GotoBLAS2/interface/trsm.c	2010-11-05 14:57:49.000000000 +0100
-+++ GotoBLAS2/interface/trsm.c	2011-03-29 10:54:56.886531912 +0200
++++ GotoBLAS2/interface/trsm.c	2011-10-31 20:17:43.785841929 +0100
 @@ -362,6 +362,16 @@
    mode |= (side  << BLAS_RSIDE_SHIFT);
  
@@ -528,16 +528,15 @@ diff -u -r gotoblas_org/GotoBLAS2/interface/trsm.c GotoBLAS2/interface/trsm.c
 +    else if (tflops <= 110592) args.nthreads = 3;
 +    else if (tflops <= 100000000) args.nthreads = 4;
 +    else if (tflops <= 1000000000) args.nthreads = 16;
-+    if (args.nthreads > 8) args.nthreads = 8;
++    if (caldgemm_restrict_cpus > 2 && args.nthreads > 8) args.nthreads = 8;
 +    if (args.nthreads > num_cpu_avail(3)) args.nthreads = num_cpu_avail(3);
 +  }
  
    if (args.nthreads == 1) {
  #endif
-Only in GotoBLAS2: lapack-3.1.1.tgz
 diff -u -r gotoblas_org/GotoBLAS2/Makefile GotoBLAS2/Makefile
 --- gotoblas_org/GotoBLAS2/Makefile	2010-01-20 21:54:38.000000000 +0100
-+++ GotoBLAS2/Makefile	2011-03-29 11:03:33.454897208 +0200
++++ GotoBLAS2/Makefile	2011-10-31 20:15:47.340982836 +0100
 @@ -13,9 +13,14 @@
  
  SUBDIRS	= $(BLASDIRS) lapack
@@ -572,7 +571,7 @@ diff -u -r gotoblas_org/GotoBLAS2/Makefile GotoBLAS2/Makefile
  libs :
 diff -u -r gotoblas_org/GotoBLAS2/Makefile.rule GotoBLAS2/Makefile.rule
 --- gotoblas_org/GotoBLAS2/Makefile.rule	2010-02-05 17:02:04.000000000 +0100
-+++ GotoBLAS2/Makefile.rule	2011-06-06 18:20:37.557024686 +0200
++++ GotoBLAS2/Makefile.rule	2011-10-31 20:15:47.340982836 +0100
 @@ -7,7 +7,7 @@
  
  # You can specify the target architecture, otherwise it's
@@ -597,7 +596,7 @@ diff -u -r gotoblas_org/GotoBLAS2/Makefile.rule GotoBLAS2/Makefile.rule
  
 diff -u -r gotoblas_org/GotoBLAS2/Makefile.system GotoBLAS2/Makefile.system
 --- gotoblas_org/GotoBLAS2/Makefile.system	2010-01-28 21:11:08.000000000 +0100
-+++ GotoBLAS2/Makefile.system	2011-02-16 10:22:24.991642328 +0100
++++ GotoBLAS2/Makefile.system	2011-10-31 20:15:47.341987290 +0100
 @@ -570,6 +570,10 @@
  endif
  endif

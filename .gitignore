@@ -4,3 +4,4 @@ dgemm_bench
 .svn
 vcproject
 *.o
+caldgemm_config.h
