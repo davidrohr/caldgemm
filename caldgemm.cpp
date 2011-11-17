@@ -24,6 +24,7 @@
 
 #include "caldgemm.h"
 #include "caldgemm_common.h"
+#include "cmodules/qmalloc.h"
 
 #ifndef _WIN32
 #include <syscall.h>
@@ -266,6 +267,17 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		return(1);
 	}
 
+#ifndef USE_GOTO_BLAS
+	int main_blas_core = get_num_procs() - 1;
+	{
+		if (Config->Debug) fprintf(STD_OUT, "Pinning Main OpenMP BLAS thread to core %d\n", main_blas_core);
+		cpu_set_t blasset;
+		CPU_ZERO(&blasset);
+		CPU_SET(main_blas_core, &blasset);
+		sched_setaffinity(0, sizeof(blasset), &blasset);
+	}
+#endif
+
 #ifdef _WIN32
 	strcpy(hostname, "Win32");
 #else
@@ -447,6 +459,43 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	
 	if (Config->Debug) fprintf(STD_OUT, "Using %d CPU cores at %d MHz, %d GPUs of %d shaders at %d MHz\n", conf_numprocs, conf_cpufreq, nDevices, conf_gpushaders, conf_gpufreq);
 
+#ifndef USE_GOTO_BLAS
+	if (Config->Debug) fprintf(STD_OUT, "Performing OpenMP Blas Thread Pinning\n");
+#pragma omp parallel num_threads(conf_numprocs)
+	{
+		int thread_id = omp_get_thread_num();
+		cpu_set_t localset;
+		int localcore = thread_id * 2;
+
+		int nFreeCores = 0;
+		if (thread_id == nFreeCores) localcore = main_blas_core;
+		nFreeCores++;
+		for (int i = 0;i < conf_numprocs;i++)
+		{
+			if (cpuUsed(i) == false && i != broadcast_cpu_core && i != main_blas_core)
+			{
+				if (thread_id == nFreeCores) localcore = i;
+				nFreeCores++;
+			}
+		}
+		if (thread_id == nFreeCores) localcore = broadcast_cpu_core;
+		nFreeCores++;
+		for (int i = 0;i < conf_numprocs;i++)
+		{
+			if (cpuUsed(i) && i != main_blas_core)
+			{
+				if (thread_id == nFreeCores) localcore = i;
+				nFreeCores++;
+			}
+		}
+
+		CPU_ZERO(&localset);
+		CPU_SET(localcore, &localset);
+		sched_setaffinity(0, sizeof(localset), &localset);
+		fprintf(STD_OUT, "OpenMP BLAS thread %d pinned to core %d\n", thread_id, localcore);
+	}
+#endif
+
 	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Init complete, setting CPU mask %X\n", getcpumask(&oldcpumask));
 	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
@@ -457,7 +506,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 int caldgemm::broadcastcore()
 {
-	return(outputthreads + 1);
+	return(broadcast_cpu_core);
 }
 
 bool caldgemm::cpuUsed(int cpu)
@@ -2048,6 +2097,9 @@ int nHugeAddresses = 0;
 
 double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages)
 {
+#ifndef USE_OLD_HUGE_MALLOC
+	return((double*) qmalloc::qMalloc(nDoubles * sizeof(double), huge_pages, false, page_locked));
+#else
 #ifdef WASTE_MEMORY
 	nDoubles += 40 * 1024 * 1024;
 #endif
@@ -2131,10 +2183,14 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
 		}
 	}
 	return(ptr);
+#endif
 }
 
 void caldgemm::FreeMemory(double* ptr)
 {
+#ifndef USE_OLD_HUGE_MALLOC
+	qmalloc::qFree(ptr);
+#else
 #ifdef WASTE_MEMORY
 	ptr -= 20 * 1024 * 1024;
 #endif
@@ -2154,6 +2210,7 @@ void caldgemm::FreeMemory(double* ptr)
 	VirtualFree(ptr, 0, MEM_RELEASE);
 #else
 	delete[] ptr;
+#endif
 #endif
 }
 

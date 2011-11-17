@@ -1,14 +1,28 @@
 #include <signal.h>
-#ifndef _WIN32
+#if !defined(_WIN32) & defined(USE_GOTO_BLAS)
 extern "C" {
 #include <common.h>
 }
+#else
+
+#ifndef USE_GOTO_BLAS
+#include <omp.h>
+#endif
+
+#ifndef _WIN32
+static inline int get_num_procs() {return(sysconf(_SC_NPROCESSORS_ONLN));}
+static inline void caldgemm_goto_restrict_cpus(int) {}
+static inline void caldgemm_goto_reserve_cpu(int, int) {}
+static inline void caldgemm_goto_reserve_cpus(int) {}
+static inline void goto_set_num_threads(int num) {omp_set_num_threads(num);}
 #else
 static inline int get_num_procs() {return(1);}
 static inline void caldgemm_goto_reserve_cpu(int, int) {}
 static inline void caldgemm_goto_reserve_cpus(int) {}
 static inline void caldgemm_goto_restrict_cpus(int) {}
 static inline void goto_set_num_threads(int) {}
+#endif
+
 #endif
 
 #ifdef _WIN32

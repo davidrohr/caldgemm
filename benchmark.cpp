@@ -33,10 +33,10 @@
 #include "caldgemm_cal.h"
 #endif
 
+#include "caldgemm_common.h"
 
 #ifndef _WIN32
 #include <sys/mman.h>
-#include <common.h>
 #include <unistd.h>
 #include <pthread.h>
 #else
@@ -790,16 +790,16 @@ int main(int argc, char** argv)
 			return(1);
 		}
 		nread = fread(&a, sizeof(a), 1, fp);
-		nread = fread(&b, sizeof(b), 1, fp);
-		nread = fread(&c, sizeof(c), 1, fp);
-		nread = fread(&alpha, sizeof(alpha), 1, fp);
-		nread = fread(&beta, sizeof(beta), 1, fp);
-		nread = fread(&tmp_m, sizeof(tmp_m), 1, fp);
-		nread = fread(&tmp_k, sizeof(tmp_k), 1, fp);
-		nread = fread(&tmp_n, sizeof(tmp_n), 1, fp);
-		nread = fread(&Apitch, sizeof(Apitch), 1, fp);
-		nread = fread(&Bpitch, sizeof(Bpitch), 1, fp);
-		nread = fread(&Cpitch, sizeof(Cpitch), 1, fp);
+		nread += fread(&b, sizeof(b), 1, fp);
+		nread += fread(&c, sizeof(c), 1, fp);
+		nread += fread(&alpha, sizeof(alpha), 1, fp);
+		nread += fread(&beta, sizeof(beta), 1, fp);
+		nread += fread(&tmp_m, sizeof(tmp_m), 1, fp);
+		nread += fread(&tmp_k, sizeof(tmp_k), 1, fp);
+		nread += fread(&tmp_n, sizeof(tmp_n), 1, fp);
+		nread += fread(&Apitch, sizeof(Apitch), 1, fp);
+		nread += fread(&Bpitch, sizeof(Bpitch), 1, fp);
+		nread += fread(&Cpitch, sizeof(Cpitch), 1, fp);
 
 		Apitch = 1536;
 
@@ -809,13 +809,18 @@ int main(int argc, char** argv)
 
 		for (int i = 0;i < tmp_m;i++)
 		{
-			nread = fread(AA + i * Apitch, tmp_k, sizeof(double), fp);
+			nread += fread(AA + i * Apitch, tmp_k, sizeof(double), fp);
 		}
 		for (int i = 0;i < tmp_k;i++)
 		{
-			nread = fread(BB + i * Bpitch, tmp_n, sizeof(double), fp);
+			nread += fread(BB + i * Bpitch, tmp_n, sizeof(double), fp);
 		}
 		fclose(fp);
+		if (nread == 0)
+		{
+			fprintf(STD_OUT, "Error Reading matrix file");
+			return(1);
+		}
 		memset(CC, 0, (size_t) tmp_m * (size_t) Cpitch * sizeof(double));
 
 		fprintf(STD_OUT, "matrix loaded: m=%d k=%d n=%d lda=%d ldb=%d ldc=%d alpha=%2.4lf beta=%2.4lf\n", tmp_m, tmp_k, tmp_n, Apitch, Bpitch, Cpitch, alpha, beta);

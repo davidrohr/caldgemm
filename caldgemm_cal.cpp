@@ -811,20 +811,29 @@ int caldgemm_cal::Initialize(int deviceNum, bool nocalinit)
 	}
 	else
 	{
-		if (deviceNum == -1)
+		CALuint tmp;
+		calDeviceGetCount(&tmp);
+		if (tmp == 0)
 		{
-			if (obuffercount == 1)
-			{
-				fprintf(STD_OUT, "Cannot use multiple devices with obuffercount = 1\n");
-			}
-			if (!Config->MultiThread)
-			{
-				fprintf(STD_OUT, "Cannot use multiple devices without multithreading\n");
-			}
-			deviceNum = 0;
+			nDevices = 0;
 		}
-		nDevices = 1;
-		device_nums[0] = deviceNum;
+		else
+		{
+			if (deviceNum == -1)
+			{
+				if (obuffercount == 1)
+				{
+					fprintf(STD_OUT, "Cannot use multiple devices with obuffercount = 1\n");
+				}
+				if (!Config->MultiThread)
+				{
+					fprintf(STD_OUT, "Cannot use multiple devices without multithreading\n");
+				}
+				deviceNum = 0;
+			}
+			nDevices = 1;
+			device_nums[0] = deviceNum;
+		}
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Initializing CALDGEMM for %d devices\n", nDevices);
 	gpu_available = (nDevices > 0);
