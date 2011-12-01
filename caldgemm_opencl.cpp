@@ -428,6 +428,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), &dest_image), "Error setting kernel arg, A, 1");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &region[0]), "Error setting kernel arg, A, 2");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &region[1]), "Error setting kernel arg, A, 3");
+		int transpose = TransposeA;
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 4, sizeof(int), &transpose), "Error setting kernel arg, A, 4");
 
 		size_t local_size[2] = {16, 16};
 		size_t global_size[2] = {256, 256};
@@ -460,6 +462,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), &dest_image), "Error setting kernel arg, B, 1");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &region[0]), "Error setting kernel arg, B, 2");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &region[1]), "Error setting kernel arg, B, 3");
+		int transpose = !TransposeB;
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 4, sizeof(int), &transpose), "Error setting kernel arg, B, 4");
 
 		size_t local_size[2] = {16, 16};
 		size_t global_size[2] = {256, 256};
