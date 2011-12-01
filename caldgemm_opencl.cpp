@@ -162,7 +162,7 @@ caldgemm_opencl::~caldgemm_opencl()
 #define WAITFOREVENT(eventnr, devicenr) { }
 int caldgemm_opencl::WaitForEvent(int a, int b, int)
 {
-	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr);
+	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", b, a);
 	cl_int ocl_error;
 	if ((ocl_error = clWaitForEvents(1, &ocl_events[b][a])) != CL_SUCCESS)
 	{
