@@ -309,7 +309,15 @@ int caldgemm_opencl::InitDevices()
 			ocl_program[i][j] = clCreateProgramWithSource(ocl_contexts[i], 1, &sourceCode, NULL, &ocl_error);
 			CHKRET(ocl_error, "Error creating program object");
 
-			CHKRET(clBuildProgram(ocl_program[i][j], 1, &ocl_devices[i], "", NULL, NULL), "Error compiling program");
+			ocl_error = clBuildProgram(ocl_program[i][j], 1, &ocl_devices[i], "", NULL, NULL);
+			if (ocl_error != CL_SUCCESS)
+			{
+				fprintf(STD_OUT, "OpenCL Error while building program: %d\n", ocl_error);
+				char build_log[16384];
+				clGetProgramBuildInfo(ocl_program[i][j], &ocl_devices[i], CL_PROGRAM_BUILD_LOG, 16384, build_log);
+				fprintf(STD_OUT, "Build Log:\n\n%s\n\n", build_log);
+				return(1);
+			}
 
 			ocl_kernel[i][j] = clCreateKernel(ocl_program[i][j], "oclkernel", &ocl_error);
 			CHKRET(ocl_error, "Error creating kernel");
