@@ -320,7 +320,7 @@ int caldgemm_opencl::InitDevices()
 
 			if (Config->PrintILKernel && i == 0)
 			{
-				fprintf(STD_OUT, "OpenCL Kernel %d:\n%s\n\n", sourceCode);
+				fprintf(STD_OUT, "OpenCL Kernel %d:\n%s\n\n", j, sourceCode);
 			}
 
 			ocl_program[i][j] = clCreateProgramWithSource(ocl_contexts[i], 1, &sourceCode, NULL, &ocl_error);
