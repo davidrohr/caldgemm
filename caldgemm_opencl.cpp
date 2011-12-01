@@ -422,8 +422,9 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		{
 			dest_image = &ocl_abuffers[num_device][next_buffer_A[num_device] % 2];
 		}
-
+fprintf(stderr, "aaaaaaa\n");
 		CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch, 0, src_ptr, 0, NULL, NULL), "Error copying A");
+		
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, A, 0");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), &dest_image), "Error setting kernel arg, A, 1");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &region[0]), "Error setting kernel arg, A, 2");
@@ -434,6 +435,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		size_t local_size[2] = {16, 16};
 		size_t global_size[2] = {256, 256};
 		CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting conversion kernel for A");
+		clFinish(ocl_command_queues[num_device][j]);
+fprintf(stderr, "bbbbb\n");
 	}
 
 	if (prepareN)

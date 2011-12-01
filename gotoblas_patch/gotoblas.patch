@@ -572,15 +572,6 @@ diff -u -r gotoblas_org/GotoBLAS2/Makefile GotoBLAS2/Makefile
 diff -u -r gotoblas_org/GotoBLAS2/Makefile.rule GotoBLAS2/Makefile.rule
 --- gotoblas_org/GotoBLAS2/Makefile.rule	2010-02-05 17:02:04.000000000 +0100
 +++ GotoBLAS2/Makefile.rule	2011-10-31 20:15:47.340982836 +0100
-@@ -7,7 +7,7 @@
- 
- # You can specify the target architecture, otherwise it's
- # automatically detected.
--# TARGET = PENRYN
-+TARGET = BARCELONA
- 
- # If you want to support multiple architecture in one binary
- # DYNAMIC_ARCH = 1
 @@ -59,6 +59,12 @@
  # If you want to disable CPU/Memory affinity on Linux.
  # NO_AFFINITY = 1
