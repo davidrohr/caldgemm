@@ -50,7 +50,7 @@
 
 const char* caldgemm_opencl::OCLConvertKernel =
 OCL_KERNEL_PRE
-"__kernel void oclkernel( __restrict __global const float4* iBuffer, __write_only image2d_t oBuffer, int width, int height, int transpose)\n"
+"__kernel void oclkernel(__global const float4* iBuffer, __write_only image2d_t oBuffer, int width, int height, int transpose)\n"
 "{\n"
 "	int i, j;\n"
 "	for (i = get_global_id(0);i < height / 2;i+=get_global_size(0))\n"
@@ -71,7 +71,7 @@ OCL_KERNEL_PRE
 "				coord.x = i;\n"
 "				coord.y = 2 * j;\n"
 "				coord2.x = i;\n"
-"				coord2.y = 2 * j + 1\n"
+"				coord2.y = 2 * j + 1;\n"
 "			}\n"
 "			else\n"
 "			{\n"
