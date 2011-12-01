@@ -29,7 +29,8 @@
 "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n" \
 "#else\n" \
 "#pragma OPENCL EXTENSION cl_amd_fp64 : enable\n" \
-"#endif"
+"#endif\n" \
+"\n"
 
 
 #define OCLKernelName OCLKernel
@@ -51,9 +52,10 @@ OCL_KERNEL_PRE
 "const sampler_t = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST\n"
 "__kernel void oclkernel(__global float4* iBuffer, image2d_t oBuffer, int width, int height, int transpose)\n"
 "{\n"
-"	for (int i = get_global_id(0);i < height / 2;i+=get_global_size(0))\n"
+"	int i, j;\n"
+"	for (i = get_global_id(0);i < height / 2;i+=get_global_size(0))\n"
 "	{\n"
-"		for (int j = get_global_id(1);j < width / 2;j+=get_global_size(1))\n"
+"		for (j = get_global_id(1);j < width / 2;j+=get_global_size(1))\n"
 "		{\n"
 "			float4 tmp, tmp2\n"
 "			tmp = iBuffer[2 * i * width / 2 + j];\n"
