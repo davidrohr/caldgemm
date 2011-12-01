@@ -166,7 +166,7 @@ int caldgemm_opencl::WaitForEvent(int a, int b, int)
 	cl_int ocl_error;
 	if ((ocl_error = clWaitForEvents(1, &ocl_events[b][a])) != CL_SUCCESS)
 	{
-		fprintf(STD_OUT, "Error while waiting for event (%d)\n", ocl_error);
+		fprintf(STD_OUT, "Error while waiting for event (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
 		return(1);
 	}
 	return(0);
