@@ -317,6 +317,12 @@ int caldgemm_opencl::InitDevices()
 				sourceCode = OCLConvertKernel;
 				break;
 			}
+
+			if (Config->PrintILKernel && i == 0)
+			{
+				fprintf(STD_OUT, "OpenCL Kernel %d:\n%s\n\n", sourceCode);
+			}
+
 			ocl_program[i][j] = clCreateProgramWithSource(ocl_contexts[i], 1, &sourceCode, NULL, &ocl_error);
 			CHKRET(ocl_error, "Error creating program object");
 
