@@ -324,6 +324,7 @@ int caldgemm_opencl::InitDevices()
 			if (ocl_error != CL_SUCCESS)
 			{
 				fprintf(STD_OUT, "OpenCL Error while building program: %d\n", ocl_error);
+				fprintf(STD_OUT, "OpenCL Kernel:\n\n%s\n\n", sourceCode);
 				char build_log[16384];
 				clGetProgramBuildInfo(ocl_program[i][j], ocl_devices[i], CL_PROGRAM_BUILD_LOG, 16384, build_log, NULL);
 				fprintf(STD_OUT, "Build Log:\n\n%s\n\n", build_log);
