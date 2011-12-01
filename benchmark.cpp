@@ -739,14 +739,13 @@ int main(int argc, char** argv)
 
 	if (use_opencl_not_cal)
 	{
-#ifdef CALDGEMM_CAL
+#ifdef CALDGEMM_OPENCL
 		dgemm = new caldgemm_opencl;
 #endif
 	}
 	else
 	{
-
-#ifdef CALDGEMM_OPENCL
+#ifdef CALDGEMM_CAL
 		dgemm = new caldgemm_cal;
 #endif
 	}
