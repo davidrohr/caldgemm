@@ -30,6 +30,7 @@
 "#else\n" \
 "#pragma OPENCL EXTENSION cl_amd_fp64 : enable\n" \
 "#endif\n" \
+"const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST\n" \
 "\n"
 
 
@@ -49,7 +50,6 @@
 
 const char* caldgemm_opencl::OCLConvertKernel =
 OCL_KERNEL_PRE
-"const sampler_t = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST\n"
 "__kernel void oclkernel(__global float4* iBuffer, image2d_t oBuffer, int width, int height, int transpose)\n"
 "{\n"
 "	int i, j;\n"
