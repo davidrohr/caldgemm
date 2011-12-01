@@ -4,7 +4,7 @@ OCL_KERNEL_PRE
 "__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta)\n"
 "{\n"
 "	int i, j, k;\n"
-"	for (i = get_global_id(0), i < height2;i += get_global_size(0))\n"
+"	for (i = get_global_id(0);i < height2;i += get_global_size(0))\n"
 "	{\n"
 "		for (j = get_global_id(1), j < height1;j += get_global_size(1))\n"
 "		{\n"
