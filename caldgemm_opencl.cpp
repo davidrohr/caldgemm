@@ -57,7 +57,7 @@ OCL_KERNEL_PRE
 "	{\n"
 "		for (j = get_global_id(1);j < width / 2;j+=get_global_size(1))\n"
 "		{\n"
-"			float4 tmp, tmp2\n"
+"			float4 tmp, tmp2;\n"
 "			tmp = iBuffer[2 * i * width / 2 + j];\n"
 "			tmp2 = iBuffer[2 * (i + 1) * width / 2 + j];\n"
 "			int2 coord, coord2;\n"
