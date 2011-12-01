@@ -11,12 +11,19 @@ INTELOPENMP					= -openmp -openmp-link:static -parallel
 #INTELOPENMP				= -openmp-stubs
 INTELFLAGSOPT				= -O3 -fno-alias -fno-fnalias -ax$(INTELARCH) -unroll -unroll-aggressive -openmp -g0
 INTELFLAGSDBG				= -O0 -openmp-stubs -g
-INTELFLAGSCOMMON			= -DINTEL_RUNTIME $(INTELFLAGSUSE)
+INTELFLAGSCOMMON			= -DINTEL_RUNTIME $(INTELFLAGSUSE) -fasm-blocks
 INTELFLAGS32				= $(INTELFLAGSCOMMON) -m32
 INTELFLAGS64				= $(INTELFLAGSCOMMON) -m64
 
-GCCFLAGSARCHCOMMON			= -fopenmp
-GCCFLAGSARCHOPT				= -march=native
+ifeq ($(GCCARCH), )
+GCCARCH						= -march=native -msse4.2 -m$(ARCHBITS)
+endif
+
+ifeq ("$(CONFIG_OPENMP)", "1")
+INTELFLAGSOPT				+= -openmp
+INTELFLAGSDBG				+= -openmp-stubs
+GCCFLAGSARCH				+= -fopenmp
+endif
 
 #GCC link flags
 LINKFLAGSCOMMON				= -Wall -ggdb
@@ -97,7 +104,8 @@ LIBSUSE						+= $(LIBS:%=-l%)
 COMPILEOUTPUT				= -o $@
 LINKOUTPUT					= -o $@
 COMPILEONLY					= -c
-PRECOMPILEONLY				= -blakfa
+ASMONLY						=
+PRECOMPILEONLY				= -x c++ -E
 
 INCLUDEPATHSUSE				= $(GCCINCLUDEPATHS)
 DEFINESUSE					= $(GCCDEFINES)
@@ -114,7 +122,20 @@ COMMONINCLUDEPATHS			+= "$(CUDASDKPATH)/C/common/inc"
 endif
 
 ifeq ("$(CONFIG_OPENCL)", "1")
-COMMONINCLUDEPATHS			+= $(AMDPATH)/include
+ifeq ("$(CONFIG_OPENCL_VERSION)", "AMD")
+COMMONINCLUDEPATHS			+= "$(AMDPATH)include"
+endif
+ifeq ("$(CONFIG_OPENCL_VERSION)", "NVIDIA")
+COMMONINCLUDEPATHS			+= "$(CUDAPATH)include"
+endif
+ifeq ("$(CONFIG_OPENCL_VERSION)", "Intel")
+#COMMONINCLUDEPATHS			+= ""
+endif
+ifeq ("$(CONFIG_OPENCL_VERSION)", "All")
+COMMONINCLUDEPATHS			+= "$(AMDPATH)include"
+COMMONINCLUDEPATHS			+= "$(CUDAPATH)include"
+#COMMONINCLUDEPATHS			+= ""
+endif
 endif
 
 ifeq ("$(CONFIG_CAL)", "1")

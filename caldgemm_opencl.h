@@ -63,12 +63,10 @@ private:
 	cl_mem ocl_bbuffers[max_devices][max_bbuffers];
 	cl_mem ocl_cbuffers[max_devices][obuffercount];
 	cl_mem ocl_tmp_abuffers[max_devices][obuffercount];
-	cl_mem ocl_tmp_abuffers_t[max_devices][obuffercount];
 	cl_mem ocl_tmp_bbuffers[max_devices][obuffercount];
-	cl_mem ocl_tmp_bbuffers_t[max_devices][obuffercount];
 	cl_event ocl_events[max_devices][obuffercount];
-	cl_program ocl_program;
-	cl_kernel ocl_kernel;
+	cl_program ocl_program[max_devices][4];
+	cl_kernel ocl_kernel[max_devices][4];
 
 	static const char *OCLKernel, *OCLKernelALPHA1, *OCLKernelLinpack, *OCLConvertKernel;
 };

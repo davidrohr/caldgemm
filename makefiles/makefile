@@ -22,10 +22,10 @@ endif
 ALLDEP						= makefiles/makefile $(CONFIGFILE) makefiles/$(ARCHFILE) config.mak
 
 #GCC Compiler Options
-GCCFLAGSOPT					= -O3 $(GCCFLAGSARCHCOMMON) $(GCCFLAGSARCHOPT) -ftree-vectorize -msse3 -fkeep-inline-functions -fweb -frename-registers -minline-all-stringops -funit-at-a-time -mfpmath=sse -ftracer -finline-limit=1200 -funroll-loops -fpeel-loops -fprefetch-loop-arrays -finline-functions
-GCCFLAGSDBG					= -O0 $(GCCFLAGSARCHCOMMON)
-GCCFLAGSCOMMON				= $(MULTITHREADGCC) -pipe -DGCC_RUNTIME $(GCCPROF) $(GCCFLAGSUSE) $(EXTRAFLAGSGCC) -ggdb -Wall -Wno-write-strings
-GCCFLAGS32					= $(GCCFLAGSCOMMON) -m32 -mrtd 
+GCCFLAGSOPT					= -O3 $(GCCFLAGSARCH) -ftree-vectorize -fweb -frename-registers -minline-all-stringops -funit-at-a-time -mfpmath=sse -ftracer -finline-limit=1200 -funroll-loops -fpeel-loops -fprefetch-loop-arrays -finline-functions -ggdb
+GCCFLAGSDBG					= -O0 $(GCCFLAGSARCH) -ggdb
+GCCFLAGSCOMMON				= $(MULTITHREADGCC) -pipe -DGCC_RUNTIME $(GCCPROF) $(GCCFLAGSUSE) $(EXTRAFLAGSGCC) -Wall -Wno-write-strings
+GCCFLAGS32					= $(GCCFLAGSCOMMON) -m32 -mrtd
 GCCFLAGS64					= $(GCCFLAGSCOMMON) -m64 -D"_AMD64_" -D"_X64_"
 
 GCCPROF						= 
@@ -42,7 +42,13 @@ TARGETTYPE					= EXECUTABLE
 
 include						$(CONFIGFILE)
 WORKPATH					= release/$(ARCH)_$(ARCHBITS)$(WORKPATHSUFFIX)
+ifeq ($(CONFIG_OPENCL_VERSION), )
+CONFIG_OPENCL_VERSION		= All
+endif
 include						makefiles/$(ARCHFILE)
+
+GCCFLAGSARCH				+= $(GCCARCH)
+
 all_tmp:					$(SUBTARGETS:%=subbuild/%.mak) $(EXECUTABLE)
 main:						$(EXECUTABLE)
 
@@ -69,6 +75,9 @@ GCCINCLUDEPATHS				= $(INCLUDEPATHS:%=-I%) $(COMMONINCLUDEPATHS:%=-I%)
 endif
 VSINCLUDEPATHS				= $(INCLUDEPATHS:%=/I%) $(COMMONINCLUDEPATHS:%=/I%)
 
+ifeq ($(ARCHBITS), 64)
+DEFINES						+= _64BIT
+endif
 GCCDEFINES					= $(DEFINES:%=-D%) $(DEFINESARCH:%=-D%)
 VSDEFINES					= $(DEFINES:%=/D%) $(DEFINESARCH:%=/D%)
 
@@ -78,7 +87,7 @@ LIBFILES					= $(LIBSUSE)
 
 $(EXECUTABLE):				$(EXTRADEPS) $(OBJFILES) $(EXTRAOBJFILES) $(ALLDEP)
 							$(LINK) $(LIBPATHSUSE) $(OBJFILES) $(EXTRAOBJFILES) $(LIBFILES) $(LINKFLAGSUSE) $(LINKOUTPUT) $(LINKTARGETTYPE)
-							$(HIDEECHO)if [ -e "$(BUILDSCRIPT)" ]; then ./$(BUILDSCRIPT); fi
+							$(HIDEECHOA)if [ -e "$(BUILDSCRIPT)" ]; then ./$(BUILDSCRIPT); fi
 
 $(WORKPATH)/%.obj:			%.cpp $(ALLDEP)
 							$(CC) $(INCLUDEPATHSUSE) $(DEFINESUSE) $(COMPILEONLY) $< $(COMPILEOUTPUT)
@@ -90,15 +99,15 @@ $(WORKPATH)/%.cuobj:		$(WORKPATH)/%.cucpp $(ALLDEP)
 							$(CCCUDA) $(INCLUDEPATHSUSE) $(DEFINESUSE) $(COMPILEONLY) $< $(COMPILEOUTPUT)
 							
 $(WORKPATH)/%.asmobj:		$(WORKPATH)/%.asmcpp $(ALLDEP)
-							$(ASM) $(COMPILEOUTPUT) $(COMPILEONLY) $<
+							$(ASM) $(COMPILEOUTPUT) $(ASMONLY) $<
 							
 $(WORKPATH)/%.asmcpp:		%.asm $(ALLDEP)
-							$(MSCC32) $(PRECOMPILEONLY) $(DEFINESUSE) /D "_AMD64_" /DINTEL_RUNTIME $< > $@
+							$(CC) $(PRECOMPILEONLY) $(DEFINESUSE) $< > $@
 
 $(WORKPATH)/%.cucpp:		%.cu $(ALLDEP)
 							$(NVCC) $(NVCCFLAGSUSE) $(CUDAINCLUDEPATHS) $(CUDADEFINES) --cuda --output-file "$@" $<
-							$(HIDEECHO) cat $@ | grep -v NVCC_GREP > $@.tmp
-							$(HIDEECHO) mv -f $@.tmp $@
+							$(HIDEECHOA) cat $@ | grep -v NVCC_GREP > $@.tmp
+							$(HIDEECHOA) mv -f $@.tmp $@
 							-if [ -e "$<.$(ARCH).patch" ]; then patch -r /dev/null -s --no-backup-if-mismatch -i $<.$(ARCH).patch $@; fi
 							
 $(WORKPATH)/%.objdbg:		%.cpp $(ALLDEP)
@@ -120,71 +129,71 @@ subclean/%.mak:
 
 SAVEDIR						= releases/`date +%F`-BUILD-`cat buildnr`							
 backup:						
-							$(HIDEECHO) mkdir $(SAVEDIR)
+							$(HIDEECHOA) mkdir $(SAVEDIR)
 							cp *.cpp *.h makefile buildnr *.sh *.bat *.conf *.cu $(SAVEDIR)
 
 #Dependancies
 $(WORKPATH)/%.cud:			%.cu $(ALLDEP)
-							$(HIDEECHO)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
-							$(GCC3264) -msse4.2 $(GCCINCLUDEPATHS) -I$(GCCPATH)/include $(GCCDEFINES) -D__CUDACC__ -x c++ -MM $< | \
+							$(HIDEECHOA)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
+							$(GCC3264) $(GCCFLAGSARCH) $(GCCINCLUDEPATHS) -I$(GCCPATH)/include $(GCCDEFINES) -D__CUDACC__ -x c++ -MM $< | \
 							sed 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.cuobj $(WORKPATH)/$*.cucpp $@ : ,g' | \
 							sed 's,c:/,/cygdrive/c/,g' > \
 							$@;
 							
 $(WORKPATH)/%.asmd:			%.asm $(ALLDEP)
-							$(HIDEECHO)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
-							$(GCC3264) -msse4.2 $(GCCINCLUDEPATHS) $(GCCDEFINES) -x c -MM $< | \
+							$(HIDEECHOA)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
+							$(GCC3264) $(GCCFLAGSARCH) $(GCCINCLUDEPATHS) $(GCCDEFINES) -x c -MM $< | \
 							sed 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.asmobj $(WORKPATH)/$*.asmcpp $@ : ,g' | \
 							sed 's,c:/,/cygdrive/c/,g' > \
 							$@;
 							
 $(WORKPATH)/%.d:			%.cpp $(ALLDEP)
-							$(HIDEECHO)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
-							$(GCC3264) -msse4.2 $(GCCINCLUDEPATHS) $(GCCDEFINES) -MM $< | \
+							$(HIDEECHOA)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
+							$(GCC3264) $(GCCFLAGSARCH) $(GCCINCLUDEPATHS) $(GCCDEFINES) -MM $< | \
 							sed 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.obj $@ : ,g' | \
 							sed 's,c:/,/cygdrive/c/,g' > \
 							$@;
 							
 $(WORKPATH)/%.cxd:			%.cxx $(ALLDEP)
-							$(HIDEECHO)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
-							$(GCC3264) -msse4.2 $(GCCINCLUDEPATHS) $(GCCDEFINES) -MM $< | \
+							$(HIDEECHOA)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
+							$(GCC3264) $(GCCFLAGSARCH) $(GCCINCLUDEPATHS) $(GCCDEFINES) -MM $< | \
 							sed 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.cxobj $@ : ,g' | \
 							sed 's,c:/,/cygdrive/c/,g' > \
 							$@;
 							
 $(WORKPATH)/%.dbgd:			%.cpp $(ALLDEP)
-							$(HIDEECHO)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
-							$(GCC3264) -msse4.2 $(GCCINCLUDEPATHS) $(GCCDEFINES) -DDEBUG_RUNTIME -MM $< | \
+							$(HIDEECHOA)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
+							$(GCC3264) $(GCCFLAGSARCH) $(GCCINCLUDEPATHS) $(GCCDEFINES) -DDEBUG_RUNTIME -MM $< | \
 							sed 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.objdbg $@ : ,g' | \
 							sed 's,c:/,/cygdrive/c/,g' > \
 							$@;
 							
 $(WORKPATH)/%.iccd:			%.cpp $(ALLDEP)
-							$(HIDEECHO)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
-							$(GCC3264) -msse4.2 $(GCCINCLUDEPATHS) $(GCCDEFINES) -DINTEL_RUNTIME -MM $< | \
+							$(HIDEECHOA)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
+							$(GCC3264) $(GCCFLAGSARCH) $(GCCINCLUDEPATHS) $(GCCDEFINES) -DINTEL_RUNTIME -MM $< | \
 							sed 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.objicc $@ : ,g' | \
 							sed 's,c:/,/cygdrive/c/,g' > \
 							$@;
 							
 $(WORKPATH)/%.vccd:			%.cpp $(ALLDEP)
-							$(HIDEECHO)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
-							$(GCC3264) -msse4.2 $(GCCINCLUDEPATHS) $(GCCDEFINES) -DVECTORC_RUNTIME -MM $< | \
+							$(HIDEECHOA)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
+							$(GCC3264) $(GCCFLAGSARCH) $(GCCINCLUDEPATHS) $(GCCDEFINES) -DVECTORC_RUNTIME -MM $< | \
 							sed 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.objvcc $@ : ,g' | \
 							sed 's,c:/,/cygdrive/c/,g' > \
 							$@;
 							
 $(WORKPATH)/%.gccd:			%.cpp $(ALLDEP)
-							$(HIDEECHO)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
-							$(GCC3264) -msse4.2 $(GCCINCLUDEPATHS) $(GCCDEFINES) -DGCC_RUNTIME -MM $< | \
+							$(HIDEECHOA)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
+							$(GCC3264) $(GCCFLAGSARCH) $(GCCINCLUDEPATHS) $(GCCDEFINES) -DGCC_RUNTIME -MM $< | \
 							sed 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.objgcc $@ : ,g' | \
 							sed 's,c:/,/cygdrive/c/,g' > \
 							$@;
 							
 $(WORKPATH)/%.msccd:		%.cpp $(ALLDEP)
-							$(HIDEECHO)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
-							$(GCC3264) -msse4.2 $(GCCINCLUDEPATHS) $(GCCDEFINES) -DVSNET_RUNTIME -MM $< | \
+							$(HIDEECHOA)mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` && \
+							$(GCC3264) $(GCCFLAGSARCH) $(GCCINCLUDEPATHS) $(GCCDEFINES) -DVSNET_RUNTIME -MM $< | \
 							sed 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.objmscc $@ : ,g' | \
 							sed 's,c:/,/cygdrive/c/,g' > \
 							$@;																																			
-							
+
 include $(DEPENDS)							
