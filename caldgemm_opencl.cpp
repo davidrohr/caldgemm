@@ -24,6 +24,14 @@
 
 #include "caldgemm_opencl.h"
 
+#define OCL_KERNEL_PRE \
+"#ifdef KHR_DP_EXTENSION\n" \
+"#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n" \
+"#else\n" \
+"#pragma OPENCL EXTENSION cl_amd_fp64 : enable\n" \
+"#endif"
+
+
 #define OCLKernelName OCLKernel
 #include "caldgemm.cl"
 #undef OCLKernelName
@@ -39,6 +47,7 @@
 #undef OCLKernelName
 
 const char* caldgemm_opencl::OCLConvertKernel =
+OCL_KERNEL_PRE
 "const sampler_t = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST\n"
 "__kernel void oclkernel(__global float4* iBuffer, image2d_t oBuffer, int width, int height, int transpose)\n"
 "{\n"

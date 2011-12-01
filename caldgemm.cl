@@ -1,4 +1,5 @@
 const char *caldgemm_opencl::OCLKernelName =
+OCL_KERNEL_PRE
 "union double_read {float4 f; double2 d;};\n"
 "__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta)\n"
 "{\n"
