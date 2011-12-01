@@ -432,7 +432,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 		CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch, 0, src_ptr, 0, NULL, NULL), "Error copying A");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, A, 0");
-		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), &dest_image), "Error setting kernel arg, A, 1");
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, A, 1");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &region[0]), "Error setting kernel arg, A, 2");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &region[1]), "Error setting kernel arg, A, 3");
 		int transpose = TransposeA;
@@ -466,7 +466,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 		CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch, 0, src_ptr, 0, NULL, NULL), "Error copying B");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, B, 0");
-		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), &dest_image), "Error setting kernel arg, B, 1");
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, B, 1");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &region[0]), "Error setting kernel arg, B, 2");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &region[1]), "Error setting kernel arg, B, 3");
 		int transpose = !TransposeB;
