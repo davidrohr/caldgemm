@@ -11,7 +11,7 @@ OCL_KERNEL_PRE
 "			for (k = 0;k < width / 2;k++)\n"
 "			{\n"
 "				int2 coord;\n"
-"				double_read tmp, tmp2;\n"
+"				union double_read tmp, tmp2;\n"
 "				coord.x = k;\n"
 "				coord.y = i;\n"
 "				tmp.f = read_imagef(A, coord);\n"
