@@ -6,7 +6,7 @@ OCL_KERNEL_PRE
 "	int i, j, k;\n"
 "	for (i = get_global_id(0);i < height2;i += get_global_size(0))\n"
 "	{\n"
-"		for (j = get_global_id(1), j < height1;j += get_global_size(1))\n"
+"		for (j = get_global_id(1);j < height1;j += get_global_size(1))\n"
 "		{\n"
 "			for (k = 0;k < width / 2;k++)\n"
 "			{\n"
