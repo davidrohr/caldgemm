@@ -398,8 +398,8 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	int width = Config->Width;
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 5, sizeof(int), &width), "Error setting kernel arg width");
 
-	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 5, sizeof(double), &Alpha), "Error setting kernel arg alpha");
-	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 5, sizeof(double), &Beta), "Error setting kernel arg beta");
+	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 6, sizeof(double), &Alpha), "Error setting kernel arg alpha");
+	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 7, sizeof(double), &Beta), "Error setting kernel arg beta");
 
 	size_t local_size[2] = {16, 16};
 	size_t global_size[2] = {256, 256};
