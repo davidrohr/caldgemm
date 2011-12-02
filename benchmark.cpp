@@ -151,6 +151,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n" );
 	fprintf(STD_OUT, "\t-J        Allow small tiles to process the remainder on GPU\n");
 	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
+	fprintf(STD_OUT, "\t-!        Do not use page locked memory\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -203,6 +204,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'Q':
 			wait_key = true;
+			break;
+		case '!':
+			mem_page_locked = false;
 			break;
 		case '?':
 			PrintUsage();
