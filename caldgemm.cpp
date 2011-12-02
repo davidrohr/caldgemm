@@ -1492,11 +1492,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			if (DGEMM_favor_m)
 			{
-				fprintf(STD_OUT, "Favoring m direction, %lld blocks\n", (long long int) nBlocks);
+				fprintf(STD_OUT, "Favoring m direction, %lld blocks (%lld x %lld)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
 			}
 			else
 			{
-				fprintf(STD_OUT, "Not favoring m direction, %lld blocks\n", (long long int) nBlocks);
+				fprintf(STD_OUT, "Not favoring m direction, %lld blocks (%lld x %lld)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
 			}
 		}
 
@@ -1740,12 +1740,15 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						must_lock = 1;
 						break;
 					}
-					if (WaitForEvent(oldj[use_device], use_device, must_lock)) return(1);
-					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
-					if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
+					if (lastk[use_device] != -1 && lastk[use_device] < nBlocks)
 					{
-						if (FetchResult(use_device, oldj[use_device], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
-						if (WaitForEvent(oldj[use_device], use_device)) return(1);
+						if (WaitForEvent(oldj[use_device], use_device, must_lock)) return(1);
+						if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
+						if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
+						{
+							if (FetchResult(use_device, oldj[use_device], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
+							if (WaitForEvent(oldj[use_device], use_device)) return(1);
+						}
 					}
 					if (Config->VerboseTiming) Timers.CounterMerge.Start();
 
