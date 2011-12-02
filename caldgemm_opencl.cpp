@@ -50,18 +50,18 @@
 
 const char* caldgemm_opencl::OCLConvertKernel =
 OCL_KERNEL_PRE
-"__kernel void oclkernel(__global const float4* iBuffer, __write_only image2d_t oBuffer, int width, int height, int transpose)\n"
+"__kernel void oclkernel(__global const uint4* iBuffer, __write_only image2d_t oBuffer, int width, int height, int transpose)\n"
 "{\n"
 "	int i, j;\n"
 "	for (i = get_global_id(0);i < height / 2;i+=get_global_size(0))\n"
 "	{\n"
 "		for (j = get_global_id(1);j < width / 2;j+=get_global_size(1))\n"
 "		{\n"
-"			float4 tmp, tmp2;\n"
+"			uint4 tmp, tmp2;\n"
 "			tmp = iBuffer[2 * i * width / 2 + j];\n"
 "			tmp2 = iBuffer[2 * (i + 1) * width / 2 + j];\n"
 "			int2 coord, coord2;\n"
-"			float4 val, val2;\n"
+"			uint4 val, val2;\n"
 "			if (transpose)\n"
 "			{\n"
 "				val.x = tmp.x;val.y = tmp.y;\n"
@@ -82,8 +82,8 @@ OCL_KERNEL_PRE
 "				val = tmp;\n"
 "				val2 = tmp2;\n"
 "			}\n"
-"			write_imagef(oBuffer, coord, val);\n"
-"			write_imagef(oBuffer, coord2, val2);\n"
+"			write_imageui(oBuffer, coord, val);\n"
+"			write_imageui(oBuffer, coord2, val2);\n"
 "		}\n"
 "	}\n"
 "}\n"
@@ -400,8 +400,11 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	int width = Config->Width;
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 5, sizeof(int), &width), "Error setting kernel arg width");
 
-	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 6, sizeof(double), &Alpha), "Error setting kernel arg alpha");
-	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 7, sizeof(double), &Beta), "Error setting kernel arg beta");
+	int pitch = C_pitch;
+	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 6, sizeof(int), &pitch), "Error setting kernel arg pitch");
+
+	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 7, sizeof(double), &Alpha), "Error setting kernel arg alpha");
+	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 8, sizeof(double), &Beta), "Error setting kernel arg beta");
 
 	size_t local_size[2] = {16, 16};
 	size_t global_size[2] = {256, 256};

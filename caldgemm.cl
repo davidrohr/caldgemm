@@ -1,7 +1,7 @@
 const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
 "union double_read {uint4 f; double2 d;};\n"
-"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta)\n"
+"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, int pitch, double alpha, double beta)\n"
 "{\n"
 "	int i, j, k;\n"
 "	for (i = get_global_id(0);i < height2;i += get_global_size(0))\n"
@@ -11,7 +11,7 @@ OCL_KERNEL_PRE
 "			double addval = 0.;\n"
 "			for (k = 0;k < width / 2;k++)\n"
 "			{\n"
-"				int2 coord;\n"
+"				float2 coord;\n"
 "				union double_read tmp, tmp2;\n"
 "				coord.x = k;\n"
 "				coord.y = i;\n"
@@ -20,7 +20,7 @@ OCL_KERNEL_PRE
 "				tmp2.f = read_imageui(B, sampler, coord);\n"
 "				addval += tmp.d.x * tmp2.d.x + tmp.d.y * tmp2.d.y;\n"
 "			}\n"
-"			C[j * height2 + i] = beta * C[j * height2 + i] + alpha * addval;\n"
+"			C[j * pitch + i] = beta * C[j * pitch + i] + alpha * addval + 0.5;\n"
 "		}\n"
 "	}\n"
 "}\n"
