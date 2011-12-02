@@ -25,10 +25,10 @@
 #include "caldgemm_opencl.h"
 
 #define OCL_KERNEL_PRE \
-"#ifdef KHR_DP_EXTENSION\n" \
-"#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n" \
-"#else\n" \
+"#ifdef cl_amd_fp64\n" \
 "#pragma OPENCL EXTENSION cl_amd_fp64 : enable\n" \
+"#else\n" \
+"#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n" \
 "#endif\n" \
 "const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;\n" \
 "\n"
