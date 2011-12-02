@@ -400,11 +400,8 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	int width = Config->Width;
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 5, sizeof(int), &width), "Error setting kernel arg width");
 
-	int pitch = C_pitch;
-	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 6, sizeof(int), &pitch), "Error setting kernel arg pitch");
-
-	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 7, sizeof(double), &Alpha), "Error setting kernel arg alpha");
-	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 8, sizeof(double), &Beta), "Error setting kernel arg beta");
+	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 6, sizeof(double), &Alpha), "Error setting kernel arg alpha");
+	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 7, sizeof(double), &Beta), "Error setting kernel arg beta");
 
 	size_t local_size[2] = {16, 16};
 	size_t global_size[2] = {256, 256};
@@ -423,7 +420,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	}
 
 	size_t origin[3] = {0, 0, 0};
-	size_t region[3] = {Config->Height * sizeof(double), Config->Height, 1};
+	size_t region[3] = {height1 * sizeof(double), height2, 1};
 	CHKRET(clEnqueueReadBufferRect(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch, 0, C + blockm + blockn * Config->Height * C_pitch, 0, NULL, &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
 	clFlush(ocl_command_queues[Task.device][Task.j]);
 
