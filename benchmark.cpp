@@ -206,7 +206,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			wait_key = true;
 			break;
 		case '!':
-			mem_page_locked = false;
+			mem_page_lock = false;
 			break;
 		case '?':
 			PrintUsage();
