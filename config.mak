@@ -15,7 +15,9 @@ LIBPATHS					=
 USE_GOTO_BLAS				= 1
 
 INCLUDE_OPENCL				= 1
+ifneq ($(AMDAPPSDKROOT), )
 INCLUDE_CAL					= 1
+endif
 LIBS						=
 EXTRAOBJFILES				=
 
