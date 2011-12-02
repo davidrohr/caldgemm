@@ -410,6 +410,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		clFinish(ocl_command_queues[Task.device][Task.j]);
 		Timers.Kernel.Start();
 	}
+	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d\n", height1, height2, width);
 	CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[Task.device][Task.j], ocl_kernel[Task.device][Task.kernel_num], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting MM Kernel");
 
 	if (Config->VerboseTiming)
@@ -421,6 +422,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 	size_t origin[3] = {0, 0, 0};
 	size_t region[3] = {height1 * sizeof(double), height2, 1};
+	if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 	CHKRET(clEnqueueReadBufferRect(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch, 0, C + blockm + blockn * Config->Height * C_pitch, 0, NULL, &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
 	clFlush(ocl_command_queues[Task.device][Task.j]);
 
@@ -495,6 +497,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			dest_image = &ocl_abuffers[num_device][next_buffer_A[num_device] % 2];
 		}
 
+		if (Config->Debug) fprintf(STD_OUT, "Transfer A to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 		CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch, 0, src_ptr, 0, NULL, NULL), "Error copying A");
 		region[0] /= sizeof(double);
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, A, 0");
@@ -506,6 +509,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 		size_t local_size[2] = {16, 16};
 		size_t global_size[2] = {256, 256};
+		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d\n", (int) region[0], (int) region[1]);
 		CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting conversion kernel for A");
 	}
 
@@ -530,6 +534,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			dest_image = &ocl_bbuffers[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)];
 		}
 
+		if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 		CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch, 0, src_ptr, 0, NULL, NULL), "Error copying B");
 		region[0] /= sizeof(double);
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, B, 0");
@@ -541,12 +546,14 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 		size_t local_size[2] = {16, 16};
 		size_t global_size[2] = {256, 256};
+		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d\n", (int) region[0], (int) region[1]);
 		CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting conversion kernel for B");
 	}
 
 	region[0] = (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) * sizeof(double);
 	region[1] = (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);
 	Timers.divideC++;
+	if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 	CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], ocl_cbuffers[num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch, 0, C + blockm + blockn * Config->Height * C_pitch, 0, NULL, NULL), "Error copying C");
 	clFlush(ocl_command_queues[num_device][j]);
 
