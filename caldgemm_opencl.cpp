@@ -193,7 +193,7 @@ int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 	if (nDevices > Config->NumDevices) nDevices = Config->NumDevices;
 
 	if (deviceNum >= nDevices) ERRRET("OpenCL Device %d not available\n", deviceNum);
-	if (deviceNum < 0) nDevices = 1;
+	if (deviceNum >= 0) nDevices = 1;
 	gpu_available = (nDevices > 0);
 
 	for (int i = 0;i < nDevices;i++)
@@ -420,7 +420,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	}
 
 	size_t origin[3] = {0, 0, 0};
-	size_t region[3] = {Config->Height / 2, Config->Height, 1};
+	size_t region[3] = {Config->Height * sizeof(double), Config->Height, 1};
 	CHKRET(clEnqueueReadBufferRect(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch, 0, C + blockm + blockn * Config->Height * C_pitch, 0, NULL, &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
 	clFlush(ocl_command_queues[Task.device][Task.j]);
 
@@ -481,7 +481,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 		cl_mem *dest_image;
 		cl_mem dest_buffer_tmp = ocl_tmp_abuffers[num_device][j];
-		region[0] = (TransposeA ? Config->Height : Config->Width) / 2;
+		region[0] = (TransposeA ? Config->Height : Config->Width) * sizeof(double);
 		region[1] = (TransposeA ? Config->Width : Config->Height);
 		size_t pitch = A_pitch;
 		void* src_ptr = A + blockm * Config->Height * (TransposeA ? 1 : A_pitch);
@@ -496,6 +496,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		}
 
 		CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch, 0, src_ptr, 0, NULL, NULL), "Error copying A");
+		region[0] /= sizeof(double);
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, A, 0");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, A, 1");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &region[0]), "Error setting kernel arg, A, 2");
@@ -515,7 +516,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 		cl_mem *dest_image;
 		cl_mem dest_buffer_tmp = ocl_tmp_bbuffers[num_device][j];
-		region[0] = (TransposeB ? Config->Width : Config->Height) / 2;
+		region[0] = (TransposeB ? Config->Width : Config->Height) * sizeof(double);
 		region[1] = (TransposeB ? Config->Height : Config->Width);
 		size_t pitch = B_pitch;
 		void* src_ptr = B + blockn * Config->Height * (TransposeB ? B_pitch : 1);
@@ -530,6 +531,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		}
 
 		CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch, 0, src_ptr, 0, NULL, NULL), "Error copying B");
+		region[0] /= sizeof(double);
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, B, 0");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, B, 1");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &region[0]), "Error setting kernel arg, B, 2");
