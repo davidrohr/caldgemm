@@ -20,7 +20,7 @@ OCL_KERNEL_PRE
 "				tmp2.f = read_imageui(B, sampler, coord);\n"
 "				addval += tmp.d.x * tmp2.d.x + tmp.d.y * tmp2.d.y;\n"
 "			}\n"
-"			C[j * pitch + i] = beta * C[j * pitch + i] + alpha * addval + 0.5;\n"
+"			C[j * pitch + i] = beta * C[j * pitch + i] + alpha * addval;\n"
 "		}\n"
 "	}\n"
 "}\n"
