@@ -369,6 +369,8 @@ int caldgemm_opencl::InitConstantData(double alpha)
 
 int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn)
 {
+	fprintf(STD_OUT, "OPENCL ExecuteKernels\n");
+
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable)
@@ -403,14 +405,31 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 	size_t local_size[2] = {16, 16};
 	size_t global_size[2] = {256, 256};
+	if (Config->VerboseTiming)
+	{
+		clFinish(ocl_command_queues[Task.device][Task.j]);
+		Timers.Kernel.Start();
+	}
 	CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[Task.device][Task.j], ocl_kernel[Task.device][Task.kernel_num], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting MM Kernel");
+
+	if (Config->VerboseTiming)
+	{
+		clFinish(ocl_command_queues[Task.device][Task.j]);
+		Timers.Kernel.Stop();
+		Timers.CounterCopyFrom.Start();
+	}
 
 	size_t origin[3] = {0, 0, 0};
 	size_t region[3] = {Config->Height / 2, Config->Height, 1};
 	CHKRET(clEnqueueReadBufferRect(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch, 0, C + blockm + blockn * Config->Height * C_pitch, 0, NULL, &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
 	clFlush(ocl_command_queues[Task.device][Task.j]);
 
-	fprintf(STD_OUT, "OPENCL ExecuteKernels\n");
+	if (Config->VerboseTiming)
+	{
+		clFinish(ocl_command_queues[Task.device][Task.j]);
+		Timers.CounterCopyFrom.Stop();
+	}
+
 	return(0);
 }
 
