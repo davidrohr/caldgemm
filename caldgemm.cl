@@ -1,7 +1,10 @@
+#define qon_mstr(a) #a
+#define qon_mxstr(a) qon_mstr(a)
+
 const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
 "union double_read {uint4 f; double2 d;};\n"
-"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta)\n"
+"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
 "{\n"
 "	int i, j, k;\n"
 "	for (i = get_global_id(1);i < height2;i += get_global_size(1))\n"
@@ -9,7 +12,11 @@ OCL_KERNEL_PRE
 "		for (j = get_global_id(0);j < height1;j += get_global_size(0))\n"
 "		{\n"
 "			double addval = 0.;\n"
+#ifdef CALDGEMM_FORCE_K
+"			for (k = 0;k < " qon_mxstr(CALDGEMM_FORCE_K) " / 2;k++)\n"
+#else
 "			for (k = 0;k < width / 2;k++)\n"
+#endif
 "			{\n"
 "				float2 coord;\n"
 "				union double_read tmp, tmp2;\n"
@@ -20,7 +27,7 @@ OCL_KERNEL_PRE
 "				tmp2.f = read_imageui(B, sampler, coord);\n"
 "				addval += tmp.d.x * tmp2.d.x + tmp.d.y * tmp2.d.y;\n"
 "			}\n"
-"			C[i * height1 + j] = beta * C[i * height1 + j] + alpha * addval;\n"
+"			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + alpha * addval;\n"
 "		}\n"
 "	}\n"
 "}\n"
