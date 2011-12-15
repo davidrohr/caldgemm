@@ -174,7 +174,7 @@ int caldgemm_opencl::WaitForEvent(int a, int b, int)
 
 int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 {
-	fprintf(STD_OUT, "OPENCL Initialice\n");
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL Initialice\n");
 	cl_int ocl_error;
 
 	cl_device_id* devices = new cl_device_id[nDevices];
@@ -224,7 +224,7 @@ int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 
 int caldgemm_opencl::ValidateRuntime()
 {
-	fprintf(STD_OUT, "OPENCL ValidateRuntime\n");
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL ValidateRuntime\n");
 
 	cl_uint num_platforms;
 	CHKRET(clGetPlatformIDs(0, NULL, &num_platforms), "Error getting OpenCL Platform Count");
@@ -260,13 +260,13 @@ int caldgemm_opencl::ValidateRuntime()
 
 int caldgemm_opencl::CheckDevices()
 {
-	fprintf(STD_OUT, "OPENCL CheckDevices\n");
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL CheckDevices\n");
 	return(0);
 }
 
 int caldgemm_opencl::InitDevices()
 {
-	fprintf(STD_OUT, "OPENCL InitDevices\n");
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL InitDevices\n");
 
 	cl_int ocl_error;
 
@@ -357,19 +357,19 @@ int caldgemm_opencl::InitDevices()
 
 int caldgemm_opencl::ReinitDevices()
 {
-	fprintf(STD_OUT, "OPENCL ReinitDevices\n");
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL ReinitDevices\n");
 	return(0);
 }
 
 int caldgemm_opencl::InitConstantData(double alpha)
 {
-	fprintf(STD_OUT, "OPENCL InitConstantData\n");
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL InitConstantData\n");
 	return(0);
 }
 
 int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn)
 {
-	fprintf(STD_OUT, "OPENCL ExecuteKernels\n");
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL ExecuteKernels\n");
 
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 #ifdef REUSE_BBUFFERS
@@ -443,7 +443,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 int caldgemm_opencl::ExitRuntime()
 {
-	fprintf(STD_OUT, "OPENCL ExitRuntime\n");
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL ExitRuntime\n");
 
 	for (int i = 0;i < nDevices;i++)
 	{
@@ -459,19 +459,19 @@ int caldgemm_opencl::ExitRuntime()
 
 int caldgemm_opencl::FetchResult(int device, int j, int m, int n)
 {
-	fprintf(STD_OUT, "OPENCL FetchResult\n");
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL FetchResult\n");
 	return(0);
 }
 
 int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch)
 {
-	fprintf(STD_OUT, "OPENCL RunMergeBuffers\n");
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL RunMergeBuffers\n");
 	return(0);
 }
 
 int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0)
 {
-	fprintf(STD_OUT, "OPENCL DGEMM_prepare k=%lld j=%d device=%d\n", (long long int) k, j, num_device);
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL DGEMM_prepare k=%lld j=%d device=%d\n", (long long int) k, j, num_device);
 	
 	size_t blockm, blockn;
 	DGEMM_getblocks(k, blockm, blockn);
@@ -578,7 +578,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 int caldgemm_opencl::ExitDevices()
 {
-	fprintf(STD_OUT, "OPENCL ExitDevices\n");
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL ExitDevices\n");
 
 	for (int i = 0;i < nDevices;i++)
 	{
