@@ -1546,6 +1546,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			for (size_t ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
 		}
 
+		if (RunCALDGEMM_Init()) return(0);
+
 		cParam.cpu_k = nBlocks;
 		gpu_k_barrier = -1;
 		cpu_k_barrier = nBlocks;
@@ -1830,6 +1832,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 			delete[] buffer_pointers_A[l];
 			delete[] buffer_pointers_B[l];
 		}
+		if (RunCALDGEMM_Exit()) return(0);
 	}
 	Timers.GPUTimer.Stop();
 

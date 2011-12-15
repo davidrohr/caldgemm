@@ -54,6 +54,8 @@ private:
 	virtual int FetchResult(int device, int j, int m, int n);
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch);
 	virtual int reserve_cpu_cores();
+	virtual int RunCALDGEMM_Init();
+	virtual int RunCALDGEMM_Exit();
 
 	cl_platform_id ocl_platform;
 	cl_device_id ocl_devices[max_devices];
@@ -68,7 +70,12 @@ private:
 	cl_program ocl_program[max_devices][4];
 	cl_kernel ocl_kernel[max_devices][4];
 
+	cl_event ocl_conversion_events[max_devices][2];
+	int ocl_conversion_events_use[max_devices][2];
+
 	static const char *OCLKernel, *OCLKernelALPHA1, *OCLKernelLinpack, *OCLConvertKernel;
+
+	int WaitForEventAndRelease(cl_event* pEvent);
 };
 
 #endif

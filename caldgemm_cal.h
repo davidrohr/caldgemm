@@ -102,6 +102,8 @@ private:
 	void checkCalPatch();
 	void cal_init_constant_data(BufferProperties* &data, double alpha);
 	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0);
+	virtual int RunCALDGEMM_Init();
+	virtual int RunCALDGEMM_Exit();
 
 	struct CALVersion {unsigned int major, minor, imp;};
 

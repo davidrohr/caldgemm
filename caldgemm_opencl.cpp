@@ -50,7 +50,7 @@
 
 const char* caldgemm_opencl::OCLConvertKernel =
 OCL_KERNEL_PRE
-"__kernel void oclkernel(__global const uint4* iBuffer, __write_only image2d_t oBuffer, int width, int height, int transpose)\n"
+"__kernel void oclconkernel(__global const uint4* iBuffer, __write_only image2d_t oBuffer, int width, int height, int transpose)\n"
 "{\n"
 "	int i, j;\n"
 "	for (i = get_global_id(1);i < height / 2;i+=get_global_size(1))\n"
@@ -159,17 +159,26 @@ caldgemm_opencl::~caldgemm_opencl()
 {
 }
 
-#define WAITFOREVENT(eventnr, devicenr) { }
-int caldgemm_opencl::WaitForEvent(int a, int b, int)
+int caldgemm_opencl::WaitForEventAndRelease(cl_event* pEvent)
 {
-	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", b, a);
 	cl_int ocl_error;
-	if ((ocl_error = clWaitForEvents(1, &ocl_events[b][a])) != CL_SUCCESS)
+	if ((ocl_error = clWaitForEvents(1, pEvent)) != CL_SUCCESS)
 	{
 		fprintf(STD_OUT, "Error while waiting for event (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
 		return(1);
 	}
+	if ((ocl_error = clReleaseEvent(*pEvent)) != CL_SUCCESS)
+	{
+		fprintf(STD_OUT, "Error releasing event (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
+		return(1);
+	}
 	return(0);
+}
+
+int caldgemm_opencl::WaitForEvent(int a, int b, int)
+{
+	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", b, a);
+	return(WaitForEventAndRelease(&ocl_events[b][a]));
 }
 
 int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
@@ -347,7 +356,7 @@ int caldgemm_opencl::InitDevices()
 				return(1);
 			}
 
-			ocl_kernel[i][j] = clCreateKernel(ocl_program[i][j], "oclkernel", &ocl_error);
+			ocl_kernel[i][j] = clCreateKernel(ocl_program[i][j], j == 3 ? "oclconkernel" : "oclkernel", &ocl_error);
 			CHKRET(ocl_error, "Error creating kernel");
 		}
 	}
@@ -482,6 +491,11 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 	if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
 
+	if (ocl_conversion_events_use[num_device][0])
+	{
+		WaitForEventAndRelease(&ocl_conversion_events[num_device][0]);
+		ocl_conversion_events_use[num_device][0] = 0;
+	}
 	if (prepareM)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
@@ -517,10 +531,16 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		size_t local_size[2] = {16, 16};
 		size_t global_size[2] = {256, 256};
 		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", arg_width, arg_height, arg_transpose);
-		CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting conversion kernel for A");
+		CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, &ocl_conversion_events[num_device][0]), "Error starting conversion kernel for A");
+		ocl_conversion_events_use[num_device][0] = 1;
 		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 	}
 
+	if (ocl_conversion_events_use[num_device][1])
+	{
+		WaitForEventAndRelease(&ocl_conversion_events[num_device][1]);
+		ocl_conversion_events_use[num_device][1] = 0;
+	}
 	if (prepareN)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
@@ -556,7 +576,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		size_t local_size[2] = {16, 16};
 		size_t global_size[2] = {256, 256};
 		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d\n", (int) region[0], (int) region[1]);
-		CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting conversion kernel for B");
+		CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, &ocl_conversion_events[num_device][1]), "Error starting conversion kernel for B");
+		ocl_conversion_events_use[num_device][1] = 1;
 		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 	}
 
@@ -612,5 +633,32 @@ int caldgemm_opencl::UseMutexPerDevice() {return(0);}
 int caldgemm_opencl::reserve_cpu_cores()
 {
 
+	return(0);
+}
+
+int caldgemm_opencl::RunCALDGEMM_Init()
+{
+	for (int i = 0;i < nDevices;i++)
+	{
+		for (int j = 0;j < 2;j++)
+		{
+			ocl_conversion_events_use[i][j] = 0;
+		}
+	}
+	return(0);
+}
+
+int caldgemm_opencl::RunCALDGEMM_Exit()
+{
+	for (int i = 0;i < nDevices;i++)
+	{
+		for (int j = 0;j < 2;j++)
+		{
+			if (ocl_conversion_events_use[i][j])
+			{
+				clReleaseEvent(ocl_conversion_events[i][j]);
+			}
+		}
+	}
 	return(0);
 }

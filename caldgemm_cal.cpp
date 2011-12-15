@@ -1780,3 +1780,13 @@ int caldgemm_cal::reserve_cpu_cores()
 	if (Config->Debug) fprintf(STD_OUT, "Reserved %d cores\n", nthreads);
 	return(nthreads);
 }
+
+int caldgemm_cal::RunCALDGEMM_Init()
+{
+	return(0);
+}
+
+int caldgemm_cal::RunCALDGEMM_Exit()
+{
+	return(0);
+}

@@ -174,12 +174,27 @@ public:
 
 protected:
 
+	struct DGEMMPrepareAndExecuteTask
+	{
+		struct DGEMMPrepareTask
+		{
+			size_t k;
+			int j;
+		} PrepareTasks[2];
+		int k;
+		int j;
+		int device;
+		int kernel_num;
+		pthread_mutex_t mutex_start, mutex_finished;
+	} DGEMMTasks[max_devices];
+	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task);
+
+	struct BufferProperties;
+
 	virtual int UseOutputPthreads() = 0;
 	virtual int UseInputPthreads() = 0;
 	virtual int UseMutexPerDevice() = 0;
 
-	struct BufferProperties;
-	
 	virtual int ValidateRuntime() = 0;
 	virtual int CheckDevices() = 0;
 	virtual int InitDevices() = 0;
@@ -192,6 +207,12 @@ protected:
 
 	virtual	int Initialize (int deviceNum, bool nocalinit) = 0;
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch) = 0;
+	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0) = 0;
+	virtual int ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn) = 0;
+	virtual int RunCALDGEMM_Init() = 0;
+	virtual int RunCALDGEMM_Exit() = 0;
+
+	virtual int reserve_cpu_cores() = 0;
 
 	static const int obuffercount = 3;				//Not cal context count but number of copies of data buffers etc.
 	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
@@ -212,7 +233,7 @@ protected:
 	pthread_mutex_t device_mutex[max_devices];
 
 	int DGEMM_prepare(size_t k, int j, unsigned int num_device);
-	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0) = 0;
+	
 	inline void DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn)
 	{
 		if (DGEMM_favor_m)
@@ -234,7 +255,6 @@ protected:
 	void print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2 = NULL);
 	int cpuScheduler();
 	int getcpumask(cpu_set_t* set);
-	virtual int reserve_cpu_cores() = 0;
 	int broadcast_cpu_core;
 
 	struct mergeParameters
@@ -331,22 +351,6 @@ protected:
 		pthread_mutex_t cblasMutex[2];
 	};
 
-	struct DGEMMPrepareAndExecuteTask
-	{
-		struct DGEMMPrepareTask
-		{
-			size_t k;
-			int j;
-		} PrepareTasks[2];
-		int k;
-		int j;
-		int device;
-		int kernel_num;
-		pthread_mutex_t mutex_start, mutex_finished;
-	} DGEMMTasks[max_devices];
-	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task);
-	virtual int ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn) = 0;
-	
 	struct divideParameters
 	{
 		caldgemm* cls;
