@@ -57,6 +57,9 @@ private:
 	virtual int RunCALDGEMM_Init();
 	virtual int RunCALDGEMM_Exit();
 
+	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool Cmatrix = false);
+	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
+
 	cl_platform_id ocl_platform;
 	cl_device_id ocl_devices[max_devices];
 	cl_context ocl_contexts[max_devices];

@@ -1742,7 +1742,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						must_lock = 1;
 						break;
 					}
-					if (lastk[use_device] != -1 && lastk[use_device] < nBlocks)
+					if ((signed long int) lastk[use_device] != -1 && lastk[use_device] < nBlocks)
 					{
 						if (WaitForEvent(oldj[use_device], use_device, must_lock)) return(1);
 						if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
@@ -2101,7 +2101,7 @@ void caldgemm::ResetTimers()
 double* huge_page_addresses[MAX_HUGE_ADDRESSES];
 int nHugeAddresses = 0;
 
-double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages)
+double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix)
 {
 #ifndef USE_OLD_HUGE_MALLOC
 	return((double*) qmalloc::qMalloc(nDoubles * sizeof(double), huge_pages, false, page_locked));
@@ -2192,7 +2192,7 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
 #endif
 }
 
-void caldgemm::FreeMemory(double* ptr)
+void caldgemm::FreeMemory(double* ptr, bool gpuaccessible)
 {
 #ifndef USE_OLD_HUGE_MALLOC
 	qmalloc::qFree(ptr);

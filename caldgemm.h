@@ -162,8 +162,10 @@ public:
 	int InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit = false);
 	int ExitCALDGEMM();
 	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = -1, size_t k = -1, size_t n = -1, size_t Apitch = -1, size_t Bpitch = -1, size_t Cpitch = -1, bool orderColMajor = false, bool TransA = false, bool TransB = false, int ExecuteLinpackCallbacks = 0);
-	double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages);
-	void FreeMemory(double* ptr);
+	
+	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool Cmatrix = false);
+	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
+
 	void ResetTimers();
 	int broadcastcore();
 	

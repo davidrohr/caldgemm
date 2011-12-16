@@ -662,3 +662,60 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 	}
 	return(0);
 }
+
+#define MAX_GPU_MEM_COUNT 64
+struct gpu_mem_struct
+{
+	void* ptr;
+	cl_mem mem_obj;
+};
+gpu_mem_struct gpu_mem[MAX_GPU_MEM_COUNT];
+static int nGPUMEM = 0;
+
+double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix)
+{
+	if (gpuaccessible)
+	{
+		if (nGPUMEM == MAX_GPU_MEM_COUNT)
+		{
+			fprintf(STD_OUT, "Cannot allocated more GPU memory, increase MAX_GPU_MEM_COUNT\n");
+			return(0);
+		}
+		cl_int ocl_error;
+		gpu_mem[nGPUMEM].mem_obj = clCreateBuffer(ocl_contexts[0], CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, nDoubles * sizeof(double), NULL, &ocl_error);
+		if (ocl_error != CL_SUCCESS)
+		{
+			fprintf(STD_OUT, "Error allocating memory (clCreateBuffer) (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
+			return(0);
+		}
+		gpu_mem[nGPUMEM].ptr = clEnqueueMapBuffer(ocl_command_queues[0][0], gpu_mem[nGPUMEM].mem_obj, CL_TRUE, 0, 0, nDoubles * sizeof(double), 0, NULL, NULL, &ocl_error);
+		if (ocl_error != CL_SUCCESS)
+		{
+			fprintf(STD_OUT, "Error allocating memory (clEnqueueMapBuffer) (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
+			return(0);
+		}
+		return((double*) gpu_mem[nGPUMEM++].ptr);
+	}
+	else
+	{
+		return (caldgemm::AllocMemory(nDoubles, page_locked, huge_pages));
+	}
+}
+
+void caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
+{
+	if (gpuaccessible)
+	{
+		for (int i = 0;i < nGPUMEM;i++)
+		{
+			if (gpu_mem[i].ptr == (void*) ptr)
+			{
+				clEnqueueUnmapMemObject(ocl_command_queues[0][0], gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL);
+				clReleaseMemObject(gpu_mem[i].mem_obj);
+				gpu_mem[i] = gpu_mem[--nGPUMEM];
+				return;
+			}
+		}
+	}
+	caldgemm::FreeMemory(ptr);
+}

@@ -67,6 +67,7 @@ size_t height_a, height_b;
 
 bool mem_page_lock = true;
 bool mem_huge_table = false;
+bool mem_gpu_access = false;
 bool linpack_callbacks = false;
 
 bool wait_key = false;
@@ -152,6 +153,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-J        Allow small tiles to process the remainder on GPU\n");
 	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
 	fprintf(STD_OUT, "\t-!        Do not use page locked memory\n");
+	fprintf(STD_OUT, "\t-_        Allocate memory using the GPU runtime library (e.g. OpenCL)\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -207,6 +209,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case '!':
 			mem_page_lock = false;
+			break;
+		case '_':
+			mem_gpu_access = true;
 			break;
 		case '?':
 			PrintUsage();
@@ -608,7 +613,7 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		{
 			pitch_a = pitch_b = pitch_c = Config.n + Config.Width + (Config.n + Config.Width) % 8;
 		}
-		linpackmem = dgemm->AllocMemory(pitch_c * (Config.m + Config.Width + 1) + 8, mem_page_lock, mem_huge_table);
+		linpackmem = dgemm->AllocMemory(pitch_c * (Config.m + Config.Width + 1) + 8, mem_page_lock, mem_huge_table, mem_gpu_access, true);
 		if (linpackmem == NULL) {fprintf(STD_OUT, "Memory Allocation Error\n"); return(1);}
 
 		char* linpackmem2 = (char*) linpackmem;
@@ -664,15 +669,15 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 			pitch_c += 8;
 		}
 
-		if (AA) dgemm->FreeMemory(AA);
-		if (BB) dgemm->FreeMemory(BB);
-		if (CC) dgemm->FreeMemory(CC);
+		if (AA) dgemm->FreeMemory(AA, mem_gpu_access);
+		if (BB) dgemm->FreeMemory(BB, mem_gpu_access);
+		if (CC) dgemm->FreeMemory(CC, mem_gpu_access);
 		if (!quietbench) fprintf(stderr, "...alloc A");
-		AA = dgemm->AllocMemory(height_a * pitch_a, mem_page_lock, mem_huge_table);
+		AA = dgemm->AllocMemory(height_a * pitch_a, mem_page_lock, mem_huge_table, mem_gpu_access);
 		if (!quietbench) fprintf(stderr, "...alloc B");
-		BB = dgemm->AllocMemory(height_b * pitch_b, mem_page_lock, mem_huge_table);
+		BB = dgemm->AllocMemory(height_b * pitch_b, mem_page_lock, mem_huge_table, mem_gpu_access);
 		if (!quietbench) fprintf(stderr, "...alloc C");
-		CC = dgemm->AllocMemory(Config.m * pitch_c, mem_page_lock, mem_huge_table);
+		CC = dgemm->AllocMemory(Config.m * pitch_c, mem_page_lock, mem_huge_table, mem_gpu_access, true);
 
 		if (AA == NULL || BB == NULL || CC == NULL)
 		{
@@ -999,13 +1004,13 @@ int main(int argc, char** argv)
 #ifndef TEST_PARAMETERS
 	if (linpackmemory)
 	{
-		dgemm->FreeMemory(linpackmem);
+		dgemm->FreeMemory(linpackmem, mem_gpu_access);
 	}
 	else
 	{
-		dgemm->FreeMemory(AA);
-		dgemm->FreeMemory(BB);
-		dgemm->FreeMemory(CC);
+		dgemm->FreeMemory(AA, mem_gpu_access);
+		dgemm->FreeMemory(BB, mem_gpu_access);
+		dgemm->FreeMemory(CC, mem_gpu_access);
 	}
 #endif
 
