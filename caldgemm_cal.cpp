@@ -791,6 +791,8 @@ void caldgemm_cal::cal_init_constant_data(BufferProperties* &data, double alpha)
 
 int caldgemm_cal::Initialize(int deviceNum, bool nocalinit)
 {
+	if (!Config->Quiet) fprintf(STD_OUT, "Initializing CALDGEMM (CAL Runtime)\n");
+
 	if (!nocalinit) CHKERR(calInit(), "initializing CAL");
 
 	numInputs = dwBuffersA + dwBuffersB;

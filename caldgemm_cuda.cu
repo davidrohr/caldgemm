@@ -40,15 +40,28 @@
 
 __global__ void CUDAConversionKernel(const double* iBuffer, double* oBuffer, size_t width, size_t height, int transpose)
 {
-
+	for (int j = blockIdx.y * blockDim.y + threadIdx.y;j < height;j += blockDim.y * gridDim.y)
+	{
+		for (int i = blockIdx.x * blockDim.x + threadIdx.x;i < width;i += blockDim.x * gridDim.x)
+		{
+			if (transpose)
+			{
+				oBuffer[i * height + j] = iBuffer[j * width + i];
+			}
+			else
+			{
+				oBuffer[j * width + i] = iBuffer[j * width + i];
+			}
+		}
+	}
 }
 
-#define ERRRET(...) {fprintf(STD_OUT, __VA_ARGS__);return(1);}
+#define ERRRET(...) {fprintf(STD_OUT, __VA_ARGS__);fprintf(STD_OUT, "\n");return(1);}
 
 #define CHKRET(result, ...) \
 	if (result != cudaSuccess) \
 	{ \
-		fprintf(STD_OUT, "CUDA Error %d: %s\n", result, cudaGetErrorString(result)); \
+		fprintf(STD_OUT, "CUDA Error %d: %s\n%s:%d\n", result, cudaGetErrorString(result), __FILE__, __LINE__); \
 		ERRRET(__VA_ARGS__); \
 	}
 
@@ -74,6 +87,7 @@ int caldgemm_cuda::WaitForEvent(int a, int b, int)
 
 int caldgemm_cuda::Initialize(int deviceNum, bool nocalinit)
 {
+	if (!Config->Quiet) fprintf(STD_OUT, "Initializing CALDGEMM (CUDA Runtime)\n");
 	if (Config->Debug) fprintf(STD_OUT, "CUDA Initialice\n");
 
 	for (int i = 0;i < nDevices;i++)
@@ -158,7 +172,7 @@ int caldgemm_cuda::InitDevices()
 			cuda_error = cudaMalloc(&cuda_bbuffers[i][j], BufferWidth * BufferHeight * sizeof(double));
 			if (cuda_error != cudaSuccess)
 			{
-				if (i < obuffercount) CHKRET(cuda_error, "Error allocating device memory (B)")
+				if (j < obuffercount) CHKRET(cuda_error, "Error allocating device memory (B)")
 				else break;
 			}
 
@@ -228,7 +242,7 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 	pitch = height1;
 	offset = 0;
 
-	cudaSetDevice(Task.device);
+	cudaSetDevice(cuda_devices[Task.device]);
 	if (Config->VerboseTiming)
 	{
 		cudaStreamSynchronize(cuda_command_queues[Task.device][Task.j]);
@@ -294,7 +308,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 
 	size_t width, height;
 
-	cudaSetDevice(num_device);
+	cudaSetDevice(cuda_devices[num_device]);
 	if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
 
 	if (cuda_conversion_events_use[num_device][0])
@@ -324,7 +338,8 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		}
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer A to GPU: region %d x %d\n", (int) width, (int) height);
-		CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width * sizeof(double), src_ptr, pitch * sizeof(double), width * sizeof(double), height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying A to device");
+		fprintf(STD_OUT, "w %lld h %lld p %lld src %p dest %p\n", width, height, pitch, src_ptr, dest_buffer_tmp);
+		CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying A to device");
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 
 		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
@@ -332,7 +347,8 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		size_t arg_width = width / sizeof(double), arg_height = height;
 		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", arg_width, arg_height, arg_transpose);
 		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height, arg_transpose);
-		//enqueue event
+		
+		CHKRET(cudaEventRecord(cuda_conversion_events[num_device][0], cuda_command_queues[num_device][j]), "Recording event %d 0", num_device);
 		cuda_conversion_events_use[num_device][0] = 1;
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 	}
@@ -364,15 +380,15 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		}
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) width, (int) height);
-		CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width * sizeof(double), src_ptr, pitch * sizeof(double), width * sizeof(double), height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying B to device");
+		CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying B to device");
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 
 		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
 		int arg_transpose = !TransposeB;
 		size_t arg_width = width / sizeof(double), arg_height = height;
-		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d\n", (int) arg_width, (int) arg_height);
+		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
 		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height, arg_transpose);
-		//enqueue event
+		CHKRET(cudaEventRecord(cuda_conversion_events[num_device][1], cuda_command_queues[num_device][j]), "Recording event %d 1", num_device);
 		cuda_conversion_events_use[num_device][1] = 1;
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 	}
@@ -451,13 +467,45 @@ int caldgemm_cuda::RunCALDGEMM_Exit()
 	return(0);
 }
 
+#define MAX_GPU_MEM_COUNT 64
+struct gpu_mem_struct_cuda
+{
+	void* ptr;
+};
+static gpu_mem_struct_cuda gpu_mem[MAX_GPU_MEM_COUNT];
+static int nGPUMEM = 0;
+
 double* caldgemm_cuda::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix)
 {
-	double* ptr = caldgemm::AllocMemory(nDoubles, page_locked, huge_pages);
-	if (gpuaccessible && ptr)
+	if (gpuaccessible)
 	{
-
+		void* ptr;
+		cudaError_t cuda_error = cudaHostAlloc(&ptr, nDoubles * sizeof(double), cudaHostAllocPortable);
+		if (cuda_error != cudaSuccess)
+		{
+			fprintf(STD_OUT, "CUDA Error %d: %s\n", cuda_error, cudaGetErrorString(cuda_error));
+			return(NULL);
+		}
+		gpu_mem[nGPUMEM++].ptr = ptr;
+		return((double*) ptr);
 	}
+	double* ptr = caldgemm::AllocMemory(nDoubles, page_locked, huge_pages);
 	return(ptr);
 }
 
+void caldgemm_cuda::FreeMemory(double* ptr, bool gpuaccessible)
+{
+	if (gpuaccessible)
+	{
+		for (int i = 0;i < nGPUMEM;i++)
+		{
+			if (gpu_mem[i].ptr == (void*) ptr)
+			{
+				cudaFreeHost(ptr);
+				gpu_mem[i] = gpu_mem[--nGPUMEM];
+				return;
+			}
+		}
+	}
+	caldgemm::FreeMemory(ptr);
+}

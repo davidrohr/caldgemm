@@ -143,7 +143,7 @@ static const char* opencl_error_string(int errorcode)
 	}
 }
 
-#define ERRRET(...) {fprintf(STD_OUT, __VA_ARGS__);return(1);}
+#define ERRRET(...) {fprintf(STD_OUT, __VA_ARGS__);fprintf(STD_OUT, "\n");return(1);}
 #define CHKRET(result, ...) \
 	if (result != CL_SUCCESS) \
 	{ \
@@ -183,6 +183,7 @@ int caldgemm_opencl::WaitForEvent(int a, int b, int)
 
 int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 {
+	if (!Config->Quiet) fprintf(STD_OUT, "Initializing CALDGEMM (OpenCL Runtime)\n");
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL Initialice\n");
 	cl_int ocl_error;
 
@@ -315,7 +316,7 @@ int caldgemm_opencl::InitDevices()
 			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferWidth / 2, BufferHeight, 0, NULL, &ocl_error);
 			if (ocl_error != CL_SUCCESS)
 			{
-				if (i < obuffercount) CHKRET(ocl_error, "Error allocating device memory (B)")
+				if (j < obuffercount) CHKRET(ocl_error, "Error allocating device memory (B)")
 				else break;
 			}
 			
@@ -581,7 +582,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 		size_t local_size[2] = {GROUP_SIZE_X, GROUP_SIZE_Y};
 		size_t global_size[2] = {GROUP_SIZE_X * GROUP_COUNT_X, GROUP_SIZE_Y * GROUP_COUNT_Y};
-		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d\n", (int) arg_width, (int) arg_height);
+		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
 		CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, &ocl_conversion_events[num_device][1]), "Error starting conversion kernel for B");
 		ocl_conversion_events_use[num_device][1] = 1;
 		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
@@ -670,12 +671,12 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 }
 
 #define MAX_GPU_MEM_COUNT 64
-struct gpu_mem_struct
+struct gpu_mem_struct_opencl
 {
 	void* ptr;
 	cl_mem mem_obj;
 };
-gpu_mem_struct gpu_mem[MAX_GPU_MEM_COUNT];
+static gpu_mem_struct_opencl gpu_mem[MAX_GPU_MEM_COUNT];
 static int nGPUMEM = 0;
 
 double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix)
