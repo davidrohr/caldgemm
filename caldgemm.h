@@ -161,7 +161,7 @@ public:
 	//The Width (k in matrix multiply) is fixed and cannot be changed without reinitializing
 	int InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit = false);
 	int ExitCALDGEMM();
-	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = -1, size_t k = -1, size_t n = -1, size_t Apitch = -1, size_t Bpitch = -1, size_t Cpitch = -1, bool orderColMajor = false, bool TransA = false, bool TransB = false, int ExecuteLinpackCallbacks = 0);
+	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = (size_t) -1, size_t k = (size_t) -1, size_t n = (size_t) -1, size_t Apitch = (size_t) -1, size_t Bpitch = (size_t) -1, size_t Cpitch = (size_t) -1, bool orderColMajor = false, bool TransA = false, bool TransB = false, int ExecuteLinpackCallbacks = 0);
 	
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool Cmatrix = false);
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
@@ -240,13 +240,13 @@ protected:
 	{
 		if (DGEMM_favor_m)
 		{
-			const int nb = (gpu_n + Config->Height - 1) / Config->Height;
+			const int nb = (int) ((gpu_n + Config->Height - 1) / Config->Height);
 			blockn = k % nb;
 			blockm = k / nb;
 		}
 		else
 		{
-			const int mb = (gpu_m + Config->Height - 1) / Config->Height;
+			const int mb = (int) ((gpu_m + Config->Height - 1) / Config->Height);
 			blockm = k % mb;
 			blockn = k / mb;
 		}

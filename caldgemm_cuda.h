@@ -22,18 +22,19 @@
  * along with CALDGEMM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CALDGEMM_OPENCL_H
-#define CALDGEMM_OPENCL_H
+#ifndef caldgemm_cuda_H
+#define caldgemm_cuda_H
 
-#include <CL/opencl.h>
+#include <cuda.h>
+#include <cuda_runtime_api.h>
 
 #include "caldgemm.h"
 
-class caldgemm_opencl : public caldgemm
+class caldgemm_cuda : public caldgemm
 {
 public:
-	caldgemm_opencl();
-	virtual ~caldgemm_opencl();
+	caldgemm_cuda();
+	virtual ~caldgemm_cuda();
 
 private:
 	virtual int UseOutputPthreads();
@@ -58,27 +59,20 @@ private:
 	virtual int RunCALDGEMM_Exit();
 
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool Cmatrix = false);
-	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
 
-	cl_platform_id ocl_platform;
-	cl_device_id ocl_devices[max_devices];
-	cl_context ocl_contexts[max_devices];
-	cl_command_queue ocl_command_queues[max_devices][obuffercount];
-	cl_mem ocl_abuffers[max_devices][2];
-	cl_mem ocl_bbuffers[max_devices][max_bbuffers];
-	cl_mem ocl_cbuffers[max_devices][obuffercount];
-	cl_mem ocl_tmp_abuffers[max_devices][obuffercount];
-	cl_mem ocl_tmp_bbuffers[max_devices][obuffercount];
-	cl_event ocl_events[max_devices][obuffercount];
-	cl_program ocl_program[max_devices][4];
-	cl_kernel ocl_kernel[max_devices][4];
+	int cuda_devices[max_devices];
+	cudaStream_t cuda_command_queues[max_devices][obuffercount];
+	void* cuda_abuffers[max_devices][2];
+	void* cuda_bbuffers[max_devices][max_bbuffers];
+	void* cuda_cbuffers[max_devices][obuffercount];
+	void* cuda_tmp_abuffers[max_devices][obuffercount];
+	void* cuda_tmp_bbuffers[max_devices][obuffercount];
+	cudaEvent_t cuda_events[max_devices][obuffercount];
 
-	cl_event ocl_conversion_events[max_devices][2];
-	int ocl_conversion_events_use[max_devices][2];
+	cudaEvent_t cuda_conversion_events[max_devices][2];
+	int cuda_conversion_events_use[max_devices][2];
 
-	static const char *OCLKernel, *OCLKernelALPHA1, *OCLKernelLinpack, *OCLConvertKernel;
-
-	int WaitForEventAndRelease(cl_event* pEvent);
+	int WaitForEventAndRelease(cudaEvent_t* pEvent);
 
 	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16;
 };

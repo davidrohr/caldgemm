@@ -313,7 +313,12 @@ int caldgemm_opencl::InitDevices()
 		for (int j = 0;j < num_bbuffers;j++)
 		{
 			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferWidth / 2, BufferHeight, 0, NULL, &ocl_error);
-			CHKRET(ocl_error, "Error allocating device memory (B)");
+			if (ocl_error != CL_SUCCESS)
+			{
+				if (i < obuffercount) CHKRET(ocl_error, "Error allocating device memory (B)")
+				else break;
+			}
+			
 			bbuffers[i] = j + 1;
 		}
 		if (Config->Debug) fprintf(STD_OUT, "Allocated %d BBuffers on Device %d\n", bbuffers[i], i);
@@ -367,7 +372,8 @@ int caldgemm_opencl::InitDevices()
 int caldgemm_opencl::ReinitDevices()
 {
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL ReinitDevices\n");
-	return(0);
+	fprintf(STD_OUT, "Reinit of OpenCL devices not supported yet\n");
+	return(1);
 }
 
 int caldgemm_opencl::InitConstantData(double alpha)
@@ -418,8 +424,8 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 8, sizeof(int), &pitch), "Error setting kernel arg pitch");
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 9, sizeof(int), &offset), "Error setting kernel arg offset");
 
-	size_t local_size[2] = {16, 16};
-	size_t global_size[2] = {256, 256};
+	size_t local_size[2] = {GROUP_SIZE_X, GROUP_SIZE_Y};
+	size_t global_size[2] = {GROUP_SIZE_X * GROUP_COUNT_X, GROUP_SIZE_Y * GROUP_COUNT_Y};
 	if (Config->VerboseTiming)
 	{
 		clFinish(ocl_command_queues[Task.device][Task.j]);
@@ -528,8 +534,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 4, sizeof(int), &arg_transpose), "Error setting kernel arg, A, 4");
 
-		size_t local_size[2] = {16, 16};
-		size_t global_size[2] = {256, 256};
+		size_t local_size[2] = {GROUP_SIZE_X, GROUP_SIZE_Y};
+		size_t global_size[2] = {GROUP_SIZE_X * GROUP_COUNT_X, GROUP_SIZE_Y * GROUP_COUNT_Y};
 		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", arg_width, arg_height, arg_transpose);
 		CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, &ocl_conversion_events[num_device][0]), "Error starting conversion kernel for A");
 		ocl_conversion_events_use[num_device][0] = 1;
@@ -565,17 +571,17 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 		CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, 0, NULL, NULL), "Error copying B");
 		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
-		region[0] /= sizeof(double);
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, B, 0");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, B, 1");
-		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &region[0]), "Error setting kernel arg, B, 2");
-		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &region[1]), "Error setting kernel arg, B, 3");
-		int transpose = !TransposeB;
-		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 4, sizeof(int), &transpose), "Error setting kernel arg, B, 4");
+		int arg_transpose = !TransposeB, arg_width = region[0] / sizeof(double), arg_height = region[1];
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &arg_width), "Error setting kernel arg, B, 2");
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &arg_height), "Error setting kernel arg, B, 3");
 
-		size_t local_size[2] = {16, 16};
-		size_t global_size[2] = {256, 256};
-		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d\n", (int) region[0], (int) region[1]);
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 4, sizeof(int), &arg_transpose), "Error setting kernel arg, B, 4");
+
+		size_t local_size[2] = {GROUP_SIZE_X, GROUP_SIZE_Y};
+		size_t global_size[2] = {GROUP_SIZE_X * GROUP_COUNT_X, GROUP_SIZE_Y * GROUP_COUNT_Y};
+		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d\n", (int) arg_width, (int) arg_height);
 		CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, &ocl_conversion_events[num_device][1]), "Error starting conversion kernel for B");
 		ocl_conversion_events_use[num_device][1] = 1;
 		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);

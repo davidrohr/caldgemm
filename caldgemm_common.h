@@ -28,7 +28,9 @@ static inline void goto_set_num_threads(int) {}
 #ifdef _WIN32
 #define __INTRIN_H_
 #define _Complex
+#ifndef __restrict__
 #define __restrict__
+#endif
 #endif
 
 typedef int blasint;

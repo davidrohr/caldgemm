@@ -15,16 +15,15 @@ LIBPATHS					=
 USE_GOTO_BLAS				= 1
 
 INCLUDE_OPENCL				= 1
-ifneq ($(AMDAPPSDKROOT), )
 INCLUDE_CAL					= 1
-endif
+INCLUDE_CUDA				= 1
 LIBS						=
 EXTRAOBJFILES				=
 
 CONFIG_STATIC				= 0
 EXTRAFLAGSGCC				= 
 
-CPPFILES					= caldgemm.cpp benchmark.cpp cmodules/timer.cpp cmodules/qmalloc.cpp
+CPPFILES					= caldgemm.cpp benchmark.cpp cmodules/timer.cpp cmodules/qmalloc.cpp caldgemm_cpu.cpp
 CXXFILES					=
 ASMFILES					=
 CUFILES						=
@@ -33,6 +32,19 @@ INTELFLAGSUSE				= $(INTELFLAGSOPT)
 VSNETFLAGSUSE				= $(VSNETFLAGSOPT)
 GCCFLAGSUSE					= $(GCCFLAGSOPT)
 NVCCFLAGSUSE				= $(NVCCFLAGSOPT)
+
+ifeq ($(AMDAPPSDKROOT), )
+INCLUDE_CAL					= 0
+endif
+ifeq ($(CUDAPATH), )
+INCLUDE_CUDAa				= 0
+endif
+
+ifeq ($(INCLUDE_CUDA), 1)
+CONFIG_CUDA					= 1
+CUFILES						+= caldgemm_cuda.cu
+DEFINES						+= CALDGEMM_CUDA
+endif
 
 ifeq ($(INCLUDE_OPENCL), 1)
 CONFIG_OPENCL				= 1

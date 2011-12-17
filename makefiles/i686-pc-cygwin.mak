@@ -25,6 +25,8 @@ ICC32						= $(HIDEECHOA) $(CALLVC) "$(ICCPATH)bin/iclvars_ia32.bat" $(HIDEVARS)
 ICC64						= $(HIDEECHOA) $(CALLVC) "$(ICCPATH)bin/iclvars_intel64.bat" $(HIDEVARS) "$(ICCPATH64)/icl.exe"
 MSCC32						= $(HIDEECHOA) $(CALLVC) "$(VSPATH)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(VSPATH)/vc/bin/cl.exe"
 MSCC64						= $(HIDEECHOA) $(CALLVC) "$(VSPATH)/vc/bin/amd64/vcvars64.bat" $(HIDEVARS) "$(VSPATH)/vc/bin/amd64/cl.exe"
+MSCC932						= $(HIDEECHOA) $(CALLVC) "$(VSPATH9)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(VSPATH9)/vc/bin/cl.exe"
+MSCC964						= $(HIDEECHOA) $(CALLVC) "$(VSPATH9)/vc/bin/amd64/vcvarsamd64.bat" $(HIDEVARS) "$(VSPATH9)/vc/bin/amd64/cl.exe"
 MASM32						= $(HIDEECHOA) $(CALLVC) "$(VSPATH)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(VSPATH)/vc/bin/ml.exe"
 MASM64						= $(HIDEECHOA) $(CALLVC) "$(VSPATH)/vc/bin/amd64/vcvars64.bat" $(HIDEVARS) "$(VSPATH)/vc/bin/amd64/ml64.exe"
 VCC32						= $(HIDEECHOA) "$(VECTORCPATH)/vectorc86.exe"
@@ -105,7 +107,7 @@ MSCC						= $(MSCC64) $(VSNETFLAGS64) $(CFLAGS64)
 MSLINK						= $(MSLINK64) $(LINKFLAGS64)
 GCC							= $(GCC64) $(GCCFLAGS64)
 MASM						= $(MASM64)
-CCCUDA						= $(MSCC) /TP
+CCCUDA						= $(MSCC964) /TP $(VSNETFLAGS64) $(CFLAGS64)
 LIBPATHSUSE					= /LIBPATH:"$(CUDAPATH)lib/x64" /LIBPATH:"$(AMDPATH)lib" /LIBPATH:"$(AMDPATH)lib/x86_64" /LIBPATH:"$(CUDAPATH)sdk/C/common/lib" /LIBPATH:"$(DIRECTXPATH)lib/x64" /LIBPATH:"$(ICCPATH)compiler/lib/intel64"
 else
 ICC							= $(ICC32) $(INTELFLAGS32) $(CFLAGS32)
@@ -117,7 +119,7 @@ MSLINKGCC					= $(MSLINK32GCC) $(LINKFLAGS32)
 VCC							= $(VCC32) /outfile $@ $(VECTORCFLAGS) $(CFLAGS32)
 GCC							= $(GCC32) $(GCCFLAGS32)
 MASM						= $(MASM32)
-CCCUDA						= $(MSCC32) $(VSNETFLAGS32) $(CFLAGS32) /TP /Gd
+CCCUDA						= $(MSCC932) $(VSNETFLAGS32) $(CFLAGS32) /TP /Gd
 LIBPATHSUSE					= /LIBPATH:"$(CUDAPATH)lib/win32" /LIBPATH:"$(AMDPATH)lib" /LIBPATH:"$(AMDPATH)lib/x86" /LIBPATH:"$(DIRECTXPATH)lib/x86" /LIBPATH:"$(ICCPATH)compiler/lib/ia32"
 endif
 
@@ -141,7 +143,7 @@ GCC3264						= $(GCC)
 
 ASM							= $(MASM)
 ASMPRE						= $(MSCC32)
-NVCC						= $(HIDEECHOA) $(CALLVC) "$(VSPATH)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(CUDAPATH)bin/nvcc"
+NVCC						= $(HIDEECHOA) $(CALLVC) "$(VSPATH9)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(CUDAPATH)bin/nvcc"
 
 MULTITHREADGCC				= -mthreads -D_MT
 

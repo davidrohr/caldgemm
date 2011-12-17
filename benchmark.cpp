@@ -32,6 +32,10 @@
 #ifdef CALDGEMM_CAL
 #include "caldgemm_cal.h"
 #endif
+#ifdef CALDGEMM_CUDA
+#include "caldgemm_cuda.h"
+#endif
+#include "caldgemm_cpu.h"
 
 #include "caldgemm_common.h"
 
@@ -72,7 +76,7 @@ bool linpack_callbacks = false;
 
 bool wait_key = false;
 
-bool use_opencl_not_cal = false;
+int use_opencl_not_cal = 0;
 
 int random_seed = 0;
 
@@ -148,7 +152,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
 	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n" );
-	fprintf(STD_OUT, "\t-O        Backend to use: not set = CAL, set = OpenCL\n" );
+	fprintf(STD_OUT, "\t-O <int>  Backend to use: not 0 = CAL, 1 = OpenCL, 2 = CUDA, 3 = CPUOnly\n" );
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n" );
 	fprintf(STD_OUT, "\t-J        Allow small tiles to process the remainder on GPU\n");
 	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
@@ -345,7 +349,8 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			fastinit = true;
 			break;
 		case 'O':
-			use_opencl_not_cal = true;
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &use_opencl_not_cal);
 			break;
 		case 'F':
 			if (++x >= argc) return(1);
@@ -739,27 +744,28 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-#ifndef CALDGEMM_CAL
-	use_opencl_not_cal = true;
-#endif
-#ifndef CALDGEMM_OPENCL
-	use_opencl_not_cal = false;
-#endif
-
-	if (use_opencl_not_cal)
-	{
-#ifdef CALDGEMM_OPENCL
-		dgemm = new caldgemm_opencl;
-#endif
-	}
-	else
-	{
 #ifdef CALDGEMM_CAL
+	if (use_opencl_not_cal == 0)
+	{
 		dgemm = new caldgemm_cal;
+	} else
 #endif
+#ifdef CALDGEMM_OPENCL
+	if (use_opencl_not_cal == 1)
+	{
+		dgemm = new caldgemm_opencl;
+	} else
+#endif
+#ifdef CALDGEMM_CUDA
+	if (use_opencl_not_cal == 2)
+	{
+		dgemm = new caldgemm_cuda;
+	} else
+#endif
+	{
+		dgemm = new caldgemm_cpu;
 	}
 
-	
 	if (dgemm == NULL)
 	{
 		fprintf(STD_OUT, "Error creating caldgem object\n");
