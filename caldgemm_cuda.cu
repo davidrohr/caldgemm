@@ -416,6 +416,7 @@ int caldgemm_cuda::ExitDevices()
 
 	for (int i = 0;i < nDevices;i++)
 	{
+		cudaSetDevice(cuda_devices[i]);
 		for (int j = 0;j < 2;j++)
 		{
 			CHKRET(cudaFree(cuda_abuffers[i][j]), "Freeing memory A %d %d\n", i, j);
