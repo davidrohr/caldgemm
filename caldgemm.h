@@ -51,7 +51,6 @@
 #include <iostream>
 #include <iomanip>
 
-#include <emmintrin.h>
 #ifdef _WIN32
 #include "cmodules/pthread_mutex_win32_wrapper.h"
 #include "cmodules/sched_affinity_win32_wrapper.h"

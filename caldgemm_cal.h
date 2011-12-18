@@ -29,6 +29,8 @@
 #include <cal_ext.h>
 #include <calcl.h>
 
+#include <emmintrin.h>
+
 #include "caldgemm.h"
 
 class caldgemm_cal : public caldgemm
