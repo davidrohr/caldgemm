@@ -90,16 +90,20 @@ int caldgemm_cuda::Initialize(int deviceNum, bool nocalinit)
 	if (!Config->Quiet) fprintf(STD_OUT, "Initializing CALDGEMM (CUDA Runtime)\n");
 	if (Config->Debug) fprintf(STD_OUT, "CUDA Initialice\n");
 
+	if (nDevices > (signed) max_devices) nDevices = max_devices;
+	int nGoodDevices = 0;
+	int* goodDevices = new int[nDevices];
 	for (int i = 0;i < nDevices;i++)
 	{
 		cudaDeviceProp deviceProp;
 		CHKRET(cudaGetDeviceProperties(&deviceProp, i), "Getting CUDA Device Properties");
-		if (Config->Debug) fprintf(STD_OUT, "Device %d: %s\n", i, deviceProp.name);
+		int deviceOK = deviceProp.major < 9 && deviceProp.major >= 2;
+		if (Config->Debug) fprintf(STD_OUT, "Device %2d (%d): %30s %s\n", deviceOK ? nGoodDevices : -1, i, deviceProp.name, deviceOK ? "OK" : "--");
+		if (deviceOK) goodDevices[nGoodDevices++] = i;
 	}
 
-	if (nDevices > (signed) max_devices) nDevices = max_devices;
+	nDevices = nGoodDevices;
 	if (nDevices > Config->NumDevices) nDevices = Config->NumDevices;
-
 	if (deviceNum >= nDevices) ERRRET("CUDA Device %d not available\n", deviceNum);
 	if (deviceNum >= 0) nDevices = 1;
 	gpu_available = (nDevices > 0);
@@ -109,6 +113,7 @@ int caldgemm_cuda::Initialize(int deviceNum, bool nocalinit)
 		if (deviceNum >= 0) cuda_devices[i] = deviceNum;
 		else cuda_devices[i] = i;
 	}
+	delete[] goodDevices;
 	
 	for (int i = 0;i < nDevices;i++)
 	{
@@ -254,6 +259,7 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %lf beta %lf offset %d pitch %d\n", (int) height1, (int) height2, (int) width, Alpha, Beta, (int) offset, (int) pitch);
 	dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
 	CUDAKernel <<<blocks, threads, 0, cuda_command_queues[Task.device][Task.j]>>> (cbuffer, abuffer, bbuffer, height1, height2, width, Alpha, Beta, pitch, offset);
+	CHKRET(cudaGetLastError(), "CUDA Kernel Execution");
 
 	if (Config->VerboseTiming)
 	{
@@ -349,6 +355,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		size_t arg_width = width / sizeof(double), arg_height = height;
 		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", (int) arg_width, (int) arg_height, arg_transpose);
 		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height, arg_transpose);
+		CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
 		
 		CHKRET(cudaEventRecord(cuda_conversion_events[num_device][0], cuda_command_queues[num_device][j]), "Recording event %d 0", num_device);
 		cuda_conversion_events_use[num_device][0] = 1;
@@ -390,6 +397,8 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		size_t arg_width = width / sizeof(double), arg_height = height;
 		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
 		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height, arg_transpose);
+		CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
+
 		CHKRET(cudaEventRecord(cuda_conversion_events[num_device][1], cuda_command_queues[num_device][j]), "Recording event %d 1", num_device);
 		cuda_conversion_events_use[num_device][1] = 1;
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
