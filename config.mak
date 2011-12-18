@@ -37,7 +37,7 @@ ifeq ($(AMDAPPSDKROOT), )
 INCLUDE_CAL					= 0
 endif
 ifeq ($(CUDAPATH), )
-INCLUDE_CUDAa				= 0
+INCLUDE_CUDA				= 0
 endif
 
 ifeq ($(INCLUDE_CUDA), 1)
