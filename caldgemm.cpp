@@ -40,6 +40,12 @@ extern "C"
 }
 #endif
 
+#ifdef USE_OLD_HUGE_MALLOC
+#include <sys/mman.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#endif
+
 #include <math.h>
 
 #define MPOL_DEFAULT 0
@@ -49,6 +55,17 @@ extern "C"
 
 #ifndef SHM_HUGETLB
 #define SHM_HUGETLB 04000
+#endif
+
+#if !defined(USE_GOTO_BLAS) | defined(_WIN32)
+#include "cmodules/os_low_level_helper.h"
+extern "C" {
+extern int get_num_procs();
+int get_num_procs()
+{
+	return(get_number_of_cpu_cores());
+}
+}
 #endif
 
 #ifdef DEBUG_MSG_TIMED
@@ -391,6 +408,17 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 			while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 		}
 	}
+
+	int linpackCPU = 0;
+	while (linpackCPU < conf_numprocs)
+	{
+		if (cpuUsed(linpackCPU) == false) break;
+		linpackCPU++;
+	}
+	if (linpackCPU >= conf_numprocs) linpackCPU = 0;
+	broadcast_cpu_core = linpackCPU;
+	if (Config->Debug) fprintf(STD_OUT, "Broadcast CPU core set to %d\n", linpackCPU);
+
 	if (Config->MultiThread)
 	{
 		linpackParameters.terminate = false;
@@ -535,14 +563,8 @@ void* caldgemm::linpack_wrapper(void* arg)
 	cpu_set_t linpack_mask;
 	CPU_ZERO(&linpack_mask);
 	
-	int linpackCPU = 0;
-	while (linpackCPU < cls->conf_numprocs)
-	{
-		if (cls->cpuUsed(linpackCPU) == false) break;
-		linpackCPU++;
-	}
+	int linpackCPU = cls->broadcast_cpu_core;
 	if (linpackCPU >= cls->conf_numprocs) linpackCPU = 0;
-	cls->broadcast_cpu_core = linpackCPU;
 	CPU_SET(linpackCPU, &linpack_mask);
 	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", cls->getcpumask(&linpack_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
@@ -2100,6 +2122,7 @@ void caldgemm::ResetTimers()
 #define MAX_HUGE_ADDRESSES 256
 double* huge_page_addresses[MAX_HUGE_ADDRESSES];
 int nHugeAddresses = 0;
+#define HUGE_PAGESIZE (1024 * 2048)
 
 double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix)
 {

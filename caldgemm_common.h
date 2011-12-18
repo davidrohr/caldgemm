@@ -10,13 +10,13 @@ extern "C" {
 #endif
 
 #ifndef _WIN32
-static inline int get_num_procs() {return(sysconf(_SC_NPROCESSORS_ONLN));}
+extern "C" int get_num_procs();
 static inline void caldgemm_goto_restrict_cpus(int) {}
 static inline void caldgemm_goto_reserve_cpu(int, int) {}
 static inline void caldgemm_goto_reserve_cpus(int) {}
 static inline void goto_set_num_threads(int num) {omp_set_num_threads(num);}
 #else
-static inline int get_num_procs() {return(1);}
+extern "C" int get_num_procs();
 static inline void caldgemm_goto_reserve_cpu(int, int) {}
 static inline void caldgemm_goto_reserve_cpus(int) {}
 static inline void caldgemm_goto_restrict_cpus(int) {}
