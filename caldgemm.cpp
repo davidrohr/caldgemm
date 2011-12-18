@@ -2122,7 +2122,9 @@ void caldgemm::ResetTimers()
 #define MAX_HUGE_ADDRESSES 256
 double* huge_page_addresses[MAX_HUGE_ADDRESSES];
 int nHugeAddresses = 0;
+#ifndef HUGE_PAGESIZE
 #define HUGE_PAGESIZE (1024 * 2048)
+#endif
 
 double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix)
 {
