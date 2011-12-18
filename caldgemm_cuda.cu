@@ -262,7 +262,7 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 		Timers.CounterCopyFrom.Start();
 	}
 
-	if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) height1 * sizeof(double), (int) height2);
+	if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) (height1 * sizeof(double)), (int) height2);
 	CHKRET(cudaMemcpy2DAsync(C + blockn * Config->Height + blockm * Config->Height * C_pitch, C_pitch * sizeof(double), cuda_cbuffers[Task.device][Task.j], height1 * sizeof(double), height1 * sizeof(double), height2, cudaMemcpyDeviceToHost, cuda_command_queues[Task.device][Task.j]), "Fetching result");
 
 	if (Config->VerboseTiming)
@@ -347,7 +347,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
 		int arg_transpose = TransposeA;
 		size_t arg_width = width / sizeof(double), arg_height = height;
-		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", arg_width, arg_height, arg_transpose);
+		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", (int) arg_width, (int) arg_height, arg_transpose);
 		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height, arg_transpose);
 		
 		CHKRET(cudaEventRecord(cuda_conversion_events[num_device][0], cuda_command_queues[num_device][j]), "Recording event %d 0", num_device);

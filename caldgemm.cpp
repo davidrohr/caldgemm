@@ -1511,7 +1511,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			}
 		}
 
-		if (!Config->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > bbuffers[use_device] * nDevices) fprintf(STD_OUT, "WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
+		if (!Config->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > (size_t) (bbuffers[use_device] * nDevices)) fprintf(STD_OUT, "WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
 		
 		if (Config->MultiThreadDivide && UseInputPthreads())
 		{
@@ -1671,7 +1671,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						Task.PrepareTasks[0].j = j[use_device];
 						if (Config->ImprovedScheduler && !ImprovedSchedPhase1)
 						{
-							if (buffersMajor[use_device] != (DGEMM_favor_m ? blockm : blockn))
+							if ((size_t) buffersMajor[use_device] != (DGEMM_favor_m ? blockm : blockn))
 							{
 								if (Config->Debug) fprintf(STD_OUT, "Resetting favored directions buffers for device %d\n", use_device);
 								buffersMajor[use_device] = -1;
