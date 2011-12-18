@@ -1175,7 +1175,7 @@ int caldgemm_cal::CheckDevices()
 
 int caldgemm_cal::InitDevices()
 {
-	int min_bbuffers = max_bbuffers;
+	
 	for (int device_num = 0;device_num < nDevices;device_num++)
 	{
 		cpu_set_t tmpmask;
@@ -1212,9 +1212,7 @@ int caldgemm_cal::InitDevices()
 			bbuffers[device_num] = i + 1;
 		}
 		if (Config->Debug) fprintf(STD_OUT, "Was able to allocate %d bbuffers on device %d\n", bbuffers[device_num], device_num);
-		if (bbuffers[device_num] < min_bbuffers) min_bbuffers = bbuffers[device_num];
 	}
-	if (!Config->Quiet) fprintf(STD_OUT, "Running on %d devices with %d bbuffers\n", nDevices, min_bbuffers);
 
 	return(0);
 }
