@@ -112,7 +112,7 @@ int caldgemm_cuda::Initialize(int deviceNum, bool nocalinit)
 	
 	for (int i = 0;i < nDevices;i++)
 	{
-		cudaSetDevice(cuda_devices[i]);
+		CHKRET(cudaSetDevice(cuda_devices[i]), "Settig CUDA Device");
 		for (int j = 0;j < obuffercount;j++)
 		{
 			CHKRET(cudaStreamCreate(&cuda_command_queues[i][j]), "Creating CUDA Stream");
@@ -154,7 +154,7 @@ int caldgemm_cuda::InitDevices()
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		cudaSetDevice(cuda_devices[i]);
+		CHKRET(cudaSetDevice(cuda_devices[i]), "Setting CUDA Device");
 		for (int j = 0;j < 2;j++)
 		{
 			CHKRET(cudaMalloc(&cuda_abuffers[i][j], BufferWidth * BufferHeight * sizeof(double)), "Error allocating device memory (A)");
@@ -245,10 +245,10 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 	pitch = height1;
 	offset = 0;
 
-	cudaSetDevice(cuda_devices[Task.device]);
+	CHKRET(cudaSetDevice(cuda_devices[Task.device]), "Setting CUDA Device");
 	if (Config->VerboseTiming)
 	{
-		cudaStreamSynchronize(cuda_command_queues[Task.device][Task.j]);
+		CHKRET(cudaStreamSynchronize(cuda_command_queues[Task.device][Task.j]), "Synchronizing CUDA Stream");
 		Timers.Kernel.Start();
 	}
 	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %lf beta %lf offset %d pitch %d\n", (int) height1, (int) height2, (int) width, Alpha, Beta, (int) offset, (int) pitch);
@@ -257,7 +257,7 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 
 	if (Config->VerboseTiming)
 	{
-		cudaStreamSynchronize(cuda_command_queues[Task.device][Task.j]);
+		CHKRET(cudaStreamSynchronize(cuda_command_queues[Task.device][Task.j]), "Synchronizing CUDA Stream");
 		Timers.Kernel.Stop();
 		Timers.CounterCopyFrom.Start();
 	}
@@ -267,7 +267,7 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 
 	if (Config->VerboseTiming)
 	{
-		cudaStreamSynchronize(cuda_command_queues[Task.device][Task.j]);
+		CHKRET(cudaStreamSynchronize(cuda_command_queues[Task.device][Task.j]), "Synchronizing CUDA Stream");
 		Timers.CounterCopyFrom.Stop();
 	}
 
@@ -280,10 +280,10 @@ int caldgemm_cuda::ExitRuntime()
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		cudaSetDevice(cuda_devices[i]);
+		CHKRET(cudaSetDevice(cuda_devices[i]), "Setting CUDA Device");
 		for (int j = 0;j < obuffercount;j++)
 		{
-			cudaStreamDestroy(cuda_command_queues[i][j]);
+			CHKRET(cudaStreamDestroy(cuda_command_queues[i][j]), "Destroying CUDA Stream");
 		}
 	}
 
@@ -311,7 +311,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 
 	size_t width, height;
 
-	cudaSetDevice(cuda_devices[num_device]);
+	CHKRET(cudaSetDevice(cuda_devices[num_device]), "Setting CUDA Device");
 	if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
 
 	if (cuda_conversion_events_use[num_device][0])
@@ -403,7 +403,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 
 	if (Config->VerboseTiming)
 	{
-		cudaStreamSynchronize(cuda_command_queues[num_device][j]);
+		CHKRET(cudaStreamSynchronize(cuda_command_queues[num_device][j]), "Synchronizing CUDA Stream");
 		Timers.CounterCopyTo.Stop();
 	}
 
@@ -416,7 +416,7 @@ int caldgemm_cuda::ExitDevices()
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		cudaSetDevice(cuda_devices[i]);
+		CHKRET(cudaSetDevice(cuda_devices[i]), "Setting CUDA Device");
 		for (int j = 0;j < 2;j++)
 		{
 			CHKRET(cudaFree(cuda_abuffers[i][j]), "Freeing memory A %d %d\n", i, j);
@@ -467,6 +467,7 @@ int caldgemm_cuda::RunCALDGEMM_Init()
 
 int caldgemm_cuda::RunCALDGEMM_Exit()
 {
+	CHKRET(cudaThreadSynchronize(), "Synchronizing CUDA Thread");
 	return(0);
 }
 
