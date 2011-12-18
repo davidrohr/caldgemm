@@ -1792,3 +1792,20 @@ int caldgemm_cal::RunCALDGEMM_Exit()
 {
 	return(0);
 }
+
+bool caldgemm_cal::cpuUsed(int cpu)
+{
+	if (cpu == Config->PinMainThread) return(true);
+	for (int i = 0;i < nDevices;i++)
+	{
+		int procsreq = 1;
+		for (int j = i;j < nDevices;j++)
+		{
+			if (Config->GPUMapping[i] == Config->GPUMapping[j] && Config->PostprocessMapping[j] == -1) procsreq += outputthreads;
+		}
+		if (cpu >= Config->GPUMapping[i] && cpu < Config->GPUMapping[i] + procsreq) return(true);
+		if (Config->PostprocessMapping[i] != -1 && cpu >= Config->PostprocessMapping[i] && cpu < Config->PostprocessMapping[i] + outputthreads) return(true);
+	}
+
+	return(false);
+}

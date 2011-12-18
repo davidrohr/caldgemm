@@ -172,7 +172,7 @@ public:
 	double avggflops;
 	int avgngflops;
 
-	bool cpuUsed(int cpu);
+	virtual bool cpuUsed(int cpu);
 
 protected:
 

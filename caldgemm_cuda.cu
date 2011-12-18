@@ -172,7 +172,10 @@ int caldgemm_cuda::InitDevices()
 			cuda_error = cudaMalloc(&cuda_bbuffers[i][j], BufferWidth * BufferHeight * sizeof(double));
 			if (cuda_error != cudaSuccess)
 			{
-				if (j < obuffercount) CHKRET(cuda_error, "Error allocating device memory (B)")
+				if (j < obuffercount)
+				{
+					CHKRET(cuda_error, "Error allocating device memory (B)");
+				}
 				else break;
 			}
 

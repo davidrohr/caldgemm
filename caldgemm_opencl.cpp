@@ -316,7 +316,10 @@ int caldgemm_opencl::InitDevices()
 			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferWidth / 2, BufferHeight, 0, NULL, &ocl_error);
 			if (ocl_error != CL_SUCCESS)
 			{
-				if (j < obuffercount) CHKRET(ocl_error, "Error allocating device memory (B)")
+				if (j < obuffercount)
+				{
+					CHKRET(ocl_error, "Error allocating device memory (B)");
+				}
 				else break;
 			}
 			

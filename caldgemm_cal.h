@@ -37,6 +37,8 @@ public:
 	caldgemm_cal();
 	virtual ~caldgemm_cal();
 
+	virtual bool cpuUsed(int cpu);
+
 private:
 	virtual int UseOutputPthreads();
 	virtual int UseInputPthreads();
