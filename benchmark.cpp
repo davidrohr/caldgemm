@@ -1005,8 +1005,6 @@ int main(int argc, char** argv)
 	}
 #endif //TEST_PARAMETERS
 
-	dgemm->ExitCALDGEMM();
-
 #ifndef TEST_PARAMETERS
 	if (linpackmemory)
 	{
@@ -1020,6 +1018,7 @@ int main(int argc, char** argv)
 	}
 #endif
 
+	dgemm->ExitCALDGEMM();
 	delete dgemm;
 
 	if (wait_key)
