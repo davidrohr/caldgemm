@@ -55,7 +55,7 @@
 //#define CALDGEMM_IGEMM						//Experimental IGEMM implementation (Integer instead of single) (requires SGEMM)
 //#define CALDGEMM_BGEMM						//Experimental
 
-#define CALDGEMM_MIN_TILE_DIM 256				//Min dimension of small tile
+#define CALDGEMM_MIN_TILE_DIM 128				//Min dimension of small tile
 
 //#define CALDGEMM_FORCE_K 16					//Force K Parameter to simulate different kernel perfoemance
 

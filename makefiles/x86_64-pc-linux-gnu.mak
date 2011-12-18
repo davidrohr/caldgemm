@@ -1,4 +1,4 @@
-CUDAPATH					= /usr/local/cuda
+CUDAPATH					:= $(CUDA_PATH)
 CUDASDKPATH					= $(CUDAPATH)/sdk
 AMDPATH						= $(AMDAPPSDKROOT)
 
