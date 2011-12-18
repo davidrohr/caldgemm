@@ -36,7 +36,8 @@ NVCCFLAGSUSE				= $(NVCCFLAGSOPT)
 ifeq ($(AMDAPPSDKROOT), )
 INCLUDE_CAL					= 0
 endif
-ifeq ($(CUDAPATH), )
+
+ifeq ("$(CUDA_PATH)", "")
 INCLUDE_CUDA				= 0
 endif
 
