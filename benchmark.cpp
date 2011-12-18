@@ -677,11 +677,11 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		if (AA) dgemm->FreeMemory(AA, mem_gpu_access);
 		if (BB) dgemm->FreeMemory(BB, mem_gpu_access);
 		if (CC) dgemm->FreeMemory(CC, mem_gpu_access);
-		if (!quietbench) fprintf(stderr, "...alloc A");
+		if (!quietbench) fprintf(stderr, "...alloc A (%lld KB)", (size_t) (height_a * pitch_a / 1024));
 		AA = dgemm->AllocMemory(height_a * pitch_a, mem_page_lock, mem_huge_table, mem_gpu_access);
-		if (!quietbench) fprintf(stderr, "...alloc B");
+		if (!quietbench) fprintf(stderr, "...alloc B (%lld KB)", (size_t) (height_b * pitch_b / 1024));
 		BB = dgemm->AllocMemory(height_b * pitch_b, mem_page_lock, mem_huge_table, mem_gpu_access);
-		if (!quietbench) fprintf(stderr, "...alloc C");
+		if (!quietbench) fprintf(stderr, "...alloc C (%lld KB)", (size_t) (Config.m * pitch_c / 1024));
 		CC = dgemm->AllocMemory(Config.m * pitch_c, mem_page_lock, mem_huge_table, mem_gpu_access, true);
 
 		if (AA == NULL || BB == NULL || CC == NULL)
