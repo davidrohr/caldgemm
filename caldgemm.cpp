@@ -274,6 +274,46 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 	fprintf(STD_OUT, "Done\n");
 }
 
+void caldgemm::ensure_omp_thread_pinning()
+{
+#ifndef USE_GOTO_BLAS
+	if (Config->Debug) fprintf(STD_OUT, "Performing OpenMP Blas Thread Pinning\n");
+#pragma omp parallel num_threads(conf_numprocs)
+	{
+		int thread_id = omp_get_thread_num();
+		cpu_set_t localset;
+		int localcore = thread_id * 2;
+
+		int nFreeCores = 0;
+		if (thread_id == nFreeCores) localcore = main_blas_core;
+		nFreeCores++;
+		for (int i = 0;i < conf_numprocs;i++)
+		{
+			if (cpuUsed(i) == false && i != broadcast_cpu_core && i != main_blas_core)
+			{
+				if (thread_id == nFreeCores) localcore = i;
+				nFreeCores++;
+			}
+		}
+		if (thread_id == nFreeCores) localcore = broadcast_cpu_core;
+		nFreeCores++;
+		for (int i = 0;i < conf_numprocs;i++)
+		{
+			if (cpuUsed(i) && i != main_blas_core)
+			{
+				if (thread_id == nFreeCores) localcore = i;
+				nFreeCores++;
+			}
+		}
+
+		CPU_ZERO(&localset);
+		CPU_SET(localcore, &localset);
+		sched_setaffinity(0, sizeof(localset), &localset);
+		if (Config->Debug) fprintf(STD_OUT, "OpenMP BLAS thread %d pinned to core %d\n", thread_id, localcore);
+	}
+#endif
+}
+
 int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 {
 	Config = pInfo;
@@ -285,7 +325,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 
 #ifndef USE_GOTO_BLAS
-	int main_blas_core = get_num_procs() - 1;
+	main_blas_core = get_num_procs() - 1;
 	{
 		if (Config->Debug) fprintf(STD_OUT, "Pinning Main OpenMP BLAS thread to core %d\n", main_blas_core);
 		cpu_set_t blasset;
@@ -401,21 +441,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	CPU_SET(Config->PinMainThread, &tmpmask);
 	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 
-	if (Config->UseCPU)
-	{
-		cParam.cls = this;
-		cParam.terminate = false;
-		for (int j = 0;j < 2;j++) pthread_mutex_init(&cParam.cblasMutex[j], NULL);
-		if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
-		if (Config->MultiThread)
-		{
-			pthread_t thr;
-			pthread_create(&thr, NULL, cblas_wrapper, &cParam);
-			if (Config->Debug) fprintf(STD_OUT, "Waiting for cblas slave to start\n");
-			while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-		}
-	}
-
 	int linpackCPU = 0;
 	while (linpackCPU < conf_numprocs)
 	{
@@ -471,6 +496,24 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		}
 	}
 
+	if (Config->Debug) fprintf(STD_OUT, "Using %d CPU cores at %d MHz, %d GPUs of %d shaders at %d MHz\n", conf_numprocs, conf_cpufreq, nDevices, conf_gpushaders, conf_gpufreq);
+	ensure_omp_thread_pinning();
+
+	if (Config->UseCPU)
+	{
+		cParam.cls = this;
+		cParam.terminate = false;
+		for (int j = 0;j < 2;j++) pthread_mutex_init(&cParam.cblasMutex[j], NULL);
+		if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+		if (Config->MultiThread)
+		{
+			pthread_t thr;
+			pthread_create(&thr, NULL, cblas_wrapper, &cParam);
+			if (Config->Debug) fprintf(STD_OUT, "Waiting for cblas slave to start\n");
+			while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+		}
+	}
+
 	if (Config->MemPolicy)
 	{
 #ifdef _WIN32
@@ -492,45 +535,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}*/
 	//setpriority(PRIO_PROCESS, 0, -20);
 	
-	if (Config->Debug) fprintf(STD_OUT, "Using %d CPU cores at %d MHz, %d GPUs of %d shaders at %d MHz\n", conf_numprocs, conf_cpufreq, nDevices, conf_gpushaders, conf_gpufreq);
-
-#ifndef USE_GOTO_BLAS
-	if (Config->Debug) fprintf(STD_OUT, "Performing OpenMP Blas Thread Pinning\n");
-#pragma omp parallel num_threads(conf_numprocs)
-	{
-		int thread_id = omp_get_thread_num();
-		cpu_set_t localset;
-		int localcore = thread_id * 2;
-
-		int nFreeCores = 0;
-		if (thread_id == nFreeCores) localcore = main_blas_core;
-		nFreeCores++;
-		for (int i = 0;i < conf_numprocs;i++)
-		{
-			if (cpuUsed(i) == false && i != broadcast_cpu_core && i != main_blas_core)
-			{
-				if (thread_id == nFreeCores) localcore = i;
-				nFreeCores++;
-			}
-		}
-		if (thread_id == nFreeCores) localcore = broadcast_cpu_core;
-		nFreeCores++;
-		for (int i = 0;i < conf_numprocs;i++)
-		{
-			if (cpuUsed(i) && i != main_blas_core)
-			{
-				if (thread_id == nFreeCores) localcore = i;
-				nFreeCores++;
-			}
-		}
-
-		CPU_ZERO(&localset);
-		CPU_SET(localcore, &localset);
-		sched_setaffinity(0, sizeof(localset), &localset);
-		fprintf(STD_OUT, "OpenMP BLAS thread %d pinned to core %d\n", thread_id, localcore);
-	}
-#endif
-
 	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Init complete, setting CPU mask %X\n", getcpumask(&oldcpumask));
 	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
@@ -692,6 +696,8 @@ void* caldgemm::cblas_wrapper(void* arg)
 	volatile caldgemm::caldgemm_config* Config = par->cls->Config;
 
 	if (Config->Debug) fprintf(STD_OUT, "Cblas helper thread started\n");
+
+	par->cls->ensure_omp_thread_pinning();
 
 	if (Config->Debug) fprintf(STD_OUT, "Cblas thread Thread, setting CPU mask %X\n", par->cls->getcpumask(&par->cls->oldcpumask));
 	

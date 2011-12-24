@@ -69,17 +69,12 @@ ifeq ($(TARGETTYPE), LIB)
 LINKTARGETTYPE				= -shared
 COMPILETARGETTYPE			= -fPIC
 EXECUTABLE					= $(TARGET).so
-LIBGLIBC					=
 else
 LINKTARGETTYPE				=
 COMPILETARGETTYPE			=
 EXECUTABLE					= $(TARGET)
-ifeq ($(ARCHBITS), 64)
-LIBGLIBC					= `$(GCC3264) -print-libgcc-file-name` `$(GCC3264) -print-libgcc-file-name | sed -e s/libgcc/libstdc++/`
-else
-LIBGLIBC					= 
 endif
-endif
+LIBGLIBC					=
 
 LIBSUSE						= $(LIBGLIBC) -lrt -ldl
 
