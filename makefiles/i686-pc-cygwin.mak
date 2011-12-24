@@ -190,9 +190,6 @@ EXECUTABLE					= $(TARGET).exe
 endif
 
 COMMONINCLUDEPATHS			= "$(DIRECTXPATH)include" 
-ifeq ("$(CONFIG_CUDA)", "1")
-COMMONINCLUDEPATHS			+= "$(CUDAPATH)include" "$(CUDASDKPATH)/C/common/inc"
-endif
 
 ifeq ("$(CONFIG_OPENCL)", "1")
 ifeq ("$(CONFIG_OPENCL_VERSION)", "AMD")
@@ -209,6 +206,10 @@ COMMONINCLUDEPATHS			+= "$(AMDPATH)include"
 COMMONINCLUDEPATHS			+= "$(CUDAPATH)include"
 #COMMONINCLUDEPATHS			+= ""
 endif
+endif
+
+ifeq ("$(CONFIG_CUDA)", "1")
+COMMONINCLUDEPATHS			+= "$(CUDAPATH)include" "$(CUDASDKPATH)/C/common/inc"
 endif
 
 ifeq ("$(CONFIG_CAL)", "1")

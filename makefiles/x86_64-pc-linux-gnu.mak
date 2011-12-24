@@ -117,9 +117,6 @@ NVCC_GREP					= "^#line\|^$$\|^# [0-9]* "
 DCUDAEMU					= -DCUDA_DEVICE_EMULATION
 
 COMMONINCLUDEPATHS			=
-ifeq ("$(CONFIG_CUDA)", "1")
-COMMONINCLUDEPATHS			+= "$(CUDASDKPATH)/C/common/inc"
-endif
 
 ifeq ("$(CONFIG_OPENCL)", "1")
 ifeq ("$(CONFIG_OPENCL_VERSION)", "AMD")
@@ -136,6 +133,10 @@ COMMONINCLUDEPATHS			+= "$(AMDPATH)/include"
 COMMONINCLUDEPATHS			+= "$(CUDAPATH)/include"
 #COMMONINCLUDEPATHS			+= ""
 endif
+endif
+
+ifeq ("$(CONFIG_CUDA)", "1")
+COMMONINCLUDEPATHS			+= "$(CUDASDKPATH)/C/common/inc"
 endif
 
 ifeq ("$(CONFIG_CAL)", "1")

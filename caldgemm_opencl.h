@@ -80,6 +80,9 @@ private:
 
 	int WaitForEventAndRelease(cl_event* pEvent);
 
+	double* C_matrix_base;
+	cl_mem* C_matrix_base_obj;
+
 	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16;
 };
 

@@ -1,4 +1,4 @@
-__global__ void CUDAKernelName(double* C, double* A, double* B, size_t height1, size_t height2, size_t width, double Alpha, double Beta, size_t pitch, size_t offset)
+__global__ void CUDAKernelName(double* C, double* A, double* B, size_t height1, size_t height2, size_t width, double Alpha, double Beta, size_t pitch)
 {
 	for (int j = blockIdx.y * blockDim.y + threadIdx.y;j < height2;j += blockDim.y * gridDim.y)
 	{
@@ -13,7 +13,7 @@ __global__ void CUDAKernelName(double* C, double* A, double* B, size_t height1, 
 			{
 				addval += A[j * width + k] * B[i * width + k];
 			}
-			double* destptr = &C[offset + j * pitch + i];
+			double* destptr = &C[j * pitch + i];
 			*destptr = Alpha * addval + Beta * *destptr;
 		}
 	}

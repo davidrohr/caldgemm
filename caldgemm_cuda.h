@@ -76,6 +76,8 @@ private:
 	int WaitForEventAndRelease(cudaEvent_t* pEvent);
 
 	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16;
+
+	double *C_host, *C_device;
 };
 
 #endif
