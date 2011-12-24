@@ -31,7 +31,7 @@
 "#else\n" \
 "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n" \
 "#endif\n" \
-//"const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;\n" \
+/*"const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;\n" \*/
 "\n"
 
 
