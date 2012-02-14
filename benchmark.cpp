@@ -22,10 +22,6 @@
  * along with CALDGEMM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#if !defined(CALDGEMM_CAL) & !defined(CALDGEMM_OPENCL)
-#error Please enable either CAL or OpenCL!
-#endif
-
 #ifdef CALDGEMM_OPENCL
 #include "caldgemm_opencl.h"
 #endif

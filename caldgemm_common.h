@@ -6,7 +6,11 @@ extern "C" {
 #else
 
 #ifndef USE_GOTO_BLAS
+#ifdef USE_MKL_NOT_ACML
+
+#else
 #include <omp.h>
+#endif
 #endif
 
 #ifndef _WIN32
@@ -35,7 +39,11 @@ static inline void goto_set_num_threads(int) {}
 
 typedef int blasint;
 extern "C" {
+#ifdef USE_MKL
+#include <mkl_cblas.h>
+#else
 #include <cblas.h>
+#endif
 }
 
 #ifndef _WIN32

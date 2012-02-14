@@ -12,11 +12,12 @@ TARGET						= dgemm_bench
 LIBS						= 
 LIBPATHS					= 
 
-USE_GOTO_BLAS				= 1
+USE_GOTO_BLAS				= 0
+USE_MKL_NOT_ACML			= 1
 
-INCLUDE_OPENCL				= 1
-INCLUDE_CAL					= 1
-INCLUDE_CUDA				= 1
+INCLUDE_OPENCL				= 0
+INCLUDE_CAL					= 0
+INCLUDE_CUDA				= 0
 LIBS						=
 EXTRAOBJFILES				=
 
@@ -30,7 +31,7 @@ CUFILES						=
 
 INTELFLAGSUSE				= $(INTELFLAGSOPT)
 VSNETFLAGSUSE				= $(VSNETFLAGSOPT)
-GCCFLAGSUSE					= $(GCCFLAGSOPT)
+GCCFLAGSUSE					= $(GCCFLAGSDBG)
 NVCCFLAGSUSE				= $(NVCCFLAGSOPT)
 
 ifeq ($(AMDAPPSDKROOT), )
@@ -69,10 +70,17 @@ LIBS						+= gfortran
 EXTRAOBJFILES				+= ../GotoBLAS2/libgoto2.a
 endif
 else
+ifeq ($(USE_MKL_NOT_ACML), 1)
+INCLUDEPATHS				+= $(MKL_PATH)/include
+LIBS						+= iomp5 mkl_intel_lp64 mkl_core mkl_intel_thread
+LIBPATHS					+= $(MKL_PATH)/lib/intel64/
+DEFINES						+= USE_MKL
+else
 INCLUDEPATHS				+= ../acml-cblas/include
 EXTRAOBJFILES				+= ../acml-cblas/lib/cblas_LINUX.a ../acml/gfortran64_mp/lib/libacml_mp.a
 CONFIG_OPENMP				= 1
 LIBS						+= gfortran
+endif
 endif
 
 caldgemm_config.h:			caldgemm_config.sample
