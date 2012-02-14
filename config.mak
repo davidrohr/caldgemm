@@ -12,7 +12,7 @@ TARGET						= dgemm_bench
 LIBS						= 
 LIBPATHS					= 
 
-USE_GOTO_BLAS				= 0
+USE_GOTO_BLAS				= 1
 USE_MKL_NOT_ACML			= 1
 
 INCLUDE_OPENCL				= 0

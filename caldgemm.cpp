@@ -277,7 +277,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 void caldgemm::ensure_omp_thread_pinning()
 {
 #ifndef USE_GOTO_BLAS
-#ifdef USE_MKL_NOT_ACML
+#ifdef USE_MKL
 
 #else
 	if (Config->Debug) fprintf(STD_OUT, "Performing OpenMP Blas Thread Pinning\n");
@@ -329,7 +329,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 
 #ifndef USE_GOTO_BLAS
-#ifdef USE_MKL_NOT_ACML
+#ifdef USE_MKL
 
 #else
 	main_blas_core = get_num_procs() - 1;
