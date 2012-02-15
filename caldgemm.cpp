@@ -541,6 +541,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	
 	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Init complete, setting CPU mask %X\n", getcpumask(&oldcpumask));
 	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
+	
+	goto_set_num_threads(conf_numprocs);
 
 	caldgemm_initialized = true;
 
