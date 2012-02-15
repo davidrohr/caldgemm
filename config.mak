@@ -74,6 +74,9 @@ ifeq ($(USE_MKL_NOT_ACML), 1)
 INCLUDEPATHS				+= $(MKL_PATH)/include
 LIBS						+= iomp5 mkl_intel_lp64 mkl_core mkl_intel_thread
 LIBPATHS					+= $(MKL_PATH)/lib/intel64/
+ifneq ($(ICC_PATH), )
+LIBPATHS					+= $(ICC_PATH)/lib/intel64/
+endif
 DEFINES						+= USE_MKL
 CONFIG_OPENMP				= 1
 else
