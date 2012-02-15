@@ -277,9 +277,6 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 void caldgemm::ensure_omp_thread_pinning()
 {
 #ifndef USE_GOTO_BLAS
-#ifdef USE_MKL
-
-#else
 	if (Config->Debug) fprintf(STD_OUT, "Performing OpenMP Blas Thread Pinning\n");
 #pragma omp parallel num_threads(conf_numprocs)
 	{
@@ -314,7 +311,6 @@ void caldgemm::ensure_omp_thread_pinning()
 		sched_setaffinity(0, sizeof(localset), &localset);
 		if (Config->Debug) fprintf(STD_OUT, "OpenMP BLAS thread %d pinned to core %d\n", thread_id, localcore);
 	}
-#endif
 #endif
 }
 
@@ -1346,6 +1342,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 #endif
 		Timers.CPUTimer.Start();
 
+		fprintf(stderr, "TEST\n");
+		goto_set_num_threads(6);
 		cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, Config->m, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 		Timers.CPUTimer.Stop();
 		CPUOnlyRun = true;

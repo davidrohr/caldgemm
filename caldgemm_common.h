@@ -6,11 +6,7 @@ extern "C" {
 #else
 
 #ifndef USE_GOTO_BLAS
-#ifdef USE_MKL
-
-#else
 #include <omp.h>
-#endif
 #endif
 
 #ifndef _WIN32
@@ -18,11 +14,7 @@ extern "C" int get_num_procs();
 static inline void caldgemm_goto_restrict_cpus(int) {}
 static inline void caldgemm_goto_reserve_cpu(int, int) {}
 static inline void caldgemm_goto_reserve_cpus(int) {}
-#ifdef USE_MKL
-static inline void goto_set_num_threads(int num) {}
-#else
 static inline void goto_set_num_threads(int num) {omp_set_num_threads(num);}
-#endif
 #else
 extern "C" int get_num_procs();
 static inline void caldgemm_goto_reserve_cpu(int, int) {}
