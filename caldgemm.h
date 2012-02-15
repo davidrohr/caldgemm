@@ -221,7 +221,7 @@ protected:
 	static const int kernel_count = 3;
 #ifdef REUSE_BBUFFERS
 	static const int max_bbuffers = 21;
-	static const int max_bbuffers_g = 16;
+	static const int max_bbuffers_g = 20;
 #else
 	static const int max_bbuffers = 3;
 	static const int max_bbuffers_g = 3;

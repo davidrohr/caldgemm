@@ -1342,8 +1342,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 #endif
 		Timers.CPUTimer.Start();
 
-		fprintf(stderr, "TEST\n");
-		goto_set_num_threads(6);
 		cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, Config->m, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 		Timers.CPUTimer.Stop();
 		CPUOnlyRun = true;

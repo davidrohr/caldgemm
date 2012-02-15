@@ -4,7 +4,7 @@ __global__ void CUDAKernelName(double* C, double* A, double* B, size_t height1, 
 	{
 		for (int i = blockIdx.x * blockDim.x + threadIdx.x;i < height1;i += blockDim.x * gridDim.x)
 		{
-			double addval = 0;
+/*			double addval = 0;
 #ifdef CALDGEMM_FORCE_K
 			for (int k = 0;k < CALDGEMM_FORCE_K;k++)
 #else
@@ -14,7 +14,8 @@ __global__ void CUDAKernelName(double* C, double* A, double* B, size_t height1, 
 				addval += A[j * width + k] * B[i * width + k];
 			}
 			double* destptr = &C[j * pitch + i];
-			*destptr = Alpha * addval + Beta * *destptr;
+			*destptr = Alpha * addval + Beta * *destptr;*/
+			C[j * pitch + i] += 1.0;
 		}
 	}
 }
