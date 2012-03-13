@@ -1266,15 +1266,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 				Config->Height = 512;
 			}
-			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || (MaxGpuM * MaxGpuN < 13 * 14 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 2048 >= 1024) || (MaxGpuM * MaxGpuN < 16 * 1024 * 1024) || BufferHeight < 2048)
+			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || (MaxGpuM * MaxGpuN < 13 * 14 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 2048 >= 1024) || (MaxGpuM * MaxGpuN < 16 * 1024 * 1024))
 			{
 				Config->Height = 1024;
 			}
-			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || (MaxGpuM * MaxGpuN < 20 * 21 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 3072 >= 2048) || (MaxGpuM * MaxGpuN < 120 * 1024 * 1024) || BufferHeight < 3072)
+			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || (MaxGpuM * MaxGpuN < 20 * 21 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 3072 >= 2048) || (MaxGpuM * MaxGpuN < 120 * 1024 * 1024))
 			{
 				Config->Height = 2048;
 			}
-			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < 27 * 28 * 1024 * 1024 || BufferHeight < 4096)
+			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < 27 * 28 * 1024 * 1024)
 			{
 				Config->Height = 3072;
 			}
@@ -1289,15 +1289,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 				Config->Height = 512;
 			}
-			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || MaxGpuM * MaxGpuN < (size_t) nDevices * 16 * 1024 * 1024 || BufferHeight < 2048)
+			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || MaxGpuM * MaxGpuN < (size_t) nDevices * 16 * 1024 * 1024)
 			{
 				Config->Height = 1024;
 			}
-			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || MaxGpuM * MaxGpuN < (size_t) nDevices * 120 * 1024 * 1024 || BufferHeight < 3072)
+			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || MaxGpuM * MaxGpuN < (size_t) nDevices * 120 * 1024 * 1024)
 			{
 				Config->Height = 2048;
 			}
-			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < (size_t) nDevices * 60 * 60 * 1024 * 1024 || BufferHeight < 4096)
+			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < (size_t) nDevices * 60 * 60 * 1024 * 1024)
 			{
 				Config->Height = 3072;
 			}
@@ -1307,6 +1307,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			}
 			while (Config->SlowCPU && !Config->SmallTiles && Config->Height > 1024 && (MaxGpuM % Config->Height > 1024 || MaxGpuN % Config->Height > 1024)) Config->Height -= 1024;
 		}
+		if (Config->Height > BufferHeight) Config->Height = BufferHeight;
 		if ((Config->Height != BufferHeight && !Config->Quiet) || Config->Debug)  fprintf(STD_OUT, "Using Height %lld of max %lld\n", (long long int) Config->Height, (long long int) BufferHeight);
 	}
 
@@ -1467,7 +1468,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 		if (Config->n % Config->Height || Config->m % Config->Height)
 		{
-			fprintf(STD_OUT, "Invalid matrix size for GPU only\n");
+			fprintf(STD_OUT, "Invalid matrix size for GPU only (%lld %% %lld = %lld, %lld %% %lld = %lld)\n", (long long int) Config->n, (long long int) Config->Height, (long long int) Config->n % Config->Height, (long long int) Config->m, (long long int) Config->Height, (long long int) Config->m % Config->Height);
 			return(1);
 		}
 		gpu_n = Config->n;
