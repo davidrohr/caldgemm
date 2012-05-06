@@ -181,6 +181,8 @@ caldgemm::caldgemm_config::caldgemm_config()
 	GPUClock = 0;
 	SmallTiles = false;
 	ThreadSaveDriver = false;
+	SkipCPUProcessing = false;
+	OutputThreads = -1;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -397,7 +399,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	if (CheckDevices()) return(1);
 
-	outputthreads = Config->KeepBuffersMapped || Config->DstMemory == 'g' ? CALDGEMM_OUTPUT_THREADS : CALDGEMM_OUTPUT_THREADS_SLOW;
+	outputthreads = Config->OutputThreads == -1 ? (Config->KeepBuffersMapped || Config->DstMemory == 'g' ? CALDGEMM_OUTPUT_THREADS : CALDGEMM_OUTPUT_THREADS_SLOW) : Config->OutputThreads;
 	
 	if (InitDevices()) return(1);
 	

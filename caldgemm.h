@@ -116,6 +116,7 @@ public:
 		bool DumpMatrix;						//Dump input matrix to file
 		unsigned int Iterations;				//Run multiple iterations (for benchmark and debugging purpose only)
 		bool Verify;							//Verify the result
+		bool SkipCPUProcessing;					//Skip divide and merge buffer
 
 		int GPUMapping[max_devices];			//Mapping of GPU devices to CPU cores. Affects DivideBuffer Threads, merge threads take the succeeding cores.
 		int PostprocessMapping[max_devices];	//Mapping for postprocessing threads, default -1 = same mapping as GPU
@@ -124,6 +125,7 @@ public:
 		bool ThreadSaveDriver;					//Assume GPU driver to be thread save
 		int PinCPU;								//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
+		int OutputThreads;						//Number of output threads
 		
 		size_t Height;							//height of subblock od A, width of subblock of B
 		size_t m, n;							//height of A, width of B, must be multiple of height

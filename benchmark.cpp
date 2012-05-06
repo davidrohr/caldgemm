@@ -154,6 +154,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
 	fprintf(STD_OUT, "\t-!        Do not use page locked memory\n");
 	fprintf(STD_OUT, "\t-_        Allocate memory using the GPU runtime library (e.g. OpenCL)\n");
+	fprintf(STD_OUT, "\t-= <int>  Define number of output threads\n");
+	fprintf(STD_OUT, "\t-%%        Skip CPU Pre- and Postprocessing\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -255,6 +257,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 		case 'B':
 			Config->KeepBuffersMapped = true;
 			break;
+		case '%':
+			Config->SkipCPUProcessing = true;
+			break;
 		case 'L':
 			linpackmemory = true;
 			break;
@@ -265,6 +270,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			if (++x >= argc) return(1);
 			linpackpitch = true;
 			sscanf(argv[x], "%lld", (long long int*) &pitch_c);
+			break;
+		case '=':
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->OutputThreads);
 			break;
 		case '-':
 			if (argv[x][2])

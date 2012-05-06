@@ -109,6 +109,7 @@ caldgemm_cal::~caldgemm_cal()
 
 int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose)
 {
+	if (Config->SkipCPUProcessing) return(0);
 	if (Config->Debug) fprintf(STD_OUT, "\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", (long long int) src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
 
 	if (Config->DivideToGPU)
@@ -423,6 +424,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 
 int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers)
 {
+	if (Config->SkipCPUProcessing) return(0);
 #ifdef CALDGEMM_BENCHMARK_KERNEL
 	return(0);
 #endif
@@ -1138,21 +1140,22 @@ int caldgemm_cal::CheckDevices()
 		}
 		conf_gpufreq = attribs.engineClock ? attribs.engineClock : 850;
 		conf_gpushaders = attribs.numberOfSIMD * attribs.wavefrontSize;
+		//if (Config->Debug) fprintf(STD_OUT, "Device %d Identifier: %s\n", i, attribs.target);
 	}
 
-	if (Config->KeepBuffersMapped)
+	if (1 || Config->KeepBuffersMapped)
 	{
 		if (SetupKernel(ILFakeKernel, &fakeModule, &ctxs[0], device_nums[0], false)) return(1);
 		CALresource tmpres = 0;
-		CHKERR(calResAllocLocal2D(&tmpres, devices[0], 128, 128, CAL_FORMAT_FLOAT_4, 0), "checking for CAL patch");
+		CHKERR(calResAllocLocal2D(&tmpres, devices[0], 128, 128, CAL_FORMAT_FLOAT_4, 0), "checking for CAL patch (resalloc)");
 		void* tmpptr;
 		unsigned int tmppitch;
-		CHKERR(calResMap((CALvoid**) &tmpptr, &tmppitch, tmpres, 0), "checking for CAL patch");
+		if (Config->KeepBuffersMapped) CHKERR(calResMap((CALvoid**) &tmpptr, &tmppitch, tmpres, 0), "checking for CAL patch (map)");
 		CALname tmpname;
-		CHKERR(calModuleGetName(&tmpname, ctxs[0], fakeModule, "o0"), "checking for CAL patch");
+		CHKERR(calModuleGetName(&tmpname, ctxs[0], fakeModule, "o0"), "checking for CAL patch (getname)");
 		CALmem tmpmem;
-		CHKERR(calCtxGetMem(&tmpmem, ctxs[0], tmpres), "checking for CAL patch");
-		CHKERR(calCtxSetMem(ctxs[0], tmpname, tmpmem), "checking for CAL patch");
+		CHKERR(calCtxGetMem(&tmpmem, ctxs[0], tmpres), "checking for CAL patch (getmem)");
+		CHKERR(calCtxSetMem(ctxs[0], tmpname, tmpmem), "checking for CAL patch (setmem)");
 
 		if (RunProgram(&ctxs[0], &fakeModule, 0, 0, &events[0][0]))
 		{
@@ -1161,6 +1164,7 @@ int caldgemm_cal::CheckDevices()
 		}
 		//if (Config->KeepBuffersMapped) checkCalPatch();
 
+		if (Config->KeepBuffersMapped) CHKERR(calResUnmap(tmpres), "checking for CAL patch (unmap)");
 		calCtxReleaseMem(ctxs[0], tmpmem);
 		calResFree(tmpres);
 		if (calModuleUnload(ctxs[0], fakeModule) != CAL_RESULT_OK )

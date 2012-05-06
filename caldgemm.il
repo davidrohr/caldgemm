@@ -596,7 +596,7 @@ MMUL_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, 
 "dcl_output_generic o7\n"
 #endif
 
-#if (!defined(CALDGEMM_BENCHMARK_KERNEL) & !defined(CALDGEMM_ALPHA1)) | (!defined(CALDGEMM_84) & !defined(CALDGEMM_48) & defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)) //For some reason the multiplication makes the compiler create a faster kernel
+#if (!defined(CALDGEMM_BENCHMARK_KERNEL) & !defined(CALDGEMM_ALPHA1)) | (!defined(CALDGEMM_84) & !defined(CALDGEMM_48) & defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A) & 0) //For some reason the multiplication makes the compiler create a faster kernel for some GPUs, currently disabled
 MUL8(r3, r4, r5, r6, r7, r8, r9, r10, cb0[1].zw)
 #if defined(CALDGEMM_84) | defined(CALDGEMM_48)
 MUL8(r37, r38, r39, r40, r41, r42, r43, r44, cb0[1].zw)
