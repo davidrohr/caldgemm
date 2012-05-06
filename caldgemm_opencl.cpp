@@ -297,7 +297,11 @@ int caldgemm_opencl::InitDevices()
 	{
 		for (int j = 0;j < 2;j++)
 		{
+#ifdef CALDGEMM_TRANSPOSED_B
 			ocl_abuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferWidth / 2, BufferHeight, 0, NULL, &ocl_error);
+#elif defined(CALDGEMM_TRANSPOSED_A)
+			ocl_abuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight / 2, BufferWidth, 0, NULL, &ocl_error);
+#endif
 			CHKRET(ocl_error, "Error allocating device memory (A)");
 		}
 
@@ -318,7 +322,11 @@ int caldgemm_opencl::InitDevices()
 
 		for (int j = 0;j < num_bbuffers;j++)
 		{
+#ifdef CALDGEMM_TRANSPOSED_B
 			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferWidth / 2, BufferHeight, 0, NULL, &ocl_error);
+#elif defined(CALDGEMM_TRANSPOSED_A)
+			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight / 2, BufferWidth, 0, NULL, &ocl_error);
+#endif
 			if (ocl_error != CL_SUCCESS)
 			{
 				if (j < obuffercount)
@@ -553,7 +561,12 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, A, 0");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, A, 1");
-		int arg_transpose = TransposeA, arg_width = region[0] / sizeof(double), arg_height = region[1];
+#ifdef CALDGEMM_TRANSPOSED_B
+		int arg_transpose = TransposeA;
+#elif defined(CALDGEMM_TRANSPOSED_A)
+		int arg_transpose = !TransposeA;
+#endif
+		int arg_width = region[0] / sizeof(double), arg_height = region[1];
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &arg_width), "Error setting kernel arg, A, 2");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &arg_height), "Error setting kernel arg, A, 3");
 		
@@ -598,7 +611,12 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, B, 0");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, B, 1");
-		int arg_transpose = !TransposeB, arg_width = region[0] / sizeof(double), arg_height = region[1];
+#ifdef CALDGEMM_TRANSPOSED_B
+		int arg_transpose = !TransposeB;
+#elif defined(CALDGEMM_TRANSPOSED_A)
+		int arg_transpose = TransposeB;
+#endif
+		int arg_width = region[0] / sizeof(double), arg_height = region[1];
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &arg_width), "Error setting kernel arg, B, 2");
 		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &arg_height), "Error setting kernel arg, B, 3");
 

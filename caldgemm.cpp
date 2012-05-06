@@ -2351,7 +2351,7 @@ unsigned int caldgemm::AnalyzeResults()
 			{
 				if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
 				{
-					if (errors < 1) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le, Relative: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j], (D[i * C_pitch + j] - C[i * C_pitch + j]) / D[i * C_pitch + j]);
+					if (errors < 100) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le, Relative: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j], (D[i * C_pitch + j] - C[i * C_pitch + j]) / D[i * C_pitch + j]);
 					++errors;
 					errortiles[j / Config->Height * nblocksm + i / Config->Height]++;
 					if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] > 0.05) errorsrel[0]++;

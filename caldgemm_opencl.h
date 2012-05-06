@@ -29,6 +29,10 @@
 
 #include "caldgemm.h"
 
+#if !defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_TRANSPOSED_B)
+#error You must either defined CALDGEMM_TRANSPOSED_A or CALDGEMM_TRANSPOSED_B for the OpenCL backend
+#endif
+
 class caldgemm_opencl : public caldgemm
 {
 public:

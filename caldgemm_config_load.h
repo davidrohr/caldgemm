@@ -52,8 +52,12 @@
 #if defined(CALDGEMM_84) | defined(CALDGEMM_48)
 #define CALDGEMM_44
 #define CALDGEMM_USE_MEMEXPORT
+#ifndef CALDGEMM_TRANSPOSED_A
 #define CALDGEMM_TRANSPOSED_A
+#warning Setting CALDGEMM_TRANSPOSED_A for 8x?/?x8 CAL tiling
+#endif
 #ifdef CALDGEMM_TRANSPOSED_B
+#warning Unsetting CALDGEMM_TRANSPOSED_B for 8x?/?x8 CAL tiling
 #undef CALDGEMM_TRANSPOSED_B
 #endif
 #endif
@@ -61,10 +65,14 @@
 #ifdef CALDGEMM_44
 #ifdef CALDGEMM_TRANSPOSED_B
 #ifdef CALDGEMM_TRANSPOSED_A
+#warning Unsetting CALDGEMM_TRANSPOSED_A for != 8x2 CAL tiling
 #undef CALDGEMM_TRANSPOSED_A
 #endif
 #else
+#ifndef CALDGEMM_TRANSPOSED_A
+#warning Setting CALDGEMM_TRANSPOSED_A for != 8x2 CAL tiling
 #define CALDGEMM_TRANSPOSED_A
+#endif
 #endif
 #endif
 
