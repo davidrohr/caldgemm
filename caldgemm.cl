@@ -89,7 +89,7 @@ OCL_KERNEL_PRE
 "			double addval[OCL_TILING_X][OCL_TILING_Y];\n"
 "#pragma unroll\n"
 "			for (k = 0;k < OCL_TILING_X;k++) for (l = 0;l < OCL_TILING_Y;l++) addval[k][l] = 0.;\n"
-"#pragma unroll 2\n"
+"#pragma unroll 1\n"
 #ifdef CALDGEMM_FORCE_K
 "			for (k = 0;k < " qon_mxstr(CALDGEMM_FORCE_K) ";k++)\n"
 #else
