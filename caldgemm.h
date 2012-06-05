@@ -153,6 +153,9 @@ public:
 		void (*linpack_factorize_function)();	//Linpack callback functions
 		void (*linpack_broadcast_function)();
 		void (*linpack_swap_function)();
+		
+		int nExcludeCPUCores;						//CPU Cores to exlude
+		int* ExcludeCPUCores;
 	};
 	
 	//CALDGEMM interface functions
