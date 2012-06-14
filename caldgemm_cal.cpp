@@ -1143,7 +1143,7 @@ int caldgemm_cal::CheckDevices()
 		//if (Config->Debug) fprintf(STD_OUT, "Device %d Identifier: %s\n", i, attribs.target);
 	}
 
-	if (1 || Config->KeepBuffersMapped)
+	if (Config->KeepBuffersMapped && Config->UseGPU)
 	{
 		if (SetupKernel(ILFakeKernel, &fakeModule, &ctxs[0], device_nums[0], false)) return(1);
 		CALresource tmpres = 0;
