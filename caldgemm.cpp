@@ -183,6 +183,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	ThreadSaveDriver = false;
 	SkipCPUProcessing = false;
 	OutputThreads = -1;
+	RepinDuringActiveWaitForEvent = 0;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -329,9 +330,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 
 #ifndef USE_GOTO_BLAS
-#ifdef USE_MKL
-
-#else
 	main_blas_core = get_num_procs() - 1;
 	{
 		if (Config->Debug) fprintf(STD_OUT, "Pinning Main OpenMP BLAS thread to core %d\n", main_blas_core);
@@ -340,7 +338,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		CPU_SET(main_blas_core, &blasset);
 		sched_setaffinity(0, sizeof(blasset), &blasset);
 	}
-#endif
 #endif
 
 #ifdef _WIN32

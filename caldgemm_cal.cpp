@@ -79,6 +79,14 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 {
 	CALresult r;
 	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr);
+	cpu_set_t blasset;
+	bool needrepin = Config->RepinDuringActiveWaitForEvent && Config->AllocMapping[devicenr] != -1 && Config->AllocMapping[devicenr] != Config->PinMainThread;
+	if (needrepin)
+	{
+		CPU_ZERO(&blasset);
+		CPU_SET(Config->AllocMapping[devicenr], &blasset);
+		sched_setaffinity(0, sizeof(blasset), &blasset);
+	}
 	do
 	{
 		if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
@@ -90,6 +98,12 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 			return(1);
 		}
 	} while (r == CAL_RESULT_PENDING);
+	if (needrepin)
+	{
+		CPU_ZERO(&blasset);
+		CPU_SET(Config->PinMainThread, &blasset);
+		sched_setaffinity(0, sizeof(blasset), &blasset);
+	}
 	return(0);
 }
 
@@ -905,6 +919,7 @@ int caldgemm_cal::RunProgram(CALcontext *ctx, CALmodule *module, unsigned int Wi
 #ifdef CALDGEMM_BENCHMARK_KERNEL
 	for (int i = 0;i < CALDGEMM_BENCHMARK_KERNEL;i++)
 #endif
+				
 	CHKERR(calCtxRunProgram(event, *ctx, func, &rect), "executing kernel");
 
 	if (Config->VerboseTiming)

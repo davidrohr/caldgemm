@@ -122,6 +122,7 @@ public:
 		int PostprocessMapping[max_devices];	//Mapping for postprocessing threads, default -1 = same mapping as GPU
 		int AllocMapping[max_devices];			//Core (die with that core in fact) where the memory for dma transfer is allocated
 		int PinMainThread;						//Pin main thread to specific device. Default: Use the first GPU preprocessing core
+		bool RepinDuringActiveWaitForEvent;	//Repin the Main CPU core that does the active wait for the event to the allocmapping of the GPU it waits for
 		bool ThreadSaveDriver;					//Assume GPU driver to be thread save
 		int PinCPU;								//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
