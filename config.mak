@@ -12,12 +12,12 @@ TARGET						= dgemm_bench
 LIBS						= 
 LIBPATHS					= 
 
-USE_GOTO_BLAS				= 1
-USE_MKL_NOT_ACML			= 0
+USE_GOTO_BLAS				= 0
+USE_MKL_NOT_ACML			= 1
 
-INCLUDE_OPENCL				= 1
+INCLUDE_OPENCL				= 0
 INCLUDE_CAL					= 1
-INCLUDE_CUDA				= 1
+INCLUDE_CUDA				= 0
 LIBS						=
 EXTRAOBJFILES				=
 

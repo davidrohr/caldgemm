@@ -79,10 +79,11 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 {
 	CALresult r;
 	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr);
-	cpu_set_t blasset;
+	cpu_set_t blasset, oldset;
 	bool needrepin = Config->RepinDuringActiveWaitForEvent && Config->AllocMapping[devicenr] != -1 && Config->AllocMapping[devicenr] != Config->PinMainThread;
 	if (needrepin)
 	{
+		sched_getaffinity(0, sizeof(oldset), &oldset);
 		CPU_ZERO(&blasset);
 		CPU_SET(Config->AllocMapping[devicenr], &blasset);
 		sched_setaffinity(0, sizeof(blasset), &blasset);
@@ -100,9 +101,7 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 	} while (r == CAL_RESULT_PENDING);
 	if (needrepin)
 	{
-		CPU_ZERO(&blasset);
-		CPU_SET(Config->PinMainThread, &blasset);
-		sched_setaffinity(0, sizeof(blasset), &blasset);
+		sched_setaffinity(0, sizeof(oldset), &oldset);
 	}
 	return(0);
 }
@@ -213,7 +212,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 		else
 #endif
 #if (defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B))
-			assert((height & 3) == 0);
+		assert((height & 3) == 0);
 		const int height_4 = height / 4;
 
 		for (int y=0; y < width; y += 4)
@@ -254,6 +253,69 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				_mm_stream_pd(&daddr1[6], _mm_unpackhi_pd(x6, x7));
 			}
 		}
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+		for (int y = 0;y < width;y += 16)
+		{
+			const double* __restrict__ saddr0 = &src[(y + 0) * pitch];
+			const double* __restrict__ saddr2 = &src[(y + 2) * pitch];
+			const double* __restrict__ saddr4 = &src[(y + 4) * pitch];
+			const double* __restrict__ saddr6 = &src[(y + 6) * pitch];
+
+			double* __restrict__ dstBank0 = &dst[0].ptr_double[(y / 2) & 0xFFFFFFFE];
+			double* __restrict__ dstBank1 = &dst[1].ptr_double[(y / 2) & 0xFFFFFFFE];
+
+			for (int i = 0;i < height;i += 2)
+			{
+				double* __restrict__ daddr0 = &dstBank0[i * gpu_width / 2];
+				double* __restrict__ daddr1 = &dstBank1[i * gpu_width / 2];
+{
+				const __m128d x0 = _mm_load_pd_use(&saddr0[0]);
+				const __m128d x1 = _mm_load_pd_use(&saddr0[pitch]);
+				const __m128d x2 = _mm_load_pd_use(&saddr2[0]);
+				const __m128d x3 = _mm_load_pd_use(&saddr2[pitch]);
+				const __m128d x4 = _mm_load_pd_use(&saddr4[0]);
+				const __m128d x5 = _mm_load_pd_use(&saddr4[pitch]);
+				const __m128d x6 = _mm_load_pd_use(&saddr6[0]);
+				const __m128d x7 = _mm_load_pd_use(&saddr6[pitch]);
+
+				_mm_stream_pd(&daddr0[0], _mm_unpacklo_pd(x0, x1));
+				_mm_stream_pd(&daddr0[gpu_width/2], _mm_unpackhi_pd(x0, x1));
+				_mm_stream_pd(&daddr1[0], _mm_unpacklo_pd(x2, x3));
+				_mm_stream_pd(&daddr1[gpu_width/2], _mm_unpackhi_pd(x2, x3));
+
+				_mm_stream_pd(&daddr0[2], _mm_unpacklo_pd(x4, x5));
+				_mm_stream_pd(&daddr0[gpu_width/2 + 2], _mm_unpackhi_pd(x4, x5));
+				_mm_stream_pd(&daddr1[2], _mm_unpacklo_pd(x6, x7));
+				_mm_stream_pd(&daddr1[gpu_width/2 + 2], _mm_unpackhi_pd(x6, x7));
+}
+
+{
+				const __m128d x0 = _mm_load_pd_use(&saddr0[8*pitch]);
+				const __m128d x1 = _mm_load_pd_use(&saddr0[9*pitch]);
+				const __m128d x2 = _mm_load_pd_use(&saddr2[8*pitch]);
+				const __m128d x3 = _mm_load_pd_use(&saddr2[9*pitch]);
+				const __m128d x4 = _mm_load_pd_use(&saddr4[8*pitch]);
+				const __m128d x5 = _mm_load_pd_use(&saddr4[9*pitch]);
+				const __m128d x6 = _mm_load_pd_use(&saddr6[8*pitch]);
+				const __m128d x7 = _mm_load_pd_use(&saddr6[9*pitch]);
+
+				_mm_stream_pd(&daddr0[4], _mm_unpacklo_pd(x0, x1));
+				_mm_stream_pd(&daddr0[gpu_width/2+4], _mm_unpackhi_pd(x0, x1));
+				_mm_stream_pd(&daddr1[4], _mm_unpacklo_pd(x2, x3));
+				_mm_stream_pd(&daddr1[gpu_width/2+4], _mm_unpackhi_pd(x2, x3));
+
+				_mm_stream_pd(&daddr0[6], _mm_unpacklo_pd(x4, x5));
+				_mm_stream_pd(&daddr0[gpu_width/2 + 6], _mm_unpackhi_pd(x4, x5));
+				_mm_stream_pd(&daddr1[6], _mm_unpacklo_pd(x6, x7));
+				_mm_stream_pd(&daddr1[gpu_width/2 + 6], _mm_unpackhi_pd(x6, x7));
+}
+				saddr0 += 2;
+				saddr2 += 2;
+				saddr4 += 2;
+				saddr6 += 2;
+			}
+		}
+
 #else
 			for (int y=0; y < width; y += 2)
 			{

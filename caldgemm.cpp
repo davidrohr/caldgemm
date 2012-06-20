@@ -330,7 +330,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 
 #ifndef USE_GOTO_BLAS
-	main_blas_core = get_num_procs() - 1;
+	main_blas_core = 7;//get_num_procs() - 1;
 	{
 		if (Config->Debug) fprintf(STD_OUT, "Pinning Main OpenMP BLAS thread to core %d\n", main_blas_core);
 		cpu_set_t blasset;
