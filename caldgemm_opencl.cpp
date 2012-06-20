@@ -367,7 +367,7 @@ int caldgemm_opencl::InitDevices()
 			ocl_program[i][j] = clCreateProgramWithSource(ocl_contexts[i], 1, &sourceCode, NULL, &ocl_error);
 			CHKRET(ocl_error, "Error creating program object");
 
-			ocl_error = clBuildProgram(ocl_program[i][j], 1, &ocl_devices[i], "", NULL, NULL);
+			ocl_error = clBuildProgram(ocl_program[i][j], 1, &ocl_devices[i], Config->Disassemble ? "-save-temps=." : "", NULL, NULL);
 			if (ocl_error != CL_SUCCESS)
 			{
 				fprintf(STD_OUT, "OpenCL Error while building program: %d\n", ocl_error);

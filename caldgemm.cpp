@@ -189,6 +189,8 @@ caldgemm::caldgemm_config::caldgemm_config()
 		PostprocessMapping[i] = -1;
 		AllocMapping[i] = -1;
 	}
+	nExcludeCPUCores = 0;
+	ExcludeCPUCores = NULL;
 }
 
 int caldgemm::getcpumask(cpu_set_t* set)
@@ -559,6 +561,7 @@ int caldgemm::broadcastcore()
 bool caldgemm::cpuUsed(int cpu)
 {
 	if (cpu == Config->PinMainThread) return(true);
+	for (int i = 0;i < Config->nExcludeCPUCores;i++) if (Config->ExcludeCPUCores[i] == cpu) return(true);
 	return(false);
 }
 

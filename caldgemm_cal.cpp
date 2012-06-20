@@ -1784,6 +1784,8 @@ int caldgemm_cal::reserve_cpu_cores()
 		caldgemm_goto_reserve_cpu(Config->PinMainThread, 1);
 		nthreads++;
 	}
+	for (int i = 0;i < Config->nExcludeCPUCores;i++) caldgemm_goto_reserve_cpu(Config->ExcludeCPUCores[i], 1);
+	nthreads += Config->nExcludeCPUCores;
 	if (Config->Debug) fprintf(STD_OUT, "Reserved %d cores\n", nthreads);
 	return(nthreads);
 }
@@ -1811,6 +1813,7 @@ bool caldgemm_cal::cpuUsed(int cpu)
 		if (cpu >= Config->GPUMapping[i] && cpu < Config->GPUMapping[i] + procsreq) return(true);
 		if (Config->PostprocessMapping[i] != -1 && cpu >= Config->PostprocessMapping[i] && cpu < Config->PostprocessMapping[i] + outputthreads) return(true);
 	}
+	for (int i = 0;i < Config->nExcludeCPUCores;i++) if (Config->ExcludeCPUCores[i] == cpu) return(true);
 
 	return(false);
 }

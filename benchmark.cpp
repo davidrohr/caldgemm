@@ -156,6 +156,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-_        Allocate memory using the GPU runtime library (e.g. OpenCL)\n");
 	fprintf(STD_OUT, "\t-= <int>  Define number of output threads\n");
 	fprintf(STD_OUT, "\t-%%        Skip CPU Pre- and Postprocessing\n");
+	fprintf(STD_OUT, "\t-@ <list> Comma separated list of CPU cores to exclude\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -230,6 +231,33 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 		case 'u':
 			Config->DumpMatrix = true;
 			break;
+		case '@':
+		{
+			if (++x >= argc) return(1);
+			if (Config->ExcludeCPUCores) free(Config->ExcludeCPUCores);
+			Config->ExcludeCPUCores = NULL;
+			Config->nExcludeCPUCores = 0;
+			char* ptr = argv[x];
+			int j = 0;
+			int a = strlen(ptr);
+			for (int i = 0;i <= a;i++)
+			{
+				if (ptr[i] == ',' || ptr[i] == 0)
+				{
+					if (i > j)
+					{
+						Config->nExcludeCPUCores++;
+						if (Config->nExcludeCPUCores == 1) Config->ExcludeCPUCores = (int*) malloc(sizeof(int));
+						else Config->ExcludeCPUCores = (int*) realloc(Config->ExcludeCPUCores, Config->nExcludeCPUCores * sizeof(int));
+						ptr[i] = 0;
+						sscanf(&ptr[j], "%d", &Config->ExcludeCPUCores[Config->nExcludeCPUCores - 1]);
+						fprintf(STD_OUT, "Excluding CPU Core %d\n", Config->ExcludeCPUCores[Config->nExcludeCPUCores - 1]);
+						j = i + 1;
+					}
+				}
+			}
+			break;
+		}
 		case 'a':
 			Config->Disassemble = true;
 			break;
