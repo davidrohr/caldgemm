@@ -84,8 +84,11 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 		if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
 		r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr]);
 		if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
-		if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString());
-		return(1);}
+		if (r == CAL_RESULT_ERROR)
+		{
+			fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString());
+			return(1);
+		}
 	} while (r == CAL_RESULT_PENDING);
 	return(0);
 }
