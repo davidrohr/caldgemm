@@ -157,7 +157,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-= <int>  Define number of output threads\n");
 	fprintf(STD_OUT, "\t-%%        Skip CPU Pre- and Postprocessing\n");
 	fprintf(STD_OUT, "\t-@ <list> Comma separated list of CPU cores to exclude\n");
-	fprintf(STD_OUT, "\t-.        Repin Main Thread During Active Wait for GPU Event\n"); 
+	fprintf(STD_OUT, "\t-.        Repin Main Thread During Active Wait for GPU Event\n");
+	fprintf(STD_OUT, "\t-, <int>  Sleep for n usec during active wait\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -282,6 +283,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case '.':
 			Config->RepinDuringActiveWaitForEvent = true;
+			break;
+		case ',':
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", (int*) &Config->SleepDuringActiveWait);
 			break;
 		case 'J':
 			Config->SmallTiles = true;

@@ -5,3 +5,4 @@ dgemm_bench
 vcproject
 *.o
 caldgemm_config.h
+config_options.mak

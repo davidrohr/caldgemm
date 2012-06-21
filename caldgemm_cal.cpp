@@ -98,6 +98,14 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 			fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString());
 			return(1);
 		}
+		else if (Config->SleepDuringActiveWait != -1 && r == CAL_RESULT_PENDING)
+		{
+#ifdef _WIN32
+			Sleep(Config->SleepDuringActiveWait / 1000);
+#else
+			usleep(Config->SleepDuringActiveWait);
+#endif
+		}
 	} while (r == CAL_RESULT_PENDING);
 	if (needrepin)
 	{
@@ -268,47 +276,47 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 			{
 				double* __restrict__ daddr0 = &dstBank0[i * gpu_width / 2];
 				double* __restrict__ daddr1 = &dstBank1[i * gpu_width / 2];
-{
-				const __m128d x0 = _mm_load_pd_use(&saddr0[0]);
-				const __m128d x1 = _mm_load_pd_use(&saddr0[pitch]);
-				const __m128d x2 = _mm_load_pd_use(&saddr2[0]);
-				const __m128d x3 = _mm_load_pd_use(&saddr2[pitch]);
-				const __m128d x4 = _mm_load_pd_use(&saddr4[0]);
-				const __m128d x5 = _mm_load_pd_use(&saddr4[pitch]);
-				const __m128d x6 = _mm_load_pd_use(&saddr6[0]);
-				const __m128d x7 = _mm_load_pd_use(&saddr6[pitch]);
+				{
+					const __m128d x0 = _mm_load_pd_use(&saddr0[0]);
+					const __m128d x1 = _mm_load_pd_use(&saddr0[pitch]);
+					const __m128d x2 = _mm_load_pd_use(&saddr2[0]);
+					const __m128d x3 = _mm_load_pd_use(&saddr2[pitch]);
+					const __m128d x4 = _mm_load_pd_use(&saddr4[0]);
+					const __m128d x5 = _mm_load_pd_use(&saddr4[pitch]);
+					const __m128d x6 = _mm_load_pd_use(&saddr6[0]);
+					const __m128d x7 = _mm_load_pd_use(&saddr6[pitch]);
 
-				_mm_stream_pd(&daddr0[0], _mm_unpacklo_pd(x0, x1));
-				_mm_stream_pd(&daddr0[gpu_width/2], _mm_unpackhi_pd(x0, x1));
-				_mm_stream_pd(&daddr1[0], _mm_unpacklo_pd(x2, x3));
-				_mm_stream_pd(&daddr1[gpu_width/2], _mm_unpackhi_pd(x2, x3));
+					_mm_stream_pd(&daddr0[0], _mm_unpacklo_pd(x0, x1));
+					_mm_stream_pd(&daddr0[gpu_width/2], _mm_unpackhi_pd(x0, x1));
+					_mm_stream_pd(&daddr1[0], _mm_unpacklo_pd(x2, x3));
+					_mm_stream_pd(&daddr1[gpu_width/2], _mm_unpackhi_pd(x2, x3));
 
-				_mm_stream_pd(&daddr0[2], _mm_unpacklo_pd(x4, x5));
-				_mm_stream_pd(&daddr0[gpu_width/2 + 2], _mm_unpackhi_pd(x4, x5));
-				_mm_stream_pd(&daddr1[2], _mm_unpacklo_pd(x6, x7));
-				_mm_stream_pd(&daddr1[gpu_width/2 + 2], _mm_unpackhi_pd(x6, x7));
-}
+					_mm_stream_pd(&daddr0[2], _mm_unpacklo_pd(x4, x5));
+					_mm_stream_pd(&daddr0[gpu_width/2 + 2], _mm_unpackhi_pd(x4, x5));
+					_mm_stream_pd(&daddr1[2], _mm_unpacklo_pd(x6, x7));
+					_mm_stream_pd(&daddr1[gpu_width/2 + 2], _mm_unpackhi_pd(x6, x7));
+				}
 
-{
-				const __m128d x0 = _mm_load_pd_use(&saddr0[8*pitch]);
-				const __m128d x1 = _mm_load_pd_use(&saddr0[9*pitch]);
-				const __m128d x2 = _mm_load_pd_use(&saddr2[8*pitch]);
-				const __m128d x3 = _mm_load_pd_use(&saddr2[9*pitch]);
-				const __m128d x4 = _mm_load_pd_use(&saddr4[8*pitch]);
-				const __m128d x5 = _mm_load_pd_use(&saddr4[9*pitch]);
-				const __m128d x6 = _mm_load_pd_use(&saddr6[8*pitch]);
-				const __m128d x7 = _mm_load_pd_use(&saddr6[9*pitch]);
+				{
+					const __m128d x0 = _mm_load_pd_use(&saddr0[8*pitch]);
+					const __m128d x1 = _mm_load_pd_use(&saddr0[9*pitch]);
+					const __m128d x2 = _mm_load_pd_use(&saddr2[8*pitch]);
+					const __m128d x3 = _mm_load_pd_use(&saddr2[9*pitch]);
+					const __m128d x4 = _mm_load_pd_use(&saddr4[8*pitch]);
+					const __m128d x5 = _mm_load_pd_use(&saddr4[9*pitch]);
+					const __m128d x6 = _mm_load_pd_use(&saddr6[8*pitch]);
+					const __m128d x7 = _mm_load_pd_use(&saddr6[9*pitch]);
 
-				_mm_stream_pd(&daddr0[4], _mm_unpacklo_pd(x0, x1));
-				_mm_stream_pd(&daddr0[gpu_width/2+4], _mm_unpackhi_pd(x0, x1));
-				_mm_stream_pd(&daddr1[4], _mm_unpacklo_pd(x2, x3));
-				_mm_stream_pd(&daddr1[gpu_width/2+4], _mm_unpackhi_pd(x2, x3));
+					_mm_stream_pd(&daddr0[4], _mm_unpacklo_pd(x0, x1));
+					_mm_stream_pd(&daddr0[gpu_width/2+4], _mm_unpackhi_pd(x0, x1));
+					_mm_stream_pd(&daddr1[4], _mm_unpacklo_pd(x2, x3));
+					_mm_stream_pd(&daddr1[gpu_width/2+4], _mm_unpackhi_pd(x2, x3));
 
-				_mm_stream_pd(&daddr0[6], _mm_unpacklo_pd(x4, x5));
-				_mm_stream_pd(&daddr0[gpu_width/2 + 6], _mm_unpackhi_pd(x4, x5));
-				_mm_stream_pd(&daddr1[6], _mm_unpacklo_pd(x6, x7));
-				_mm_stream_pd(&daddr1[gpu_width/2 + 6], _mm_unpackhi_pd(x6, x7));
-}
+					_mm_stream_pd(&daddr0[6], _mm_unpacklo_pd(x4, x5));
+					_mm_stream_pd(&daddr0[gpu_width/2 + 6], _mm_unpackhi_pd(x4, x5));
+					_mm_stream_pd(&daddr1[6], _mm_unpacklo_pd(x6, x7));
+					_mm_stream_pd(&daddr1[gpu_width/2 + 6], _mm_unpackhi_pd(x6, x7));
+				}
 				saddr0 += 2;
 				saddr2 += 2;
 				saddr4 += 2;

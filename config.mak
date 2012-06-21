@@ -1,3 +1,5 @@
+include config_options.mak
+
 INTELARCH					= SSE4.2
 CUDAVERSION					= 20
 CUDAREGS					= 64
@@ -12,12 +14,6 @@ TARGET						= dgemm_bench
 LIBS						= 
 LIBPATHS					= 
 
-USE_GOTO_BLAS				= 0
-USE_MKL_NOT_ACML			= 1
-
-INCLUDE_OPENCL				= 0
-INCLUDE_CAL					= 1
-INCLUDE_CUDA				= 0
 LIBS						=
 EXTRAOBJFILES				=
 
@@ -41,6 +37,8 @@ endif
 ifeq ("$(CUDA_PATH)", "")
 INCLUDE_CUDA				= 0
 endif
+
+ifeq ($(CONFIGURED), 1)
 
 ifeq ($(INCLUDE_CUDA), 1)
 CONFIG_CUDA					= 1
@@ -87,7 +85,12 @@ LIBS						+= gfortran
 endif
 endif
 
+endif
+
 caldgemm_config.h:			caldgemm_config.sample
 							cp caldgemm_config.sample caldgemm_config.h
 
 ALLDEP						+= caldgemm_config.h
+
+config_options.mak:
+							cp config_options.sample config_options.mak 
