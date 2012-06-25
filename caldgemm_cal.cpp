@@ -1212,6 +1212,7 @@ int caldgemm_cal::ValidateRuntime()
 
 int caldgemm_cal::CheckDevices()
 {
+	int warningshown = 0;
 	for (int i = 0;i < nDevices;i++)
 	{
 		CALdeviceattribs attribs;
@@ -1225,6 +1226,11 @@ int caldgemm_cal::CheckDevices()
 		{
 			fprintf(STD_OUT, "The device does not support double precision\n");
 			return(1);
+		}
+		if (warningshown == 0 && attribs.engineClock == 0)
+		{
+			warningshown = 1;
+			fprintf(STD_OUT, "WARNING: Can not obatin GPU frequency, assuming 850 MHz\n");
 		}
 		conf_gpufreq = attribs.engineClock ? attribs.engineClock : 850;
 		conf_gpushaders = attribs.numberOfSIMD * attribs.wavefrontSize;
