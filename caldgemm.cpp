@@ -280,6 +280,8 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 	fprintf(STD_OUT, "Done\n");
 }
 
+int cpu_order[16] = {0,8,1,9,2,10,3,11,4,12,5,13,6,14,7,15};
+
 void caldgemm::ensure_omp_thread_pinning()
 {
 #ifndef USE_GOTO_BLAS
@@ -295,9 +297,9 @@ void caldgemm::ensure_omp_thread_pinning()
 		nFreeCores++;
 		for (int i = 0;i < conf_numprocs;i++)
 		{
-			if (cpuUsed(i) == false && i != broadcast_cpu_core && i != main_blas_core)
+			if (cpuUsed(cpu_order[i]) == false && cpu_order[i] != broadcast_cpu_core && cpu_order[i] != main_blas_core)
 			{
-				if (thread_id == nFreeCores) localcore = i;
+				if (thread_id == nFreeCores) localcore = cpu_order[i];
 				nFreeCores++;
 			}
 		}
@@ -305,9 +307,9 @@ void caldgemm::ensure_omp_thread_pinning()
 		nFreeCores++;
 		for (int i = 0;i < conf_numprocs;i++)
 		{
-			if (cpuUsed(i) && i != main_blas_core)
+			if (cpuUsed(cpu_order[i]) && cpu_order[i] != main_blas_core)
 			{
-				if (thread_id == nFreeCores) localcore = i;
+				if (thread_id == nFreeCores) localcore = cpu_order[i];
 				nFreeCores++;
 			}
 		}
@@ -330,22 +332,12 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		return(1);
 	}
 
-#ifndef USE_GOTO_BLAS
-	main_blas_core = 0;
-	while (cpuUsed(main_blas_core) && main_blas_core < get_num_procs() - 1) main_blas_core++;
-	if (Config->Debug) fprintf(STD_OUT, "Pinning Main OpenMP BLAS thread to core %d\n", main_blas_core);
-	cpu_set_t blasset;
-	CPU_ZERO(&blasset);
-	CPU_SET(main_blas_core, &blasset);
-	sched_setaffinity(0, sizeof(blasset), &blasset);
-#endif
 
 #ifdef _WIN32
 	strcpy(hostname, "Win32");
 #else
 	gethostname(hostname, 255);
 #endif
-	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
 #ifndef _WIN32
 	if (Config->UseGPU)
@@ -365,6 +357,10 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	CPU_ZERO(&gpumask);
 	if (Config->PinMainThread == -1) Config->PinMainThread = Config->GPUMapping[0];
 	CPU_SET(Config->PinMainThread, &gpumask);
+
+#ifdef USE_GOTO_BLAS
+	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);		//GotoBLAS has its own thread pinning, store old value here.
+#endif
 
 	if (Config->Debug) fprintf(STD_OUT, "Init Caldgemm, setting CPU mask %X\n", getcpumask(&gpumask));
 	if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
@@ -400,6 +396,18 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	outputthreads = Config->OutputThreads == -1 ? (Config->KeepBuffersMapped || Config->DstMemory == 'g' ? CALDGEMM_OUTPUT_THREADS : CALDGEMM_OUTPUT_THREADS_SLOW) : Config->OutputThreads;
 	
+#ifndef USE_GOTO_BLAS		//If we do not use GotoBLAS thread pinning determine main blas thread only after determining GPU devices to avoid collisions. Store the thread afterward as for GotoBLAS.
+	main_blas_core = 0;
+	while (cpuUsed(main_blas_core) && main_blas_core < get_num_procs() - 1) main_blas_core++;
+	if (Config->Debug) fprintf(STD_OUT, "Pinning Main OpenMP BLAS thread to core %d\n", main_blas_core);
+	cpu_set_t blasset;
+	CPU_ZERO(&blasset);
+	CPU_SET(main_blas_core, &blasset);
+	sched_setaffinity(0, sizeof(blasset), &blasset);
+
+	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);		//GotoBLAS has its own thread pinning, store old value here.
+#endif
+
 	if (InitDevices()) return(1);
 	
 	int min_bbuffers = max_bbuffers;
@@ -1378,7 +1386,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 		GPURatio = 1.0;
 	}
-	else if (Config->GPURatio < 0)
+	else if (Config->GPURatio <= -0.99)
 	{
 		//Optimal ratio found using combined runs
 		if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000000) GPURatio = 0.75;
@@ -1397,32 +1405,35 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		const int require_threads = outputthreads * nDevices + 1 + (ExecLinpack && Config->LinpackNodes > 1);
 		const double CPUscale = (double) (conf_cpufreq * mymax(conf_numprocs - require_threads, 1)) / (double) (2100 * (24 - require_threads));
 		const double GPUscale = (double) nDevices * conf_gpushaders * conf_gpufreq / (double) (850 * 20 * 64);
-		if (Config->Debug) fprintf(STD_OUT, "GPU Curve Ration: %1.2lf, CPUScale %1.2lf, GPUScale %1.2lf\n", GPURatio, CPUscale, GPUscale);
+		if (Config->Debug) fprintf(STD_OUT, "GPU Curve Ration: %1.3lf, CPUScale %1.3lf, GPUScale %1.3lf\n", GPURatio, CPUscale, GPUscale);
 		GPURatio = GPUscale * GPURatio / (GPUscale * GPURatio + (1.0 - GPURatio) * CPUscale);
 		
-		if (Config->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.2lf\n", GPURatio);
+		if (Config->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.3lf\n", GPURatio);
 		if (GPURatio > 1.) GPURatio = 1.0;
 		if ((Config->n + 4) % 4096 < 8 && GPURatio > 0.5) GPURatio = 1. - 0.95 * (1. - GPURatio);
 	}
 	else
 	{
-		GPURatio = Config->GPURatio;
+		GPURatio = fabs(Config->GPURatio);
 	}
 
 	if (ExecuteLinpackCallbacks && (Config->GPURatio < 0 || GPURatio < 0.99) && !Config->SlowCPU)
 	{
-		if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80 * Config->Width / 1024;
-		else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
-		if (GPURatio > 1.0) GPURatio = 1.0;
+		if (Config->GPURatio <= -0.99)
+		{
+			if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80 * Config->Width / 1024;
+			else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
+			if (GPURatio > 1.0) GPURatio = 1.0;
+		}
 		if (linpack_last_mn[ExecuteLinpackCallbacks] > 0 && (((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecuteLinpackCallbacks]) / linpack_last_mn[ExecuteLinpackCallbacks] < 0.3 && linpackGPURatios[ExecuteLinpackCallbacks] > 0.0001)
 		{
 			GPURatio = linpackGPURatios[ExecuteLinpackCallbacks];
-			if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.1lf\n", ExecuteLinpackCallbacks, 100 * GPURatio);
+			if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3lf\n", ExecuteLinpackCallbacks, 100 * GPURatio);
 		}
 		else
 		{
 			linpackGPURatios[ExecuteLinpackCallbacks] = GPURatio;
-			if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.1lf\n", ExecuteLinpackCallbacks, 100 * GPURatio);
+			if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3lf\n", ExecuteLinpackCallbacks, 100 * GPURatio);
 		}
 	}
 
@@ -1445,7 +1456,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			size_t virtualm = Config->m + (Config->n % SmallTileHeight) * Config->m / Config->n;
 			if (ExecuteLinpackCallbacks) virtualm += Config->Width * (1.0 + (float) Config->m / Config->n);
-			gpu_m = GPURatio * (float) virtualm + (Config->Height - 1);
+			gpu_m = GPURatio * (float) virtualm + (SmallTileHeight - 1);
 			if (gpu_m > Config->m) gpu_m = Config->m;
 			gpu_m -= gpu_m % SmallTileHeight;
 			cParam.cblas_size = Config->m - gpu_m;
@@ -1457,7 +1468,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			size_t virtualn = Config->n + (Config->m % SmallTileHeight) * Config->n / Config->m;
 			if (ExecuteLinpackCallbacks) virtualn += Config->Width * (1.0 + (float) Config->n / Config->m);
-			gpu_n = GPURatio * (float) virtualn + (Config->Height - 1);
+			gpu_n = GPURatio * (float) virtualn + (SmallTileHeight - 1);
 			if (gpu_n > Config->n) gpu_n = Config->n;
 			gpu_n -= gpu_n % SmallTileHeight;
 			cParam.cblas_size = Config->n - gpu_n;
@@ -1952,7 +1963,7 @@ RunCALDGEMM_end:
 		}
 		const double tmpratio = cpu_wait_time > 0.15 ? 0.0 : 0.5;
 		const double newratio = tmpratio * linpackGPURatios[ExecuteLinpackCallbacks] + (1.0 - tmpratio) * gpu_ratio_used;
-		if (Config->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.1lf, new: %2.1lf, factor: %2.1lf) => %2.1lf\n", ExecuteLinpackCallbacks, 100 * linpackGPURatios[ExecuteLinpackCallbacks], 100 * gpu_ratio_used, tmpratio, 100 * newratio);
+		if (Config->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.3lf, new: %2.3lf, factor: %2.3lf) => %2.3lf\n", ExecuteLinpackCallbacks, 100 * linpackGPURatios[ExecuteLinpackCallbacks], 100 * gpu_ratio_used, tmpratio, 100 * newratio);
 
 		linpackGPURatios[ExecuteLinpackCallbacks] = newratio;
 		linpackCPUDGEMMTime[ExecuteLinpackCallbacks] = Timers.CPUTimer.GetElapsedTime();
@@ -2289,7 +2300,7 @@ void caldgemm::displayMatrixTiming(const char* name)
 			fprintf(STD_OUT, "%sThrottling: %s (%2.3lf GFlops)\n", Config->PreOut, hostname, flopsg);
 		}
 
-		const double gpu_ratio_used_new = flopsg / (flopsc * Timers.CPUTimer.GetElapsedTime() / Timers.System.GetElapsedTime() + flopsg);
+		const double gpu_ratio_used_new = flopsg / (flopsc * (Timers.System.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() - Timers.LinpackTimer2.GetElapsedTime() - Timers.LinpackTimer3.GetElapsedTime()) / Timers.System.GetElapsedTime() + flopsg);
 		if (!Config->Quiet || (Config->DisplayTiming /*&& Config->m * Config->n >= 16 * 24 * 1024 * 1024*/))
 		{
 			char timingoutputbase[1024];
@@ -2298,7 +2309,7 @@ void caldgemm::displayMatrixTiming(const char* name)
 			if (ExecLinpack) timingoutput += sprintf(timingoutput, "   Linpack Time: %2.4lf (%d, %2.4lf, %2.4lf)  Total CPU Time: %2.4lf", Timers.LinpackTimer1.GetElapsedTime(), ExecLinpack, Timers.LinpackTimer2.GetElapsedTime(), Timers.LinpackTimer3.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime());
 			if (Config->TabularTiming)
 			{
-				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.2lf Corrected: %2.2lf Guessed: %2.2lf , m*n: %.1E, CPU Wait Time: %2.3lf", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, gpu_ratio_used, (double) (Config->m * Config->n), cpu_wait_time);
+				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.3lf Corrected: %2.3lf Guessed: %2.3lf , m*n: %.1E, CPU Wait Time: %2.3lf", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, gpu_ratio_used, (double) (Config->m * Config->n), cpu_wait_time);
 			}
 			sprintf(timingoutput, "\n");
 			fwrite(timingoutputbase, 1, strlen(timingoutputbase), STD_OUT);
