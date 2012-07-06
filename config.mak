@@ -79,7 +79,7 @@ DEFINES						+= USE_MKL
 CONFIG_OPENMP				= 1
 else
 INCLUDEPATHS				+= ../acml-cblas/include
-EXTRAOBJFILES				+= ../acml-cblas/lib/cblas_LINUX.a ../acml/gfortran64_mp/lib/libacml_mp.a
+EXTRAOBJFILES				+= ../acml-cblas/lib/cblas_LINUX.a ../acml/gfortran64_fma4_mp/lib/libacml_mp.a
 CONFIG_OPENMP				= 1
 LIBS						+= gfortran
 endif

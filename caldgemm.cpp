@@ -280,7 +280,8 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 	fprintf(STD_OUT, "Done\n");
 }
 
-int cpu_order[16] = {0,8,1,9,2,10,3,11,4,12,5,13,6,14,7,15};
+//int cpu_order[16] = {0,8,1,9,2,10,3,11,4,12,5,13,6,14,7,15};
+int cpu_order[32] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31};
 
 void caldgemm::ensure_omp_thread_pinning()
 {
@@ -457,7 +458,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	int linpackCPU = 0;
 	while (linpackCPU < conf_numprocs)
 	{
-		if (cpuUsed(linpackCPU) == false) break;
+		if (cpuUsed(linpackCPU) == false && linpackCPU != main_blas_core) break;
 		linpackCPU++;
 	}
 	if (linpackCPU >= conf_numprocs) linpackCPU = 0;
