@@ -2542,4 +2542,116 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 	return(0);
 }
 
+#ifndef USE_GOTO_BLAS
+
+static int caldgemm_restrict_cpus = 0;
+
+void cblas_dscala(blasint N, double alpha, double *X, blasint incX)
+{
+	int oldthreads = 0;
+	if (caldgemm_restrict_cpus > 2 && omp_get_num_threads() > 8)
+	{
+		oldthreads = omp_get_num_threads();
+		omp_set_num_threads(8);
+	}
+	cblas_dscal(N, alpha, X, incX);
+	if (oldthreads) omp_set_num_threads(8);
+}
+
+void cblas_daxpya(blasint n, double, double *x, blasint incx, double *y, blasint incy)
+{
+	int oldthreads = 0;
+	if (caldgemm_restrict_cpus > 2 && omp_get_num_threads() > 8)
+	{
+		omp_set_num_threads(8);
+	}
+	cblas_daypy(n, x, incx, y, incy);
+	if (oldthreads) omp_set_num_threads(8);
+}
+
+void cblas_dgemma(enum CBLAS_ORDER Order, enum CBLAS_TRANSPOSE TransA, enum CBLAS_TRANSPOSE TransB, blasint M, blasint N, blasint K, double alpha, double *A, blasint lda, double *B, blasint ldb, double beta, double *C, blasint ldc)
+{
+	int oldthreads = 0;
+	if (caldgemm_restrict_cpus)
+	{
+		int nthreads = 0;
+		long long int tflops = (long long int) m * (long long int) n * (long long int) k;
+		if (tflops <= 16384) nthreads = 1;
+		else if (tflops <= 65536) nthreads = 2;
+		else if (tflops < 200000 || (tflops > 2000000 && tflops < 4000000)) nthreads = 3;
+		else if (tflops <= 2000000) nthreads = 4;
+		else if (tflops <= 26542080) nthreads = 8;
+		else if (tflops <= 56623104) nthreads = 12;
+		else if (tflops <= 89915392) nthreads = 16;
+		else if (tflops <= 262144000) nthreads = 20;
+
+		if (nthreads)
+		{
+			oldthreads = omp_get_num_threads();
+			if (nthreads > omp_get_num_threads()) nthreads = omp_get_num_threads();
+			omp_set_num_threads(nthreads);
+		}
+	}
+	cblas_dgemm(Order, TransA, TransB, M, N, K, alpha, A, lda, B, ldb, beta, C, ldx);
+	if (oldthreads) omp_set_num_threads(8);
+}
+
+void cblas_dgemva(enum CBLAS_ORDER order,  enum CBLAS_TRANSPOSE trans,  blasint m, blasint n, double alpha, double  *a, blasint lda,  double  *x, blasint incx,  double beta,  double  *y, blasint incy)
+{
+	int oldthreads = 0;
+	if (caldgemm_restrict_cpus)
+	{
+		int nthreads;
+		if (N >= 4 * M)
+		{
+			long long int tflops = (long long int) N * 64;
+			if (tflops <= 458752) nthreads = 4;
+			else if (tflops <= 655360) nthreads = 8;
+			else nthreads = 24;
+		}
+		else
+		{
+			long long int tflops = (long long int) M * (long long int) N;
+			if (tflops < 102400) nthreads = 1;
+			else if (tflops < 3686400) nthreads = 3;
+			else nthreads = 4;
+		}
+		if (caldgemm_restrict_cpus > 2 && nthreads > 8) nthreads = 8;
+		if (nthreads < omp_get_num_threads())
+		{
+			oldthreads = omp_get_num_threads();
+			omp_set_num_threads(nthreads);
+		}
+	}
+	cblas_dgemv(order, trans, m, n, alpha, a, lda, x, incx, beta, y, incy);
+	if (oldthreads) omp_set_num_threads(8);
+}
+
+void cblas_dtrsma(enum CBLAS_ORDER Order, enum CBLAS_SIDE Side, enum CBLAS_UPLO Uplo, enum CBLAS_TRANSPOSE TransA, enum CBLAS_DIAG Diag, blasint M, blasint N, double alpha, double *A, blasint lda, double *B, blasint ldb)
+{
+	if (caldgemm_restrict_cpus)
+	{
+		int nthreads = 0;
+		long long int tflops = (long long int) N * (long long int) N * (long long int) M;
+		if (tflops <= 32768) nthreads = 1;
+		else if (tflops <= 110592) nthreads = 3;
+		else if (tflops <= 100000000) nthreads = 4;
+		else if (tflops <= 1000000000) nthreads = 16;
+		if (caldgemm_restrict_cpus > 2 && nthreads > 8) nthreads = 8;
+		if (nthreads < omp_get_num_threads())
+		{
+			oldthreads = omp_get_num_threads();
+			omp_set_num_threads(nthreads);
+		}
+	} 
+	cblas_dtrsma(Order, Side, Uplo, TransA, Diag, M, N, alpha, A, lda, B, ldb);
+	if (oldthreads) omp_set_num_threads(8);
+}
+
+void caldgemm_goto_restrict_cpus(int val)
+{
+	caldgemm_restrict_cpus = val;
+}
+#endif
+
 // vim: ts=4 sw=4 noet sts=4 tw=100
