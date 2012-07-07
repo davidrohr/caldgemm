@@ -185,6 +185,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	OutputThreads = -1;
 	RepinDuringActiveWaitForEvent = 0;
 	SleepDuringActiveWait = -1;
+	NumaPinning = false;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -280,13 +281,49 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 	fprintf(STD_OUT, "Done\n");
 }
 
-//int cpu_order[16] = {0,8,1,9,2,10,3,11,4,12,5,13,6,14,7,15};
-int cpu_order[32] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31};
-
 void caldgemm::ensure_omp_thread_pinning()
 {
 #ifndef USE_GOTO_BLAS
 	if (Config->Debug) fprintf(STD_OUT, "Performing OpenMP Blas Thread Pinning\n");
+	int* cpu_order = new int[conf_numprocs];
+	if (Config->NumaPinning && conf_numprocs % 4 == 0)
+	{
+		cpu_order[0] = 0;
+		int cpu_num = 1;
+		
+		int divider = conf_numprocs / 2;
+		int old_divider = conf_numprocs;
+		do
+		{
+			int cpu_num_end = cpu_num;
+			for (int tmp_num = 0;tmp_num < cpu_num_end;tmp_num++)
+			{
+				cpu_order[cpu_num++] = cpu_order[tmp_num] + divider;
+			}
+			
+			int cpu_num_end2 = cpu_num;
+			for (int i = 1;i < old_divider / divider - 1;i++)
+			{
+				for (int tmp_num = cpu_num_end;tmp_num < cpu_num_end2;tmp_num++)
+				{
+					cpu_order[cpu_num++] = cpu_order[tmp_num] + 2 * i;
+				}
+			}
+			
+			old_divider = divider;
+			divider = (divider % 2 == 0 && divider % 4 != 0 && divider > 2) ? 2 : divider / 2;
+		} while (divider > 0);
+		if (Config->Debug)
+		{
+			for (int i = 0;i < conf_numprocs;i++) fprintf(STD_OUT, "Numa ID %d Core %d\n", i, cpu_order[i]);
+		}
+	}
+	else
+	{
+		if (Config->NumaPinning) fprintf(STD_OUT, "NUMA Pinning only available if number of processors is divisible by 4\n");
+		for (int i = 0;i < conf_numprocs;i++) cpu_order[i] = i;
+	}
+
 #pragma omp parallel num_threads(conf_numprocs)
 	{
 		int thread_id = omp_get_thread_num();
@@ -320,6 +357,7 @@ void caldgemm::ensure_omp_thread_pinning()
 		sched_setaffinity(0, sizeof(localset), &localset);
 		if (Config->Debug) fprintf(STD_OUT, "OpenMP BLAS thread %d pinned to core %d\n", thread_id, localcore);
 	}
+	delete[] cpu_order;
 #endif
 }
 

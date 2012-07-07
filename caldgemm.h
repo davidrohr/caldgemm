@@ -128,6 +128,7 @@ public:
 		int PinCPU;								//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
 		int OutputThreads;						//Number of output threads
+		int NumaPinning;						//Rotate pinning over NUMA nodes, better die utilization but perhaps worse L3 cache utilization.
 		
 		size_t Height;							//height of subblock od A, width of subblock of B
 		size_t m, n;							//height of A, width of B, must be multiple of height
