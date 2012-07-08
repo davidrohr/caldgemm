@@ -183,8 +183,9 @@ int caldgemm_opencl::WaitForEvent(int a, int b, int)
 	return(WaitForEventAndRelease(&ocl_events[b][a]));
 }
 
-int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
+int caldgemm_opencl::Initialize(bool nocalinit)
 {
+	int deviceNum = Config->DeviceNum;
 	if (!Config->Quiet) fprintf(STD_OUT, "Initializing CALDGEMM (OpenCL Runtime)\n");
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL Initialice\n");
 	cl_int ocl_error;
@@ -211,7 +212,7 @@ int caldgemm_opencl::Initialize(int deviceNum, bool nocalinit)
 	for (int i = 0;i < nDevices;i++)
 	{
 		if (deviceNum >= 0) ocl_devices[i] = devices[deviceNum];
-		else ocl_devices[i] = devices[i];
+		else ocl_devices[i] = devices[Config->DeviceNums[i]];
 	}
 	
 	delete[] devices;

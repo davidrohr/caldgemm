@@ -215,7 +215,7 @@ protected:
 	virtual int FetchResult(int device, int j, int m, int n) = 0;
 	virtual int ExitDevices() = 0;
 
-	virtual	int Initialize (int deviceNum, bool nocalinit) = 0;
+	virtual	int Initialize (bool nocalinit) = 0;
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch) = 0;
 	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0) = 0;
 	virtual int ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn) = 0;

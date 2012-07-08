@@ -419,7 +419,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (ValidateRuntime()) return(1);
 
 	if (Config->Debug) fprintf(STD_OUT, "Initializing CAL\n");
-	if (Config->UseGPU == 0 || Initialize(Config->DeviceNum, nocalinit))
+	if (Config->UseGPU == 0 || Initialize(nocalinit))
 	{
 		gpu_available = false;
 	}

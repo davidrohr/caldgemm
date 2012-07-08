@@ -85,8 +85,9 @@ int caldgemm_cuda::WaitForEvent(int a, int b, int)
 	return(WaitForEventAndRelease(&cuda_events[b][a]));
 }
 
-int caldgemm_cuda::Initialize(int deviceNum, bool nocalinit)
+int caldgemm_cuda::Initialize(bool nocalinit)
 {
+	int deviceNum = Config->DeviceNum;
 	if (!Config->Quiet) fprintf(STD_OUT, "Initializing CALDGEMM (CUDA Runtime)\n");
 	if (Config->Debug) fprintf(STD_OUT, "CUDA Initialice\n");
 
@@ -111,7 +112,7 @@ int caldgemm_cuda::Initialize(int deviceNum, bool nocalinit)
 	for (int i = 0;i < nDevices;i++)
 	{
 		if (deviceNum >= 0) cuda_devices[i] = goodDevices[deviceNum];
-		else cuda_devices[i] = goodDevices[i];
+		else cuda_devices[i] = goodDevices[Config->NumDevices[i]];
 	}
 	delete[] goodDevices;
 

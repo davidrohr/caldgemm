@@ -878,8 +878,9 @@ void caldgemm_cal::cal_init_constant_data(BufferProperties* &data, double alpha)
 	data[dwBuffersA + dwBuffersB].ptr_double[3] = alpha;
 }
 
-int caldgemm_cal::Initialize(int deviceNum, bool nocalinit)
+int caldgemm_cal::Initialize(bool nocalinit)
 {
+	int deviceNum = Config->DeviceNum;
 	if (!Config->Quiet) fprintf(STD_OUT, "Initializing CALDGEMM (CAL Runtime)\n");
 
 	if (!nocalinit) CHKERR(calInit(), "initializing CAL");
@@ -897,7 +898,7 @@ int caldgemm_cal::Initialize(int deviceNum, bool nocalinit)
 		if (nDevices > Config->NumDevices) nDevices = Config->NumDevices;
 		for (int i = 0;i < nDevices;i++)
 		{
-			device_nums[i] = i;
+			device_nums[i] = Config->DeviceNums[i];
 		}
 	}
 	else

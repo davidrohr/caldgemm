@@ -111,7 +111,7 @@ private:
 
 	struct CALVersion {unsigned int major, minor, imp;};
 
-	virtual	int Initialize (int deviceNum, bool nocalinit);
+	virtual	int Initialize (bool nocalinit);
 	int SetupKernel(const char* ILKernel, CALmodule* module, CALcontext* ctx, unsigned int device_num, bool disassemble = false);
 	int RunProgram(CALcontext* ctx, CALmodule* module, unsigned int Width, unsigned int Height, CALevent* event);
 	int CleanupData(CALcontext* ctx, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device);
