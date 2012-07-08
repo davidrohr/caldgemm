@@ -2571,7 +2571,7 @@ void cblas_daxpya(blasint n, double alpha, double *x, blasint incx, double *y, b
 	if (oldthreads) omp_set_num_threads(oldthreads);
 }
 
-void cblas_dgemma(enum CBLAS_ORDER Order, enum CBLAS_TRANSPOSE TransA, enum CBLAS_TRANSPOSE TransB, blasint M, blasint N, blasint K, double alpha, double *A, blasint lda, double *B, blasint ldb, double beta, double *C, blasint ldc)
+void cblas_dgemma(CBLAS_ENUM CBLAS_ORDER Order, CBLAS_ENUM CBLAS_TRANSPOSE TransA, CBLAS_ENUM CBLAS_TRANSPOSE TransB, blasint M, blasint N, blasint K, double alpha, double *A, blasint lda, double *B, blasint ldb, double beta, double *C, blasint ldc)
 {
 	int oldthreads = 0;
 	if (caldgemm_restrict_cpus)
@@ -2597,7 +2597,7 @@ void cblas_dgemma(enum CBLAS_ORDER Order, enum CBLAS_TRANSPOSE TransA, enum CBLA
 	if (oldthreads) omp_set_num_threads(oldthreads);
 }
 
-void cblas_dgemva(enum CBLAS_ORDER order,  enum CBLAS_TRANSPOSE trans,  blasint m, blasint n, double alpha, double  *a, blasint lda,  double  *x, blasint incx,  double beta,  double  *y, blasint incy)
+void cblas_dgemva(CBLAS_ENUM CBLAS_ORDER order,  CBLAS_ENUM CBLAS_TRANSPOSE trans,  blasint m, blasint n, double alpha, double  *a, blasint lda,  double  *x, blasint incx,  double beta,  double  *y, blasint incy)
 {
 	int oldthreads = 0;
 	if (caldgemm_restrict_cpus)
@@ -2627,7 +2627,7 @@ void cblas_dgemva(enum CBLAS_ORDER order,  enum CBLAS_TRANSPOSE trans,  blasint 
 	if (oldthreads) omp_set_num_threads(oldthreads);
 }
 
-void cblas_dtrsma(enum CBLAS_ORDER Order, enum CBLAS_SIDE Side, enum CBLAS_UPLO Uplo, enum CBLAS_TRANSPOSE TransA, enum CBLAS_DIAG Diag, blasint M, blasint N, double alpha, double *A, blasint lda, double *B, blasint ldb)
+void cblas_dtrsma(CBLAS_ENUM CBLAS_ORDER Order, CBLAS_ENUM CBLAS_SIDE Side, CBLAS_ENUM CBLAS_UPLO Uplo, CBLAS_ENUM CBLAS_TRANSPOSE TransA, CBLAS_ENUM CBLAS_DIAG Diag, blasint M, blasint N, double alpha, double *A, blasint lda, double *B, blasint ldb)
 {
 	int oldthreads = 0;
 	if (caldgemm_restrict_cpus)
