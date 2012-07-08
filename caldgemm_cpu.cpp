@@ -38,7 +38,7 @@ int caldgemm_cpu::WaitForEvent(int a, int b, int)
 	return(0);
 }
 
-int caldgemm_cpu::Initialize(int deviceNum, bool nocalinit)
+int caldgemm_cpu::Initialize(bool nocalinit)
 {
 	if (!Config->Quiet) fprintf(STD_OUT, "Initializing CALDGEMM (CPU Runtime)\n");
 	if (Config->Debug) fprintf(STD_OUT, "CALDGEMM_CPU Initialice\n");
