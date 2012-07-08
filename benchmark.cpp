@@ -160,6 +160,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-.        Repin Main Thread During Active Wait for GPU Event\n");
 	fprintf(STD_OUT, "\t-, <int>  Sleep for n usec during active wait\n");
 	fprintf(STD_OUT, "\t-:        Enable NUMA Pinning\n");
+	fprintf(STD_OUT, "\t-/ <list> Comma separated list of GPU devices to use (replaces -y for multiple devices)\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -256,6 +257,31 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 						sscanf(&ptr[j], "%d", &Config->ExcludeCPUCores[Config->nExcludeCPUCores - 1]);
 						fprintf(STD_OUT, "Excluding CPU Core %d\n", Config->ExcludeCPUCores[Config->nExcludeCPUCores - 1]);
 						j = i + 1;
+					}
+				}
+			}
+			break;
+		}
+		case '/':
+		{
+			if (++x >= argc) return(1);
+			char* ptr = argv[x];
+			int j = 0;
+			int a = strlen(ptr);
+			int devnum = 0;
+			for (int i = 0;i <= a;i++)
+			{
+				if (ptr[i] == ',' || ptr[i] == 0)
+				{
+					if (i > j)
+					{
+						int tmpval;
+						ptr[i] = 0;
+						sscanf(&ptr[j], "%d", &tmpval);
+						fprintf(STD_OUT, "GPU device %d ID %d\n", devnum, tmpval);
+						j = i + 1;
+						Config->DeviceNums[devnum] = tmpval;
+						devnum++;
 					}
 				}
 			}

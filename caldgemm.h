@@ -103,6 +103,7 @@ public:
 		bool MemPolicy;							//Set memory allocation policy to interleaved
 		bool MultiThread;						//Use multiple threads
 		bool MultiThreadDivide;					//Use multiple threads for DivideBuffer as well
+		bool ImprovedScheduler;						//Tries to save bbuffers, replaces the round-robin scheduler
 		double GPURatio;						//Fraction of the matrix processed by GPU
 		bool UseCPU;							//use CPU for DGEMM
 		bool UseGPU;							//use GPUs for DGEMM
@@ -110,7 +111,7 @@ public:
 		int OpenCLPlatform;						//OpenCL Platform ID to use
 		int DeviceNum;							//CAL Device to use (-1 for all devices)
 		int NumDevices;							//Number of devices to use in parallel at max
-		bool ImprovedScheduler;					//Tries to save bbuffers, replaces the round-robin scheduler
+		int DeviceNums[max_devices];					//Array of CAL devices to use (replaces DeviceNum for multiple devices). This translation is applied first, all other setting like GPU mappings are applied on top of this.
 
 		bool Debug;								//Activate debig output
 		bool DumpMatrix;						//Dump input matrix to file

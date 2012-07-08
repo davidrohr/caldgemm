@@ -191,6 +191,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 		GPUMapping[i] = 0;
 		PostprocessMapping[i] = -1;
 		AllocMapping[i] = -1;
+		DeviceNums[i] = i;
 	}
 	nExcludeCPUCores = 0;
 	ExcludeCPUCores = NULL;
