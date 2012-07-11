@@ -64,6 +64,7 @@ int iterations = 1;
 size_t pitch_a, pitch_b, pitch_c;
 bool linpackpitch = false;
 size_t height_a, height_b;
+bool colmajor = false;
 
 bool mem_page_lock = true;
 bool mem_huge_table = false;
@@ -684,23 +685,34 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 
 		if (linpackpitch)
 		{
+			if (pitch_c < Config.m + Config.Width)
+			{
+				fprintf(STD_OUT, "Pitch too small\n");
+				return(1);
+			}
 			pitch_a = pitch_b = pitch_c;
 		}
 		else
 		{
-			pitch_a = pitch_b = pitch_c = Config.n + Config.Width + (Config.n + Config.Width) % 8;
+			pitch_a = pitch_b = pitch_c = Config.m + Config.Width + (Config.m + Config.Width) % 8;
 		}
-		linpackmem = dgemm_obj->AllocMemory(pitch_c * (Config.m + Config.Width + 1) + 8, mem_page_lock, mem_huge_table, mem_gpu_access, true);
+		linpackmem = dgemm_obj->AllocMemory(pitch_c * (Config.n + Config.Width + 1) + 8, mem_page_lock, mem_huge_table, mem_gpu_access, true);
 		if (linpackmem == NULL) {fprintf(STD_OUT, "Memory Allocation Error\n"); return(1);}
 
 		char* linpackmem2 = (char*) linpackmem;
 		if ((size_t) linpackmem2 % 64) linpackmem2 += 64 - ((size_t) linpackmem2) % 64;
 		double* linpackmem3 = (double*) linpackmem2;
+		
+		colmajor = true;
 
-
-		AA = linpackmem3 + Config.Width * pitch_c;
-		BB = linpackmem3 + Config.Width;
+		AA = linpackmem3 + Config.Width;
+		BB = linpackmem3 + Config.Width * pitch_c;
 		CC = linpackmem3 + Config.Width * (pitch_c + 1);
+		
+		width_a = Config.Width;
+		height_a = Config.m;
+		width_b = Config.n;
+		height_b = Config.Width;
 	}
 	else
 	{
@@ -787,9 +799,9 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 	else
 	{
 		if (!quietbench) fprintf(stderr, "...init A");
-		fastmatgen(rand() * 100, AA, height_a * pitch_a);
+		fastmatgen(rand() * 100, AA, (colmajor ? width_a : height_a) * pitch_a);
 		if (!quietbench) fprintf(stderr, "...init B");
-		fastmatgen(rand() * 100, BB, height_b * pitch_b);
+		fastmatgen(rand() * 100, BB, (colmajor ? width_b : height_b) * pitch_b);
 	}
 #endif
 	if (Config.Debug) fprintf(STD_OUT, "User Data Initialized\n");
@@ -947,7 +959,7 @@ int main(int argc, char** argv)
 			Config.Debug = false;
 			if (Config.m > 2 * Config.Height) Config.m = 2 * Config.Height;
 			if (Config.n > 2 * Config.Height) Config.n = 2 * Config.Height;
-			if (dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb))
+			if (dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
 			{
 				fprintf(STD_OUT, "Error running CALDGEMM\nexiting\n");
 				return(1);
@@ -980,11 +992,11 @@ int main(int argc, char** argv)
 			{
 				if (iterations > 1 && !quietbench) fprintf(STD_OUT, "\nDGEMM Call Iteration %d\n\n", iter);
 #ifdef TESTMODE
-				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb))
+				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
 #else
 				size_t tmpn = Config.m > Config.n ? Config.m : Config.n;
 				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
-				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb, linpack_callbacks))
+				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks))
 #endif
 				{
 					fprintf(STD_OUT, "Error running CALDGEMM\n");
@@ -992,7 +1004,7 @@ int main(int argc, char** argv)
 				}
 				if (torture)
 				{
-					dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb, linpack_callbacks);
+					dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks);
 				}
 			}
 		} while (benchmark && (Config.n += Config.Height) < 70000 && (Config.m += Config.Height) < 70000 && SetupUserData(Config) == 0);
@@ -1022,7 +1034,7 @@ int main(int argc, char** argv)
 		Config.UseCPU = true;
 		Config.Verify = false;
 		Config.Quiet = true;
-		dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, false, transa, transb);
+		dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb);
 		fprintf(STD_OUT, "CPU DGEMM Comparison run complete, comparing results\n");
 		int verifyok = 1;
 		for (size_t i = 0;i < Config.m;i++)

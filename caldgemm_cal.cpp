@@ -120,8 +120,11 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 #define _mm_load_pd_use _mm_load_pd
 #endif
 
+#ifdef CALDGEMM_STREAMING_STORES_DIVIDE
 #define _mm_store_pd_use _mm_stream_pd
-#define CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+#else
+#define _mm_store_pd_use _mm_store_pd
+#endif
 
 caldgemm_cal::caldgemm_cal() : caldgemm()
 {
@@ -509,6 +512,14 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 	return(0);
 }
 
+#undef _mm_store_pd_use
+
+#ifdef CALDGEMM_STREAMING_STORES_MERGE
+#define _mm_store_pd_use _mm_stream_pd
+#else
+#define _mm_store_pd_use _mm_stream_pd
+#endif
+
 int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers)
 {
 	if (Config->SkipCPUProcessing) return(0);
@@ -544,22 +555,22 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 			//int count = src[bank].DataSize * width;
 
 
-#undef _mm_store_pd_use
-#define _mm_store_pd_use _mm_store_pd
 				for (int i = 0;i < width;i += 8)
 				{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
 					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 50), _MM_HINT_NTA);
 					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr2 + 50), _MM_HINT_NTA);
+#if !defined(CALDGEMM_STREAMING_STORES_MERGE) | defined(CALDGEMM_PREFETCH_MERGE_STORES)
 #ifndef _NO_AMD_CPU
 					_m_prefetchw(daddr + 50);
 #else
 					_mm_prefetch(CAST_FOR_MMPREFETCH (daddr + 50), _MM_HINT_NTA);
 #endif
 #endif
+#endif
 					_mm_store_pd_use(daddr, _mm_sub_pd(_mm_load_pd(daddr), _mm_load_pd(saddr)));
-					_mm_store_pd_use(daddr + 4, _mm_sub_pd(_mm_load_pd(daddr + 4), _mm_load_pd(saddr + 2)));
 					_mm_store_pd_use(daddr + 2, _mm_sub_pd(_mm_load_pd(daddr + 2), _mm_load_pd(saddr2)));
+					_mm_store_pd_use(daddr + 4, _mm_sub_pd(_mm_load_pd(daddr + 4), _mm_load_pd(saddr + 2)));
 					_mm_store_pd_use(daddr + 6, _mm_sub_pd(_mm_load_pd(daddr + 6), _mm_load_pd(saddr2 + 2)));
 
 					saddr += 4;

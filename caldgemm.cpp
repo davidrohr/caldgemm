@@ -1399,8 +1399,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, Config->m, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 		Timers.CPUTimer.Stop();
 		CPUOnlyRun = true;
-		goto RunCALDGEMM_end;
+//		goto RunCALDGEMM_end;
 	}
+	else
+	{
 	CPUOnlyRun = false;
 
 	if (ExecuteLinpackCallbacks)
@@ -1531,6 +1533,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	
 	if (!Config->Quiet) fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n');
 	
+	const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
+	const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
+	const size_t nBlocks = mb * nb;
+	cParam.cpu_k = nBlocks;
+	cpu_k_barrier = nBlocks;
+	gpu_k_barrier = -1;
 	if (Config->UseCPU)
 	{
 		if (!Config->MultiThread)
@@ -1563,12 +1571,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		memset(iMergeThread, 0, nDevices * sizeof(int));
 		int use_device = 0;
 
-		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
-		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
 		size_t blockm = 0, blockn = 0;
 		unsigned long long int lastk[max_devices];
 		for (int l = 0;l < nDevices;l++) lastk[l] = -1;
-		size_t nBlocks = mb * nb;
 		
 		size_t nextk = 0;
 		size_t next_device_k[max_devices];
@@ -1634,9 +1639,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		if (RunCALDGEMM_Init()) return(0);
 
-		cParam.cpu_k = nBlocks;
-		gpu_k_barrier = -1;
-		cpu_k_barrier = nBlocks;
 		bool cpu_k_barrier_hit = false;
 		if (gpu_n && gpu_m)
 		{
@@ -1949,7 +1951,8 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 		}
 	}
 
-RunCALDGEMM_end:
+//RunCALDGEMM_end:
+	}
 	if (Config->LinpackSwapN != NULL) *Config->LinpackSwapN = 0;
 	outputthreads = old_outputthreads;
 

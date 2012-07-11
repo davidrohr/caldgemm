@@ -61,3 +61,8 @@
 
 //#define _NO_AMD_CPU							//Set to run on Intel CPU without prefetchw avaiable
 //#define USE_OLD_HUGE_MALLOC					//Use old method to allocate huge tables
+
+#define CALDGEMM_USE_VEC_MEMCPY_PREFETCH		//Use prefetching in Divide / Merge Buffer
+#define CALDGEMM_STREAMING_STORES_DIVIDE		//Use streaming stores in Divide Buffer
+#define CALDGEMM_STREAMING_STORES_MERGE			//Use streaming stores in Merge buffer
+#define CALDGEMM_PREFETCH_MERGE_STORES			//Use prefetching in Merge buffer even when using streaming stores
