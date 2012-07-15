@@ -287,8 +287,8 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 			const double* __restrict__ saddr4 = &src[(y + 4) * pitch];
 			const double* __restrict__ saddr6 = &src[(y + 6) * pitch];
 
-			double* __restrict__ dstBank0 = &dst[0].ptr_double[(y / 2) & 0xFFFFFFFE];
-			double* __restrict__ dstBank1 = &dst[1].ptr_double[(y / 2) & 0xFFFFFFFE];
+			double* __restrict__ dstBank0 = &dst[0].ptr_double[y / 2];
+			double* __restrict__ dstBank1 = &dst[1].ptr_double[y / 2];
 
 
 			for (int i = 0;i < height;i += 2)
@@ -363,8 +363,8 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				_mm_prefetch(CAST_FOR_MMPREFETCH (saddr6 + 9 * pitch), _MM_HINT_NTA);
 #endif
 
-				double* __restrict__ dstBank0 = &dst[0].ptr_double[(y / 2) & 0xFFFFFFFE];
-				double* __restrict__ dstBank1 = &dst[1].ptr_double[(y / 2) & 0xFFFFFFFE];
+				double* __restrict__ dstBank0 = &dst[0].ptr_double[y / 2];
+				double* __restrict__ dstBank1 = &dst[1].ptr_double[y / 2];
 				double* __restrict__ daddr0 = &dstBank0[i * gpu_pitch];
 				double* __restrict__ daddr1 = &dstBank1[i * gpu_pitch];
 				{
@@ -465,9 +465,9 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 		//Row / Col Interleaved Storage with 2 rows stored in one col
 		for (int y = 0;y < height / 2;y++)
 		{
-			double* daddr = dst[y % 2].ptr_double + y / 2 * gpu_width * 2;
-			double* saddr = src + 2 * y * pitch;
-			double* saddr2 = src + (2 * y + 1) * pitch;
+			double* __restrict__ daddr = dst[y % 2].ptr_double + y / 2 * gpu_width * 2;
+			const double* __restrict__ saddr = src + 2 * y * pitch;
+			const double* __restrict__ saddr2 = src + (2 * y + 1) * pitch;
 			for (int i = 0;i < width;i += 4)
 			{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
@@ -488,14 +488,14 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 		//Col Interleaved Storage for transposed A with 4x4, 8x4 and 8x8 tiling
 		if (numBuffers == 4)
 		{
-			double* daddr = dst[0].ptr_double;
-			double* daddr2 = dst[1].ptr_double;
-			double* daddr3 = dst[2].ptr_double;
-			double* daddr4 = dst[3].ptr_double;
+			double* __restrict__ daddr = dst[0].ptr_double;
+			double* __restrict__ daddr2 = dst[1].ptr_double;
+			double* __restrict__ daddr3 = dst[2].ptr_double;
+			double* __restrict__ daddr4 = dst[3].ptr_double;
 			for (int y=0; y < height; y++)
 			{
 				int count = dst[0].DataSize * width;
-				double* saddr = src + (y * pitch);
+				const double* __restrict__ saddr = src + (y * pitch);
 
 				for (int i = 0;i < count;i += 256)
 				{
@@ -532,12 +532,12 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 		}
 		else
 		{
-			double* daddr = dst[0].ptr_double;
-			double* daddr2 = dst[1].ptr_double;
+			double* __restrict__ daddr = dst[0].ptr_double;
+			double* __restrict__ daddr2 = dst[1].ptr_double;
 			for (int y=0; y < height; y++)
 			{
 				int count = dst[0].DataSize * width;
-				double* saddr = src + (y * pitch);
+				const double* __restrict__ saddr = src + (y * pitch);
 
 #ifdef CALDGEMM_SHIFT_TEXTURE
 				if (y & 1)
@@ -555,7 +555,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				for (int i = 0;i < count;i += 64)
 				{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 76), _MM_HINT_NTA);
+					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 32), _MM_HINT_NTA);
 #endif
 					_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
 					_mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));
