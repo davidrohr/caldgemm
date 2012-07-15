@@ -179,13 +179,14 @@ caldgemm::caldgemm_config::caldgemm_config()
 	MPIRank = -1;
 	PreOut = EmptyOut;
 	GPUClock = 0;
-	SmallTiles = false;
+	SmallTiles = 0;
 	ThreadSaveDriver = false;
 	SkipCPUProcessing = false;
 	OutputThreads = -1;
 	RepinDuringActiveWaitForEvent = 0;
 	SleepDuringActiveWait = -1;
 	NumaPinning = false;
+	ThirdPhaseThreshold = 0;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -412,7 +413,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (Config->SlowCPU)
 	{
 		Config->DynamicSched = false;
-		Config->SmallTiles = true;
+		Config->SmallTiles = 1;
 	}
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
 
@@ -522,6 +523,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 			{
 				pthread_mutex_init(&DGEMMTasks[i].mutex_start, NULL);
 				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking divide start mutex (%d)\n", i);
+				DGEMMTasks[i].thread_running = 0;
+				DGEMMTasks[i].skip_device_to = -1;
 				pthread_mutex_init(&DGEMMTasks[i].mutex_finished, NULL);
 				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", i);
 				if (Config->GPUMapping[i] == Config->PinMainThread) continue;
@@ -728,9 +731,9 @@ TryThirdRun:
 						test_cpu_k--;
 						DGEMM_getblocks(test_cpu_k, cpublockm, cpublockn);
 					}
-					if ((long long int) test_cpu_k > 0 && k < test_cpu_k - 1)
+					if ((long long int) test_cpu_k > 0 && (signed) k <= (signed) test_cpu_k - 2 * nDevices + Config->ThirdPhaseThreshold)
 					{
-						if (!Config->Quiet) fprintf(STD_OUT, "Scheduling dynamic 3rd phase run, CPU taking tile %lld (m=%lld,n=%lld) from GPU\n", (long long int) test_cpu_k, (long long int) cpublockm, (long long int) cpublockn);
+						if (!Config->Quiet) fprintf(STD_OUT, "Scheduling dynamic 3rd phase run, CPU taking tile %lld (k=%lld,m=%lld,n=%lld) from GPU (GPU k = %lld)\n", (long long int) test_cpu_k, (long long int) k, (long long int) cpublockm, (long long int) cpublockn, (long long int) gpu_k_barrier);
 						cParam.dynamic_run2++;
 						cParam.cpu_k = test_cpu_k;
 						cpu_k_barrier = test_cpu_k;
@@ -951,7 +954,7 @@ void* caldgemm::cblas_wrapper(void* arg)
 
 					if (Config->n % par->cls->SmallTileHeight && par->borders_done == false)
 					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m - par->cblas_size, Config->n % par->cls->SmallTileHeight, Config->Width, Alpha, A, A_pitch, B + (Config->n - Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * B_pitch_use, B_pitch, Beta, C + Config->n - Config->n % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height), C_pitch);
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m - par->cblas_size, Config->n % par->cls->SmallTileHeight, Config->Width, Alpha, A, A_pitch, B + (Config->n - Config->n % par->cls->SmallTileHeight) * B_pitch_use, B_pitch, Beta, C + Config->n - Config->n % par->cls->SmallTileHeight, C_pitch);
 					}
 				}
 				else
@@ -988,7 +991,7 @@ void* caldgemm::cblas_wrapper(void* arg)
 
 					if (Config->m % par->cls->SmallTileHeight && par->borders_done == false)
 					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m % par->cls->SmallTileHeight, Config->n - par->cblas_size, Config->Width, Alpha, A + (Config->m - Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Config->m - Config->m % (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height)) * C_pitch, C_pitch);
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->m % par->cls->SmallTileHeight, Config->n - par->cblas_size, Config->Width, Alpha, A + (Config->m - Config->m % par->cls->SmallTileHeight) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (Config->m - Config->m % par->cls->SmallTileHeight) * C_pitch, C_pitch);
 					}
 				}
 			}
@@ -1027,6 +1030,16 @@ void* caldgemm::divide_wrapper(void* arg)
 	CPU_ZERO(&divide_mask);
 	CPU_SET(par->CPUCore, &divide_mask);
 	sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
+	
+	par->curDevice = -1;
+	for (int i = 0;i < par->cls->nDevices;i++)
+	{
+		if (par->cls->Config->GPUMapping[i] == par->CPUCore)
+		{
+			if (par->curDevice == 1) par->curDevice = i;
+			par->cls->DGEMMTasks[i].next_device = &par->curDevice;
+		}
+	}
 
 	if (pthread_mutex_unlock(&par->cls->DGEMMTasks[par->nThread].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finish mutex (%d)\n", par->nThread);
 	int i = 0;
@@ -1044,6 +1057,15 @@ void* caldgemm::divide_wrapper(void* arg)
 				if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread %d resetting\n", par->nThread);
 				i = 0;
 				continue;
+			}
+			
+			if (par->cls->DGEMMTasks[i].skip_device_to != -1)
+			{
+				//fprintf(STD_OUT, "Skipping device %d, switching to %d\n", i, par->cls->DGEMMTasks[i].skip_device_to);
+				const int oldi = i;
+				i = par->cls->DGEMMTasks[i].skip_device_to;
+				par->cls->DGEMMTasks[oldi].skip_device_to = -1;
+				if (pthread_mutex_lock(&par->cls->DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 			}
 			
 			if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread for device %d Starting processing (k = %d)\n", i, par->cls->DGEMMTasks[i].k);
@@ -1347,7 +1369,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 				Config->Height = 2048;
 			}
-			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < (size_t) nDevices * 60 * 60 * 1024 * 1024)
+			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < (size_t) nDevices * 40 * 40 * 1024 * 1024)
 			{
 				Config->Height = 3072;
 			}
@@ -1478,6 +1500,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3lf\n", ExecuteLinpackCallbacks, 100 * GPURatio);
 		}
 	}
+	if (Config->GPURatio < 0 && Config->GPURatio > -0.99 && GPURatio < -Config->GPURatio) GPURatio = -Config->GPURatio;
 
 	gpu_ratio_used = GPURatio;
 
@@ -1491,32 +1514,51 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	cParam.dynamic_run = 0;
 	cParam.dynamic_run2 = 0;
 	cParam.borders_done = false;
-	SmallTileHeight = (Config->SmallTiles ? CALDGEMM_MIN_TILE_DIM : Config->Height);
+	SmallTileHeight = (Config->SmallTiles == 1 ? CALDGEMM_MIN_TILE_DIM : Config->Height);
+recalculate_ratio:
 	if (Config->UseCPU == true && Config->UseGPU == true)
 	{
 		if ((DGEMM_split_m = (Config->LinpackSwapN == NULL ? (Config->m >= Config->n) : 0)))
 		{
 			size_t virtualm = Config->m + (Config->n % SmallTileHeight) * Config->m / Config->n;
-			if (ExecuteLinpackCallbacks) virtualm += Config->Width * (1.0 + (float) Config->m / Config->n);
+			if (ExecuteLinpackCallbacks) virtualm += Config->Width * (0.25 + (float) Config->m / Config->n);
 			gpu_m = GPURatio * (float) virtualm + (SmallTileHeight - 1);
-			if (gpu_m > Config->m) gpu_m = Config->m;
+			if (gpu_m > Config->m)
+			{
+				if (Config->SmallTiles == 2 && SmallTileHeight > CALDGEMM_MIN_TILE_DIM)
+				{
+					if (SmallTileHeight > 1024) SmallTileHeight = 1024;
+					else SmallTileHeight = CALDGEMM_MIN_TILE_DIM;
+					goto recalculate_ratio;
+				}
+				gpu_m = Config->m;
+			}
 			gpu_m -= gpu_m % SmallTileHeight;
 			cParam.cblas_size = Config->m - gpu_m;
 			gpu_n = Config->n;
 			gpu_n -= gpu_n % SmallTileHeight;
-			if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) Config->m - gpu_m, (long long int) gpu_n);
+			if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld, Tilesize %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) Config->m - gpu_m, (long long int) gpu_n, (long long int) SmallTileHeight);
 		}
 		else
 		{
 			size_t virtualn = Config->n + (Config->m % SmallTileHeight) * Config->n / Config->m;
-			if (ExecuteLinpackCallbacks) virtualn += Config->Width * (1.0 + (float) Config->n / Config->m);
+			if (ExecuteLinpackCallbacks) virtualn += Config->Width * (0.25 + (float) Config->n / Config->m);
 			gpu_n = GPURatio * (float) virtualn + (SmallTileHeight - 1);
-			if (gpu_n > Config->n) gpu_n = Config->n;
+			if (gpu_n > Config->n)
+			{
+				if (Config->SmallTiles == 2 && SmallTileHeight > CALDGEMM_MIN_TILE_DIM)
+				{
+					if (SmallTileHeight > 1024) SmallTileHeight = 1024;
+					else SmallTileHeight = CALDGEMM_MIN_TILE_DIM;
+					goto recalculate_ratio;
+				}
+				gpu_n = Config->n;
+			}
 			gpu_n -= gpu_n % SmallTileHeight;
 			cParam.cblas_size = Config->n - gpu_n;
 			gpu_m = Config->m;
 			gpu_m -= gpu_m % SmallTileHeight;
-			if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) Config->m, (long long int) Config->n - gpu_n);
+			if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld, Tilesize %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) Config->m, (long long int) Config->n - gpu_n, (long long int) SmallTileHeight);
 		}
 	}
 	else
@@ -1531,7 +1573,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
 	DGEMM_favor_m = Config->LinpackSwapN == NULL ? (gpu_m >= gpu_n) : 1;
 	
-	if (!Config->Quiet) fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n');
+	if (!Config->Quiet) fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c - Tiling %lld\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) SmallTileHeight);
 	
 	const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 	const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
@@ -1680,6 +1722,7 @@ restartkloop:
 							if (blockm * Config->Height >= gpu_m - cParam.dynamic_run && blockn * Config->Height >= gpu_n - cParam.dynamic_size)
 							{
 								if (Config->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (m=%lld n=%lld) (Dynamic Run 2nd Phase)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
+								next_device_k[use_device] = 0;
 								continue;
 							}
 						}
@@ -1688,6 +1731,7 @@ restartkloop:
 							if (blockn * Config->Height >= gpu_n - cParam.dynamic_run && blockm * Config->Height >= gpu_m - cParam.dynamic_size)
 							{
 								if (Config->Debug) fprintf(STD_OUT, "GPU skipping k = %lld (m=%lld n=%lld)(Dynamic Run 2nd Phase)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
+								next_device_k[use_device] = 0;
 								continue;
 							}
 						}
@@ -1696,7 +1740,10 @@ restartkloop:
 					if (Config->MultiThread) pthread_mutex_lock(&scheduleMutex);
 					if ((signed) k < cpu_k_barrier)
 					{
-						if ((signed int) k > (signed int) gpu_k_barrier) gpu_k_barrier = k;
+						if ((signed int) k > (signed int) gpu_k_barrier)
+						{
+							gpu_k_barrier = k;
+						}
 					}
 					else
 					{
@@ -1727,10 +1774,28 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 				{
 					if (Config->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (device %d obuffer %d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device, j[use_device]);
 
-					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads())
+					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && DGEMMTasks[use_device].thread_running)
 					{
-						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d\n", use_device);
-						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+						DGEMMTasks[use_device].thread_running = 0;
+						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (k=%lld lastk = %lld)\n", use_device, (long long int) k, lastk[use_device]);
+						//if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+
+						int tmpval = pthread_mutex_trylock(&DGEMMTasks[use_device].mutex_finished);
+						if (tmpval == EBUSY)
+						{
+							int tmp_device = *(DGEMMTasks[use_device].next_device);
+							if (tmp_device != use_device)
+							{
+								
+								if (Config->Debug) fprintf(STD_OUT, "Divide thread waiting for wrong device, skipping device %d\n", *(DGEMMTasks[use_device].next_device));
+								DGEMMTasks[*(DGEMMTasks[use_device].next_device)].skip_device_to = use_device;
+								if (pthread_mutex_unlock(&DGEMMTasks[*(DGEMMTasks[use_device].next_device)].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+							}
+							if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+						}
+						else if (tmpval) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+
+
 						if (Config->Debug) fprintf(STD_OUT, "Main thread: Divide thread for device %d finished\n", use_device);
 					}
 
@@ -1799,10 +1864,11 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					
 					if (Config->ImprovedScheduler) tileDistribution[k] = -1;
 
-					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && cpu_k_barrier_hit == false && UseInputPthreads())
+					if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && cpu_k_barrier_hit == false)
 					{
 						if (Config->Debug) fprintf(STD_OUT, "Starting PrepareAndExecute task on divide thread for device %d (k = %lld)\n", use_device, (long long int) k);
 						if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+						DGEMMTasks[use_device].thread_running = 1;
 					}
 					else
 					{
@@ -1817,10 +1883,24 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 				}
 				if ((obuffercount > 1) ? ((signed) lastk[use_device] != -1) : (k < nBlocks))
 				{
-					if (nBlocks <= k && lastk[use_device] < nBlocks && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads())
+					if (nBlocks <= k && (signed) lastk[use_device] < cpu_k_barrier && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && DGEMMTasks[use_device].thread_running)
 					{
-						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (late phase, k=%lld lastk = %lld)\n", use_device, (long long int)k, lastk[use_device]);
-						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+						DGEMMTasks[use_device].thread_running = 0;
+						if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (late phase, k=%lld lastk = %lld)\n", use_device, (long long int) k, lastk[use_device]);
+						int tmpval = pthread_mutex_trylock(&DGEMMTasks[use_device].mutex_finished);
+						if (tmpval == EBUSY)
+						{
+							int tmp_device = *(DGEMMTasks[use_device].next_device);
+							if (tmp_device != use_device)
+							{
+								
+								if (Config->Debug) fprintf(STD_OUT, "Divide thread waiting for wrong device (late phase), skipping device %d\n", *(DGEMMTasks[use_device].next_device));
+								DGEMMTasks[*(DGEMMTasks[use_device].next_device)].skip_device_to = use_device;
+								if (pthread_mutex_unlock(&DGEMMTasks[*(DGEMMTasks[use_device].next_device)].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+							}
+							if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+						}
+						else if (tmpval) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
 					size_t lastm, lastn;
 					DGEMM_getblocks(lastk[use_device], lastm, lastn);
