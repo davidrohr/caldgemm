@@ -279,7 +279,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 #define CALDGEMM_SHIFT_TEXTURE_OFFSET 0
 #endif
 
-#if !defined(CALDGEMM_SHIFT_TEXTURE) | CALDGEMM_SHIFT_TEXTURE = 0
+#if !defined(CALDGEMM_SHIFT_TEXTURE) | CALDGEMM_SHIFT_TEXTURE == 0
 		for (int y = 0;y < width;y += 16)
 		{
 			const double* __restrict__ saddr0 = &src[(y + 0) * pitch];
