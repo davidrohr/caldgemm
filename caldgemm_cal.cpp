@@ -276,6 +276,12 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 
 			double* __restrict__ dstBank0 = &dst[0].ptr_double[(y / 2) & 0xFFFFFFFE];
 			double* __restrict__ dstBank1 = &dst[1].ptr_double[(y / 2) & 0xFFFFFFFE];
+			
+#ifdef CALDGEMM_SHIFT_TEXTURE
+#define CALDGEMM_SHIFT_TEXTURE_OFFSET (CALDGEMM_SHIFT_TEXTURE * 2)
+#else
+#define CALDGEMM_SHIFT_TEXTURE_OFFSET 0
+#endif
 
 			for (int i = 0;i < height;i += 2)
 			{
@@ -291,14 +297,14 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 					const __m128d x6 = _mm_load_pd_use(&saddr6[0]);
 					const __m128d x7 = _mm_load_pd_use(&saddr6[pitch]);
 
-					_mm_stream_pd(&daddr0[0], _mm_unpacklo_pd(x0, x1));
+					_mm_stream_pd(&daddr0[0 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x0, x1));
 					_mm_stream_pd(&daddr0[gpu_pitch], _mm_unpackhi_pd(x0, x1));
-					_mm_stream_pd(&daddr1[0], _mm_unpacklo_pd(x2, x3));
+					_mm_stream_pd(&daddr1[0 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x2, x3));
 					_mm_stream_pd(&daddr1[gpu_pitch], _mm_unpackhi_pd(x2, x3));
 
-					_mm_stream_pd(&daddr0[2], _mm_unpacklo_pd(x4, x5));
+					_mm_stream_pd(&daddr0[2 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x4, x5));
 					_mm_stream_pd(&daddr0[gpu_pitch + 2], _mm_unpackhi_pd(x4, x5));
-					_mm_stream_pd(&daddr1[2], _mm_unpacklo_pd(x6, x7));
+					_mm_stream_pd(&daddr1[2 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x6, x7));
 					_mm_stream_pd(&daddr1[gpu_pitch + 2], _mm_unpackhi_pd(x6, x7));
 				}
 
@@ -312,14 +318,14 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 					const __m128d x6 = _mm_load_pd_use(&saddr6[8*pitch]);
 					const __m128d x7 = _mm_load_pd_use(&saddr6[9*pitch]);
 
-					_mm_stream_pd(&daddr0[4], _mm_unpacklo_pd(x0, x1));
+					_mm_stream_pd(&daddr0[4 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x0, x1));
 					_mm_stream_pd(&daddr0[gpu_pitch + 4], _mm_unpackhi_pd(x0, x1));
-					_mm_stream_pd(&daddr1[4], _mm_unpacklo_pd(x2, x3));
+					_mm_stream_pd(&daddr1[4 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x2, x3));
 					_mm_stream_pd(&daddr1[gpu_pitch + 4], _mm_unpackhi_pd(x2, x3));
 
-					_mm_stream_pd(&daddr0[6], _mm_unpacklo_pd(x4, x5));
+					_mm_stream_pd(&daddr0[6 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x4, x5));
 					_mm_stream_pd(&daddr0[gpu_pitch + 6], _mm_unpackhi_pd(x4, x5));
-					_mm_stream_pd(&daddr1[6], _mm_unpacklo_pd(x6, x7));
+					_mm_stream_pd(&daddr1[6 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x6, x7));
 					_mm_stream_pd(&daddr1[gpu_pitch + 6], _mm_unpackhi_pd(x6, x7));
 				}
 				saddr0 += 2;
@@ -457,16 +463,18 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				int count = dst[0].DataSize * width;
 				double* saddr = src + (y * pitch);
 
+#ifdef CALDGEMM_SHIFT_TEXTURE
 				if (y & 1)
 				{
-					daddr -= 2;
-					daddr2 -= 2;
+					daddr -= 2 * CALDGEMM_SHIFT_TEXTURE;
+					daddr2 -= 2 * CALDGEMM_SHIFT_TEXTURE;
 				}
 				else
 				{
-					daddr += 2;
-					daddr2 += 2;
+					daddr += 2 * CALDGEMM_SHIFT_TEXTURE;
+					daddr2 += 2 * CALDGEMM_SHIFT_TEXTURE;
 				}
+#endif
 				
 				for (int i = 0;i < count;i += 64)
 				{

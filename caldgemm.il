@@ -430,7 +430,7 @@ const char *caldgemm_cal::ILKernelName =
 "add r100.xy__, r0.xy00, l2.xx00\n"
 #endif
 
-#ifdef LATE_EXIT_CONDITION
+#ifdef CALDGEMM_LATE_EXIT_CONDITION
 #ifdef CALDGEMM_SHIFT_TEXTURE
 "mov r100.z, l2.0\n"
 #else
