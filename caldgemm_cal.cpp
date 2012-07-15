@@ -136,6 +136,8 @@ caldgemm_cal::~caldgemm_cal()
 
 int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose)
 {
+	const int gpu_pitch = dst[0].pitch * 2;
+
 	if (Config->SkipCPUProcessing) return(0);
 	if (Config->Debug) fprintf(STD_OUT, "\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", (long long int) src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
 
@@ -277,8 +279,8 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 
 			for (int i = 0;i < height;i += 2)
 			{
-				double* __restrict__ daddr0 = &dstBank0[i * gpu_width / 2];
-				double* __restrict__ daddr1 = &dstBank1[i * gpu_width / 2];
+				double* __restrict__ daddr0 = &dstBank0[i * gpu_pitch];
+				double* __restrict__ daddr1 = &dstBank1[i * gpu_pitch];
 				{
 					const __m128d x0 = _mm_load_pd_use(&saddr0[0]);
 					const __m128d x1 = _mm_load_pd_use(&saddr0[pitch]);
@@ -290,14 +292,14 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 					const __m128d x7 = _mm_load_pd_use(&saddr6[pitch]);
 
 					_mm_stream_pd(&daddr0[0], _mm_unpacklo_pd(x0, x1));
-					_mm_stream_pd(&daddr0[gpu_width/2], _mm_unpackhi_pd(x0, x1));
+					_mm_stream_pd(&daddr0[gpu_pitch], _mm_unpackhi_pd(x0, x1));
 					_mm_stream_pd(&daddr1[0], _mm_unpacklo_pd(x2, x3));
-					_mm_stream_pd(&daddr1[gpu_width/2], _mm_unpackhi_pd(x2, x3));
+					_mm_stream_pd(&daddr1[gpu_pitch], _mm_unpackhi_pd(x2, x3));
 
 					_mm_stream_pd(&daddr0[2], _mm_unpacklo_pd(x4, x5));
-					_mm_stream_pd(&daddr0[gpu_width/2 + 2], _mm_unpackhi_pd(x4, x5));
+					_mm_stream_pd(&daddr0[gpu_pitch + 2], _mm_unpackhi_pd(x4, x5));
 					_mm_stream_pd(&daddr1[2], _mm_unpacklo_pd(x6, x7));
-					_mm_stream_pd(&daddr1[gpu_width/2 + 2], _mm_unpackhi_pd(x6, x7));
+					_mm_stream_pd(&daddr1[gpu_pitch + 2], _mm_unpackhi_pd(x6, x7));
 				}
 
 				{
@@ -311,14 +313,14 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 					const __m128d x7 = _mm_load_pd_use(&saddr6[9*pitch]);
 
 					_mm_stream_pd(&daddr0[4], _mm_unpacklo_pd(x0, x1));
-					_mm_stream_pd(&daddr0[gpu_width/2+4], _mm_unpackhi_pd(x0, x1));
+					_mm_stream_pd(&daddr0[gpu_pitch + 4], _mm_unpackhi_pd(x0, x1));
 					_mm_stream_pd(&daddr1[4], _mm_unpacklo_pd(x2, x3));
-					_mm_stream_pd(&daddr1[gpu_width/2+4], _mm_unpackhi_pd(x2, x3));
+					_mm_stream_pd(&daddr1[gpu_pitch + 4], _mm_unpackhi_pd(x2, x3));
 
 					_mm_stream_pd(&daddr0[6], _mm_unpacklo_pd(x4, x5));
-					_mm_stream_pd(&daddr0[gpu_width/2 + 6], _mm_unpackhi_pd(x4, x5));
+					_mm_stream_pd(&daddr0[gpu_pitch + 6], _mm_unpackhi_pd(x4, x5));
 					_mm_stream_pd(&daddr1[6], _mm_unpacklo_pd(x6, x7));
-					_mm_stream_pd(&daddr1[gpu_width/2 + 6], _mm_unpackhi_pd(x6, x7));
+					_mm_stream_pd(&daddr1[gpu_pitch + 6], _mm_unpackhi_pd(x6, x7));
 				}
 				saddr0 += 2;
 				saddr2 += 2;
@@ -455,6 +457,17 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				int count = dst[0].DataSize * width;
 				double* saddr = src + (y * pitch);
 
+				if (y & 1)
+				{
+					daddr -= 2;
+					daddr2 -= 2;
+				}
+				else
+				{
+					daddr += 2;
+					daddr2 += 2;
+				}
+				
 				for (int i = 0;i < count;i += 64)
 				{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
@@ -468,8 +481,9 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 					daddr += 4;
 					daddr2+= 4;
 				}
-				daddr += (gpu_width - width) / numBuffers;
-				daddr2 += (gpu_width - width) / numBuffers;
+				daddr += gpu_pitch - width / numBuffers;
+				daddr2 += gpu_pitch - width / numBuffers;
+				
 			}
 		}
 #else
@@ -1505,7 +1519,9 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			tWidth = Config->Width / 2;
 			tHeight = Config->Height / dwBuffersA;
 #endif
-			tWidth += 0;
+#ifdef CALDGEMM_LDA_INC
+			tWidth += CALDGEMM_LDA_INC;
+#endif
 			mem = 'g';
 		}
 		else if (i >= dwBuffersA && i < bStop)
@@ -1535,7 +1551,9 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			tWidth = Config->Height / 2;
 			tHeight = Config->Width / dwBuffersB;
 #endif
-			tWidth += 0;
+#ifdef CALDGEMM_LDB_INC
+			tWidth += CALDGEMM_LDB_INC;
+#endif
 			mem = 'g';
 		}
 		else if (i >= bStop && i < fStop)
@@ -1555,7 +1573,9 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 #ifdef CALDGEMM_SGEMM
 			tHeight *= 2;
 #endif
-			tWidth += 0;
+#ifdef CALDGEMM_LDC_INC
+			tWidth += CALDGEMM_LDC_INC;
+#endif
 			mem = Config->DstMemory;
 			flag = (CALresallocflags) (flag | CAL_RESALLOC_CACHEABLE);
 		}
