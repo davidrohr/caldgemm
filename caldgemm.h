@@ -99,6 +99,7 @@ public:
 		bool DynamicSched;						//Dynamically schedule CPU DGEMM
 		bool SecondPhaseDynamicRuns;			//3rd phase in dynamic scheduling
 		bool ThirdPhaseDynamicRuns;				//3rd phase in dynamic scheduling
+		int ThirdPhaseThreshold;				//Modifier to the number of remaining tiles required to start a third phase run
 		bool KeepBuffersMapped;					//Do not unmap CAL buffers before kernel execution
 		bool MemPolicy;							//Set memory allocation policy to interleaved
 		bool MultiThread;						//Use multiple threads
@@ -135,7 +136,7 @@ public:
 		size_t m, n;							//height of A, width of B, must be multiple of height
 		size_t Width;							//k for matrix multiply
 		bool AutoHeight;						//Automatically adjust height
-		bool SmallTiles;						//ScheduleSmallTiles for alowing better GPU processing of the remainder parts
+		int SmallTiles;						//ScheduleSmallTiles for alowing better GPU processing of the remainder parts
 
 		bool Disassemble;						//Print the disassembled IL kernel
 		bool PrintILKernel;						//Print the IL kernel source
@@ -196,6 +197,9 @@ protected:
 		int device;
 		int kernel_num;
 		pthread_mutex_t mutex_start, mutex_finished;
+		int thread_running;
+		volatile int* next_device;
+		volatile int skip_device_to;
 	} DGEMMTasks[max_devices];
 	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task);
 
@@ -370,7 +374,7 @@ protected:
 		int nThread;
 		int terminate;
 		int reset;
-		int curDevice;
+		volatile int curDevice;
 	} dParam[max_devices];
 	int divideThreads;
 

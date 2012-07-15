@@ -151,7 +151,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n" );
 	fprintf(STD_OUT, "\t-O <int>  Backend to use: not 0 = CAL, 1 = OpenCL, 2 = CUDA, 3 = CPUOnly\n" );
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n" );
-	fprintf(STD_OUT, "\t-J        Allow small tiles to process the remainder on GPU\n");
+	fprintf(STD_OUT, "\t-J <int>  Allow small tiles to process the remainder on GPU (0 disable, 1 enable, 2 auto)\n");
 	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
 	fprintf(STD_OUT, "\t-!        Do not use page locked memory\n");
 	fprintf(STD_OUT, "\t-_        Allocate memory using the GPU runtime library (e.g. OpenCL)\n");
@@ -320,7 +320,8 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			sscanf(argv[x], "%d", (int*) &Config->SleepDuringActiveWait);
 			break;
 		case 'J':
-			Config->SmallTiles = true;
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", (int*) &Config->SmallTiles);
 			break;
 		case 'B':
 			Config->KeepBuffersMapped = true;
