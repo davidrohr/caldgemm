@@ -336,50 +336,50 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 		}
 
 #else
-			for (int y=0; y < width; y += 2)
-			{
-				double* saddr = src + (y * pitch);
-				double* saddr2 = src + ((y + 1) * pitch);
+		for (int y=0; y < width; y += 2)
+		{
+			double* saddr = src + (y * pitch);
+			double* saddr2 = src + ((y + 1) * pitch);
 
-				for (int i = 0;i < height;i += 2)
-				{
+			for (int i = 0;i < height;i += 2)
+			{
 #if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
-					int bank = (i / 2) % 2;
-					double* daddr = dst[bank].ptr_double + (i / 4) * gpu_width * 2 + y * 2;
-					double* daddr2 = dst[bank].ptr_double + (i / 4) * gpu_width * 2 + y * 2 + 2;
+				int bank = (i / 2) % 2;
+				double* daddr = dst[bank].ptr_double + (i / 4) * gpu_width * 2 + y * 2;
+				double* daddr2 = dst[bank].ptr_double + (i / 4) * gpu_width * 2 + y * 2 + 2;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-					//Col Interleaved Storage, Numbuffers is either 2 or 4, might be optimized in 2 branches
-					int bank = (y / 2) % numBuffers;
+				//Col Interleaved Storage, Numbuffers is either 2 or 4, might be optimized in 2 branches
+				int bank = (y / 2) % numBuffers;
 #ifdef CALDGEMM_DIAGONAL_TEXTURE
-					double* daddr = dst[bank].ptr_double + i * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (gpu_width / 2);
-					double* daddr2 = dst[bank].ptr_double + (i + 1) * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (gpu_width / 2);
+				double* daddr = dst[bank].ptr_double + i * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (gpu_width / 2);
+				double* daddr2 = dst[bank].ptr_double + (i + 1) * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (gpu_width / 2);
 #else
-					double* daddr = dst[bank].ptr_double + (i * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
-					double* daddr2 = dst[bank].ptr_double + ((i + 1) * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
+				double* daddr = dst[bank].ptr_double + (i * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
+				double* daddr2 = dst[bank].ptr_double + ((i + 1) * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
 #endif
 #else
-					//Standard Storage
-					int bank = (i) % numBuffers;
-					int bank2 = (i + 1) % numBuffers;
-					double* daddr = dst[bank].ptr_double + (i / numBuffers) * gpu_width + y;
-					double* daddr2 = dst[bank2].ptr_double + (i / numBuffers) * gpu_width + y;
+				//Standard Storage
+				int bank = (i) % numBuffers;
+				int bank2 = (i + 1) % numBuffers;
+				double* daddr = dst[bank].ptr_double + (i / numBuffers) * gpu_width + y;
+				double* daddr2 = dst[bank2].ptr_double + (i / numBuffers) * gpu_width + y;
 #endif
 
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 100), _MM_HINT_NTA);
-					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr2 + 100), _MM_HINT_NTA);
+				_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 100), _MM_HINT_NTA);
+				_mm_prefetch(CAST_FOR_MMPREFETCH (saddr2 + 100), _MM_HINT_NTA);
 #endif
-					__m128d x1, x2, x3, x4;
-					x1 = _mm_load_pd_use(saddr);
-					x2 = _mm_load_pd_use(saddr2);
-					x3 = _mm_unpacklo_pd(x1, x2);
-					x4 = _mm_unpackhi_pd(x1, x2);
-					_mm_store_pd_use(daddr, x3);
-					_mm_store_pd_use(daddr2, x4);
-					saddr += 2;
-					saddr2 += 2;
-				}
+				__m128d x1, x2, x3, x4;
+				x1 = _mm_load_pd_use(saddr);
+				x2 = _mm_load_pd_use(saddr2);
+				x3 = _mm_unpacklo_pd(x1, x2);
+				x4 = _mm_unpackhi_pd(x1, x2);
+				_mm_store_pd_use(daddr, x3);
+				_mm_store_pd_use(daddr2, x4);
+				saddr += 2;
+				saddr2 += 2;
 			}
+		}
 #endif
 
 	}
