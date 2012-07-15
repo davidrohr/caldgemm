@@ -23,7 +23,7 @@
  *
  */
 
-#if defined(CALDGEMM_88)
+#if defined(CALDGEMM_88) | defined(CALDGEMM_DOUBLE_BUFFERS)
 #define CALDGEMM_INPUT_A_1 "0"
 #define CALDGEMM_INPUT_A_2 "1"
 #define CALDGEMM_INPUT_A_3 "2"
@@ -324,22 +324,32 @@ MMUL82(o1, o2, o3, o4, o5, o6, o7, o8, a1_12.xy, a2_12.xy, a1_12.zw, a2_12.zw, a
 #define qon_mxstr(a) qon_mstr(a)
 
 const char *caldgemm_cal::ILKernelName =
+#ifdef CALDGEMM_COMPUTE_SHADER
+"il_cs_2_0\n"
+#else
 "il_ps_2_0\n"
+#endif
 "dcl_cb cb0[4]\n"
+#ifdef CALDGEMM_COMPUTE_SHADER
+"dcl_num_thread_per_group " mxstr(CALDGEMM_COMPUTE_SHADER) "\n"
+#else
 "dcl_input_position_interp(linear_noperspective) vWinCoord0.xy__\n"
+#endif
 "dcl_resource_id(0)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(1)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+#ifndef CALDGEMM_SINGLE_BUFFER
 "dcl_resource_id(2)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(3)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
-#if (!defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_44)) | defined(CALDGEMM_84) | defined(CALDGEMM_48)
+#if (!defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_44)) | defined(CALDGEMM_84) | defined(CALDGEMM_48) | defined(CALDGEMM_DOUBLE_BUFFERS)
 "dcl_resource_id(4)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(5)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
-#if (!defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_44)) | defined(CALDGEMM_88)
+#if (!defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_44)) | defined(CALDGEMM_88)  | defined(CALDGEMM_DOUBLE_BUFFERS)
 "dcl_resource_id(6)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(7)_type(2d" UNNORM_TYPE ")_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 #if !defined(CALDGEMM_44)
 "dcl_resource_id(8)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
 "dcl_resource_id(9)_type(2d)_fmtx(unknown)_fmty(unknown)_fmtz(unknown)_fmtw(unknown)\n"
+#endif
 #endif
 #endif
 #endif
@@ -392,7 +402,20 @@ const char *caldgemm_cal::ILKernelName =
 #endif
 
 #if defined(CALDGEMM_44)
+#ifdef CALDGEMM_SINGLE_BUFFER
+"mul r0.x, vWinCoord0.x, l1.w\n"
+"mul r100.x, vWinCoord0.y, l1.w\n"
+"add r0.y, r0.x, r0.1\n"
+"add r100.y, r100.y, r100.1\n"
+#else
+#ifdef CALDGEMM_COMPUTE_SHADER
+"umod r0.x, vaTid0.x, cb0[0].x\n"
+"udiv r0.y, vaTid0.x, cb0[0].x\n"
+"itof r0, r0\n"
+#else
 "mov r0.xy__, vWinCoord0.xy00\n"
+#endif
+#endif
 "mov r0.w, l1.z\n"
 #else
 "mul r0.xyz0, vWinCoord0.xyyx, cb0[0].zwxz\n"		//r0.x: normalized x pos, r0.y: 0, r0.z: normalized y pos, r0.w: 0
@@ -414,11 +437,14 @@ const char *caldgemm_cal::ILKernelName =
 #ifndef CALDGEMM_44
 "    ge r0.y, r11.x, cb0[1].x\n"				//cmp with width
 #else
-#if defined(CALDGEMM_DUAL_ENTRY) | defined(CALDGEMM_TRANSPOSED_B) | (defined(CALDGEMM_48) & !defined(CALDGEMM_88))
+#if (defined(CALDGEMM_DUAL_ENTRY) | defined(CALDGEMM_TRANSPOSED_B) | (defined(CALDGEMM_48) & !defined(CALDGEMM_88))) & !defined(CALDGEMM_DOUBLE_BUFFERS)
 "    add r0.z, r0.w, l1.y\n"
 "    add r0.w, r0.w, l1.w\n"
 #else
 "    add r0.w, r0.w, l1.y\n"
+#endif
+#ifdef CALDGEMM_SINGLE_BUFFER
+"    mov r100.xy__, r0.xyzw\n"
 #endif
 #ifdef CALDGEMM_44_BT_64_KERNEL
 "    add r1.xyzw, r0.xyzw, l1.0011\n"
@@ -471,8 +497,30 @@ MMUL441(r37, r38, r39, r40, r41, r42, r43, r44, r15.xy, r15.zw, r16.xy, r16.zw, 
 #elif defined(CALDGEMM_44)
 #if defined(CALDGEMM_TRANSPOSED_A)
 #ifdef CALDGEMM_DUAL_ENTRY
+#ifdef CALDGEMM_SINGLE_BUFFER
+"sample_resource(0)_sampler(0) r13, r100.xz\n"
+"sample_resource(0)_sampler(0) r14, r100.yz\n"
+"sample_resource(1)_sampler(1) r15, r0.xz\n"
+"sample_resource(1)_sampler(1) r16, r0.yz\n"
+"sample_resource(0)_sampler(0) r17, r100.xw\n"
+"sample_resource(0)_sampler(0) r18, r100.yw\n"
+"sample_resource(1)_sampler(1) r19, r0.xw\n"
+"sample_resource(1)_sampler(1) r20, r100.yw\n"
+#elif defined (CALDGEMM_DOUBLE_BUFFERS)
+"sample_resource(0)_sampler(0) r13, r0.yw\n"
+"sample_resource(1)_sampler(1) r14, r0.yw\n"
+"sample_resource(4)_sampler(4) r15, r0.xw\n"
+"sample_resource(5)_sampler(5) r16, r0.xw\n"
+"sample_resource(2)_sampler(2) r17, r0.yw\n"
+"sample_resource(3)_sampler(3) r18, r0.yw\n"
+"sample_resource(6)_sampler(6) r19, r0.xw\n"
+"sample_resource(7)_sampler(7) r20, r0.xw\n"
+#else
 SAMPLE_A(r13, r14, r0.yz)
 SAMPLE_B(r15, r16, r0.xz)
+SAMPLE_A(r17, r18, r0.yw)
+SAMPLE_B(r19, r20, r0.xw)
+#endif //SINGLE_BUFFER
 #ifdef CALDGEMM_SGEMM
 MMUL441_S1(r3, r4, r5, r6, r7, r8, r9, r10, r13.x, r13.z, r14.x, r14.z, r15.x, r15.z, r16.x, r16.z)
 MMUL441_S1(r37, r38, r38, r40, r41, r42, r43, r44, r13.x, r13.z, r14.x, r14.z, r15.y, r15.w, r16.y, r16.w)
@@ -481,9 +529,10 @@ MMUL441_S2(r37, r38, r39, r40, r41, r42, r43, r44, r13.y, r13.w, r14.y, r14.w, r
 #else //CALDGEMM_SGEMM
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r13.xy, r13.zw, r14.xy, r14.zw, r15.xy, r15.zw, r16.xy, r16.zw)
 #endif //CALDGEMM_SGEMM
-#endif
+#else
 SAMPLE_A(r17, r18, r0.yw)
 SAMPLE_B(r19, r20, r0.xw)
+#endif //DUAL_ENTRY
 #ifdef CALDGEMM_SGEMM
 MMUL441_S1(r3, r4, r5, r6, r7, r8, r9, r10, r17.x, r17.z, r18.x, r18.z, r19.x, r19.z, r20.x, r20.z)
 MMUL441_S1(r37, r38, r38, r40, r41, r42, r43, r44, r17.x, r17.z, r18.x, r18.z, r19.y, r19.w, r20.y, r20.w)
@@ -492,6 +541,7 @@ MMUL441_S2(r37, r38, r39, r40, r41, r42, r43, r44, r17.y, r17.w, r18.y, r18.w, r
 #else //CALDGEMM_SGEMM
 MMUL441(r3, r4, r5, r6, r7, r8, r9, r10, r17.xy, r17.zw, r18.xy, r18.zw, r19.xy, r19.zw, r20.xy, r20.zw)
 #endif //CALDGEMM_SGEMM
+
 #else
 SAMPLE_A(r13, r14, r0.zy)
 SAMPLE_B(r15, r16, r0.zx)
@@ -661,7 +711,9 @@ MUL8(r45, r46, r47, r48, r49, r50, r51, r52, cb0[1].zw)
 #endif*/
 
 #ifdef CALDGEMM_USE_MEMEXPORT
+#ifndef CALDGEMM_COMPUTE_SHADER
 "flr r0.xy, vWinCoord0.xy\n"
+#endif
 "ftoi r1.xy, r0.xy\n"
 "imul r1.x, r1.x, cb0[2].z\n"
 "imad r0, r1.yyyy, cb0[2].yyyy, r1.xxxx\n"

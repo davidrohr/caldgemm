@@ -49,12 +49,16 @@ private:
 	unsigned int numInputs, numOutputs, numConstantBuffers;
 
 #ifdef CALDGEMM_44
-#if !defined(CALDGEMM_48)
+#ifdef CALDGEMM_SINGLE_BUFFER
+	static const unsigned int dwBuffersA = 1;
+#elif !defined(CALDGEMM_48) & !defined(CALDGEMM_DOUBLE_BUFFERS)
 	static const unsigned int dwBuffersA = 2;
 #else
 	static const unsigned int dwBuffersA = 4;
 #endif
-#if !defined(CALDGEMM_84)
+#ifdef CALDGEMM_SINGLE_BUFFER
+	static const unsigned int dwBuffersB = 1;
+#elif !defined(CALDGEMM_84) & !defined(CALDGEMM_DOUBLE_BUFFERS)
 	static const unsigned int dwBuffersB = 2;
 #else
 	static const unsigned int dwBuffersB = 4;

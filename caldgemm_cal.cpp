@@ -264,7 +264,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				_mm_stream_pd(&daddr1[6], _mm_unpackhi_pd(x6, x7));
 			}
 		}
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_SINGLE_BUFFER) &!defined(CALDGEMM_DOUBLE_BUFFERS)
 		for (int y = 0;y < width;y += 16)
 		{
 			const double* __restrict__ saddr0 = &src[(y + 0) * pitch];
@@ -817,8 +817,12 @@ void caldgemm_cal::checkCalPatch()
 
 void caldgemm_cal::cal_init_constant_data(BufferProperties* &data, double alpha)
 {
+#ifdef CALDGEMM_COMPUTE_SHADER
+	data[dwBuffersA + dwBuffersB].ptr_int[0] = Config->Height / TILING_X;
+#else
 	data[dwBuffersA + dwBuffersB].ptr_float[0] = (float) TILING_Y / Config->Height;			//Scale factor for normalized y pos
 	data[dwBuffersA + dwBuffersB].ptr_float[2] = (float) TILING_X / Config->Height;			//Scale factor for normalized x pos
+#endif
 #ifdef CALDGEMM_44
 	data[dwBuffersA + dwBuffersB].ptr_float[1] = 1.f / Config->Width;							//Step in K direction
 #ifdef CALDGEMM_44_BT_64_KERNEL
@@ -966,6 +970,8 @@ int caldgemm_cal::SetupKernel(const char* ILKernel, CALmodule* module, CALcontex
 	char* ILKernelUse = (char*) malloc(strlen(ILKernel) + 1024);
 #ifdef CALDGEMM_44_BT_64_KERNEL
 	sprintf(ILKernelUse, ILKernel, Config->Width * 2);
+#elif defined(CALDGEMM_DOUBLE_BUFFERS)
+	sprintf(ILKernelUse, ILKernel, Config->Width / 2);
 #else
 	sprintf(ILKernelUse, ILKernel, Config->Width);
 #endif
@@ -991,18 +997,35 @@ int caldgemm_cal::RunProgram(CALcontext *ctx, CALmodule *module, unsigned int Wi
 	CALfunc func;
 	CHKERR(calModuleGetEntry(&func, *ctx, *module, "main"), "finding module entry point");
 
+#ifdef CALDGEMM_COMPUTE_SHADER
+	CALprogramGrid pg;
+	
+	pg.func = func;
+	pg.flags = 0;
+	pg.gridBlock.width = CALDGEMM_COMPUTE_SHADER;
+	pg.gridBlock.height = 1;
+	pg.gridBlock.depth = 1;
+	pg.gridSize.width = Width * Height / pg.gridBlock.width;
+	pg.gridSize.height = 1;
+	pg.gridSize.depth = 1;
+#else
 	CALdomain rect;
 	rect.x = 0;
 	rect.y = 0;
 	rect.width = Width;
 	rect.height = Height;
+#endif
 
 	if (Config->VerboseTiming) Timers.Kernel.Start();
 #ifdef CALDGEMM_BENCHMARK_KERNEL
 	for (int i = 0;i < CALDGEMM_BENCHMARK_KERNEL;i++)
 #endif
 				
+#ifdef CALDGEMM_COMPUTE_SHADER
+	CHKERR(calCtxRunProgramGrid(event, *ctx, &pg), "executing kernel");
+#else
 	CHKERR(calCtxRunProgram(event, *ctx, func, &rect), "executing kernel");
+#endif
 
 	if (Config->VerboseTiming)
 	{
@@ -1087,7 +1110,9 @@ int caldgemm_cal::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module,
 				CHKERR(calModuleUnload(*ctx, module[i]), "unloading module");
 			}
 		}
+#ifdef CALDGEMM_44_BT_64_CONVERT
 		CHKERR(calModuleUnload(*ctx, modulesConvert[num_device]), "unloading module");
+#endif
 	}
 	delete[] resourceHandler;
 	delete[] data;
@@ -1302,8 +1327,11 @@ int caldgemm_cal::InitDevices()
 			{
 				if (SetupKernel(ILKernel, &modules[device_num][0], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
 					SetupKernel(ILKernelALPHA1, &modules[device_num][1], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
-					SetupKernel(ILKernelLinpack, &modules[device_num][2], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
-					SetupKernel(ILConvertKernel, &modulesConvert[device_num], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)))
+					SetupKernel(ILKernelLinpack, &modules[device_num][2], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0))
+#ifdef CALDGEMM_44_BT_64_CONVERT
+					|| SetupKernel(ILConvertKernel, &modulesConvert[device_num], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0))
+#endif
+					)
 				{
 					return 1;
 				}
@@ -1456,8 +1484,16 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			tWidth = Config->Height / 8;
 			tHeight = Config->Width;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#ifdef CALDGEMM_SINGLE_BUFFER
+			tWidth = Config->Height / 2;
+#else
 			tWidth = Config->Height / 4;
+#endif
+#ifdef CALDGEMM_DOUBLE_BUFFERS
+			tHeight = Config->Width / 2;
+#else
 			tHeight = Config->Width;
+#endif
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
 			tHeight = Config->Height / 4;
 			tWidth = Config->Width;
@@ -1469,6 +1505,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			tWidth = Config->Width / 2;
 			tHeight = Config->Height / dwBuffersA;
 #endif
+			tWidth += 0;
 			mem = 'g';
 		}
 		else if (i >= dwBuffersA && i < bStop)
@@ -1477,8 +1514,16 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			tWidth = Config->Height / 8;
 			tHeight = Config->Width;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#ifdef CALDGEMM_SINGLE_BUFFER
+			tWidth = Config->Height / 2;
+#else
 			tWidth = Config->Height / 4;
+#endif
+#ifdef CALDGEMM_DOUBLE_BUFFERS
+			tHeight = Config->Width / 2;
+#else
 			tHeight = Config->Width;
+#endif
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
 			tHeight = Config->Height / 4;
 			tWidth = Config->Width;
@@ -1490,6 +1535,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			tWidth = Config->Height / 2;
 			tHeight = Config->Width / dwBuffersB;
 #endif
+			tWidth += 0;
 			mem = 'g';
 		}
 		else if (i >= bStop && i < fStop)
@@ -1509,6 +1555,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 #ifdef CALDGEMM_SGEMM
 			tHeight *= 2;
 #endif
+			tWidth += 0;
 			mem = Config->DstMemory;
 			flag = (CALresallocflags) (flag | CAL_RESALLOC_CACHEABLE);
 		}
@@ -1693,7 +1740,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			else if (j >= fStop && j < cStop)
 			{
 #ifdef CALDGEMM_USE_MEMEXPORT
-				sprintf(buffer, "g[]", j - fStop);
+				sprintf(buffer, "g[]");
 #else
 				sprintf(buffer,"o%d", j - fStop);
 #endif
@@ -1712,7 +1759,8 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			}
 		}
 	}
-	
+
+#ifdef CALDGEMM_44_BT_64_CONVERT
 	for (unsigned int j = 0;j < dwBuffersA;j++)
 	{
 		char buffer[10];
@@ -1721,6 +1769,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 		sprintf(buffer, "o%d", j);
 		CHKERR(calModuleGetName(&progNamesConvert[num_device][j + dwBuffersA], *ctx, modulesConvert[num_device], buffer), "getting buffer name");
 	}
+#endif
 
 	return(0);
 }

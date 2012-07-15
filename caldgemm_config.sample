@@ -29,8 +29,11 @@
 //#define CALDGEMM_48							//4x8 tiling (implies memexport)
 #define CALDGEMM_44								//4x4 tiling
 //#define CALDGEMM_USE_MEMEXPORT				//Use Memexport for output instead of color buffers
+//#define CALDGEMM_COMPUTE_SHADER 64				//Use compute shader, define compute group size
 //#define CALDGEMM_DIAGONAL_TEXTURE				//Alternate storage format, only valid for 4x4 kernel, obsolete
 #define CALDGEMM_DUAL_ENTRY						//Unroll factor of 2 for 4x4 tiling
+//#define CALDGEMM_SINGLE_BUFFER				//Use a single buffer, 4x4 tiling a transposed, experimental
+//#define CALDGEMM_DUAL_BUFFERS					//Double number of buffers, 4x4 tiling a transposed, experimental
 //#define TESTMODE								//Activate Test Mode for debugging
 //#define TEST_KERNEL
 //#define TEST_PARAMETERS
