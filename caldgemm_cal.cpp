@@ -140,6 +140,11 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 
 	if (Config->SkipCPUProcessing) return(0);
 	if (Config->Debug) fprintf(STD_OUT, "\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", (long long int) src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
+	
+#if defined(CALDGEMM_DOUBLE_BUFFERS) | defined(CALDGEMM_SINGLE_BUFFER)
+	fprintf(STD_OUT, "ERROR: divideBuffer not implemented for current configuration, skipping\n"
+	return(0);
+#endif
 
 	if (Config->DivideToGPU)
 	{
@@ -255,15 +260,15 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				saddr0 += 2;
 				saddr2 += 2;
 
-				_mm_stream_pd(&daddr0[0], _mm_unpacklo_pd(x0, x1));
-				_mm_stream_pd(&daddr0[2], _mm_unpackhi_pd(x0, x1));
-				_mm_stream_pd(&daddr0[4], _mm_unpacklo_pd(x2, x3));
-				_mm_stream_pd(&daddr0[6], _mm_unpackhi_pd(x2, x3));
+				_mm_store_pd_use(&daddr0[0], _mm_unpacklo_pd(x0, x1));
+				_mm_store_pd_use(&daddr0[2], _mm_unpackhi_pd(x0, x1));
+				_mm_store_pd_use(&daddr0[4], _mm_unpacklo_pd(x2, x3));
+				_mm_store_pd_use(&daddr0[6], _mm_unpackhi_pd(x2, x3));
 
-				_mm_stream_pd(&daddr1[0], _mm_unpacklo_pd(x4, x5));
-				_mm_stream_pd(&daddr1[2], _mm_unpackhi_pd(x4, x5));
-				_mm_stream_pd(&daddr1[4], _mm_unpacklo_pd(x6, x7));
-				_mm_stream_pd(&daddr1[6], _mm_unpackhi_pd(x6, x7));
+				_mm_store_pd_use(&daddr1[0], _mm_unpacklo_pd(x4, x5));
+				_mm_store_pd_use(&daddr1[2], _mm_unpackhi_pd(x4, x5));
+				_mm_store_pd_use(&daddr1[4], _mm_unpacklo_pd(x6, x7));
+				_mm_store_pd_use(&daddr1[6], _mm_unpackhi_pd(x6, x7));
 			}
 		}
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_SINGLE_BUFFER) &!defined(CALDGEMM_DOUBLE_BUFFERS)
@@ -276,7 +281,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 
 			double* __restrict__ dstBank0 = &dst[0].ptr_double[(y / 2) & 0xFFFFFFFE];
 			double* __restrict__ dstBank1 = &dst[1].ptr_double[(y / 2) & 0xFFFFFFFE];
-			
+
 #ifdef CALDGEMM_SHIFT_TEXTURE
 #define CALDGEMM_SHIFT_TEXTURE_OFFSET (CALDGEMM_SHIFT_TEXTURE * 2)
 #else
@@ -297,15 +302,15 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 					const __m128d x6 = _mm_load_pd_use(&saddr6[0]);
 					const __m128d x7 = _mm_load_pd_use(&saddr6[pitch]);
 
-					_mm_stream_pd(&daddr0[0 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x0, x1));
-					_mm_stream_pd(&daddr0[gpu_pitch], _mm_unpackhi_pd(x0, x1));
-					_mm_stream_pd(&daddr1[0 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x2, x3));
-					_mm_stream_pd(&daddr1[gpu_pitch], _mm_unpackhi_pd(x2, x3));
+					_mm_store_pd_use(&daddr0[0 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x0, x1));
+					_mm_store_pd_use(&daddr0[gpu_pitch], _mm_unpackhi_pd(x0, x1));
+					_mm_store_pd_use(&daddr1[0 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x2, x3));
+					_mm_store_pd_use(&daddr1[gpu_pitch], _mm_unpackhi_pd(x2, x3));
 
-					_mm_stream_pd(&daddr0[2 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x4, x5));
-					_mm_stream_pd(&daddr0[gpu_pitch + 2], _mm_unpackhi_pd(x4, x5));
-					_mm_stream_pd(&daddr1[2 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x6, x7));
-					_mm_stream_pd(&daddr1[gpu_pitch + 2], _mm_unpackhi_pd(x6, x7));
+					_mm_store_pd_use(&daddr0[2 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x4, x5));
+					_mm_store_pd_use(&daddr0[gpu_pitch + 2], _mm_unpackhi_pd(x4, x5));
+					_mm_store_pd_use(&daddr1[2 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x6, x7));
+					_mm_store_pd_use(&daddr1[gpu_pitch + 2], _mm_unpackhi_pd(x6, x7));
 				}
 
 				{
@@ -318,15 +323,15 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 					const __m128d x6 = _mm_load_pd_use(&saddr6[8*pitch]);
 					const __m128d x7 = _mm_load_pd_use(&saddr6[9*pitch]);
 
-					_mm_stream_pd(&daddr0[4 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x0, x1));
-					_mm_stream_pd(&daddr0[gpu_pitch + 4], _mm_unpackhi_pd(x0, x1));
-					_mm_stream_pd(&daddr1[4 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x2, x3));
-					_mm_stream_pd(&daddr1[gpu_pitch + 4], _mm_unpackhi_pd(x2, x3));
+					_mm_store_pd_use(&daddr0[4 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x0, x1));
+					_mm_store_pd_use(&daddr0[gpu_pitch + 4], _mm_unpackhi_pd(x0, x1));
+					_mm_store_pd_use(&daddr1[4 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x2, x3));
+					_mm_store_pd_use(&daddr1[gpu_pitch + 4], _mm_unpackhi_pd(x2, x3));
 
-					_mm_stream_pd(&daddr0[6 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x4, x5));
-					_mm_stream_pd(&daddr0[gpu_pitch + 6], _mm_unpackhi_pd(x4, x5));
-					_mm_stream_pd(&daddr1[6 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x6, x7));
-					_mm_stream_pd(&daddr1[gpu_pitch + 6], _mm_unpackhi_pd(x6, x7));
+					_mm_store_pd_use(&daddr0[6 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x4, x5));
+					_mm_store_pd_use(&daddr0[gpu_pitch + 6], _mm_unpackhi_pd(x4, x5));
+					_mm_store_pd_use(&daddr1[6 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x6, x7));
+					_mm_store_pd_use(&daddr1[gpu_pitch + 6], _mm_unpackhi_pd(x6, x7));
 				}
 				saddr0 += 2;
 				saddr2 += 2;
