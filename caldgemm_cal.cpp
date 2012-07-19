@@ -141,8 +141,8 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 	if (Config->SkipCPUProcessing) return(0);
 	if (Config->Debug) fprintf(STD_OUT, "\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", (long long int) src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
 	
-#if defined(CALDGEMM_DOUBLE_BUFFERS) | defined(CALDGEMM_SINGLE_BUFFER)
-	fprintf(STD_OUT, "ERROR: divideBuffer not implemented for current configuration, skipping\n"
+#if defined(CALDGEMM_DOUBLE_BUFFERS)
+	fprintf(STD_OUT, "ERROR: divideBuffer not implemented for current configuration, skipping\n");
 	return(0);
 #endif
 
@@ -494,6 +494,39 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				daddr2 += (gpu_width - width) / numBuffers;
 				daddr3 += (gpu_width - width) / numBuffers;
 				daddr4 += (gpu_width - width) / numBuffers;
+			}
+		}
+		else if (numBuffers == 1)
+		{
+			double* __restrict__ daddr = dst[0].ptr_double;
+			for (int y=0; y < height; y++)
+			{
+				int count = dst[0].DataSize * width;
+				const double* __restrict__ saddr = src + (y * pitch);
+#ifdef CALDGEMM_SHIFT_TEXTURE
+				if (y & 1)
+				{
+					daddr -= 2 * CALDGEMM_SHIFT_TEXTURE;
+				}
+				else
+				{
+					daddr += 2 * CALDGEMM_SHIFT_TEXTURE;
+				}
+#endif
+				
+				for (int i = 0;i < count;i += 64)
+				{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 32), _MM_HINT_NTA);
+#endif
+					_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
+					_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 2));
+					_mm_store_pd_use(daddr + 4, _mm_load_pd_use(saddr + 4));
+					_mm_store_pd_use(daddr + 6, _mm_load_pd_use(saddr + 6));
+					saddr += 8;
+					daddr += 8;
+				}
+				daddr += gpu_pitch - width;
 			}
 		}
 		else

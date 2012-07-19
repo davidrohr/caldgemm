@@ -721,7 +721,7 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		{
 			pitch_a = Config.m;
 			height_a = Config.Width;
-			width_a = Config.Width;
+			width_a = Config.m;
 		}
 		else
 		{

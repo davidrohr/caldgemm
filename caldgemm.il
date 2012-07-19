@@ -362,10 +362,86 @@ const char *caldgemm_cal::ILKernelName =
 #else
 "dcl_literal l1, %d.0, 1.0, -0.5, 2.0\n"
 #ifdef CALDGEMM_SHIFT_TEXTURE
-"dcl_literal l2, " mxstr(CALDGEMM_SHIFT_TEXTURE) ".0, 0.0, 0.0, 0.0\n"
+"dcl_literal l2, " mxstr(CALDGEMM_SHIFT_TEXTURE) ".0, 0x00000003, 0x00000002, 0.0\n"
+#elif defined(CALDGEMM_SINGLE_BUFFER)
+"dcl_literal l2, 0.0, 0x00000003, 0x00000002, 0.0\n"
 #endif
 #endif
 #endif
+
+#if defined(CALDGEMM_44)
+#ifdef CALDGEMM_SINGLE_BUFFER_IMPROVED
+"ftoi r13.xy, vWinCoord0.xy\n"
+"umod r14.xy, r13.xy, l2.yy\n"
+"isub r13.xy, r13.xy, r14.xy\n"
+"umul r13.xy, r13.xy, l2.zz\n"
+"iadd r13.xy, r13.xy, r14.xy\n"
+"iadd r13.zw, r13.xy, l2.yy\n"
+"itof r0.xy, r13.xz\n"
+"itof r100.xy, r13.yw\n"
+#elif defined(CALDGEMM_SINGLE_BUFFER)
+"mul r0.y, vWinCoord0.x, l1.w\n"
+"mul r100.y, vWinCoord0.y, l1.w\n"
+"sub r0.x, r0.y, r0.1\n"
+"sub r100.x, r100.y, r100.1\n"
+#else
+#ifdef CALDGEMM_COMPUTE_SHADER
+"umod r0.x, vaTid0.x, cb0[0].x\n"
+"udiv r0.y, vaTid0.x, cb0[0].x\n"
+"itof r0, r0\n"
+#else
+"mov r0.xy__, vWinCoord0.xy00\n"
+#endif
+#endif
+#ifndef CALDGEMM_LATE_EXIT_CONDITION
+"mov r0.w, l1.z\n"
+#endif
+#else
+"mul r0.xyz0, vWinCoord0.xyyx, cb0[0].zwxz\n"		//r0.x: normalized x pos, r0.y: 0, r0.z: normalized y pos, r0.w: 0
+#endif
+
+#ifdef CALDGEMM_SHIFT_TEXTURE
+#ifdef CALDGEMM_SINGLE_BUFFER
+"add r101.xy__, r0.xy00, l2.xx00\n"
+"add r102.xy__, r100.xy00, l2.xx00\n"
+#else
+"add r100.xy__, r0.xy00, l2.xx00\n"
+#endif
+#endif
+
+#ifdef CALDGEMM_LATE_EXIT_CONDITION
+#if defined(CALDGEMM_SINGLE_BUFFER) & defined(CALDGEMM_SHIFT_TEXTURE)
+"mov r0.w, r0.1\n"
+"mov r100.w, r100.1\n"
+"mov r101.z, r101.0\n"
+"mov r102.z, r102.0\n"
+#else //SINGLE BUFFER and SHIFT_TEXTURE
+#ifdef CALDGEMM_SHIFT_TEXTURE
+"mov r100.z, r100.0\n"
+#else
+"mov r0.z, r0.0\n"
+#endif
+"mov r0.w, r0.1\n"
+#ifdef CALDGEMM_SINGLE_BUFFER
+"mov r100.z, r100.0\n"
+"mov r100.w, r100.1\n"
+#endif
+#endif //SINGLE_BUFFER and SHIFT_TEXTURE
+#endif
+
+#if defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_44)
+"sub r0.z, vWinCoord0.y, cb0[2].x\n"
+"mul r0.z, r0.z, cb0[0].x\n"
+"add r2.x, r0.z, cb0[1].y\n"
+"add r2.y, r2.x, cb0[1].y\n"
+"add r2.z, r2.y, cb0[1].y\n"
+#endif
+#ifndef CALDGEMM_44
+"mov r1.__zw, r0.zzzx\n"							//r1.z: normalized y pos, r1.w: normalized x pos
+"mov r11.w, r0.y\n"									//r11.w: 0, run variable for k
+"mov r11.x, l0\n"									//r11.x: 0, run variable for loop
+#endif
+
 "mov r3, l0\n"
 "mov r4, l0\n"
 "mov r5, l0\n"
@@ -374,7 +450,6 @@ const char *caldgemm_cal::ILKernelName =
 "mov r8, l0\n"
 "mov r9, l0\n"
 "mov r10, l0\n"
-
 #if defined(CALDGEMM_84) | defined(CALDGEMM_48) | defined(CALDGEMM_SGEMM)
 "mov r37, l0\n"
 "mov r38, l0\n"
@@ -404,53 +479,6 @@ const char *caldgemm_cal::ILKernelName =
 #endif
 #endif
 
-#if defined(CALDGEMM_44)
-#ifdef CALDGEMM_SINGLE_BUFFER
-"mul r0.x, vWinCoord0.x, l1.w\n"
-"mul r100.x, vWinCoord0.y, l1.w\n"
-"add r0.y, r0.x, r0.1\n"
-"add r100.y, r100.y, r100.1\n"
-#else
-#ifdef CALDGEMM_COMPUTE_SHADER
-"umod r0.x, vaTid0.x, cb0[0].x\n"
-"udiv r0.y, vaTid0.x, cb0[0].x\n"
-"itof r0, r0\n"
-#else
-"mov r0.xy__, vWinCoord0.xy00\n"
-#endif
-#endif
-#ifndef CALDGEMM_LATE_EXIT_CONDITION
-"mov r0.w, l1.z\n"
-#endif
-#else
-"mul r0.xyz0, vWinCoord0.xyyx, cb0[0].zwxz\n"		//r0.x: normalized x pos, r0.y: 0, r0.z: normalized y pos, r0.w: 0
-#endif
-
-#ifdef CALDGEMM_SHIFT_TEXTURE
-"add r100.xy__, r0.xy00, l2.xx00\n"
-#endif
-
-#ifdef CALDGEMM_LATE_EXIT_CONDITION
-#ifdef CALDGEMM_SHIFT_TEXTURE
-"mov r100.z, l2.0\n"
-#else
-"mov r0.z, l2.0\n"
-#endif
-"mov r0.w, l2.1\n"
-#endif
-
-#if defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_44)
-"sub r0.z, vWinCoord0.y, cb0[2].x\n"
-"mul r0.z, r0.z, cb0[0].x\n"
-"add r2.x, r0.z, cb0[1].y\n"
-"add r2.y, r2.x, cb0[1].y\n"
-"add r2.z, r2.y, cb0[1].y\n"
-#endif
-#ifndef CALDGEMM_44
-"mov r1.__zw, r0.zzzx\n"							//r1.z: normalized y pos, r1.w: normalized x pos
-"mov r11.w, r0.y\n"									//r11.w: 0, run variable for k
-"mov r11.x, l0\n"									//r11.x: 0, run variable for loop
-#endif
 "whileloop\n"
 #ifndef CALDGEMM_LATE_EXIT_CONDITION
 #ifndef CALDGEMM_44
@@ -517,6 +545,16 @@ MMUL441(r37, r38, r39, r40, r41, r42, r43, r44, r15.xy, r15.zw, r16.xy, r16.zw, 
 #if defined(CALDGEMM_TRANSPOSED_A)
 #ifdef CALDGEMM_DUAL_ENTRY
 #ifdef CALDGEMM_SINGLE_BUFFER
+#ifdef CALDGEMM_SHIFT_TEXTURE
+"sample_resource(0)_sampler(0) r13, r100.xw\n"
+"sample_resource(0)_sampler(0) r14, r100.yw\n"
+"sample_resource(1)_sampler(1) r15, r0.xw\n"
+"sample_resource(1)_sampler(1) r16, r0.yw\n"
+"sample_resource(0)_sampler(0) r17, r102.xz\n"
+"sample_resource(0)_sampler(0) r18, r102.yz\n"
+"sample_resource(1)_sampler(1) r19, r101.xz\n"
+"sample_resource(1)_sampler(1) r20, r101.yz\n"
+#else
 "sample_resource(0)_sampler(0) r13, r100.xz\n"
 "sample_resource(0)_sampler(0) r14, r100.yz\n"
 "sample_resource(1)_sampler(1) r15, r0.xz\n"
@@ -524,7 +562,8 @@ MMUL441(r37, r38, r39, r40, r41, r42, r43, r44, r15.xy, r15.zw, r16.xy, r16.zw, 
 "sample_resource(0)_sampler(0) r17, r100.xw\n"
 "sample_resource(0)_sampler(0) r18, r100.yw\n"
 "sample_resource(1)_sampler(1) r19, r0.xw\n"
-"sample_resource(1)_sampler(1) r20, r100.yw\n"
+"sample_resource(1)_sampler(1) r20, r0.yw\n"
+#endif
 #elif defined (CALDGEMM_DOUBLE_BUFFERS)
 "sample_resource(0)_sampler(0) r13, r0.yw\n"
 "sample_resource(1)_sampler(1) r14, r0.yw\n"
@@ -547,11 +586,20 @@ SAMPLE_B(r19, r20, r0.xw)
 #endif //SINGLE_BUFFER
 #ifdef CALDGEMM_LATE_EXIT_CONDITION
 #ifdef CALDGEMM_SHIFT_TEXTURE
+#ifdef CALDGEMM_SINGLE_BUFFER
+"add r100.w, r100.w, l1.w\n"
+"add r101.z, r101.z, l1.w\n"
+"add r102.z, r102.z, l1.w\n"
+#else
 "add r100.z, r100.z, l1.w\n"
+#endif
 #else
 "add r0.z, r0.z, l1.w\n"
 #endif
 "add r0.w, r0.w, l1.w\n"
+#if defined(CALDGEMM_SINGLE_BUFFER) & !defined(CALDGEMM_SHIFT_TEXTURE)
+"mov r100.__zw, r0.00zw\n"
+#endif
 #endif
 #ifdef CALDGEMM_SGEMM
 MMUL441_S1(r3, r4, r5, r6, r7, r8, r9, r10, r13.x, r13.z, r14.x, r14.z, r15.x, r15.z, r16.x, r16.z)
@@ -587,6 +635,15 @@ SAMPLE_B(r25, r26, r1.zx)
 SAMPLE_A(r27, r28, r1.wy)
 SAMPLE_B(r29, r30, r1.wx)
 #endif
+
+#ifdef CALDGEMM_LATE_EXIT_CONDITION
+#ifdef CALDGEMM_SHIFT_TEXTURE
+"add r100.z, r100.z, l1.w\n"
+#else
+"add r0.z, r0.z, l1.w\n"
+#endif
+"add r0.w, r0.w, l1.w\n"
+#endif //CALDGEMM_LATE_EXIT_CONDITION
 
 #ifdef CALDGEMM_SGEMM
 MMUL441_S1(r3, r4, r5, r6, r7, r8, r9, r10, r13.x, r17.x, r14.x, r18.x, r15.x, r19.x, r16.x, r20.x)

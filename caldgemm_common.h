@@ -1,6 +1,7 @@
 #include <signal.h>
 #if !defined(_WIN32) & defined(USE_GOTO_BLAS)
 extern "C" {
+#define CBLAS
 #include <common.h>
 }
 #else
