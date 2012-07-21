@@ -33,6 +33,7 @@
 //#define CALDGEMM_DIAGONAL_TEXTURE				//Alternate storage format, only valid for 4x4 kernel, obsolete
 #define CALDGEMM_DUAL_ENTRY						//Unroll factor of 2 for 4x4 tiling
 //#define CALDGEMM_SINGLE_BUFFER				//Use a single buffer, 4x4 tiling a transposed, experimental
+//#define CALDGEMM_SINGLE_BUFFER_IMPROVED				//Alternative access scheme for single buffer, experimental
 //#define CALDGEMM_DUAL_BUFFERS					//Double number of buffers, 4x4 tiling a transposed, experimental
 //#define TESTMODE								//Activate Test Mode for debugging
 //#define TEST_KERNEL
@@ -67,8 +68,9 @@
 
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH		//Use prefetching in Divide / Merge Buffer
 #define CALDGEMM_STREAMING_STORES_DIVIDE		//Use streaming stores in Divide Buffer
-#define CALDGEMM_STREAMING_STORES_MERGE			//Use streaming stores in Merge buffer
-#define CALDGEMM_PREFETCH_MERGE_STORES			//Use prefetching in Merge buffer even when using streaming stores
+//#define CALDGEMM_STREAMING_STORES_MERGE			//Use streaming stores in Merge buffer
+//#define CALDGEMM_PREFETCH_MERGE_STORES			//Use prefetching in Merge buffer even when using streaming stores
+#define CALDGEMM_MERGE_NOPS 40				//Add nops to slow down merge process freeing resources for other tasks
 
 //#define CALDGEMM_LDAB_INC 1                           //Inc for LDA and LDB to avoid bank conflics
 //#define CALDGEMM_LDB_INC 0                            //Override LDAB_INC for LDB
