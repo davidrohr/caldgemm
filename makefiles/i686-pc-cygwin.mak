@@ -15,7 +15,7 @@ ifeq ($(GCC32), )
 GCC32						= i686-pc-mingw32-c++.exe
 endif
 ifeq ($(GCC64), )
-GCC64						= x86_64-w64-mingw32-c++.exe
+GCC64						= x86_64-w64-mingw32-c++.exe -B makefiles -w
 endif
 
 ICCPATH32					= $(ICCPATH)bin/ia32
@@ -82,7 +82,7 @@ GCCFLAGSARCH				+= -fopenmp
 endif
 
 ifeq ($(GCCARCH), )
-GCCARCH						= -march=native -msse4.2 -m32
+GCCARCH						= -march=native -msse4.2
 endif
 
 #Compilation Output Control
@@ -105,7 +105,7 @@ CCDBG						= $(ICC64) $(INTELFLAGSBASE) $(INTELFLAGSDBG) $(CFLAGS64) $(DEBUGFLAG
 ICCLINK						= $(ICCLINK64) $(LINKFLAGS64)
 MSCC						= $(MSCC64) $(VSNETFLAGS64) $(CFLAGS64)
 MSLINK						= $(MSLINK64) $(LINKFLAGS64)
-GCC							= $(GCC64) $(GCCFLAGS64)
+GCC							= $(GCC64) $(GCCFLAGS64) $(GCCFLAGSCOMMON) $(GCCFLAGSUSE)
 MASM						= $(MASM64)
 CCCUDA						= $(MSCC964) /TP $(VSNETFLAGS64) $(CFLAGS64)
 LIBPATHSUSE					= /LIBPATH:"$(CUDAPATH)lib/x64" /LIBPATH:"$(AMDPATH)lib" /LIBPATH:"$(AMDPATH)lib/x86_64" /LIBPATH:"$(CUDAPATH)sdk/C/common/lib" /LIBPATH:"$(DIRECTXPATH)lib/x64" /LIBPATH:"$(ICCPATH)compiler/lib/intel64"
@@ -117,7 +117,7 @@ MSCC						= $(MSCC32) $(VSNETFLAGS32) $(CFLAGS32) /Gr
 MSLINK						= $(MSLINK32) $(LINKFLAGS32)
 MSLINKGCC					= $(MSLINK32GCC) $(LINKFLAGS32)
 VCC							= $(VCC32) /outfile $@ $(VECTORCFLAGS) $(CFLAGS32)
-GCC							= $(GCC32) $(GCCFLAGS32)
+GCC							= $(GCC32) $(GCCFLAGS32) $(GCCFLAGSCOMMON) $(GCCFLAGSUSE)
 MASM						= $(MASM32)
 CCCUDA						= $(MSCC932) $(VSNETFLAGS32) $(CFLAGS32) /TP /Gd
 LIBPATHSUSE					= /LIBPATH:"$(CUDAPATH)lib/win32" /LIBPATH:"$(AMDPATH)lib" /LIBPATH:"$(AMDPATH)lib/x86" /LIBPATH:"$(DIRECTXPATH)lib/x86" /LIBPATH:"$(ICCPATH)compiler/lib/ia32"
@@ -130,7 +130,7 @@ CC							= $(ICC)
 ifeq ($(CPPFILES_GCC), )
 LINK						= $(ICCLINK)
 else
-LINK						= $(MSLINKGCC)
+LINK						= $(MSLINK)
 endif
 else ifeq ($(CC_i686-pc-cygwin), GCC)
 CC							= $(GCC)
@@ -151,7 +151,9 @@ LIBSUSE						= kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advap
 
 ifneq ($(CPPFILES_GCC), )
 GCCLIBPATH					:= $(shell cygpath -m `$(GCC) -print-libgcc-file-name | sed -e s/libgcc.a//` `$(GCC) -print-sysroot`/mingw/lib)
-LIBSUSE						+= $(GCCLIBPATH:%=/LIBPATH:"%") libgcc.a libstdc++.a libmingw32.a libmingwex.a libgcc_eh.a libmsvcrt.a
+LIBSUSE						+= $(GCCLIBPATH:%=/LIBPATH:"%") libgcc.a libstdc++.a libmingw32.a libgcc_eh.a
+#libmingwex.a
+#libmsvcrt.a
 #libgcov.a libmingwex.a
 endif
 
@@ -189,7 +191,7 @@ LINKTARGETTYPE				=
 EXECUTABLE					= $(TARGET).exe
 endif
 
-COMMONINCLUDEPATHS			= "$(DIRECTXPATH)include" 
+INCLUDE						+= "$(DIRECTXPATH)include;" 
 
 ifeq ("$(CONFIG_OPENCL)", "1")
 ifeq ("$(CONFIG_OPENCL_VERSION)", "AMD")

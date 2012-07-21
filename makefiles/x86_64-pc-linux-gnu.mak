@@ -13,7 +13,7 @@ INTELFLAGSOPT				= -O3 -fno-alias -fno-fnalias -ax$(INTELARCH) -unroll -unroll-a
 INTELFLAGSDBG				= -O0 -openmp-stubs -g
 INTELFLAGSCOMMON			= -DINTEL_RUNTIME $(INTELFLAGSUSE) -fasm-blocks
 INTELFLAGS32				= $(INTELFLAGSCOMMON) -m32
-INTELFLAGS64				= $(INTELFLAGSCOMMON) -m64
+INTELFLAGS64				= $(INTELFLAGSCOMMON) -m64 -D_AMD64_
 
 ifeq ($(GCCARCH), )
 GCCARCH						= -march=native -msse4.2 -m$(ARCHBITS)
@@ -36,34 +36,21 @@ LINKFLAGS64					= -m64 $(LINKFLAGSCOMMON)
 
 ifeq ($(ARCHBITS), 64)
 ICC							= $(ICC64) $(INTELFLAGS64) $(CFLAGS64) $(COMPILETARGETTYPE)
-GCC							= $(GCC3264) $(GCCFLAGS64) $(COMPILETARGETTYPE)
-CCDBG						= $(GCC3264) $(GCCFLAGS64) $(GCCFLAGSDBG) $(COMPILETARGETTYPE)
+GCC							= $(GCC3264) $(GCCFLAGS64) $(GCCFLAGSCOMMON) $(GCCFLAGSUSE) $(COMPILETARGETTYPE)
+CCDBG						= $(GCC3264) $(GCCFLAGS64) $(GCCFLAGSCOMMON) $(GCCFLAGSDBG) $(COMPILETARGETTYPE) -DDEBUG_RUNTIME
 GCCLINK						= $(GCC3264) $(LINKFLAGS64) -fopenmp
 ICCLINK						= $(ICC64) $(LINKFLAGS64) -openmp
 CUDALIBPATH					= $(CUDAPATH)/lib64
 AMDLIBPATH					= $(AMDPATH)/lib/x86_64
 else
 ICC							= $(ICC32) $(INTELFLAGS32) $(CFLAGS32) $(COMPILETARGETTYPE)
-GCC							= $(GCC3264) $(GCCFLAGS32) $(COMPILETARGETTYPE)
-CCDBG						= $(GCC3264) $(GCCFLAGS32) $(GCCFLAGSDBG) $(COMPILETARGETTYPE)
+GCC							= $(GCC3264) $(GCCFLAGS32) $(GCCFLAGSCOMMON) $(GCCFLAGSUSE) $(COMPILETARGETTYPE)
+CCDBG						= $(GCC3264) $(GCCFLAGS32) $(GCCFLAGSCOMMON) $(GCCFLAGSDBG) $(COMPILETARGETTYPE) -DDEBUG_RUNTIME
 GCCLINK						= $(GCC3264) $(LINKFLAGS32) -fopenmp
 ICCLINK						= $(GCC3264) $(LINKFLAGS32) -openmp
 CUDALIBPATH					= $(CUDAPATH)/lib
 AMDLIBPATH					= $(AMDPATH)/lib/x86
 endif
-
-ifeq ($(CC_x86_64-pc-linux-gnu), ICC)
-CC							= $(ICC)
-LINK						= $(ICCLINK)
-else
-CC							= $(GCC)
-LINK						= $(GCCLINK)
-endif
-
-CCCUDA						= $(GCC) -x c++
-ASM							= yasm
-ASMPRE						= $(GCC3264)
-NVCC						= $(CUDAPATH)/bin/nvcc
 
 ifeq ($(TARGETTYPE), LIB)
 LINKTARGETTYPE				= -shared
@@ -77,6 +64,22 @@ endif
 LIBGLIBC					=
 
 LIBSUSE						= $(LIBGLIBC) -lrt -ldl
+
+ifeq ($(CC_x86_64-pc-linux-gnu), ICC)
+CC							= $(ICC)
+LINK						= $(ICCLINK)
+else
+CC							= $(GCC)
+LINK						= $(GCCLINK)
+ifneq ($(CPPFILES_ICC), )
+LIBSUSE						+= -lintlc
+endif
+endif
+
+CCCUDA						= $(GCC) -x c++
+ASM							= yasm
+ASMPRE						= $(GCC3264)
+NVCC						= $(CUDAPATH)/bin/nvcc
 
 ifneq ($(CUFILES), )
 LIBSUSE						+= -lcudart -lcuda

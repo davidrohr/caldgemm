@@ -24,9 +24,9 @@ ALLDEP						= makefiles/makefile $(CONFIGFILE) makefiles/$(ARCHFILE) config.mak
 #GCC Compiler Options
 GCCFLAGSOPT					= -O3 $(GCCFLAGSARCH) -ftree-vectorize -fweb -frename-registers -minline-all-stringops -funit-at-a-time -mfpmath=sse -ftracer -finline-limit=1200 -funroll-loops -fpeel-loops -fprefetch-loop-arrays -finline-functions -ggdb
 GCCFLAGSDBG					= -O0 $(GCCFLAGSARCH) -ggdb
-GCCFLAGSCOMMON				= $(MULTITHREADGCC) -pipe -DGCC_RUNTIME $(GCCPROF) $(GCCFLAGSUSE) $(EXTRAFLAGSGCC) -Wall -Wno-write-strings
-GCCFLAGS32					= $(GCCFLAGSCOMMON) -m32 -mrtd
-GCCFLAGS64					= $(GCCFLAGSCOMMON) -m64 -D"_AMD64_" -D"_X64_"
+GCCFLAGSCOMMON				= $(MULTITHREADGCC) -pipe -DGCC_RUNTIME $(GCCPROF) $(EXTRAFLAGSGCC) -Wall -Wno-write-strings
+GCCFLAGS32					= -m32 -mrtd
+GCCFLAGS64					= -m64 -D"_AMD64_" -D"_X64_"
 
 GCCPROF						= 
 #-fprofile-arcs, -fbranch-probabilities
