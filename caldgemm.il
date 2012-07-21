@@ -485,7 +485,7 @@ const char *caldgemm_cal::ILKernelName =
 "    ge r0.y, r11.x, cb0[1].x\n"				//cmp with width
 #else
 #if (defined(CALDGEMM_DUAL_ENTRY) | defined(CALDGEMM_TRANSPOSED_B) | (defined(CALDGEMM_48) & !defined(CALDGEMM_88))) & !defined(CALDGEMM_DOUBLE_BUFFERS)
-"    add r100.z, r0.w, l1.y\n"
+"    add r0.z, r0.w, l1.y\n"
 "    add r0.w, r0.w, l1.w\n"
 #else
 "    add r0.w, r0.w, l1.y\n"
