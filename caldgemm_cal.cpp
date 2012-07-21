@@ -404,15 +404,17 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 			{
 				double* __restrict__ daddr0 = &dstBank0[(i) * gpu_pitch];
 				double* __restrict__ daddr1 = &dstBank1[(i) * gpu_pitch];
-				__m128d empty;
 				_mm_store_pd_use(&daddr0[0], _mm_load_pd_use(&tmpbuffer[2 * (i-i0)]));
 				_mm_store_pd_use(&daddr1[0], _mm_load_pd_use(&tmpbuffer[2 * (i-i0) + 2]));
+#ifdef CALDGEMM_STREAMING_STORES_DIVIDE
+				__m128d empty;
 				_mm_store_pd_use(&daddr0[2], empty);
 				_mm_store_pd_use(&daddr1[2], empty);
 				_mm_store_pd_use(&daddr0[4], empty);
 				_mm_store_pd_use(&daddr1[4], empty);
 				_mm_store_pd_use(&daddr0[6], empty);
 				_mm_store_pd_use(&daddr1[6], empty);
+#endif
 			}
 		}
 		
