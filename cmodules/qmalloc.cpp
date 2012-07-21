@@ -55,7 +55,7 @@ static void Privilege(TCHAR* pszPrivilege, BOOL bEnable)
 }
 #endif
 
-void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked)
+void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, void* alloc_addr)
 {
 	int pagesize;
 	void* addr;
@@ -63,7 +63,11 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked)
 	{
 #ifdef _WIN32
 		static int tokenObtained = 0;
+#ifdef _AMD64_
 		pagesize = GetLargePageMinimum();
+#else
+		pagesize = 1024 * 2048;
+#endif
 		if (tokenObtained == 0)
 		{
 			fprintf(STD_OUT, "Obtaining security token\n");
@@ -96,16 +100,26 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked)
 	{
 		protect = PAGE_EXECUTE_READWRITE;
 	}
-	addr = VirtualAlloc(NULL, size, flags, protect);
+	addr = VirtualAlloc(alloc_addr, size, flags, protect);
 #else
 	int flags = MAP_ANONYMOUS | MAP_PRIVATE;
 	int prot = PROT_READ | PROT_WRITE;
 	if (huge) flags |= MAP_HUGETLB;
 	if (executable) prot |= PROT_EXEC;
 	if (locked) flags |= MAP_LOCKED;
-	addr = mmap(NULL, size, prot, flags, 0, 0);
+	addr = mmap(alloc_addr, size, prot, flags, 0, 0);
 	if (addr == MAP_FAILED) addr = NULL;
 #endif
+
+	if (alloc_addr != NULL && addr != alloc_addr)
+	{
+#ifdef _WIN32
+		VirtualFree(addr, 0, MEM_RELEASE);
+#else
+		munmap(addr, size);
+#endif
+		return(NULL);
+	}
 
 	if (addr)
 	{
@@ -139,7 +153,7 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked)
 	{
 		size_t minp, maxp;
 		HANDLE pid = GetCurrentProcess();
-		if (GetProcessWorkingSetSize(pid, &minp, &maxp) == 0) fprintf(STD_OUT, "Error getting minimum working set size\n");
+		if (GetProcessWorkingSetSize(pid, (PSIZE_T) &minp, (PSIZE_T) &maxp) == 0) fprintf(STD_OUT, "Error getting minimum working set size\n");
 		if (SetProcessWorkingSetSize(pid, minp + size, maxp + size) == 0) fprintf(STD_OUT, "Error settings maximum working set size\n");
 		if (VirtualLock(addr, size) == 0)
 		{
@@ -168,6 +182,7 @@ int qmalloc::qFree(void* ptr)
 #endif
 			qMallocUsed--;
 			if (i < qMallocUsed) memcpy(&qMallocs[i], &qMallocs[qMallocUsed], sizeof(qMallocData));
+			if (qMallocUsed == 0) free(qMallocs);
 			return(0);
 		}
 	}

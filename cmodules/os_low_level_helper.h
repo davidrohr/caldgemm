@@ -3,6 +3,7 @@
 
 #ifndef _WIN32
 #include <syscall.h>
+#include <unistd.h> 
 #endif
 
 inline int get_number_of_cpu_cores()
@@ -13,6 +14,17 @@ inline int get_number_of_cpu_cores()
 	return(info.dwNumberOfProcessors);
 #else
 	return(sysconf(_SC_NPROCESSORS_ONLN));
+#endif
+}
+
+inline int get_standard_page_size()
+{
+#ifdef _WIN32
+	SYSTEM_INFO info;
+	GetSystemInfo(&info);
+	return(info.dwPageSize);
+#else
+	return(getpagesize());
 #endif
 }
 
