@@ -63,18 +63,19 @@
 
 //#define CALDGEMM_FORCE_K 16					//Force K Parameter to simulate different kernel perfoemance
 
-#define _NO_AMD_CPU							//Set to run on Intel CPU without prefetchw avaiable
+#define _NO_AMD_CPU								//Set to run on Intel CPU without prefetchw avaiable
 //#define USE_OLD_HUGE_MALLOC					//Use old method to allocate huge tables
 
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH		//Use prefetching in Divide / Merge Buffer
 #define CALDGEMM_STREAMING_STORES_DIVIDE		//Use streaming stores in Divide Buffer
-//#define CALDGEMM_STREAMING_STORES_MERGE			//Use streaming stores in Merge buffer
-//#define CALDGEMM_PREFETCH_MERGE_STORES			//Use prefetching in Merge buffer even when using streaming stores
-#define CALDGEMM_MERGE_NOPS 40				//Add nops to slow down merge process freeing resources for other tasks
+//#define CALDGEMM_STREAMING_STORES_MERGE		//Use streaming stores in Merge buffer
+//#define CALDGEMM_PREFETCH_MERGE_STORES		//Use prefetching in Merge buffer even when using streaming stores
+#define CALDGEMM_MERGE_NOPS 40					//Add nops to slow down merge process freeing resources for other tasks
+//#define CALDGEMM_MERGE_FLUSH				
 
-//#define CALDGEMM_LDAB_INC 1                           //Inc for LDA and LDB to avoid bank conflics
-//#define CALDGEMM_LDB_INC 0                            //Override LDAB_INC for LDB
-//#define CALDGEMM_LDC_INC 0                            //see above
+//#define CALDGEMM_LDAB_INC 1					//Inc for LDA and LDB to avoid bank conflics
+//#define CALDGEMM_LDB_INC 0					//Override LDAB_INC for LDB
+//#define CALDGEMM_LDC_INC 0					//see above
 
-#define CALDGEMM_LATE_EXIT_CONDITION                    //Put exit condition at end of while loop
-#define CALDGEMM_SHIFT_TEXTURE 1                        //Shift even numbered rows in texture by n pixelsdrohr
+#define CALDGEMM_LATE_EXIT_CONDITION			//Put exit condition at end of while loop
+#define CALDGEMM_SHIFT_TEXTURE 1				//Shift even numbered rows in texture by n pixelsdrohr

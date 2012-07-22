@@ -589,6 +589,10 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				}
 				else
 				{
+#if defined(CALDGEMM_STREAMING_STORES_DIVIDE) && CALDGEMM_SHIFT_TEXTURE == 1
+					__m128d empty;
+					_mm_store_pd_use(daddr, empty);
+#endif
 					daddr += 2 * CALDGEMM_SHIFT_TEXTURE;
 				}
 #endif
@@ -605,6 +609,15 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 					saddr += 8;
 					daddr += 8;
 				}
+#if defined(CALDGEMM_STREAMING_STORES_DIVIDE) && CALDGEMM_SHIFT_TEXTURE == 1
+				if ((y & 1) == 0)
+				{
+					__m128d empty;
+					_mm_store_pd_use(daddr, empty);
+					_mm_store_pd_use(daddr + 2, empty);
+					_mm_store_pd_use(daddr + 4, empty);
+				}
+#endif
 				daddr += gpu_pitch - width;
 			}
 		}
@@ -725,9 +738,9 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 		for (int y = 0;y < height;y++)
 		{
 			const int bank = y % 4;
-			double* saddr = src[bank].ptr_double + (y / 4) * (gpu_width / 2);
-			double* saddr2 = src[bank + 4].ptr_double + (y / 4) * (gpu_width / 2);
-			double* daddr = dst + (y * pitch);
+			const double* __restrict__ saddr = src[bank].ptr_double + (y / 4) * (gpu_width / 2);
+			const double* __restrict__ saddr2 = src[bank + 4].ptr_double + (y / 4) * (gpu_width / 2);
+			double* __restrict__ daddr = dst + (y * pitch);
 			//int count = src[bank].DataSize * width;
 
 			for (int i = 0;i < width;i += 8)
@@ -747,7 +760,7 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 				_mm_store_pd_use(daddr + 2, _mm_sub_pd(_mm_load_pd(daddr + 2), _mm_load_pd(saddr2)));
 				_mm_store_pd_use(daddr + 4, _mm_sub_pd(_mm_load_pd(daddr + 4), _mm_load_pd(saddr + 2)));
 				_mm_store_pd_use(daddr + 6, _mm_sub_pd(_mm_load_pd(daddr + 6), _mm_load_pd(saddr2 + 2)));
-
+				
 				saddr += 4;
 				saddr2 += 4;
 				daddr += 8;
@@ -758,6 +771,10 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 				}
 #endif
 			}
+#ifdef CALDGEMM_MERGE_FLUSH
+			daddr = dst + (y * pitch);
+			for (int i = 0;i < width;i += 8) _mm_clflush(daddr + i);
+#endif
 		}
 	}
 	else
