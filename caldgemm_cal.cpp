@@ -136,8 +136,15 @@ caldgemm_cal::~caldgemm_cal()
 
 int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose)
 {
+	const int gpu_pitch = dst[0].pitch * 2;
+
 	if (Config->SkipCPUProcessing) return(0);
 	if (Config->Debug) fprintf(STD_OUT, "\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", (long long int) src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
+	
+#if defined(CALDGEMM_DOUBLE_BUFFERS) | defined(CALDGEMM_SINGLE_BUFFER)
+	fprintf(STD_OUT, "ERROR: divideBuffer not implemented for current configuration, skipping\n"
+	return(0);
+#endif
 
 	if (Config->DivideToGPU)
 	{
@@ -253,18 +260,26 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				saddr0 += 2;
 				saddr2 += 2;
 
-				_mm_stream_pd(&daddr0[0], _mm_unpacklo_pd(x0, x1));
-				_mm_stream_pd(&daddr0[2], _mm_unpackhi_pd(x0, x1));
-				_mm_stream_pd(&daddr0[4], _mm_unpacklo_pd(x2, x3));
-				_mm_stream_pd(&daddr0[6], _mm_unpackhi_pd(x2, x3));
+				_mm_store_pd_use(&daddr0[0], _mm_unpacklo_pd(x0, x1));
+				_mm_store_pd_use(&daddr0[2], _mm_unpackhi_pd(x0, x1));
+				_mm_store_pd_use(&daddr0[4], _mm_unpacklo_pd(x2, x3));
+				_mm_store_pd_use(&daddr0[6], _mm_unpackhi_pd(x2, x3));
 
-				_mm_stream_pd(&daddr1[0], _mm_unpacklo_pd(x4, x5));
-				_mm_stream_pd(&daddr1[2], _mm_unpackhi_pd(x4, x5));
-				_mm_stream_pd(&daddr1[4], _mm_unpacklo_pd(x6, x7));
-				_mm_stream_pd(&daddr1[6], _mm_unpackhi_pd(x6, x7));
+				_mm_store_pd_use(&daddr1[0], _mm_unpacklo_pd(x4, x5));
+				_mm_store_pd_use(&daddr1[2], _mm_unpackhi_pd(x4, x5));
+				_mm_store_pd_use(&daddr1[4], _mm_unpacklo_pd(x6, x7));
+				_mm_store_pd_use(&daddr1[6], _mm_unpackhi_pd(x6, x7));
 			}
 		}
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_SINGLE_BUFFER) &!defined(CALDGEMM_DOUBLE_BUFFERS)
+
+#ifdef CALDGEMM_SHIFT_TEXTURE
+#define CALDGEMM_SHIFT_TEXTURE_OFFSET (CALDGEMM_SHIFT_TEXTURE * 2)
+#else
+#define CALDGEMM_SHIFT_TEXTURE_OFFSET 0
+#endif
+
+#if !defined(CALDGEMM_SHIFT_TEXTURE) | CALDGEMM_SHIFT_TEXTURE == 0
 		for (int y = 0;y < width;y += 16)
 		{
 			const double* __restrict__ saddr0 = &src[(y + 0) * pitch];
@@ -272,13 +287,14 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 			const double* __restrict__ saddr4 = &src[(y + 4) * pitch];
 			const double* __restrict__ saddr6 = &src[(y + 6) * pitch];
 
-			double* __restrict__ dstBank0 = &dst[0].ptr_double[(y / 2) & 0xFFFFFFFE];
-			double* __restrict__ dstBank1 = &dst[1].ptr_double[(y / 2) & 0xFFFFFFFE];
+			double* __restrict__ dstBank0 = &dst[0].ptr_double[y / 2];
+			double* __restrict__ dstBank1 = &dst[1].ptr_double[y / 2];
+
 
 			for (int i = 0;i < height;i += 2)
 			{
-				double* __restrict__ daddr0 = &dstBank0[i * gpu_width / 2];
-				double* __restrict__ daddr1 = &dstBank1[i * gpu_width / 2];
+				double* __restrict__ daddr0 = &dstBank0[i * gpu_pitch];
+				double* __restrict__ daddr1 = &dstBank1[i * gpu_pitch];
 				{
 					const __m128d x0 = _mm_load_pd_use(&saddr0[0]);
 					const __m128d x1 = _mm_load_pd_use(&saddr0[pitch]);
@@ -289,15 +305,15 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 					const __m128d x6 = _mm_load_pd_use(&saddr6[0]);
 					const __m128d x7 = _mm_load_pd_use(&saddr6[pitch]);
 
-					_mm_stream_pd(&daddr0[0], _mm_unpacklo_pd(x0, x1));
-					_mm_stream_pd(&daddr0[gpu_width/2], _mm_unpackhi_pd(x0, x1));
-					_mm_stream_pd(&daddr1[0], _mm_unpacklo_pd(x2, x3));
-					_mm_stream_pd(&daddr1[gpu_width/2], _mm_unpackhi_pd(x2, x3));
+					_mm_store_pd_use(&daddr0[0 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x0, x1));
+					_mm_store_pd_use(&daddr0[gpu_pitch], _mm_unpackhi_pd(x0, x1));
+					_mm_store_pd_use(&daddr1[0 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x2, x3));
+					_mm_store_pd_use(&daddr1[gpu_pitch], _mm_unpackhi_pd(x2, x3));
 
-					_mm_stream_pd(&daddr0[2], _mm_unpacklo_pd(x4, x5));
-					_mm_stream_pd(&daddr0[gpu_width/2 + 2], _mm_unpackhi_pd(x4, x5));
-					_mm_stream_pd(&daddr1[2], _mm_unpacklo_pd(x6, x7));
-					_mm_stream_pd(&daddr1[gpu_width/2 + 2], _mm_unpackhi_pd(x6, x7));
+					_mm_store_pd_use(&daddr0[2 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x4, x5));
+					_mm_store_pd_use(&daddr0[gpu_pitch + 2], _mm_unpackhi_pd(x4, x5));
+					_mm_store_pd_use(&daddr1[2 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x6, x7));
+					_mm_store_pd_use(&daddr1[gpu_pitch + 2], _mm_unpackhi_pd(x6, x7));
 				}
 
 				{
@@ -310,15 +326,15 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 					const __m128d x6 = _mm_load_pd_use(&saddr6[8*pitch]);
 					const __m128d x7 = _mm_load_pd_use(&saddr6[9*pitch]);
 
-					_mm_stream_pd(&daddr0[4], _mm_unpacklo_pd(x0, x1));
-					_mm_stream_pd(&daddr0[gpu_width/2+4], _mm_unpackhi_pd(x0, x1));
-					_mm_stream_pd(&daddr1[4], _mm_unpacklo_pd(x2, x3));
-					_mm_stream_pd(&daddr1[gpu_width/2+4], _mm_unpackhi_pd(x2, x3));
+					_mm_store_pd_use(&daddr0[4 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x0, x1));
+					_mm_store_pd_use(&daddr0[gpu_pitch + 4], _mm_unpackhi_pd(x0, x1));
+					_mm_store_pd_use(&daddr1[4 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x2, x3));
+					_mm_store_pd_use(&daddr1[gpu_pitch + 4], _mm_unpackhi_pd(x2, x3));
 
-					_mm_stream_pd(&daddr0[6], _mm_unpacklo_pd(x4, x5));
-					_mm_stream_pd(&daddr0[gpu_width/2 + 6], _mm_unpackhi_pd(x4, x5));
-					_mm_stream_pd(&daddr1[6], _mm_unpacklo_pd(x6, x7));
-					_mm_stream_pd(&daddr1[gpu_width/2 + 6], _mm_unpackhi_pd(x6, x7));
+					_mm_store_pd_use(&daddr0[6 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x4, x5));
+					_mm_store_pd_use(&daddr0[gpu_pitch + 6], _mm_unpackhi_pd(x4, x5));
+					_mm_store_pd_use(&daddr1[6 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x6, x7));
+					_mm_store_pd_use(&daddr1[gpu_pitch + 6], _mm_unpackhi_pd(x6, x7));
 				}
 				saddr0 += 2;
 				saddr2 += 2;
@@ -326,52 +342,86 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				saddr6 += 2;
 			}
 		}
-
 #else
-			for (int y=0; y < width; y += 2)
+		for (int i = 0;i < height;i += 2)
+		{
+			double* __restrict__ daddr0 = &dst[0].ptr_double[i * gpu_pitch];
+			double* __restrict__ daddr1 = &dst[1].ptr_double[i * gpu_pitch];
+
+			const double* __restrict__ saddr0 = &src[i];
+
+			for (int y = 0;y < width;y += 4)
 			{
-				double* saddr = src + (y * pitch);
-				double* saddr2 = src + ((y + 1) * pitch);
-
-				for (int i = 0;i < height;i += 2)
+				
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+				_mm_prefetch(CAST_FOR_MMPREFETCH (saddr0 + 4 * pitch), _MM_HINT_T1);
+				_mm_prefetch(CAST_FOR_MMPREFETCH (saddr0 + 5 * pitch), _MM_HINT_T1);
+				_mm_prefetch(CAST_FOR_MMPREFETCH (saddr0 + 6 * pitch), _MM_HINT_T1);
+				_mm_prefetch(CAST_FOR_MMPREFETCH (saddr0 + 7 * pitch), _MM_HINT_T1);
+#endif
 				{
-#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
-					int bank = (i / 2) % 2;
-					double* daddr = dst[bank].ptr_double + (i / 4) * gpu_width * 2 + y * 2;
-					double* daddr2 = dst[bank].ptr_double + (i / 4) * gpu_width * 2 + y * 2 + 2;
-#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
-					//Col Interleaved Storage, Numbuffers is either 2 or 4, might be optimized in 2 branches
-					int bank = (y / 2) % numBuffers;
-#ifdef CALDGEMM_DIAGONAL_TEXTURE
-					double* daddr = dst[bank].ptr_double + i * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (gpu_width / 2);
-					double* daddr2 = dst[bank].ptr_double + (i + 1) * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (gpu_width / 2);
+					const __m128d x0 = _mm_load_pd_use(&saddr0[0]);
+					const __m128d x1 = _mm_load_pd_use(&saddr0[pitch]);
+					const __m128d x2 = _mm_load_pd_use(&saddr0[2 * pitch]);
+					const __m128d x3 = _mm_load_pd_use(&saddr0[3 * pitch]);
+
+					_mm_store_pd_use(&daddr0[0 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x0, x1));
+					_mm_store_pd_use(&daddr0[gpu_pitch], _mm_unpackhi_pd(x0, x1));
+					_mm_store_pd_use(&daddr1[0 + CALDGEMM_SHIFT_TEXTURE_OFFSET], _mm_unpacklo_pd(x2, x3));
+					_mm_store_pd_use(&daddr1[gpu_pitch], _mm_unpackhi_pd(x2, x3));
+					
+				}
+				daddr0 += 2;
+				daddr1 += 2;
+				saddr0 += 4 * pitch;
+			}
+		}
+#endif //CALDGEMM_SHIFT_TEXTURE
 #else
-					double* daddr = dst[bank].ptr_double + (i * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
-					double* daddr2 = dst[bank].ptr_double + ((i + 1) * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
+		for (int y=0; y < width; y += 2)
+		{
+			double* saddr = src + (y * pitch);
+			double* saddr2 = src + ((y + 1) * pitch);
+
+			for (int i = 0;i < height;i += 2)
+			{
+#if defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
+				int bank = (i / 2) % 2;
+				double* daddr = dst[bank].ptr_double + (i / 4) * gpu_width * 2 + y * 2;
+				double* daddr2 = dst[bank].ptr_double + (i / 4) * gpu_width * 2 + y * 2 + 2;
+#elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+				//Col Interleaved Storage, Numbuffers is either 2 or 4, might be optimized in 2 branches
+				int bank = (y / 2) % numBuffers;
+#ifdef CALDGEMM_DIAGONAL_TEXTURE
+				double* daddr = dst[bank].ptr_double + i * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i) % (gpu_width / 2);
+				double* daddr2 = dst[bank].ptr_double + (i + 1) * gpu_width / 2 + (((y / 2) & 0xFFFFFFFE) + 2 * i + 2) % (gpu_width / 2);
+#else
+				double* daddr = dst[bank].ptr_double + (i * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
+				double* daddr2 = dst[bank].ptr_double + ((i + 1) * gpu_width / numBuffers + ((y / numBuffers) & 0xFFFFFFFE));
 #endif
 #else
-					//Standard Storage
-					int bank = (i) % numBuffers;
-					int bank2 = (i + 1) % numBuffers;
-					double* daddr = dst[bank].ptr_double + (i / numBuffers) * gpu_width + y;
-					double* daddr2 = dst[bank2].ptr_double + (i / numBuffers) * gpu_width + y;
+				//Standard Storage
+				int bank = (i) % numBuffers;
+				int bank2 = (i + 1) % numBuffers;
+				double* daddr = dst[bank].ptr_double + (i / numBuffers) * gpu_width + y;
+				double* daddr2 = dst[bank2].ptr_double + (i / numBuffers) * gpu_width + y;
 #endif
 
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 100), _MM_HINT_NTA);
-					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr2 + 100), _MM_HINT_NTA);
+				_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 100), _MM_HINT_NTA);
+				_mm_prefetch(CAST_FOR_MMPREFETCH (saddr2 + 100), _MM_HINT_NTA);
 #endif
-					__m128d x1, x2, x3, x4;
-					x1 = _mm_load_pd_use(saddr);
-					x2 = _mm_load_pd_use(saddr2);
-					x3 = _mm_unpacklo_pd(x1, x2);
-					x4 = _mm_unpackhi_pd(x1, x2);
-					_mm_store_pd_use(daddr, x3);
-					_mm_store_pd_use(daddr2, x4);
-					saddr += 2;
-					saddr2 += 2;
-				}
+				__m128d x1, x2, x3, x4;
+				x1 = _mm_load_pd_use(saddr);
+				x2 = _mm_load_pd_use(saddr2);
+				x3 = _mm_unpacklo_pd(x1, x2);
+				x4 = _mm_unpackhi_pd(x1, x2);
+				_mm_store_pd_use(daddr, x3);
+				_mm_store_pd_use(daddr2, x4);
+				saddr += 2;
+				saddr2 += 2;
 			}
+		}
 #endif
 
 	}
@@ -381,9 +431,9 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 		//Row / Col Interleaved Storage with 2 rows stored in one col
 		for (int y = 0;y < height / 2;y++)
 		{
-			double* daddr = dst[y % 2].ptr_double + y / 2 * gpu_width * 2;
-			double* saddr = src + 2 * y * pitch;
-			double* saddr2 = src + (2 * y + 1) * pitch;
+			double* __restrict__ daddr = dst[y % 2].ptr_double + y / 2 * gpu_width * 2;
+			const double* __restrict__ saddr = src + 2 * y * pitch;
+			const double* __restrict__ saddr2 = src + (2 * y + 1) * pitch;
 			for (int i = 0;i < width;i += 4)
 			{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
@@ -404,14 +454,14 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 		//Col Interleaved Storage for transposed A with 4x4, 8x4 and 8x8 tiling
 		if (numBuffers == 4)
 		{
-			double* daddr = dst[0].ptr_double;
-			double* daddr2 = dst[1].ptr_double;
-			double* daddr3 = dst[2].ptr_double;
-			double* daddr4 = dst[3].ptr_double;
+			double* __restrict__ daddr = dst[0].ptr_double;
+			double* __restrict__ daddr2 = dst[1].ptr_double;
+			double* __restrict__ daddr3 = dst[2].ptr_double;
+			double* __restrict__ daddr4 = dst[3].ptr_double;
 			for (int y=0; y < height; y++)
 			{
 				int count = dst[0].DataSize * width;
-				double* saddr = src + (y * pitch);
+				const double* __restrict__ saddr = src + (y * pitch);
 
 				for (int i = 0;i < count;i += 256)
 				{
@@ -448,17 +498,30 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 		}
 		else
 		{
-			double* daddr = dst[0].ptr_double;
-			double* daddr2 = dst[1].ptr_double;
+			double* __restrict__ daddr = dst[0].ptr_double;
+			double* __restrict__ daddr2 = dst[1].ptr_double;
 			for (int y=0; y < height; y++)
 			{
 				int count = dst[0].DataSize * width;
-				double* saddr = src + (y * pitch);
+				const double* __restrict__ saddr = src + (y * pitch);
 
+#ifdef CALDGEMM_SHIFT_TEXTURE
+				if (y & 1)
+				{
+					daddr -= 2 * CALDGEMM_SHIFT_TEXTURE;
+					daddr2 -= 2 * CALDGEMM_SHIFT_TEXTURE;
+				}
+				else
+				{
+					daddr += 2 * CALDGEMM_SHIFT_TEXTURE;
+					daddr2 += 2 * CALDGEMM_SHIFT_TEXTURE;
+				}
+#endif
+				
 				for (int i = 0;i < count;i += 64)
 				{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 76), _MM_HINT_NTA);
+					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 32), _MM_HINT_NTA);
 #endif
 					_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
 					_mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));
@@ -468,8 +531,9 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 					daddr += 4;
 					daddr2+= 4;
 				}
-				daddr += (gpu_width - width) / numBuffers;
-				daddr2 += (gpu_width - width) / numBuffers;
+				daddr += gpu_pitch - width / numBuffers;
+				daddr2 += gpu_pitch - width / numBuffers;
+				
 			}
 		}
 #else
@@ -817,8 +881,12 @@ void caldgemm_cal::checkCalPatch()
 
 void caldgemm_cal::cal_init_constant_data(BufferProperties* &data, double alpha)
 {
+#ifdef CALDGEMM_COMPUTE_SHADER
+	data[dwBuffersA + dwBuffersB].ptr_int[0] = Config->Height / TILING_X;
+#else
 	data[dwBuffersA + dwBuffersB].ptr_float[0] = (float) TILING_Y / Config->Height;			//Scale factor for normalized y pos
 	data[dwBuffersA + dwBuffersB].ptr_float[2] = (float) TILING_X / Config->Height;			//Scale factor for normalized x pos
+#endif
 #ifdef CALDGEMM_44
 	data[dwBuffersA + dwBuffersB].ptr_float[1] = 1.f / Config->Width;							//Step in K direction
 #ifdef CALDGEMM_44_BT_64_KERNEL
@@ -966,6 +1034,8 @@ int caldgemm_cal::SetupKernel(const char* ILKernel, CALmodule* module, CALcontex
 	char* ILKernelUse = (char*) malloc(strlen(ILKernel) + 1024);
 #ifdef CALDGEMM_44_BT_64_KERNEL
 	sprintf(ILKernelUse, ILKernel, Config->Width * 2);
+#elif defined(CALDGEMM_DOUBLE_BUFFERS)
+	sprintf(ILKernelUse, ILKernel, Config->Width / 2);
 #else
 	sprintf(ILKernelUse, ILKernel, Config->Width);
 #endif
@@ -991,18 +1061,35 @@ int caldgemm_cal::RunProgram(CALcontext *ctx, CALmodule *module, unsigned int Wi
 	CALfunc func;
 	CHKERR(calModuleGetEntry(&func, *ctx, *module, "main"), "finding module entry point");
 
+#ifdef CALDGEMM_COMPUTE_SHADER
+	CALprogramGrid pg;
+	
+	pg.func = func;
+	pg.flags = 0;
+	pg.gridBlock.width = CALDGEMM_COMPUTE_SHADER;
+	pg.gridBlock.height = 1;
+	pg.gridBlock.depth = 1;
+	pg.gridSize.width = Width * Height / pg.gridBlock.width;
+	pg.gridSize.height = 1;
+	pg.gridSize.depth = 1;
+#else
 	CALdomain rect;
 	rect.x = 0;
 	rect.y = 0;
 	rect.width = Width;
 	rect.height = Height;
+#endif
 
 	if (Config->VerboseTiming) Timers.Kernel.Start();
 #ifdef CALDGEMM_BENCHMARK_KERNEL
 	for (int i = 0;i < CALDGEMM_BENCHMARK_KERNEL;i++)
 #endif
 				
+#ifdef CALDGEMM_COMPUTE_SHADER
+	CHKERR(calCtxRunProgramGrid(event, *ctx, &pg), "executing kernel");
+#else
 	CHKERR(calCtxRunProgram(event, *ctx, func, &rect), "executing kernel");
+#endif
 
 	if (Config->VerboseTiming)
 	{
@@ -1087,7 +1174,9 @@ int caldgemm_cal::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module,
 				CHKERR(calModuleUnload(*ctx, module[i]), "unloading module");
 			}
 		}
+#ifdef CALDGEMM_44_BT_64_CONVERT
 		CHKERR(calModuleUnload(*ctx, modulesConvert[num_device]), "unloading module");
+#endif
 	}
 	delete[] resourceHandler;
 	delete[] data;
@@ -1302,8 +1391,11 @@ int caldgemm_cal::InitDevices()
 			{
 				if (SetupKernel(ILKernel, &modules[device_num][0], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
 					SetupKernel(ILKernelALPHA1, &modules[device_num][1], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
-					SetupKernel(ILKernelLinpack, &modules[device_num][2], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)) ||
-					SetupKernel(ILConvertKernel, &modulesConvert[device_num], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0)))
+					SetupKernel(ILKernelLinpack, &modules[device_num][2], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0))
+#ifdef CALDGEMM_44_BT_64_CONVERT
+					|| SetupKernel(ILConvertKernel, &modulesConvert[device_num], &ctxs[device_num], device_nums[device_num], (bool) (Config->Disassemble && i == 0))
+#endif
+					)
 				{
 					return 1;
 				}
@@ -1456,8 +1548,16 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			tWidth = Config->Height / 8;
 			tHeight = Config->Width;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#ifdef CALDGEMM_SINGLE_BUFFER
+			tWidth = Config->Height / 2;
+#else
 			tWidth = Config->Height / 4;
+#endif
+#ifdef CALDGEMM_DOUBLE_BUFFERS
+			tHeight = Config->Width / 2;
+#else
 			tHeight = Config->Width;
+#endif
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
 			tHeight = Config->Height / 4;
 			tWidth = Config->Width;
@@ -1469,6 +1569,9 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			tWidth = Config->Width / 2;
 			tHeight = Config->Height / dwBuffersA;
 #endif
+#ifdef CALDGEMM_LDA_INC
+			tWidth += CALDGEMM_LDA_INC;
+#endif
 			mem = 'g';
 		}
 		else if (i >= dwBuffersA && i < bStop)
@@ -1477,8 +1580,16 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			tWidth = Config->Height / 8;
 			tHeight = Config->Width;
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A)
+#ifdef CALDGEMM_SINGLE_BUFFER
+			tWidth = Config->Height / 2;
+#else
 			tWidth = Config->Height / 4;
+#endif
+#ifdef CALDGEMM_DOUBLE_BUFFERS
+			tHeight = Config->Width / 2;
+#else
 			tHeight = Config->Width;
+#endif
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_B)
 			tHeight = Config->Height / 4;
 			tWidth = Config->Width;
@@ -1489,6 +1600,9 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			/* B matrix sizes are shrunk by 2 (double2) in the width and 2 (2 resources) in the height */
 			tWidth = Config->Height / 2;
 			tHeight = Config->Width / dwBuffersB;
+#endif
+#ifdef CALDGEMM_LDB_INC
+			tWidth += CALDGEMM_LDB_INC;
 #endif
 			mem = 'g';
 		}
@@ -1508,6 +1622,9 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 #endif
 #ifdef CALDGEMM_SGEMM
 			tHeight *= 2;
+#endif
+#ifdef CALDGEMM_LDC_INC
+			tWidth += CALDGEMM_LDC_INC;
 #endif
 			mem = Config->DstMemory;
 			flag = (CALresallocflags) (flag | CAL_RESALLOC_CACHEABLE);
@@ -1693,7 +1810,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			else if (j >= fStop && j < cStop)
 			{
 #ifdef CALDGEMM_USE_MEMEXPORT
-				sprintf(buffer, "g[]", j - fStop);
+				sprintf(buffer, "g[]");
 #else
 				sprintf(buffer,"o%d", j - fStop);
 #endif
@@ -1712,7 +1829,8 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 			}
 		}
 	}
-	
+
+#ifdef CALDGEMM_44_BT_64_CONVERT
 	for (unsigned int j = 0;j < dwBuffersA;j++)
 	{
 		char buffer[10];
@@ -1721,6 +1839,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 		sprintf(buffer, "o%d", j);
 		CHKERR(calModuleGetName(&progNamesConvert[num_device][j + dwBuffersA], *ctx, modulesConvert[num_device], buffer), "getting buffer name");
 	}
+#endif
 
 	return(0);
 }
