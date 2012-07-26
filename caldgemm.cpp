@@ -25,6 +25,7 @@
 #include "caldgemm.h"
 #include "caldgemm_common.h"
 #include "cmodules/qmalloc.h"
+#include "cmodules/affinity.h"
 
 #ifndef _WIN32
 #include <syscall.h>
@@ -101,7 +102,7 @@ caldgemm::caldgemm()
 	avggflops = 0;
 	avgngflops = 0;
 	
-	conf_numprocs = get_num_procs();
+	conf_numprocs = get_number_of_cpu_cores();
 	
 	FILE* fp;
 	fp = fopen("/proc/cpuinfo", "r");
@@ -325,10 +326,19 @@ void caldgemm::ensure_omp_thread_pinning()
 		if (Config->NumaPinning) fprintf(STD_OUT, "NUMA Pinning only available if number of processors is divisible by 4\n");
 		for (int i = 0;i < conf_numprocs;i++) cpu_order[i] = i;
 	}
+	static int nInitialization = 0;
+	nInitialization++;
 
 #pragma omp parallel num_threads(conf_numprocs)
 	{
 		int thread_id = omp_get_thread_num();
+		
+		if (gettid() != getpid())
+		{
+			char tmp[128];
+			sprintf(tmp, "OpenMP Init %d Thread %d", nInitialization, thread_id);
+			setThreadName(tmp);
+		}
 		cpu_set_t localset;
 		int localcore = thread_id * 2;
 
@@ -365,6 +375,7 @@ void caldgemm::ensure_omp_thread_pinning()
 
 int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 {
+	setThreadName("Main");
 	Config = pInfo;
 
 	if (Config->Iterations > 1 && Config->UseCPU)
@@ -615,6 +626,7 @@ bool caldgemm::cpuUsed(int cpu)
 
 void* caldgemm::linpack_wrapper(void* arg)
 {
+	setThreadName("Linpack Wrapper");
 	caldgemm* cls = (caldgemm*) arg;
 	volatile caldgemm::caldgemm_config* Config = cls->Config;
 	if (Config->Debug) fprintf(STD_OUT, "Linpack helper thread started\n");
@@ -751,6 +763,7 @@ TryThirdRun:
 
 void* caldgemm::cblas_wrapper(void* arg)
 {
+	setThreadName("CBLAS Wrapper");
 	volatile caldgemm::cblasParameters* par = (caldgemm::cblasParameters*) arg;
 	volatile caldgemm::caldgemm_config* Config = par->cls->Config;
 
@@ -1026,6 +1039,11 @@ void* caldgemm::divide_wrapper(void* arg)
 {
 	caldgemm::divideParameters* par = (caldgemm::divideParameters*) arg;
 	if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread %d for core %d started\n", par->nThread, par->CPUCore);
+	{
+		char tmp[128];
+		sprintf(tmp, "Divide %d", par->nThread);
+		setThreadName(tmp);
+	}
 	cpu_set_t divide_mask;
 	CPU_ZERO(&divide_mask);
 	CPU_SET(par->CPUCore, &divide_mask);
@@ -1084,6 +1102,12 @@ void* caldgemm::divide_wrapper(void* arg)
 void* caldgemm::merge_wrapper(void* arg)
 {
 	caldgemm::mergeParameters* par = (caldgemm::mergeParameters*) arg;
+	
+	{
+		char tmp[128];
+		sprintf(tmp, "Merge %d/%d", par->num_device, par->nMergeThread);
+		setThreadName(tmp);
+	}
 
 	if (par->cls->Config->Debug) fprintf(STD_OUT, "Merger Thread %d started\n", par->nMergeThread);
 
@@ -1574,6 +1598,8 @@ recalculate_ratio:
 	DGEMM_favor_m = Config->LinpackSwapN == NULL ? (gpu_m >= gpu_n) : 1;
 	
 	if (!Config->Quiet) fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c - Tiling %lld\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) SmallTileHeight);
+	
+	//printThreadPinning();
 	
 	const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 	const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
