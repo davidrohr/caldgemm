@@ -1,5 +1,5 @@
 --- ../gcc-4.6.1/libgomp/team.c	2009-05-20 22:54:45.000000000 +0200
-+++ libgomp/team.c	2012-07-26 16:23:14.203545586 +0200
++++ libgomp/team.c	2012-07-30 11:35:18.742162635 +0200
 @@ -29,6 +29,8 @@
  #include <stdlib.h>
  #include <string.h>
@@ -9,7 +9,7 @@
  /* This attribute contains PTHREAD_CREATE_DETACHED.  */
  pthread_attr_t gomp_thread_attr;
  
-@@ -116,7 +118,10 @@
+@@ -116,11 +118,18 @@
  	  gomp_team_barrier_wait (&team->barrier);
  	  gomp_finish_task (task);
  
@@ -17,48 +17,59 @@
 +	  do
 +	  {
 +	    gomp_barrier_wait (&pool->threads_dock);
-+	  } while (thr->fn == GOMP_KEEP_THREAD);
++	    local_fn = thr->fn;
++	    thr->fn = NULL;
++	    if (local_fn == GOMP_KEEP_THREAD)
++	    {
++		    gomp_team_barrier_wait(&thr->ts.team->barrier);
++	    }
++	  } while (local_fn == GOMP_KEEP_THREAD);
  
- 	  local_fn = thr->fn;
+-	  local_fn = thr->fn;
  	  local_data = thr->data;
-@@ -258,8 +263,9 @@
+-	  thr->fn = NULL;
+ 	}
+       while (local_fn);
+     }
+@@ -258,7 +267,7 @@
    struct gomp_task_icv *icv;
    bool nested;
    struct gomp_thread_pool *pool;
 -  unsigned i, n, old_threads_used = 0;
 +  unsigned i, j, n, old_threads_used = 0;
    pthread_attr_t thread_attr, *attr;
-+  
  
    thr = gomp_thread ();
-   nested = thr->ts.team != NULL;
-@@ -346,6 +352,11 @@
+@@ -346,6 +355,16 @@
  	  nthr->data = data;
  	  team->ordered_release[i] = &nthr->release;
  	}
-+	for (j = i;j < old_threads_used;j++)
-+	{
-+	  nthr = pool->threads[j];
-+	  nthr->fn = GOMP_KEEP_THREAD;
++      if (nthreads < old_threads_used)
++        {
++          for (j = i;j < old_threads_used;j++)
++	    {
++	      nthr = pool->threads[j];
++	      nthr->fn = GOMP_KEEP_THREAD;
++	      nthr->ts.team = team;
++	    }
++	  gomp_barrier_reinit (&team->barrier, old_threads_used);
 +	}
  
        if (i == nthreads)
  	goto do_release;
-@@ -434,7 +445,7 @@
+@@ -434,7 +453,7 @@
       that should arrive back at the end of this team.  The extra
       threads should be exiting.  Note that we arrange for this test
       to never be true for nested teams.  */
 -  if (__builtin_expect (nthreads < old_threads_used, 0))
-+  /*if (__builtin_expect (nthreads < old_threads_used, 0))
++  if (nested && __builtin_expect (nthreads < old_threads_used, 0))
      {
        long diff = (long) nthreads - (long) old_threads_used;
  
-@@ -447,7 +458,8 @@
-       gomp_managed_threads += diff;
+@@ -448,6 +467,7 @@
        gomp_mutex_unlock (&gomp_remaining_threads_lock);
  #endif
--    }
-+    }*/
+     }
 +    if (!nested && old_threads_used > nthreads) pool->threads_used = old_threads_used;
  }
  
