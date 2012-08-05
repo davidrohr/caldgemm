@@ -105,11 +105,11 @@ private:
 		BufferProperties* conversionBuffer;
 	};
 
-	int divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose);
+	int divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose, double* tmpBuffer);
 	int mergeBuffers(double* dst, BufferProperties* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers);
 	void checkCalPatch();
 	void cal_init_constant_data(BufferProperties* &data, double alpha);
-	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0);
+	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0, double* tmpBuffer);
 	virtual int RunCALDGEMM_Init();
 	virtual int RunCALDGEMM_Exit();
 
