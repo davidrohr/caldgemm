@@ -1,22 +1,24 @@
-#include <syscall.h>
-#include <dirent.h>
-#include <vector>
-#include <sys/types.h>
-#include <sys/syscall.h>
-#include "affinity.h"
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
+#include <vector>
+
+#ifdef _WIN32
+#include <Windows.h>
+#include <WinBase.h>
+#else
+#include <dirent.h>
+#include <syscall.h>
+#include <sys/types.h>
+#include <sys/syscall.h>
+#endif
+
 #include "os_low_level_helper.h"
+#include "affinity.h"
 
 #ifndef STD_OUT
 #define STD_OUT stdout
 #endif
-
-pid_t gettid()
-{
-	return((pid_t) syscall(SYS_gettid));
-}
 
 struct threadNameStruct
 {
@@ -32,6 +34,20 @@ void setThreadName(char* name)
 	tmp.thread_id = gettid();
 	tmp.name = name;
 	threadNames.push_back(tmp);
+}
+
+#ifdef _WIN32
+
+pid_t gettid()
+{
+	return(0);
+}
+
+#else
+
+pid_t gettid()
+{
+	return((pid_t) syscall(SYS_gettid));
 }
 
 void printThreadPinning()
@@ -87,3 +103,4 @@ void printThreadPinning()
 		closedir(dp);
 	}
 }
+#endif

@@ -1,4 +1,13 @@
 #include <signal.h>
+
+#ifdef _WIN32
+#define __INTRIN_H_
+#define _Complex
+#ifndef __restrict__
+#define __restrict__
+#endif
+#endif
+
 #if !defined(_WIN32) & defined(USE_GOTO_BLAS)
 extern "C" {
 #define CBLAS
@@ -46,15 +55,6 @@ static inline void caldgemm_goto_restrict_cpus(int) {}
 #endif
 
 #endif
-
-#ifdef _WIN32
-#define __INTRIN_H_
-#define _Complex
-#ifndef __restrict__
-#define __restrict__
-#endif
-#endif
-
 
 #ifndef _WIN32
 #define CAST_FOR_MMPREFETCH

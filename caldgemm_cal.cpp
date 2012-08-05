@@ -767,7 +767,21 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 #ifdef CALDGEMM_MERGE_NOPS
 				for (int j = 0;j < CALDGEMM_MERGE_NOPS;j++)
 				{
+#ifdef _WIN32
+					__asm
+					{
+						nop
+						nop
+						nop
+						nop
+						nop
+						nop
+						nop
+						nop
+					}
+#else
 					asm volatile ("nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"  : : : );
+#endif
 				}
 #endif
 			}
