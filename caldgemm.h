@@ -131,6 +131,7 @@ public:
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
 		int OutputThreads;						//Number of output threads
 		int NumaPinning;						//Rotate pinning over NUMA nodes, better die utilization but perhaps worse L3 cache utilization.
+		int AlternateLookahead;					//Alternate Lookahead implementation optimized for saving CPU cycles
 		
 		size_t Height;							//height of subblock od A, width of subblock of B
 		size_t m, n;							//height of A, width of B, must be multiple of height
@@ -330,6 +331,8 @@ protected:
 	double linpackGPURatios[max_linpack_callback_types];
 	double linpackBcastTime[max_linpack_callback_types];
 	double linpackCPUDGEMMTime[max_linpack_callback_types];
+
+	pthread_mutex_t alternateLinpackMutex[max_devices];
 
 #if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
 	static const bool buffersSwitchable = true;

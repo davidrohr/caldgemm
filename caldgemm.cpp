@@ -188,6 +188,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	SleepDuringActiveWait = -1;
 	NumaPinning = false;
 	ThirdPhaseThreshold = 0;
+	AlternateLookahead = 0;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -519,6 +520,15 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (linpackCPU >= conf_numprocs) linpackCPU = 0;
 	broadcast_cpu_core = linpackCPU;
 	if (Config->Debug) fprintf(STD_OUT, "Broadcast CPU core set to %d\n", linpackCPU);
+
+	if (Config->AlternateLookahead)
+	{
+		for (int i = 0;i < nDevices;i++)
+		{
+			pthread_mutex_init(&alternateLinpackMutex[i], NULL);
+			pthread_mutex_lock(&alternateLinpackMutex[i]);
+		}
+	}
 
 	if (Config->MultiThread)
 	{
@@ -858,10 +868,21 @@ void* caldgemm::cblas_wrapper(void* arg)
 
 		if (par->cls->ExecLinpack)
 		{
-			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tDoing initial cblas runs to prepare Linpack factorization\n");
-			par->cls->Timers.CPUTimer.Start();
-			cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->Width, Config->n, Config->Width, Alpha, A - Config->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Config->Width * C_pitch, C_pitch);
-			par->cls->Timers.CPUTimer.Stop();
+			if (Config->AlternateLookahead)
+			{
+				if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tWaiting for GPUs to finish initial DGEMM part to start Linpack factorization\n");
+				for (int i = 0;i < par->cls->nDevices;i++)
+				{
+					pthread_mutex_lock(&par->cls->alternateLinpackMutex[i]);
+				}
+			}
+			else
+			{
+				if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tDoing initial cblas runs to prepare Linpack factorization\n");
+				par->cls->Timers.CPUTimer.Start();
+				cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->Width, Config->n, Config->Width, Alpha, A - Config->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Config->Width * C_pitch, C_pitch);
+				par->cls->Timers.CPUTimer.Stop();
+			}
 #ifndef NO_ASYNC_LINPACK
 			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tStarting Linpack factorization\n");
 			if (Config->HPLFactorizeRestrictCPUs == 1)
@@ -1213,7 +1234,7 @@ void caldgemm::WaitForLASWP(size_t n)
 	if (Config->LinpackSwapN != NULL)
 	{
 		int shown = false;
-		while (*Config->LinpackSwapN < (n + 1) * Config->Height + (ExecLinpack ? Config->Width : 0) && *Config->LinpackSwapN < gpu_m)
+		while (*Config->LinpackSwapN < (n + 1) * Config->Height + (ExecLinpack && Config->AlternateLookahead != 1 ? Config->Width : 0) && *Config->LinpackSwapN < gpu_m)
 		{
 			if (Config->Debug && shown == false)
 			{
@@ -1327,7 +1348,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	Timers.System.Start();
 
-	if (ExecuteLinpackCallbacks)
+	if (ExecLinpack && Config->AlternateLookahead != 1)
 	{
 		if (Config->m < Config->Width)
 		{
@@ -1364,7 +1385,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (Config->AutoHeight)
 	{
-		if (ExecuteLinpackCallbacks >= 2 && !Config->SmallTiles)
+		if (ExecLinpack >= 2 && !Config->SmallTiles)
 		{
 			if (MaxGpuM < 1024 || MaxGpuN < 1024)
 			{
@@ -1425,7 +1446,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Config->Debug) fprintf(STD_OUT, "Running CPU only DGEMM\n");
 		if (Config->LinpackSwapN != NULL) Config->linpack_swap_function();
 #ifndef NO_ASYNC_LINPACK
-		if (ExecuteLinpackCallbacks)
+		if (ExecLinpack)
 		{
 			Timers.CPUTimer.Start();
 			cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, Config->Width, Config->n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
@@ -1459,7 +1480,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 	CPUOnlyRun = false;
 
-	if (ExecuteLinpackCallbacks)
+	if (ExecLinpack)
 	{
 		outputthreads = mymin(CALDGEMM_OUTPUT_THREADS_SLOW, outputthreads + CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK);
 	}
@@ -1513,30 +1534,30 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		GPURatio = fabs(Config->GPURatio);
 	}
 
-	if (ExecuteLinpackCallbacks && (Config->GPURatio < 0 || GPURatio < 0.99) && !Config->SlowCPU)
+	if (ExecLinpack && (Config->GPURatio < 0 || GPURatio < 0.99) && !Config->SlowCPU)
 	{
 		if (Config->GPURatio <= -0.99)
 		{
-			if (ExecuteLinpackCallbacks > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80 * Config->Width / 1024;
+			if (ExecLinpack > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80 * Config->Width / 1024;
 			else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
 			if (GPURatio > 1.0) GPURatio = 1.0;
 		}
-		if (linpack_last_mn[ExecuteLinpackCallbacks] > 0 && (((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecuteLinpackCallbacks]) / linpack_last_mn[ExecuteLinpackCallbacks] < 0.3 && linpackGPURatios[ExecuteLinpackCallbacks] > 0.0001)
+		if (linpack_last_mn[ExecLinpack] > 0 && (((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackGPURatios[ExecLinpack] > 0.0001)
 		{
-			GPURatio = linpackGPURatios[ExecuteLinpackCallbacks];
-			if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3lf\n", ExecuteLinpackCallbacks, 100 * GPURatio);
+			GPURatio = linpackGPURatios[ExecLinpack];
+			if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3lf\n", ExecLinpack, 100 * GPURatio);
 		}
 		else
 		{
-			linpackGPURatios[ExecuteLinpackCallbacks] = GPURatio;
-			if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3lf\n", ExecuteLinpackCallbacks, 100 * GPURatio);
+			linpackGPURatios[ExecLinpack] = GPURatio;
+			if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3lf\n", ExecLinpack, 100 * GPURatio);
 		}
 	}
 	if (Config->GPURatio < 0 && Config->GPURatio > -0.99 && GPURatio < -Config->GPURatio) GPURatio = -Config->GPURatio;
 
 	gpu_ratio_used = GPURatio;
 
-	if (ExecuteLinpackCallbacks)
+	if (ExecLinpack && Config->AlternateLookahead != 1)
 	{
 		Config->m -= Config->Width;
 		A += Config->Width * (TransposeA ? 1 : A_pitch);
@@ -1553,7 +1574,7 @@ recalculate_ratio:
 		if ((DGEMM_split_m = (Config->LinpackSwapN == NULL ? (Config->m >= Config->n) : 0)))
 		{
 			size_t virtualm = Config->m + (Config->n % SmallTileHeight) * Config->m / Config->n;
-			if (ExecuteLinpackCallbacks) virtualm += Config->Width * (0.25 + (float) Config->m / Config->n);
+			if (ExecLinpack && Config->AlternateLookahead) virtualm += Config->Width * (0.25 + (float) Config->m / Config->n);
 			gpu_m = GPURatio * (float) virtualm + (SmallTileHeight - 1);
 			if (gpu_m > Config->m)
 			{
@@ -1574,7 +1595,7 @@ recalculate_ratio:
 		else
 		{
 			size_t virtualn = Config->n + (Config->m % SmallTileHeight) * Config->n / Config->m;
-			if (ExecuteLinpackCallbacks) virtualn += Config->Width * (0.25 + (float) Config->n / Config->m);
+			if (ExecLinpack && Config->AlternateLookahead) virtualn += Config->Width * (0.25 + (float) Config->n / Config->m);
 			gpu_n = GPURatio * (float) virtualn + (SmallTileHeight - 1);
 			if (gpu_n > Config->n)
 			{
@@ -2072,9 +2093,9 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 	outputthreads = old_outputthreads;
 
 #ifndef NO_ASYNC_LINPACK
-	if (!Config->UseCPU && ExecuteLinpackCallbacks)
+	if (!Config->UseCPU && ExecLinpack)
 #else
-	if (ExecuteLinpackCallbacks)
+	if (ExecLinpack)
 #endif
 	{
 		if (!Config->Quiet) fprintf(STD_OUT, "No asynchronous processing of linpack functions possible, executing linpack callback functions\n");
@@ -2109,24 +2130,24 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 	AnalyzeResults();
 	if (Config->Verify) delete[] D;
 
-	if (ExecuteLinpackCallbacks)
+	if (ExecLinpack)
 	{
 		if (Timers.CPUTimer.GetElapsedTime() < 2.0)
 		{
 		    gpu_ratio_used = 1 - 0.6 * (1 - gpu_ratio_used);
 		}
-		if (ExecuteLinpackCallbacks >= 2 && Timers.GPUTimer.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() < 1.0)
+		if (ExecLinpack >= 2 && Timers.GPUTimer.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() < 1.0)
 		{
 		    gpu_ratio_used = 1 - 0.6 * (1 - gpu_ratio_used);
 		}
 		const double tmpratio = cpu_wait_time > 0.15 ? 0.0 : 0.5;
-		const double newratio = tmpratio * linpackGPURatios[ExecuteLinpackCallbacks] + (1.0 - tmpratio) * gpu_ratio_used;
-		if (Config->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.3lf, new: %2.3lf, factor: %2.3lf) => %2.3lf\n", ExecuteLinpackCallbacks, 100 * linpackGPURatios[ExecuteLinpackCallbacks], 100 * gpu_ratio_used, tmpratio, 100 * newratio);
+		const double newratio = tmpratio * linpackGPURatios[ExecLinpack] + (1.0 - tmpratio) * gpu_ratio_used;
+		if (Config->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.3lf, new: %2.3lf, factor: %2.3lf) => %2.3lf\n", ExecLinpack, 100 * linpackGPURatios[ExecLinpack], 100 * gpu_ratio_used, tmpratio, 100 * newratio);
 
-		linpackGPURatios[ExecuteLinpackCallbacks] = newratio;
-		linpackCPUDGEMMTime[ExecuteLinpackCallbacks] = Timers.CPUTimer.GetElapsedTime();
-		linpackBcastTime[ExecuteLinpackCallbacks] = Timers.LinpackTimer2.GetElapsedTime();
-		linpack_last_mn[ExecuteLinpackCallbacks] = (double) Config->m * (double) Config->n;
+		linpackGPURatios[ExecLinpack] = newratio;
+		linpackCPUDGEMMTime[ExecLinpack] = Timers.CPUTimer.GetElapsedTime();
+		linpackBcastTime[ExecLinpack] = Timers.LinpackTimer2.GetElapsedTime();
+		linpack_last_mn[ExecLinpack] = (double) Config->m * (double) Config->n;
 	}
 
 	return(0);
@@ -2201,6 +2222,15 @@ int caldgemm::ExitCALDGEMM()
 		cParam.terminate = true;
 		if (Config->MultiThread && pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking blas mutex 1 to terminate thread\n");
 		if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR unlocking blas mutex 0 to terminate thread\n");
+	}
+
+	if (Config->AlternateLookahead)
+	{
+		for (int i = 0;i < nDevices;i++)
+		{
+			pthread_mutex_unlock(&alternateLinpackMutex[i]);
+			pthread_mutex_destroy(&alternateLinpackMutex[i]);
+		}
 	}
 
 	if (Config->MultiThread)
@@ -2448,12 +2478,12 @@ void caldgemm::displayMatrixTiming(const char* name)
 		}
 		else if (DGEMM_split_m)
 		{
-			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Config->n + (Config->n % SmallTileHeight) * (Config->m - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack ? Config->Width * Config->n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Config->n + (Config->n % SmallTileHeight) * (Config->m - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack && Config->AlternateLookahead ? Config->Width * Config->n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = (double) 1e-09 * ((Config->m - cParam.cblas_size) * (Config->n - Config->n % SmallTileHeight) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / Timers.GPUTimer.GetElapsedTime();
 		}
 		else
 		{
-			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Config->m + (Config->m % SmallTileHeight) * (Config->n - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack ? Config->Width * Config->n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Config->m + (Config->m % SmallTileHeight) * (Config->n - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack && Config->AlternateLookahead ? Config->Width * Config->n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = (double) 1e-09 * ((Config->n - cParam.cblas_size) * (Config->m - Config->m % SmallTileHeight) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / Timers.GPUTimer.GetElapsedTime();
 		}
 		
