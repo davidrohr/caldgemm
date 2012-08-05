@@ -81,4 +81,6 @@
 #define CALDGEMM_SHIFT_TEXTURE 1				//Shift even numbered rows in texture by n pixelsdrohr
 
 #define CALDGEMM_DIVIDE_STATIC_BUFFER			//Allocate tmpBuffer for divide staticly once and for all
-#define CALDGEMM_DIVIDE_BLOCKING 128			//Blocking size for divideBuffer with SHIFT_TEXTURE = 1
+#define CALDGEMM_DIVIDE_BLOCKING 128			//Blocking size for divideBuffer with SHIFT_TEXTURE = 1 (larger multiple of two)
+#define CALDGEMM_DIVIDE_TRANSPOSE_TWOPHASE		//Perform dividebuffer transposition in two phases such that fewer write combining buffers are used, Only works for 2 input buffers per matrix with A transposed!
+#define CALDGEMM_TRANSPOSE_BLOCKING 8			//Blocking factor for the transposition (multiple of 2)

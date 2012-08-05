@@ -272,8 +272,71 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 			}
 		}
 #elif defined(CALDGEMM_44) & defined(CALDGEMM_TRANSPOSED_A) & !defined(CALDGEMM_SINGLE_BUFFER) &!defined(CALDGEMM_DOUBLE_BUFFERS)
+#ifdef CALDGEMM_DIVIDE_TRANSPOSE_TWOPHASE
+#ifdef CALDGEMM_DIVIDE_STATIC_BUFFER
+		double* __restrict__ tmpbuffer = tmpBuffer;
+#else
+		double* __restrict__ tmpbuffer = allocDivideBuffer();
+#endif
+		for (int k = 0;k < height;k += CALDGEMM_TRANSPOSE_BLOCKING)
+		{
+			for (int i = 0;i < width;i += 2)
+			{
+				double* __restrict__ daddr = &tmpbuffer[i];
+				const double* __restrict__ saddr = src + (i * pitch + k);
+				for (int y = 0;y < CALDGEMM_TRANSPOSE_BLOCKING;y += 2)
+				{
+					const __m128d x0 = _mm_load_pd_use(saddr);
+					const __m128d x1 = _mm_load_pd_use(&saddr[pitch]);
+					_mm_store_pd(daddr, _mm_unpacklo_pd(x0, x1));
+					_mm_store_pd(&daddr[width], _mm_unpackhi_pd(x0, x1));
+					saddr += 2;
+					daddr += 2 * width;
+				}
+			}
 
-#if !defined(CALDGEMM_SHIFT_TEXTURE) | CALDGEMM_SHIFT_TEXTURE == 0
+			double* __restrict__ daddr = &dst[0].ptr_double[k * gpu_pitch];
+			double* __restrict__ daddr2 = &dst[1].ptr_double[k * gpu_pitch];
+			for (int y = 0; y < CALDGEMM_TRANSPOSE_BLOCKING; y++)
+			{
+				int count = dst[0].DataSize * width;
+				const double* __restrict__ saddr = tmpbuffer + (y * width);
+
+#ifdef CALDGEMM_SHIFT_TEXTURE
+				if (y & 1)
+				{
+					daddr -= 2 * CALDGEMM_SHIFT_TEXTURE;
+					daddr2 -= 2 * CALDGEMM_SHIFT_TEXTURE;
+				}
+				else
+				{
+					daddr += 2 * CALDGEMM_SHIFT_TEXTURE;
+					daddr2 += 2 * CALDGEMM_SHIFT_TEXTURE;
+				}
+#endif
+				
+				for (int i = 0;i < count;i += 64)
+				{
+#ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
+					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 32), _MM_HINT_NTA);
+#endif
+					_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
+					_mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));
+					_mm_store_pd_use(daddr + 2, _mm_load_pd_use(saddr + 4));
+					_mm_store_pd_use(daddr2 + 2, _mm_load_pd_use(saddr + 6));
+					saddr += 8;
+					daddr += 4;
+					daddr2+= 4;
+				}
+				daddr += gpu_pitch - width / numBuffers;
+				daddr2 += gpu_pitch - width / numBuffers;
+			}
+		}
+
+#ifndef CALDGEMM_DIVIDE_STATIC_BUFFER
+		freeDivideBuffer(tmpbuffer);
+#endif
+#elif !defined(CALDGEMM_SHIFT_TEXTURE) | CALDGEMM_SHIFT_TEXTURE == 0 //end of Two Phase transposition
 		for (int y = 0;y < width;y += 16)
 		{
 			const double* __restrict__ saddr0 = &src[(y + 0) * pitch];
@@ -335,7 +398,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				saddr6 += 2;
 			}
 		}
-#elif CALDGEMM_SHIFT_TEXTURE == 1
+#elif CALDGEMM_SHIFT_TEXTURE == 1 //end of: not defined CALDGEMM_SHIFT_TEXTURE
 #ifdef CALDGEMM_DIVIDE_STATIC_BUFFER
 		double* __restrict__ tmpbuffer = tmpBuffer;
 #else
@@ -424,7 +487,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 #ifndef CALDGEMM_DIVIDE_STATIC_BUFFER
 		freeDivideBuffer(tmpbuffer);
 #endif
-#else
+#else //end of: CALDGEMM_SHIFT_TEXTURE < 2
 		#define CALDGEMM_SHIFT_TEXTURE_OFFSET (CALDGEMM_SHIFT_TEXTURE * 2)
 
 		for (int i = 0;i < height;i += 2)

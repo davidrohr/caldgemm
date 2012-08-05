@@ -249,18 +249,20 @@ protected:
 	int DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DIVBUFA);
 	double* divide_tmpBuffer;
 
-	inline static double* allocDivideBuffer()
+	inline double* allocDivideBuffer()
 	{
-#if defined(CALDGEMM_SHIFT_TEXTURE) && CALDGEMM_SHIFT_TEXTURE == 1
+#ifdef CALDGEMM_DIVIDE_TRANSPOSE_TWOPHASE
+		return(new double[CALDGEMM_TRANSPOSE_BLOCKING * mymax(Config->Width, Config->Height)]);
+#elif defined(CALDGEMM_SHIFT_TEXTURE) && CALDGEMM_SHIFT_TEXTURE == 1
 		return(new double[2 * CALDGEMM_DIVIDE_BLOCKING + 1]);
 #else
 		return(NULL);
 #endif
 	}
 
-	inline static void freeDivideBuffer(double* ptr)
+	inline void freeDivideBuffer(double* ptr)
 	{
-#if defined(CALDGEMM_SHIFT_TEXTURE) && CALDGEMM_SHIFT_TEXTURE == 1
+#if defined(CALDGEMM_DIVIDE_TRANSPOSE_TWOPHASE) || (defined(CALDGEMM_SHIFT_TEXTURE) && CALDGEMM_SHIFT_TEXTURE == 1)
 		delete[] ptr;
 #endif
 	}

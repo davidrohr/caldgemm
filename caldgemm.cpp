@@ -1063,7 +1063,7 @@ void* caldgemm::divide_wrapper(void* arg)
 		}
 	}
 
-	double* tmpBuffer = allocDivideBuffer();
+	double* tmpBuffer = par->cls->allocDivideBuffer();
 
 	if (pthread_mutex_unlock(&par->cls->DGEMMTasks[par->nThread].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finish mutex (%d)\n", par->nThread);
 	int i = 0;
@@ -1100,7 +1100,7 @@ void* caldgemm::divide_wrapper(void* arg)
 		i = (i + 1) % par->cls->nDevices;
 	}
 
-	freeDivideBuffer(tmpBuffer);
+	par->cls->freeDivideBuffer(tmpBuffer);
 
 	if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread %d for Core %d terminating\n", par->nThread, par->CPUCore);
 	pthread_exit(NULL);
