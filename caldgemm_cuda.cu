@@ -112,7 +112,7 @@ int caldgemm_cuda::Initialize(bool nocalinit)
 	for (int i = 0;i < nDevices;i++)
 	{
 		if (deviceNum >= 0) cuda_devices[i] = goodDevices[deviceNum];
-		else cuda_devices[i] = goodDevices[Config->NumDevices[i]];
+		else cuda_devices[i] = goodDevices[Config->DeviceNums[i]];
 	}
 	delete[] goodDevices;
 
