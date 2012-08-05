@@ -80,4 +80,5 @@
 #define CALDGEMM_LATE_EXIT_CONDITION			//Put exit condition at end of while loop
 #define CALDGEMM_SHIFT_TEXTURE 1				//Shift even numbered rows in texture by n pixelsdrohr
 
+#define CALDGEMM_DIVIDE_STATIC_BUFFER			//Allocate tmpBuffer for divide staticly once and for all
 #define CALDGEMM_DIVIDE_BLOCKING 128			//Blocking size for divideBuffer with SHIFT_TEXTURE = 1

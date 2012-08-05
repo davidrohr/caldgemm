@@ -135,3 +135,15 @@
 #if defined(CALDGEMM_SINGLE_BUFFER_IMPROVED) & !defined(CALDGEMM_SINGLE_BUFFER)
 #undef CALDGEMM_SINGLE_BUFFER
 #endif
+
+#ifdef CALDGEMM_DIVIDE_STATIC_BUFFER
+#ifdef _WIN32
+#define CALDGEMM_DIVBUFA ,double* tmpBuffer
+#else
+#define CALDGEMM_DIVBUFA ,double* __restrict__ tmpBuffer
+#endif
+#define CALDGEMM_DIVBUFB , tmpBuffer
+#else
+#define CALDGEMM_DIVBUFA
+#define CALDGEMM_DIVBUFB
+#endif

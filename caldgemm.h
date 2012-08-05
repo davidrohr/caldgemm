@@ -201,7 +201,7 @@ protected:
 		volatile int* next_device;
 		volatile int skip_device_to;
 	} DGEMMTasks[max_devices];
-	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task);
+	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task CALDGEMM_DIVBUFA);
 
 	struct BufferProperties;
 
@@ -221,7 +221,7 @@ protected:
 
 	virtual	int Initialize (bool nocalinit) = 0;
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch) = 0;
-	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0) = 0;
+	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0 CALDGEMM_DIVBUFA) = 0;
 	virtual int ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn) = 0;
 	virtual int RunCALDGEMM_Init() = 0;
 	virtual int RunCALDGEMM_Exit() = 0;
@@ -246,7 +246,24 @@ protected:
 	
 	pthread_mutex_t device_mutex[max_devices];
 
-	int DGEMM_prepare(size_t k, int j, unsigned int num_device);
+	int DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DIVBUFA);
+	double* divide_tmpBuffer;
+
+	inline static double* allocDivideBuffer()
+	{
+#if defined(CALDGEMM_SHIFT_TEXTURE) && CALDGEMM_SHIFT_TEXTURE == 1
+		return(new double[2 * CALDGEMM_DIVIDE_BLOCKING + 1]);
+#else
+		return(NULL);
+#endif
+	}
+
+	inline static void freeDivideBuffer(double* ptr)
+	{
+#if defined(CALDGEMM_SHIFT_TEXTURE) && CALDGEMM_SHIFT_TEXTURE == 1
+		delete[] ptr;
+#endif
+	}
 	
 	inline void DGEMM_getblocks(size_t k, size_t &blockm, size_t &blockn)
 	{

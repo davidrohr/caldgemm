@@ -134,7 +134,7 @@ caldgemm_cal::~caldgemm_cal()
 {
 }
 
-int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose)
+int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose CALDGEMM_DIVBUFA)
 {
 	const int gpu_pitch = dst[0].pitch * 2;
 
@@ -336,7 +336,11 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 			}
 		}
 #elif CALDGEMM_SHIFT_TEXTURE == 1
-		double* __restrict__ tmpbuffer = new double[2 * CALDGEMM_DIVIDE_BLOCKING + 1];
+#ifdef CALDGEMM_DIVIDE_STATIC_BUFFER
+		double* __restrict__ tmpbuffer = tmpBuffer;
+#else
+		double* __restrict__ tmpbuffer = allocDivideBuffer();
+#endif
 		for (int i0 = 0;i0 < height;i0 += CALDGEMM_DIVIDE_BLOCKING)
 		{
 			for (int y = 0;y < width;y += 16)
@@ -417,7 +421,9 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 			}
 		}
 		
-		delete[] tmpbuffer;
+#ifndef CALDGEMM_DIVIDE_STATIC_BUFFER
+		freeDivideBuffer(tmpbuffer);
+#endif
 #else
 		#define CALDGEMM_SHIFT_TEXTURE_OFFSET (CALDGEMM_SHIFT_TEXTURE * 2)
 
@@ -2032,7 +2038,7 @@ int caldgemm_cal::RunMergeBuffers(double* dst, int device, int j, int width, int
 	return(mergeBuffers(dst, datas[device][j] + numInputs + numConstantBuffers, width, height, gpu_width, gpu_height, pitch, dwBuffersC));
 }
 
-int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0)
+int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0 CALDGEMM_DIVBUFA)
 {
 	size_t blockm, blockn;
 	DGEMM_getblocks(k, blockm, blockn);
@@ -2043,9 +2049,9 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 		if (Config->VerboseTiming) Timers.CounterDivide.Start();
 		Timers.divideA++;
 #ifdef CALDGEMM_TRANSPOSED_A
-		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA ? 1 : A_pitch), (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, Config->Width, BufferHeight, BufferWidth, A_pitch, dwBuffersA, TransposeA == false)) return(1);
+		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA ? 1 : A_pitch), (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, Config->Width, BufferHeight, BufferWidth, A_pitch, dwBuffersA, TransposeA == false CALDGEMM_DIVBUFB)) return(1);
 #else
-		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA ? 1 : A_pitch), Config->Width, (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA)) return(1);
+		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA ? 1 : A_pitch), Config->Width, (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA CALDGEMM_DIVBUFB)) return(1);
 #endif
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)
@@ -2070,9 +2076,9 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 		if (Config->VerboseTiming) Timers.CounterDivide.Start();
 		Timers.divideB++;
 #ifdef CALDGEMM_TRANSPOSED_B
-		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), Config->Width, (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, BufferWidth, BufferHeight, B_pitch, dwBuffersB, TransposeB == false);
+		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), Config->Width, (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, BufferWidth, BufferHeight, B_pitch, dwBuffersB, TransposeB == false CALDGEMM_DIVBUFB);
 #else
-		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB);
+		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB CALDGEMM_DIVBUFB);
 #endif
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)

@@ -41,7 +41,7 @@ private:
 	virtual int UseInputPthreads();
 	virtual int UseMutexPerDevice();
 
-	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0);
+	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0 CALDGEMM_DIVBUFA);
 	virtual	int Initialize (bool nocalinit);
 	virtual int ValidateRuntime();
 	virtual int CheckDevices();
