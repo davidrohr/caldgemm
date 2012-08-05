@@ -109,7 +109,7 @@ int caldgemm_cpu::RunMergeBuffers(double* dst, int device, int j, int width, int
 	return(0);
 }
 
-int caldgemm_cpu::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0, double* tmpBuffer)
+int caldgemm_cpu::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0)
 {
 	if (Config->Debug) fprintf(STD_OUT, "CALDGEMM_CPU DGEMM_prepare k=%lld j=%d device=%d\n", (long long int) k, j, num_device);
 	

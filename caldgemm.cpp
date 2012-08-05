@@ -506,10 +506,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	CPU_SET(Config->PinMainThread, &tmpmask);
 	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 
-#if defined(CALDGEMM_SHIFT_TEXTURE) && CALDGEMM_SHIFT_TEXTURE == 1
-	divide_tmpBuffer = new double[2 * CALDGEMM_DIVIDE_BLOCKING + 1];
-#endif
-
 	int linpackCPU = 0;
 	while (linpackCPU < conf_numprocs)
 	{
@@ -1063,11 +1059,6 @@ void* caldgemm::divide_wrapper(void* arg)
 		}
 	}
 
-	double* tmpBuffer;
-#if defined(CALDGEMM_SHIFT_TEXTURE) && CALDGEMM_SHIFT_TEXTURE == 1
-	tmpBuffer = new double[2 * CALDGEMM_DIVIDE_BLOCKING + 1];
-#endif
-
 	if (pthread_mutex_unlock(&par->cls->DGEMMTasks[par->nThread].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finish mutex (%d)\n", par->nThread);
 	int i = 0;
 	while (true)
@@ -1096,7 +1087,7 @@ void* caldgemm::divide_wrapper(void* arg)
 			}
 			
 			if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread for device %d Starting processing (k = %d)\n", i, par->cls->DGEMMTasks[i].k);
-			par->cls->DGEMMPrepareAndExecute(par->cls->DGEMMTasks[i], tmpBuffer);
+			par->cls->DGEMMPrepareAndExecute(par->cls->DGEMMTasks[i]);
 			
 			if (pthread_mutex_unlock(&par->cls->DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finish mutex (%d): %s - %d\n", i, __FILE__, __LINE__);
 		}
@@ -1104,11 +1095,6 @@ void* caldgemm::divide_wrapper(void* arg)
 	}
 
 	if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread %d for Core %d terminating\n", par->nThread, par->CPUCore);
-
-#if defined(CALDGEMM_SHIFT_TEXTURE) && CALDGEMM_SHIFT_TEXTURE == 1
-	delete[] tmpBuffer;
-#endif
-
 	pthread_exit(NULL);
 	return(NULL);
 }
@@ -1912,7 +1898,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					}
 					else
 					{
-						if (DGEMMPrepareAndExecute(Task, divide_tmpBuffer)) return(1);
+						if (DGEMMPrepareAndExecute(Task)) return(1);
 						//if (Config->MultiThreadDivide && UseInputPthreads() && pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
 				}
@@ -2137,14 +2123,14 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 	return(0);
 }
 
-int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task, double* tmpBuffer)
+int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task)
 {
 	pthread_mutex_lock(&device_mutex[Task.device]);
 	for (int l = 0;l < 2;l++)
 	{
 		if (Task.PrepareTasks[l].j != -1)
 		{
-			if (DGEMM_prepare(Task.PrepareTasks[l].k, Task.PrepareTasks[l].j, Task.device, tmpBuffer)) return(1);
+			if (DGEMM_prepare(Task.PrepareTasks[l].k, Task.PrepareTasks[l].j, Task.device)) return(1);
 		}
 	}
 	
@@ -2169,7 +2155,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task,
 	if (buffer_pointers_A[Task.device][blockm] < 0 || buffer_pointers_B[Task.device][blockn] < 0)
 	{
 		if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING, Buffer falsified by previous iteration, need to retransfer\n");
-		DGEMM_prepare(Task.k, Task.j, Task.device, tmpBuffer);
+		DGEMM_prepare(Task.k, Task.j, Task.device);
 	}
 	if (ExecuteKernels(Task, blockm, blockn)) return(1);
 	pthread_mutex_unlock(&device_mutex[Task.device]);
@@ -2282,10 +2268,6 @@ int caldgemm::ExitCALDGEMM()
 			}
 		}
 	}
-
-#if defined(CALDGEMM_SHIFT_TEXTURE) && CALDGEMM_SHIFT_TEXTURE == 1
-	delete[] divide_tmpBuffer;
-#endif
 
 	caldgemm_initialized = false;
 	return(0);
@@ -2597,7 +2579,7 @@ bool caldgemm::isDoubleEqual(double a, double b)
 	}
 }
 
-int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device, double* tmpBuffer)
+int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device)
 {
 #ifdef CALDGEMM_BENCHMARK_KERNEL
 	return(0);
@@ -2662,7 +2644,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device, double* tm
 	}
 	else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 
-	if(DGEMM_prepare_backend(k, j, num_device, prepareM, prepareN, buffersSufficiant, buffersSufficiant0, tmpBuffer)) return(1);
+	if(DGEMM_prepare_backend(k, j, num_device, prepareM, prepareN, buffersSufficiant, buffersSufficiant0)) return(1);
 
 	if (prepareM) next_buffer_A[num_device]++;
 	if (prepareN) next_buffer_B[num_device]++;
