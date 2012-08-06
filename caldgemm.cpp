@@ -523,11 +523,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	if (Config->AlternateLookahead)
 	{
-		for (int i = 0;i < nDevices;i++)
-		{
-			pthread_mutex_init(&alternateLinpackMutex[i], NULL);
-			pthread_mutex_lock(&alternateLinpackMutex[i]);
-		}
+		pthread_mutex_init(&alternateLinpackMutex, NULL);
+		pthread_mutex_lock(&alternateLinpackMutex);
 	}
 
 	if (Config->MultiThread)
@@ -871,10 +868,7 @@ void* caldgemm::cblas_wrapper(void* arg)
 			if (Config->AlternateLookahead > Config->n)
 			{
 				if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tWaiting for GPUs to finish initial DGEMM part to start Linpack factorization\n");
-				for (int i = 0;i < par->cls->nDevices;i++)
-				{
-					pthread_mutex_lock(&par->cls->alternateLinpackMutex[i]);
-				}
+				pthread_mutex_lock(&par->cls->alternateLinpackMutex);
 			}
 			else
 			{
@@ -1736,6 +1730,8 @@ recalculate_ratio:
 
 		if (RunCALDGEMM_Init()) return(0);
 
+		int AlternateLookaheadTilesRemaining = nb;
+
 		bool cpu_k_barrier_hit = false;
 		if (gpu_n && gpu_m)
 		{
@@ -1986,6 +1982,10 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						{
 							if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
 							if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], (lastn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, (lastm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferHeight, BufferHeight, C_pitch)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
+							if (ExecLinpack && Config->AlternateLookahead > Config->n && AlternateLookaheadTilesRemaining && lastn == 0)
+							{
+								if (--AlternateLookaheadTilesRemaining == 0) pthread_mutex_unlock(&alternateLinpackMutex);
+							}
 							if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex device %d obuffer %d\n", use_device, oldj[use_device]);
 							if (Config->MultiThread && UseOutputPthreads() && pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 						}
@@ -2013,6 +2013,16 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 							Timers.ATime.Start();
 						}
 						if (pthread_mutex_lock(&mParam[use_device][iMergeThread[use_device]].mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+						if (ExecLinpack && Config->AlternateLookahead > Config->n && AlternateLookaheadTilesRemaining)
+						{
+							size_t tmp_m, lastn;
+							DGEMM_getblocks(mParam[use_device][iMergeThread[use_device]].k, tmp_m, lastn);
+							if (lastn == 0)
+							{
+								if (--AlternateLookaheadTilesRemaining == 0) pthread_mutex_unlock(&alternateLinpackMutex);
+							}
+						}
+
 						if (Config->AsyncTiming)
 						{
 							Timers.ATime.Stop();
@@ -2228,11 +2238,8 @@ int caldgemm::ExitCALDGEMM()
 
 	if (Config->AlternateLookahead)
 	{
-		for (int i = 0;i < nDevices;i++)
-		{
-			pthread_mutex_unlock(&alternateLinpackMutex[i]);
-			pthread_mutex_destroy(&alternateLinpackMutex[i]);
-		}
+		pthread_mutex_unlock(&alternateLinpackMutex);
+		pthread_mutex_destroy(&alternateLinpackMutex);
 	}
 
 	if (Config->MultiThread)

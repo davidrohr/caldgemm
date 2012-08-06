@@ -332,7 +332,7 @@ protected:
 	double linpackBcastTime[max_linpack_callback_types];
 	double linpackCPUDGEMMTime[max_linpack_callback_types];
 
-	pthread_mutex_t alternateLinpackMutex[max_devices];
+	pthread_mutex_t alternateLinpackMutex;
 
 #if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
 	static const bool buffersSwitchable = true;
