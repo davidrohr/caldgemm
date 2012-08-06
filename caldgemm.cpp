@@ -770,7 +770,55 @@ TryThirdRun:
 	return(retVal);
 }
 
+void caldgemm::RunLinpackFactorization(int old_goto_threads, int require_threads)
+{
+	const CBLAS_TRANSPOSE TransposeA = this->TransposeA ? CblasTrans : CblasNoTrans;
+	const CBLAS_TRANSPOSE TransposeB = this->TransposeB ? CblasTrans : CblasNoTrans;
+	const size_t A_pitch_use = (TransposeA ? 1 : A_pitch);
 
+	if (Config->AlternateLookahead > Config->n)
+	{
+		if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tWaiting for GPUs to finish initial DGEMM part to start Linpack factorization\n");
+		pthread_mutex_lock(&alternateLinpackMutex);
+	}
+	else
+	{
+		if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tDoing initial cblas runs to prepare Linpack factorization\n");
+		Timers.CPUTimer.Start();
+		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->Width, Config->n, Config->Width, Alpha, A - Config->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Config->Width * C_pitch, C_pitch);
+		Timers.CPUTimer.Stop();
+	}
+#ifndef NO_ASYNC_LINPACK
+	if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tStarting Linpack factorization\n");
+	if (Config->HPLFactorizeRestrictCPUs == 1)
+	{
+		if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
+	}
+	else if (Config->HPLFactorizeRestrictCPUs >= 2)
+	{
+		caldgemm_goto_restrict_cpus(Config->HPLFactorizeRestrictCPUs);
+	}
+	Timers.LinpackTimer1.Start();
+	Config->linpack_factorize_function();
+	Timers.LinpackTimer1.Stop();
+	if (Config->HPLFactorizeRestrictCPUs >= 2) caldgemm_goto_restrict_cpus(0);
+	goto_set_num_threads(old_goto_threads - require_threads);
+
+	if (Config->LinpackNodes > 1)
+	{
+		if (Config->MultiThread)
+		{
+			pthread_mutex_unlock(&linpackParameters.linpackMutex[0]);
+		}
+		else
+		{
+			Timers.LinpackTimer2.Start();
+			Config->linpack_broadcast_function();
+			Timers.LinpackTimer2.Stop();
+		}
+	}
+#endif
+}
 
 void* caldgemm::cblas_wrapper(void* arg)
 {
@@ -863,50 +911,9 @@ void* caldgemm::cblas_wrapper(void* arg)
 		}
 		par->cls->Timers.LinpackTimer3.Stop();
 
-		if (par->cls->ExecLinpack)
+		if (par->cls->ExecLinpack && Config->AlternateLookahead <= Config->n)
 		{
-			if (Config->AlternateLookahead > Config->n)
-			{
-				if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tWaiting for GPUs to finish initial DGEMM part to start Linpack factorization\n");
-				pthread_mutex_lock(&par->cls->alternateLinpackMutex);
-			}
-			else
-			{
-				if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tDoing initial cblas runs to prepare Linpack factorization\n");
-				par->cls->Timers.CPUTimer.Start();
-				cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->Width, Config->n, Config->Width, Alpha, A - Config->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Config->Width * C_pitch, C_pitch);
-				par->cls->Timers.CPUTimer.Stop();
-			}
-#ifndef NO_ASYNC_LINPACK
-			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tStarting Linpack factorization\n");
-			if (Config->HPLFactorizeRestrictCPUs == 1)
-			{
-			    if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
-			}
-			else if (Config->HPLFactorizeRestrictCPUs >= 2)
-			{
-			    caldgemm_goto_restrict_cpus(Config->HPLFactorizeRestrictCPUs);
-			}
-			par->cls->Timers.LinpackTimer1.Start();
-			Config->linpack_factorize_function();
-			par->cls->Timers.LinpackTimer1.Stop();
-			if (Config->HPLFactorizeRestrictCPUs >= 2) caldgemm_goto_restrict_cpus(0);
-			goto_set_num_threads(old_goto_threads - require_threads);
-
-			if (par->cls->Config->LinpackNodes > 1)
-			{
-				if (Config->MultiThread)
-				{
-					pthread_mutex_unlock(&par->cls->linpackParameters.linpackMutex[0]);
-				}
-				else
-				{
-					par->cls->Timers.LinpackTimer2.Start();
-					Config->linpack_broadcast_function();
-					par->cls->Timers.LinpackTimer2.Stop();
-				}
-			}
-#endif
+			par->cls->RunLinpackFactorization(old_goto_threads, require_threads);
 		}
 
 		par->cls->Timers.CPUTimer.Start();
@@ -1027,6 +1034,12 @@ void* caldgemm::cblas_wrapper(void* arg)
 					}
 				}
 			}
+			
+			if (par->cls->ExecLinpack && par->borders_done == false && Config->AlternateLookahead > Config->n)
+			{
+				par->cls->RunLinpackFactorization(old_goto_threads, require_threads);
+			}
+
 			par->borders_done = true;
 			if (Config->Debug) fprintf(STD_OUT, "cblas run completed\n");
 		} while (par->cls->cpuScheduler());

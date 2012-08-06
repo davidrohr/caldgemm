@@ -401,6 +401,8 @@ protected:
 	int divideThreads;
 
 	cblasParameters cParam;
+
+	void RunLinpackFactorization(int old_goto_threads, int require_threads);
 	//For Verfify only
 	double* D;
 
