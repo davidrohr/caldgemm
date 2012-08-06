@@ -333,6 +333,10 @@ protected:
 	double linpackCPUDGEMMTime[max_linpack_callback_types];
 
 	pthread_mutex_t alternateLinpackMutex;
+	volatile unsigned int AlternateLookaheadTilesRemaining;
+	pthread_mutex_t tilesRemainingMutex;
+	
+	void CheckAlternateTilesRemaining(size_t m);
 
 #if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
 	static const bool buffersSwitchable = true;

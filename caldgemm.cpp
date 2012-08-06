@@ -48,6 +48,7 @@ extern "C"
 #endif
 
 #include <math.h>
+#include <emmintrin.h>
 
 #define MPOL_DEFAULT 0
 #define MPOL_PREFERRED 1
@@ -524,6 +525,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (Config->AlternateLookahead)
 	{
 		pthread_mutex_init(&alternateLinpackMutex, NULL);
+		pthread_mutex_init(&tilesRemainingMutex, NULL);
 		pthread_mutex_lock(&alternateLinpackMutex);
 	}
 
@@ -780,6 +782,7 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int require_threads
 	{
 		if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tWaiting for GPUs to finish initial DGEMM part to start Linpack factorization\n");
 		pthread_mutex_lock(&alternateLinpackMutex);
+		_mm_mfence();
 	}
 	else
 	{
@@ -1188,6 +1191,7 @@ void* caldgemm::merge_wrapper(void* arg)
 		    mergeTimer.Stop();
 		    fprintf(STD_OUT, "\t\tMerge time: %2.3lf\n", mergeTimer.GetElapsedTime());
 		}
+		par->cls->CheckAlternateTilesRemaining(blockm);
 		if (par->cls->Config->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex device %d obuffer %d (Slavethread %d)\n", par->num_device, par->nContext, par->nMergeThread);
 		if (pthread_mutex_unlock(&par->cls->obufferMutex[par->num_device][par->nContext])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 		if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1252,6 +1256,20 @@ void caldgemm::WaitForLASWP(size_t n)
 			}
 		}
 	}
+}
+
+void caldgemm::CheckAlternateTilesRemaining(size_t m)
+{
+	pthread_mutex_lock(&tilesRemainingMutex);
+	if (AlternateLookaheadTilesRemaining)
+	{
+		if (Config->Debug) fprintf(STD_OUT, "AlternateLookahead: Checking m = %lld\n", (long long int) m);
+		if (m == 0)
+		{
+			if (--AlternateLookaheadTilesRemaining == 0) pthread_mutex_unlock(&alternateLinpackMutex);
+		}
+	}
+	pthread_mutex_unlock(&tilesRemainingMutex);
 }
 
 int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB, int ExecuteLinpackCallbacks)
@@ -1745,7 +1763,7 @@ recalculate_ratio:
 
 		if (RunCALDGEMM_Init()) return(0);
 
-		int AlternateLookaheadTilesRemaining = nb;
+		AlternateLookaheadTilesRemaining = nb;
 
 		bool cpu_k_barrier_hit = false;
 		if (gpu_n && gpu_m)
@@ -1997,9 +2015,9 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						{
 							if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
 							if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], (lastn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, (lastm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferHeight, BufferHeight, C_pitch)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
-							if (ExecLinpack && Config->AlternateLookahead > Config->n && AlternateLookaheadTilesRemaining && lastn == 0)
+							if (ExecLinpack && Config->AlternateLookahead > Config->n)
 							{
-								if (--AlternateLookaheadTilesRemaining == 0) pthread_mutex_unlock(&alternateLinpackMutex);
+								CheckAlternateTilesRemaining(lastm);
 							}
 							if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex device %d obuffer %d\n", use_device, oldj[use_device]);
 							if (Config->MultiThread && UseOutputPthreads() && pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -2028,15 +2046,6 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 							Timers.ATime.Start();
 						}
 						if (pthread_mutex_lock(&mParam[use_device][iMergeThread[use_device]].mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
-						if (ExecLinpack && Config->AlternateLookahead > Config->n && AlternateLookaheadTilesRemaining)
-						{
-							size_t tmp_m, lastn;
-							DGEMM_getblocks(mParam[use_device][iMergeThread[use_device]].k, tmp_m, lastn);
-							if (lastn == 0)
-							{
-								if (--AlternateLookaheadTilesRemaining == 0) pthread_mutex_unlock(&alternateLinpackMutex);
-							}
-						}
 
 						if (Config->AsyncTiming)
 						{
@@ -2255,6 +2264,7 @@ int caldgemm::ExitCALDGEMM()
 	{
 		pthread_mutex_unlock(&alternateLinpackMutex);
 		pthread_mutex_destroy(&alternateLinpackMutex);
+		pthread_mutex_destroy(&tilesRemainingMutex);
 	}
 
 	if (Config->MultiThread)
