@@ -1,24 +1,23 @@
+#include <syscall.h>
+#include <dirent.h>
+#include <vector>
+#include <sys/types.h>
+#include <sys/syscall.h>
+#include "affinity.h"
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
-#include <vector>
-
-#ifdef _WIN32
-#include <Windows.h>
-#include <WinBase.h>
-#else
-#include <dirent.h>
-#include <syscall.h>
-#include <sys/types.h>
-#include <sys/syscall.h>
-#endif
-
 #include "os_low_level_helper.h"
-#include "affinity.h"
+#include <pthread.h>
 
 #ifndef STD_OUT
 #define STD_OUT stdout
 #endif
+
+pid_t gettid()
+{
+	return((pid_t) syscall(SYS_gettid));
+}
 
 struct threadNameStruct
 {
@@ -26,28 +25,25 @@ struct threadNameStruct
 	std::string name;
 };
 
-static std::vector<threadNameStruct> threadNames;
+class lockClass
+{
+public:
+    lockClass() {pthread_mutex_init(&lock, NULL);}
+    ~lockClass() {pthread_mutex_destroy(&lock);}
+    std::vector<threadNameStruct> threadNames;
+    pthread_mutex_t lock;
+};
+
+static lockClass lockedVector;
 
 void setThreadName(char* name)
 {
 	threadNameStruct tmp;
 	tmp.thread_id = gettid();
 	tmp.name = name;
-	threadNames.push_back(tmp);
-}
-
-#ifdef _WIN32
-
-pid_t gettid()
-{
-	return(0);
-}
-
-#else
-
-pid_t gettid()
-{
-	return((pid_t) syscall(SYS_gettid));
+	pthread_mutex_lock(&lockedVector.lock);
+	lockedVector.threadNames.push_back(tmp);
+	pthread_mutex_unlock(&lockedVector.lock);
 }
 
 void printThreadPinning()
@@ -87,11 +83,11 @@ void printThreadPinning()
 				}
 				fprintf(STD_OUT, " - ");
 				bool found = false;
-				for (size_t i = 0;i < threadNames.size();i++)
+				for (size_t i = 0;i < lockedVector.threadNames.size();i++)
 				{
-					if (threadNames[i].thread_id == tid)
+					if (lockedVector.threadNames[i].thread_id == tid)
 					{
-						fprintf(STD_OUT, "%s", threadNames[i].name.c_str());
+						fprintf(STD_OUT, "%s", lockedVector.threadNames[i].name.c_str());
 						found = true;
 						break;
 					}
@@ -103,4 +99,3 @@ void printThreadPinning()
 		closedir(dp);
 	}
 }
-#endif
