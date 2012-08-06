@@ -1927,7 +1927,9 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					}
 					else
 					{
+#ifdef CALDGEMM_DIVIDE_STATIC_BUFFER
 						double* __restrict__ tmpBuffer = divide_tmpBuffer;
+#endif
 						if (DGEMMPrepareAndExecute(Task CALDGEMM_DIVBUFB)) return(1);
 						//if (Config->MultiThreadDivide && UseInputPthreads() && pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
