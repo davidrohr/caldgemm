@@ -1037,7 +1037,9 @@ void* caldgemm::cblas_wrapper(void* arg)
 			
 			if (par->cls->ExecLinpack && par->borders_done == false && Config->AlternateLookahead > Config->n)
 			{
+				par->cls->Timers.CPUTimer.Stop();
 				par->cls->RunLinpackFactorization(old_goto_threads, require_threads);
+				par->cls->Timers.CPUTimer.Start();
 			}
 
 			par->borders_done = true;
