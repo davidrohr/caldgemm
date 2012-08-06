@@ -774,7 +774,7 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int require_threads
 {
 	const CBLAS_TRANSPOSE TransposeA = this->TransposeA ? CblasTrans : CblasNoTrans;
 	const CBLAS_TRANSPOSE TransposeB = this->TransposeB ? CblasTrans : CblasNoTrans;
-	const size_t A_pitch_use = (TransposeA ? 1 : A_pitch);
+	const size_t A_pitch_use = (this->TransposeA ? 1 : A_pitch);
 
 	if (Config->AlternateLookahead > Config->n)
 	{
