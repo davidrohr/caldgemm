@@ -1624,7 +1624,7 @@ recalculate_ratio:
 		gpu_n = Config->n;
 		gpu_m = Config->m;
 	}
-	DGEMM_favor_m = Config->LinpackSwapN == NULL ? (gpu_m >= gpu_n) : 1;
+	DGEMM_favor_m = (Config->LinpackSwapN == NULL && (ExecLinpack == 0 || Config->AlternateLookahead <= Config->n)) ? (gpu_m >= gpu_n) : 1;
 	
 	if (!Config->Quiet) fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c - Tiling %lld\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) SmallTileHeight);
 	
