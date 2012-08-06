@@ -868,7 +868,7 @@ void* caldgemm::cblas_wrapper(void* arg)
 
 		if (par->cls->ExecLinpack)
 		{
-			if (Config->AlternateLookahead)
+			if (Config->AlternateLookahead > Config->n)
 			{
 				if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tWaiting for GPUs to finish initial DGEMM part to start Linpack factorization\n");
 				for (int i = 0;i < par->cls->nDevices;i++)
@@ -1234,7 +1234,7 @@ void caldgemm::WaitForLASWP(size_t n)
 	if (Config->LinpackSwapN != NULL)
 	{
 		int shown = false;
-		while (*Config->LinpackSwapN < (n + 1) * Config->Height + (ExecLinpack && Config->AlternateLookahead != 1 ? Config->Width : 0) && *Config->LinpackSwapN < gpu_m)
+		while (*Config->LinpackSwapN < (n + 1) * Config->Height + (ExecLinpack && Config->AlternateLookahead > Config->n ? Config->Width : 0) && *Config->LinpackSwapN < gpu_m)
 		{
 			if (Config->Debug && shown == false)
 			{
@@ -1348,7 +1348,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	Timers.System.Start();
 
-	if (ExecLinpack && Config->AlternateLookahead != 1)
+	if (ExecLinpack && Config->AlternateLookahead > Config->n)
 	{
 		if (Config->m < Config->Width)
 		{
@@ -1557,7 +1557,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	gpu_ratio_used = GPURatio;
 
-	if (ExecLinpack && Config->AlternateLookahead != 1)
+	if (ExecLinpack && Config->AlternateLookahead > Config->n)
 	{
 		Config->m -= Config->Width;
 		A += Config->Width * (TransposeA ? 1 : A_pitch);
@@ -1574,7 +1574,7 @@ recalculate_ratio:
 		if ((DGEMM_split_m = (Config->LinpackSwapN == NULL ? (Config->m >= Config->n) : 0)))
 		{
 			size_t virtualm = Config->m + (Config->n % SmallTileHeight) * Config->m / Config->n;
-			if (ExecLinpack && Config->AlternateLookahead) virtualm += Config->Width * (0.25 + (float) Config->m / Config->n);
+			if (ExecLinpack && Config->AlternateLookahead > Config->n) virtualm += Config->Width * (0.25 + (float) Config->m / Config->n);
 			gpu_m = GPURatio * (float) virtualm + (SmallTileHeight - 1);
 			if (gpu_m > Config->m)
 			{
@@ -1595,7 +1595,7 @@ recalculate_ratio:
 		else
 		{
 			size_t virtualn = Config->n + (Config->m % SmallTileHeight) * Config->n / Config->m;
-			if (ExecLinpack && Config->AlternateLookahead) virtualn += Config->Width * (0.25 + (float) Config->n / Config->m);
+			if (ExecLinpack && Config->AlternateLookahead > Config->n) virtualn += Config->Width * (0.25 + (float) Config->n / Config->m);
 			gpu_n = GPURatio * (float) virtualn + (SmallTileHeight - 1);
 			if (gpu_n > Config->n)
 			{
@@ -2478,12 +2478,12 @@ void caldgemm::displayMatrixTiming(const char* name)
 		}
 		else if (DGEMM_split_m)
 		{
-			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Config->n + (Config->n % SmallTileHeight) * (Config->m - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack && Config->AlternateLookahead ? Config->Width * Config->n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Config->n + (Config->n % SmallTileHeight) * (Config->m - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack && Config->AlternateLookahead > Config->n ? Config->Width * Config->n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = (double) 1e-09 * ((Config->m - cParam.cblas_size) * (Config->n - Config->n % SmallTileHeight) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / Timers.GPUTimer.GetElapsedTime();
 		}
 		else
 		{
-			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Config->m + (Config->m % SmallTileHeight) * (Config->n - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack && Config->AlternateLookahead ? Config->Width * Config->n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * Config->m + (Config->m % SmallTileHeight) * (Config->n - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack && Config->AlternateLookahead > Config->n ? Config->Width * Config->n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = (double) 1e-09 * ((Config->n - cParam.cblas_size) * (Config->m - Config->m % SmallTileHeight) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / Timers.GPUTimer.GetElapsedTime();
 		}
 		

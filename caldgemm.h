@@ -131,7 +131,7 @@ public:
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
 		int OutputThreads;						//Number of output threads
 		int NumaPinning;						//Rotate pinning over NUMA nodes, better die utilization but perhaps worse L3 cache utilization.
-		int AlternateLookahead;					//Alternate Lookahead implementation optimized for saving CPU cycles
+		int AlternateLookahead;					//Alternate Lookahead implementation optimized for saving CPU cycles, set to an integer, AlternateLookahead is used as soon as n (since HPL is col major) is smaller than this value, 0 for disable
 		
 		size_t Height;							//height of subblock od A, width of subblock of B
 		size_t m, n;							//height of A, width of B, must be multiple of height
