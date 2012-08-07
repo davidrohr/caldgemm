@@ -318,7 +318,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 				for (int i = 0;i < count;i += 64)
 				{
 #ifdef CALDGEMM_USE_VEC_MEMCPY_PREFETCH
-					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 32), _MM_HINT_NTA);
+					_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + 32), _MM_HINT_T1);
 #endif
 					_mm_store_pd_use(daddr, _mm_load_pd_use(saddr));
 					_mm_store_pd_use(daddr2, _mm_load_pd_use(saddr + 2));

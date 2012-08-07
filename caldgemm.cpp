@@ -1260,16 +1260,12 @@ void caldgemm::WaitForLASWP(size_t n)
 
 void caldgemm::CheckAlternateTilesRemaining(size_t m)
 {
-	pthread_mutex_lock(&tilesRemainingMutex);
-	if (AlternateLookaheadTilesRemaining)
+	if (m <= (Config->Width - 1) / Config->Height)
 	{
-		if (Config->Debug) fprintf(STD_OUT, "AlternateLookahead: Checking m = %lld\n", (long long int) m);
-		if (m == 0)
-		{
-			if (--AlternateLookaheadTilesRemaining == 0) pthread_mutex_unlock(&alternateLinpackMutex);
-		}
+		pthread_mutex_lock(&tilesRemainingMutex);
+		if (AlternateLookaheadTilesRemaining && --AlternateLookaheadTilesRemaining == 0) pthread_mutex_unlock(&alternateLinpackMutex);
+		pthread_mutex_unlock(&tilesRemainingMutex);
 	}
-	pthread_mutex_unlock(&tilesRemainingMutex);
 }
 
 int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB, int ExecuteLinpackCallbacks)
@@ -1374,7 +1370,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (Config->DumpMatrix) DumpMatrix(A, B, C, Alpha, Beta, Config->m, Config->Width, Config->n, A_pitch, B_pitch, C_pitch);
 
 	Timers.System.Start();
-
+	
 	if (ExecLinpack && Config->AlternateLookahead <= Config->n)
 	{
 		if (Config->m < Config->Width)
@@ -1763,7 +1759,7 @@ recalculate_ratio:
 
 		if (RunCALDGEMM_Init()) return(0);
 
-		AlternateLookaheadTilesRemaining = nb;
+		AlternateLookaheadTilesRemaining = nb * ((Config->Width - 1) / Config->Height + 1);
 
 		bool cpu_k_barrier_hit = false;
 		if (gpu_n && gpu_m)
