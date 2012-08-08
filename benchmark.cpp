@@ -357,7 +357,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			Config->MemPolicy = true;
 			Config->MultiThread = true;
 			Config->UseCPU = false;
-			Config->UseGPU = true;
+			Config->UseGPU = false;
 			sscanf(argv[x], "%d", &torture);
 			iterations = torture;
 			break;
