@@ -418,8 +418,8 @@ protected:
 	{
 
 	};
-
 	qThreadClsArray<caldgemm, clsDMAParam> DMAThreads;
+	void DMA_wrapper(clsDMAParam* param);
 
 	//For Timing only
 	bool CPUOnlyRun;

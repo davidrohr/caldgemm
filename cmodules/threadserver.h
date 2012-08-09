@@ -68,12 +68,14 @@ public:
 
 	void Start(S* pCls, void (S::*pFunc)(T*), int threadNum = 0, int pinCPU = -1)
 	{
+		qThreadParamCls<S>& threadParam = *((qThreadParamCls<S>*) &this->threadParam);
+
 		threadParam.pCls = pCls;
-		threadParam.pFunc = pFunc;
+		threadParam.pFunc = (void (S::*)(void*)) pFunc;
 		threadParam.threadNum = threadNum;
 		threadParam.pinCPU = pinCPU;
 		pthread_t thr;
-		pthread_create(&thr, NULL, (void(*)(void*)) &qThreadWrapperCls<S, T>, &threadParam);
+		pthread_create(&thr, NULL, (void* (*) (void*)) &qThreadWrapperCls<S, T>, &threadParam);
 		if (pthread_mutex_lock(&threadParam.threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex");throw(qThreadServerException());}
 	}
 
@@ -93,13 +95,15 @@ public:
 		if (pthread_mutex_unlock(&threadParam.threadMutex[0])) {fprintf(STD_OUT, "Error unlocking mutex");throw(qThreadServerException());}
 		if (pthread_mutex_lock(&threadParam.threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex");throw(qThreadServerException());}
 	}
-
+	
 private:
 	bool started;
 	T threadParam;
+	
+	//static void* qThreadWrapperCls(T* arg);
 };
 
-template <class S, class T> static void* qThreadWrapperCls(T* arg)
+template <class S, class T> void* qThreadWrapperCls(T* arg)
 {
 	if (arg->pinCPU != -1)
 	{

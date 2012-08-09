@@ -593,6 +593,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 			while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 		}
 	}
+	
+	if (Config->ParallelDMA)
+	{
+		DMAThreads.SetNumberOfThreads(nDevices - 1, this, &caldgemm::DMA_wrapper, 1, NULL);
+	}
 
 	if (Config->MemPolicy)
 	{
@@ -635,6 +640,11 @@ bool caldgemm::cpuUsed(int cpu)
 	if (cpu == Config->PinMainThread) return(true);
 	for (int i = 0;i < Config->nExcludeCPUCores;i++) if (Config->ExcludeCPUCores[i] == cpu) return(true);
 	return(false);
+}
+
+void caldgemm::DMA_wrapper(caldgemm::clsDMAParam* par)
+{
+
 }
 
 void* caldgemm::linpack_wrapper(void* arg)

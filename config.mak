@@ -96,3 +96,4 @@ config_options.mak:
 							cp config_options.sample config_options.mak 
 
 FILEFLAGScaldgemm.cpp			= -Wno-strict-aliasing
+FILEFLAGScaldgemm_cal.cpp			= -Wno-strict-aliasing
