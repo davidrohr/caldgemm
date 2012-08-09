@@ -94,7 +94,7 @@ private:
 	T threadParam;
 };
 
-template <class S, class T> static void* qThreadWrapperCls(void* arg)
+template <class S, class T> static void* qThreadWrapperCls(T* arg)
 {
 	if (arg->pinCPU != -1)
 	{
