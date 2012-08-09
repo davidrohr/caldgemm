@@ -190,6 +190,8 @@ public:
 
 protected:
 
+	int RunCALDGEMMMain(size_t nBlocks, size_t mb, size_t nb);
+
 	struct DGEMMPrepareAndExecuteTask
 	{
 		struct DGEMMPrepareTask

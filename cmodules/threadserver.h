@@ -134,7 +134,7 @@ template <class S, class T> class qThreadClsArray
 {
 public:
 	qThreadClsArray() {pArray = NULL;nThreadsRunning = 0;}
-	qThreadClsArray(int n, S* pCls, void (S::*pFunc)(T*), int threadNumOffset = 0, int* pinCPU = NULL) {pArray = NULL;nThreadsRunning = 0;SetNumberOfThreads(n);}
+	qThreadClsArray(int n, S* pCls, void (S::*pFunc)(T*), int threadNumOffset = 0, int* pinCPU = NULL) {pArray = NULL;nThreadsRunning = 0;SetNumberOfThreads(n, pCls, pFunc, threadNumOffset, pinCPU);}
 
 	void SetNumberOfThreads(int n, S* pCls, void (S::*pFunc)(T*), int threadNumOffset = 0, int* pinCPU = NULL)
 	{
