@@ -644,7 +644,12 @@ bool caldgemm::cpuUsed(int cpu)
 
 void caldgemm::DMA_wrapper(caldgemm::clsDMAParam* par)
 {
-
+	if (Config->Debug) fprintf(STD_OUT, "DMA wrapper thread %d running\n", par->threadNum);
+	while(par->WaitForTask())
+	{
+	
+	}
+	if (Config->Debug) fprintf(STD_OUT, "DMA wrapper thread %d terminating\n", par->threadNum);
 }
 
 void* caldgemm::linpack_wrapper(void* arg)

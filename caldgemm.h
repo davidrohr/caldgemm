@@ -414,7 +414,7 @@ protected:
 	//For Verfify only
 	double* D;
 
-	class clsDMAParam : qThreadParamCls<caldgemm>
+	class clsDMAParam : public qThreadParamCls<caldgemm>
 	{
 
 	};
