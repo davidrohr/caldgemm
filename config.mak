@@ -94,3 +94,5 @@ ALLDEP						+= caldgemm_config.h
 
 config_options.mak:
 							cp config_options.sample config_options.mak 
+
+FILEFLAGScaldgemm.cpp			= -Wno-strict-aliasing

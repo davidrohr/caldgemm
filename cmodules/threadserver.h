@@ -51,6 +51,9 @@ protected:
 
 template <class S> class qThreadParamCls : qThreadParam
 {
+	template <class SS, class TT> friend class qThreadCls;
+	
+private:
 	S* pCls;
 	void (S::*pFunc)(void*);
 };
@@ -71,7 +74,7 @@ public:
 		threadParam.pinCPU = pinCPU;
 		pthread_t thr;
 		pthread_create(&thr, NULL, (void(*)(void*)) &qThreadWrapperCls<S, T>, &threadParam);
-		if (pthread_mutex_lock(&threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex");throw(qThreadServerException());}
+		if (pthread_mutex_lock(&threadParam.threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex");throw(qThreadServerException());}
 	}
 
 	~qThreadCls()
@@ -84,6 +87,8 @@ public:
 
 	void End()
 	{
+		qThreadParamCls<S>& threadParam = *((qThreadParamCls<S>*) &this->threadParam);
+	
 		threadParam.terminate = true;
 		if (pthread_mutex_unlock(&threadParam.threadMutex[0])) {fprintf(STD_OUT, "Error unlocking mutex");throw(qThreadServerException());}
 		if (pthread_mutex_lock(&threadParam.threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex");throw(qThreadServerException());}
@@ -104,9 +109,9 @@ template <class S, class T> static void* qThreadWrapperCls(T* arg)
 		sched_setaffinity(0, sizeof(tmp_mask), &tmp_mask);
 	}
 
-	arg->pCls->(*arg->pFunc)(arg);
+	arg->pCls->*arg->pFunc(arg);
 
-	if (pthread_mutex_unlock(&threadMutex[1])) {fprintf(STD_OUT, "Error unlocking mutex");throw(qThreadServerException());}
+	if (pthread_mutex_unlock(&arg->threadMutex[1])) {fprintf(STD_OUT, "Error unlocking mutex");throw(qThreadServerException());}
 	pthread_exit(NULL);
 	return(NULL);
 }
@@ -142,7 +147,7 @@ public:
 	void StopThreads()
 	{
 		delete[] pArray;
-		nThreadsRunning = NULL;
+		nThreadsRunning = 0;
 	}
 
 private:

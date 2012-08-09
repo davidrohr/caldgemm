@@ -162,7 +162,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-, <int>  Sleep for n usec during active wait\n");
 	fprintf(STD_OUT, "\t-:        Enable NUMA Pinning\n");
 	fprintf(STD_OUT, "\t-/ <list> Comma separated list of GPU devices to use (replaces -y for multiple devices)\n");
-	fprintf(STD_OUT, "\t-*        Enable Parallel DMA option
+	fprintf(STD_OUT, "\t-*        Enable Parallel DMA option\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
