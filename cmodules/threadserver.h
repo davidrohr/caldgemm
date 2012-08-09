@@ -70,7 +70,7 @@ public:
 		threadParam.threadNum = threadNum;
 		threadParam.pinCPU = pinCPU;
 		pthread_t thr;
-		pthread_create(&thr, NULL, (void* ()(void*)) &qThreadWrapperCls<S, T>, &threadParam);
+		pthread_create(&thr, NULL, (void(*)(void*)) &qThreadWrapperCls<S, T>, &threadParam);
 		if (pthread_mutex_lock(&threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex");throw(qThreadServerException());}
 	}
 
@@ -85,8 +85,8 @@ public:
 	void End()
 	{
 		threadParam.terminate = true;
-		if (pthread_mutex_unlock(&threadMutex[0])) {fprintf(STD_OUT, "Error unlocking mutex");throw(qThreadServerException());}
-		if (pthread_mutex_lock(&threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex");throw(qThreadServerException());}
+		if (pthread_mutex_unlock(&threadParam.threadMutex[0])) {fprintf(STD_OUT, "Error unlocking mutex");throw(qThreadServerException());}
+		if (pthread_mutex_lock(&threadParam.threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex");throw(qThreadServerException());}
 	}
 
 private:
