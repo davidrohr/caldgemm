@@ -1,8 +1,13 @@
-#include <syscall.h>
-#include <dirent.h>
-#include <vector>
+#ifdef _WIN32
+#include "pthread_mutex_win32_wrapper.h"
+#else
 #include <sys/types.h>
 #include <sys/syscall.h>
+#include <syscall.h>
+#include <dirent.h>
+#include <pthread.h>
+#endif
+#include <vector>
 #include "affinity.h"
 #include <string>
 #include <stdio.h>
@@ -16,8 +21,19 @@
 
 pid_t gettid()
 {
+#ifdef _WIN32
+	return((pid_t) GetCurrentThreadId());
+#else
 	return((pid_t) syscall(SYS_gettid));
+#endif
 }
+
+#ifdef _WIN32
+pid_t getpid()
+{
+	return((pid_t) GetCurrentProcessId());
+}
+#endif
 
 struct threadNameStruct
 {
@@ -49,6 +65,7 @@ void setThreadName(char* name)
 void printThreadPinning()
 {
 	pid_t pid = getpid();
+#ifndef _WIN32
 	char dirname[1024];
 	sprintf(dirname, "/proc/%d/task", (int) pid);
 	DIR* dp = opendir(dirname);
@@ -98,4 +115,5 @@ void printThreadPinning()
 		}
 		closedir(dp);
 	}
+#endif
 }

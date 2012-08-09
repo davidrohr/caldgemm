@@ -13,6 +13,9 @@ extern "C"
 void setThreadName(char* name);
 void printThreadPinning();
 pid_t gettid();
+#ifdef _WIN32
+pid_t getpid();
+#endif
 
 #ifdef __cplusplus
 }
