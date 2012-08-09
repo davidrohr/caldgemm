@@ -14,8 +14,12 @@ class qThreadServerException
 
 };
 
+template <class S, class T> class qThreadCls;
+
 class qThreadParam
 {
+	template <class S, class T> friend class qThreadCls;
+
 public:
 	qThreadParam()
 	{

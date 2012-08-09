@@ -67,6 +67,9 @@
 #include <sys/time.h>
 #endif
 
+#include "cmodules/threadserver.h"
+
+
 template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
 template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
 
