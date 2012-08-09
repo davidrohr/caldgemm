@@ -104,7 +104,8 @@ public:
 		bool MemPolicy;							//Set memory allocation policy to interleaved
 		bool MultiThread;						//Use multiple threads
 		bool MultiThreadDivide;					//Use multiple threads for DivideBuffer as well
-		bool ImprovedScheduler;						//Tries to save bbuffers, replaces the round-robin scheduler
+		bool ImprovedScheduler;					//Tries to save bbuffers, replaces the round-robin scheduler
+		bool ParallelDMA;						//Use multiple threads to handle GPU DMA, this is incompatible with DynamicSched
 		double GPURatio;						//Fraction of the matrix processed by GPU
 		bool UseCPU;							//use CPU for DGEMM
 		bool UseGPU;							//use GPUs for DGEMM
@@ -112,7 +113,7 @@ public:
 		int OpenCLPlatform;						//OpenCL Platform ID to use
 		int DeviceNum;							//CAL Device to use (-1 for all devices)
 		int NumDevices;							//Number of devices to use in parallel at max
-		int DeviceNums[max_devices];					//Array of CAL devices to use (replaces DeviceNum for multiple devices). This translation is applied first, all other setting like GPU mappings are applied on top of this.
+		int DeviceNums[max_devices];			//Array of CAL devices to use (replaces DeviceNum for multiple devices). This translation is applied first, all other setting like GPU mappings are applied on top of this.
 
 		bool Debug;								//Activate debig output
 		bool DumpMatrix;						//Dump input matrix to file
@@ -131,13 +132,13 @@ public:
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
 		int OutputThreads;						//Number of output threads
 		int NumaPinning;						//Rotate pinning over NUMA nodes, better die utilization but perhaps worse L3 cache utilization.
-		unsigned int AlternateLookahead;					//Alternate Lookahead implementation optimized for saving CPU cycles, set to an integer, AlternateLookahead is used as soon as n (since HPL is col major) is smaller than this value, 0 for disable
+		unsigned int AlternateLookahead;		//Alternate Lookahead implementation optimized for saving CPU cycles, set to an integer, AlternateLookahead is used as soon as n (since HPL is col major) is smaller than this value, 0 for disable
 		
 		size_t Height;							//height of subblock od A, width of subblock of B
 		size_t m, n;							//height of A, width of B, must be multiple of height
 		size_t Width;							//k for matrix multiply
 		bool AutoHeight;						//Automatically adjust height
-		int SmallTiles;						//ScheduleSmallTiles for alowing better GPU processing of the remainder parts
+		int SmallTiles;							//ScheduleSmallTiles for alowing better GPU processing of the remainder parts
 
 		bool Disassemble;						//Print the disassembled IL kernel
 		bool PrintILKernel;						//Print the IL kernel source
@@ -160,7 +161,7 @@ public:
 		void (*linpack_broadcast_function)();
 		void (*linpack_swap_function)();
 		
-		int nExcludeCPUCores;						//CPU Cores to exlude
+		int nExcludeCPUCores;					//CPU Cores to exlude
 		int* ExcludeCPUCores;
 	};
 	
@@ -409,6 +410,13 @@ protected:
 	void RunLinpackFactorization(int old_goto_threads, int require_threads);
 	//For Verfify only
 	double* D;
+
+	class clsDMAParam : qThreadParamCls<caldgemm>
+	{
+
+	};
+
+	qThreadClsArray<caldgemm, clsDMAParam> DMAThreads;
 
 	//For Timing only
 	bool CPUOnlyRun;

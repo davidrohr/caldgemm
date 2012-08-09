@@ -26,6 +26,7 @@
 #include "caldgemm_common.h"
 #include "cmodules/qmalloc.h"
 #include "cmodules/affinity.h"
+#include "cmodules/threadserver.h"
 
 #ifndef _WIN32
 #include <syscall.h>

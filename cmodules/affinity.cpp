@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "os_low_level_helper.h"
-#include <pthread.h>
 
 #ifndef STD_OUT
 #define STD_OUT stdout
