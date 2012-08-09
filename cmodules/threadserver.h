@@ -55,6 +55,8 @@ template <class S> class qThreadParamCls : qThreadParam
 	void (S::*pFunc)(void*);
 };
 
+template <class S, class T> static void* qThreadWrapperCls(void* arg);
+
 template <class S, class T> class qThreadCls
 {
 public:
