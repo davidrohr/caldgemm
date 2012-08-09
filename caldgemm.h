@@ -190,7 +190,8 @@ public:
 
 protected:
 
-	int RunCALDGEMMMain(size_t nBlocks, size_t mb, size_t nb);
+	int RunCALDGEMMMain(int parallelDevice = -1);
+	int* tileDistribution;
 
 	struct DGEMMPrepareAndExecuteTask
 	{

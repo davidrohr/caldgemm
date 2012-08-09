@@ -430,6 +430,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->SmallTiles = 1;
 	}
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
+	if (Config->ParallelDMA) Config->ImprovedScheduler = true;
 
 	if (ValidateRuntime()) return(1);
 
@@ -500,7 +501,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	{
 	    for (int i = 0;i < nDevices;i++)
 	    {
-		pthread_mutex_init(&device_mutex[i], NULL);
+			pthread_mutex_init(&device_mutex[i], NULL);
 	    }
 	}
 
@@ -648,7 +649,8 @@ void caldgemm::DMA_wrapper(caldgemm::clsDMAParam* par)
 	if (Config->Debug) fprintf(STD_OUT, "DMA wrapper thread %d running\n", par->threadNum);
 	while(par->WaitForTask())
 	{
-	
+		if (Config->Debug) fprintf(STD_OUT, "DMA wrapper thread %d starting processing\n", par->threadNum);
+		RunCALDGEMMMain(par->threadNum);
 	}
 	if (Config->Debug) fprintf(STD_OUT, "DMA wrapper thread %d terminating\n", par->threadNum);
 }
@@ -688,7 +690,7 @@ void* caldgemm::linpack_wrapper(void* arg)
 int caldgemm::cpuScheduler()
 {
 	int retVal = 0;
-	if (Config->UseCPU && Config->MultiThread && Config->DynamicSched)
+	if (Config->UseCPU && Config->MultiThread && Config->DynamicSched && !Config->ParallelDMA)
 	{
 		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
@@ -1284,8 +1286,12 @@ void caldgemm::CheckAlternateTilesRemaining(size_t m)
 	}
 }
 
-int caldgemm::RunCALDGEMMMain(size_t nBlocks, size_t mb, size_t nb)
+int caldgemm::RunCALDGEMMMain(int parallelDevice)
 {
+	const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
+	const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
+	const size_t nBlocks = mb * nb;
+
 	//Check for double == 1.0 is unsafe and causes compiler warning
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
 
@@ -1308,19 +1314,37 @@ int caldgemm::RunCALDGEMMMain(size_t nBlocks, size_t mb, size_t nb)
 	int oldj[max_devices];
 	int j[max_devices];
 	int iMergeThread[max_devices];
-	memset(j, 0, nDevices * sizeof(int));
-	memset(iMergeThread, 0, nDevices * sizeof(int));
-	int use_device = 0;
-
 	size_t blockm = 0, blockn = 0;
 	unsigned long long int lastk[max_devices];
-	for (int l = 0;l < nDevices;l++) lastk[l] = -1;
-
+	int use_device = parallelDevice == -1 ? 0 : parallelDevice;
 	size_t nextk = 0;
 	size_t next_device_k[max_devices];
-	memset(next_device_k, 0, nDevices * sizeof(size_t));
+	int ImprovedSchedPhase1 = Config->ImprovedScheduler;
+	int forcePreparation[max_devices];
 
-	if (Config->MultiThreadDivide && UseInputPthreads())
+	if (parallelDevice == -1)
+	{
+		memset(j, 0, nDevices * sizeof(int));
+		memset(iMergeThread, 0, nDevices * sizeof(int));
+		memset(next_device_k, 0, nDevices * sizeof(size_t));
+	}
+	else
+	{
+		j[parallelDevice] = iMergeThread[parallelDevice] = next_device_k[parallelDevice] = 0;
+	}
+	for (int l = 0;l < nDevices;l++)
+	{
+		if (parallelDevice != -1) l = parallelDevice;
+		lastk[l] = -1;
+		forcePreparation[l] = 0;
+		buffer_pointers_A[l] = new int[mb];
+		for (size_t ll = 0;ll < mb;ll++) buffer_pointers_A[l][ll] = -1;
+		buffer_pointers_B[l] = new int[nb];
+		for (size_t ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
+		if (parallelDevice != -1) break;
+	}
+
+	if (Config->MultiThreadDivide && parallelDevice == -1 && UseInputPthreads())
 	{
 		for (int l = 0;l < nDevices;l++)
 		{
@@ -1328,41 +1352,7 @@ int caldgemm::RunCALDGEMMMain(size_t nBlocks, size_t mb, size_t nb)
 		}
 	}
 
-	int* tileDistribution = NULL;
-	int ImprovedSchedPhase1 = 0;
-	int forcePreparation[max_devices];
-	for (int l = 0;l < nDevices;l++) forcePreparation[l] = 0;
-	if (Config->ImprovedScheduler)
-	{
-		tileDistribution = new int[nBlocks];
-		ImprovedSchedPhase1 = 1;
-		for (size_t l = 0;l < nBlocks;l++)
-		{
-			int k;
-			if (DGEMM_favor_m)
-			{
-				blockn = l % nb;
-				blockm = l / nb;
-				k = blockn * mb + blockm;
-			}
-			else
-			{
-				blockm = l % mb;
-				blockn = l / mb;
-				k = blockn + blockm * nb;
-			}
-			tileDistribution[l] = nDevices * k / nBlocks;
 
-			//if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", l, tileDistribution[l]);
-		}
-	}
-	for (int l = 0;l < nDevices;l++)
-	{
-		buffer_pointers_A[l] = new int[mb];
-		for (size_t ll = 0;ll < mb;ll++) buffer_pointers_A[l][ll] = -1;
-		buffer_pointers_B[l] = new int[nb];
-		for (size_t ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
-	}
 
 	if (RunCALDGEMM_Init()) return(0);
 
@@ -1370,7 +1360,7 @@ int caldgemm::RunCALDGEMMMain(size_t nBlocks, size_t mb, size_t nb)
 	if (gpu_n && gpu_m)
 	{
 
-		for (size_t k = 0;k < nBlocks + 2 * nDevices;k++)
+		for (size_t k = 0;k < nBlocks + 2 * (parallelDevice == -1 ? nDevices : 1);k++)
 		{
 restartkloop:
 			//fprintf(STD_OUT, "!!!!! k %lld nd k %lld nextk %lld\n", k, next_device_k[use_device], nextk);
@@ -1389,7 +1379,7 @@ restartkloop:
 						if (Config->Debug) fprintf(STD_OUT, "Skipping tile %lld (m=%lld n=%lld) for device %d\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device);
 						k++;
 					}
-					if (k == nBlocks) goto endimprovedphase;
+					if (k == nBlocks && parallelDevice == -1) goto endimprovedphase;
 				}
 				if (Config->ImprovedScheduler)
 				{
@@ -1443,9 +1433,10 @@ restartkloop:
 				if (Config->MultiThread) pthread_mutex_unlock(&scheduleMutex);
 			}
 
-			if (ImprovedSchedPhase1 && k >= nBlocks)
+			if (ImprovedSchedPhase1 && k >= nBlocks && parallelDevice == -1)
 			{
-endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduling phase ended\n");
+endimprovedphase:
+				if (Config->Debug) fprintf(STD_OUT, "First improved scheduling phase ended\n");
 				ImprovedSchedPhase1 = 0;
 				k = nextk = 0;
 				for (int l = 0;l < nDevices;l++)
@@ -1460,7 +1451,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 			{
 				if (Config->Debug) fprintf(STD_OUT, "Iteration k = %lld, m = %lld, n = %lld (device %d obuffer %d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device, j[use_device]);
 
-				if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && DGEMMTasks[use_device].thread_running)
+				if (Config->MultiThreadDivide && parallelDevice == -1 && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && DGEMMTasks[use_device].thread_running)
 				{
 					DGEMMTasks[use_device].thread_running = 0;
 					if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (k=%lld lastk = %lld)\n", use_device, (long long int) k, lastk[use_device]);
@@ -1480,7 +1471,6 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
 					else if (tmpval) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
-
 
 					if (Config->Debug) fprintf(STD_OUT, "Main thread: Divide thread for device %d finished\n", use_device);
 				}
@@ -1507,7 +1497,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					}
 					forcePreparation[use_device] = 0;
 				}
-				if (obuffercount > 1 && (signed) lastk[use_device] != -1 && Config->AsyncDMA && k + (nDevices - use_device - 1) % nDevices + 1 < nBlocks && cpu_k_barrier_hit == false)
+				if (obuffercount > 1 && (signed) lastk[use_device] != -1 && Config->AsyncDMA && k + (parallelDevice == -1 ? ((nDevices - use_device - 1) % nDevices) : 0) + 1 < nBlocks && cpu_k_barrier_hit == false)
 				{
 					if (ImprovedSchedPhase1) nextk = k + 1;
 					else nextk++;
@@ -1550,7 +1540,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 
 				if (Config->ImprovedScheduler) tileDistribution[k] = -1;
 
-				if (Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && cpu_k_barrier_hit == false)
+				if (Config->MultiThreadDivide && parallelDevice == -1 && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && cpu_k_barrier_hit == false)
 				{
 					if (Config->Debug) fprintf(STD_OUT, "Starting PrepareAndExecute task on divide thread for device %d (k = %lld)\n", use_device, (long long int) k);
 					if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
@@ -1562,7 +1552,6 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 					double* __restrict__ tmpBuffer = divide_tmpBuffer;
 #endif
 					if (DGEMMPrepareAndExecute(Task CALDGEMM_DIVBUFB)) return(1);
-					//if (Config->MultiThreadDivide && UseInputPthreads() && pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 				}
 			}
 			if (obuffercount == 1)
@@ -1572,7 +1561,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 			}
 			if ((obuffercount > 1) ? ((signed) lastk[use_device] != -1) : (k < nBlocks))
 			{
-				if (nBlocks <= k && (signed) lastk[use_device] < cpu_k_barrier && Config->MultiThreadDivide && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && DGEMMTasks[use_device].thread_running)
+				if (nBlocks <= k && (signed) lastk[use_device] < cpu_k_barrier && Config->MultiThreadDivide && parallelDevice == -1 && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && DGEMMTasks[use_device].thread_running)
 				{
 					DGEMMTasks[use_device].thread_running = 0;
 					if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (late phase, k=%lld lastk = %lld)\n", use_device, (long long int) k, lastk[use_device]);
@@ -1594,11 +1583,22 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 				size_t lastm, lastn;
 				DGEMM_getblocks(lastk[use_device], lastm, lastn);
 				int must_lock = 0;
-				if (!Config->ThreadSaveDriver) for (int ii = 0;ii < nDevices;ii++) if (Config->GPUMapping[ii] != Config->PinMainThread)
+				if (!Config->ThreadSaveDriver)
 				{
-					must_lock = 1;
-					break;
+					if (parallelDevice >= 0)
+					{
+							must_lock = 1;
+					}
+					else for (int ii = 0;ii < nDevices;ii++)
+					{
+						if (Config->GPUMapping[ii] != Config->PinMainThread)
+						{
+							must_lock = 1;
+							break;
+						}
+					}
 				}
+
 				if ((signed long int) lastk[use_device] != -1 && lastk[use_device] < nBlocks)
 				{
 					if (WaitForEvent(oldj[use_device], use_device, must_lock)) return(1);
@@ -1611,7 +1611,7 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 				}
 				if (Config->VerboseTiming) Timers.CounterMerge.Start();
 
-				if (k == nBlocks + 2 * nDevices - 1 || Config->MultiThread == false || UseOutputPthreads() == 0)
+				if (k == nBlocks + 2 * (parallelDevice == -1 ? nDevices : 1) - 1 || Config->MultiThread == false || UseOutputPthreads() == 0)
 				{
 					if (lastk[use_device] < nBlocks)
 					{
@@ -1630,12 +1630,14 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 						{
 							for (int ll = 0;ll < nDevices;ll++)
 							{
+								if (parallelDevice != -1) l = parallelDevice;
 								if ((ll != use_device || l != oldj[ll]) && (signed) lastk[ll] != -1)
 								{
 									if (Config->Debug) fprintf(STD_OUT, "Waiting to finish merge process for device %d obuffer %d\n", ll, l);
 									if (pthread_mutex_lock(&obufferMutex[ll][l])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 									if (pthread_mutex_unlock(&obufferMutex[ll][l])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 								}
+								if (parallelDevice != -1) break;
 							}
 						}
 					}
@@ -1667,11 +1669,11 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 			oldj[use_device] = j[use_device];
 			j[use_device] = (j[use_device] + 1) % obuffercount;
 			lastk[use_device] = k;
-			if (Config->MultiThread) use_device = (use_device + 1) % nDevices;
+			if (Config->MultiThread && parallelDevice == -1) use_device = (use_device + 1) % nDevices;
 		}
 
 	}
-	if (Config->MultiThreadDivide && UseInputPthreads())
+	if (Config->MultiThreadDivide && parallelDevice == -1 && UseInputPthreads())
 	{
 		for (int l = 0;l < nDevices;l++)
 		{
@@ -1685,14 +1687,12 @@ endimprovedphase:			if (Config->Debug) fprintf(STD_OUT, "First improved scheduli
 		}
 	}
 
-	if (Config->ImprovedScheduler)
-	{
-		delete[] tileDistribution;
-	}
 	for (int l = 0;l < nDevices;l++)
 	{
+		if (parallelDevice != -1) l = parallelDevice;
 		delete[] buffer_pointers_A[l];
 		delete[] buffer_pointers_B[l];
+		if (parallelDevice != -1) break;
 	}
 	if (RunCALDGEMM_Exit()) return(0);
 	return(0);
@@ -2112,7 +2112,44 @@ recalculate_ratio:
 	{
 		AlternateLookaheadTilesRemaining = nb * ((Config->Width - 1) / Config->Height + 1);
 
-		if (RunCALDGEMMMain(nBlocks, mb, nb)) return(1);
+		if (Config->ImprovedScheduler)
+		{
+			tileDistribution = new int[nBlocks];
+			for (size_t l = 0;l < nBlocks;l++)
+			{
+				size_t blockn, blockm;
+				int k;
+				if (DGEMM_favor_m)
+				{
+					blockn = l % nb;
+					blockm = l / nb;
+					k = blockn * mb + blockm;
+				}
+				else
+				{
+					blockm = l % mb;
+					blockn = l / mb;
+					k = blockn + blockm * nb;
+				}
+				tileDistribution[l] = nDevices * k / nBlocks;
+
+				//if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", l, tileDistribution[l]);
+			}
+		}
+		if (Config->ParallelDMA)
+		{
+			DMAThreads.Start();
+			RunCALDGEMMMain(0);
+			DMAThreads.Sync();
+		}
+		else
+		{
+			if (RunCALDGEMMMain()) return(1);
+		}
+		if (Config->ImprovedScheduler)
+		{
+			delete[] tileDistribution;
+		}
 
 		if(Config->Verify && i < Config->Iterations - 1) AnalyzeResults();
 	}

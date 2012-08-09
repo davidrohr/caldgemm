@@ -65,9 +65,9 @@ template <class S, class T> class qThreadCls
 {
 public:
 	qThreadCls() {started = false;};
-	qThreadCls(S* pCls, void (S::*pFunc)(T*), int threadNum = 0, int pinCPU = -1) : threadParam() {started = false;Start(pCls, pFunc, threadNum, pinCPU);}
+	qThreadCls(S* pCls, void (S::*pFunc)(T*), int threadNum = 0, int pinCPU = -1) : threadParam() {started = false;SpawnThread(pCls, pFunc, threadNum, pinCPU);}
 
-	void Start(S* pCls, void (S::*pFunc)(T*), int threadNum = 0, int pinCPU = -1, bool wait = true)
+	void SpawnThread(S* pCls, void (S::*pFunc)(T*), int threadNum = 0, int pinCPU = -1, bool wait = true)
 	{
 		qThreadParamCls<S>& threadParam = *((qThreadParamCls<S>*) &this->threadParam);
 
@@ -77,11 +77,11 @@ public:
 		threadParam.pinCPU = pinCPU;
 		pthread_t thr;
 		pthread_create(&thr, NULL, (void* (*) (void*)) &qThreadWrapperCls, &threadParam);
-		if (wait) WaitForStart();
+		if (wait) WaitForSpawn();
 		started = true;
 	}
 	
-	void WaitForStart()
+	void WaitForSpawn()
 	{
 		if (pthread_mutex_lock(&threadParam.threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex\n");throw(qThreadServerException());}
 	}
@@ -103,7 +103,17 @@ public:
 		if (pthread_mutex_lock(&threadParam.threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex\n");throw(qThreadServerException());}
 		started = false;
 	}
-	
+
+	void Start()
+	{
+		if (pthread_mutex_unlock(&threadParam.threadMutex[0])) {fprintf(STD_OUT, "Error unlocking mutex\n");throw(qThreadServerException());}
+	}
+
+	void Sync()
+	{
+		if (pthread_mutex_lock(&threadParam.threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex\n");throw(qThreadServerException());}
+	}
+		
 private:
 	bool started;
 	T threadParam;
@@ -146,11 +156,11 @@ public:
 		nThreadsRunning = n;
 		for (int i = 0;i < n;i++)
 		{
-			pArray[i].Start(pCls, pFunc, threadNumOffset + i, pinCPU == NULL ? -1 : pinCPU[i], false);
+			pArray[i].SpawnThread(pCls, pFunc, threadNumOffset + i, pinCPU == NULL ? -1 : pinCPU[i], false);
 		}
 		for (int i = 0;i < n;i++)
 		{
-			pArray[i].WaitForStart();
+			pArray[i].WaitForSpawn();
 		}
 	}
 
@@ -158,14 +168,24 @@ public:
 	{
 		if (nThreadsRunning)
 		{
-			StopThreads();
+			EndThreads();
 		}
 	}
 
-	void StopThreads()
+	void EndThreads()
 	{
 		delete[] pArray;
 		nThreadsRunning = 0;
+	}
+
+	void Start()
+	{
+		for (int i = 0;i < nThreadsRunning;i++) pArray[i].Start();
+	}
+
+	void Sync()
+	{
+		for (int i = 0;i < nThreadsRunning;i++) pArray[i].Sync();
 	}
 
 private:
