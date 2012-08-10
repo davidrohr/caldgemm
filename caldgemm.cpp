@@ -1303,14 +1303,6 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 #endif
 	if (Config->Debug && Config->UseGPU) fprintf(STD_OUT, "Using Kernel %d (alpha=0x%llX (%2.3lf), width = %lld)\n", kernel_num, (reinterpret_cast<long long int &>(Alpha)), Alpha, (long long int) Config->Width);
 
-	for (int ii = 0;ii < nDevices;ii++)
-	{
-		buffersMajor[ii] = -1;
-		for (int j = 0;j < bbuffers[ii];j++) buffersMinor[ii][j] = -1;
-		next_buffer_A[ii] = 0;
-		next_buffer_B[ii] = 0;
-	}
-
 	int oldj[max_devices];
 	int j[max_devices];
 	int iMergeThread[max_devices];
@@ -1630,7 +1622,7 @@ endimprovedphase:
 						{
 							for (int ll = 0;ll < nDevices;ll++)
 							{
-								if (parallelDevice != -1) l = parallelDevice;
+								if (parallelDevice != -1) ll = parallelDevice;
 								if ((ll != use_device || l != oldj[ll]) && (signed) lastk[ll] != -1)
 								{
 									if (Config->Debug) fprintf(STD_OUT, "Waiting to finish merge process for device %d obuffer %d\n", ll, l);
@@ -2136,6 +2128,15 @@ recalculate_ratio:
 				//if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", l, tileDistribution[l]);
 			}
 		}
+
+		for (int ii = 0;ii < nDevices;ii++)
+		{
+			buffersMajor[ii] = -1;
+			for (int j = 0;j < bbuffers[ii];j++) buffersMinor[ii][j] = -1;
+			next_buffer_A[ii] = 0;
+			next_buffer_B[ii] = 0;
+		}
+
 		if (Config->ParallelDMA)
 		{
 			DMAThreads.Start();
