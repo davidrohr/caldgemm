@@ -80,7 +80,7 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 	CALresult r;
 	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr);
 	cpu_set_t blasset, oldset;
-	bool needrepin = Config->RepinDuringActiveWaitForEvent && Config->AllocMapping[devicenr] != -1 && Config->AllocMapping[devicenr] != Config->PinMainThread;
+	bool needrepin = Config->RepinDuringActiveWaitForEvent && (Config->ParallelDMA == 0 || Config->ParallelDMA >= Config->m) && Config->AllocMapping[devicenr] != -1 && Config->AllocMapping[devicenr] != Config->PinMainThread;
 	if (needrepin)
 	{
 		sched_getaffinity(0, sizeof(oldset), &oldset);
@@ -2197,9 +2197,18 @@ int caldgemm_cal::reserve_cpu_cores()
 		{
 			if (Config->GPUMapping[i] == Config->GPUMapping[j] && Config->PostprocessMapping[j] != -1) offset++;
 		}
-		if (offset == 0)
+		if (Config->m > Config->ParallelDMA && Config->ParallelDMA != 0)
 		{
-			if (Config->MultiThreadDivide || i == 0)
+			if (i)
+			{
+				caldgemm_goto_reserve_cpu(Config->DMAMapping[i], 1);
+				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DMA Thread\n", Config->DMAMapping[i]);
+				nthreads++;
+			}
+		}
+		else
+		{
+			if (offset == 0 && (Config->MultiThreadDivide || i == 0))
 			{
 				caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
 				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
@@ -2248,6 +2257,7 @@ bool caldgemm_cal::cpuUsed(int cpu)
 		}
 		if (cpu >= Config->GPUMapping[i] && cpu < Config->GPUMapping[i] + procsreq) return(true);
 		if (Config->PostprocessMapping[i] != -1 && cpu >= Config->PostprocessMapping[i] && cpu < Config->PostprocessMapping[i] + outputthreads) return(true);
+		if (Config->m > Config->ParallelDMA && Config->ParallelDMA != 0 && Config->DMAMapping[i] == cpu) return(true);
 	}
 	for (int i = 0;i < Config->nExcludeCPUCores;i++) if (Config->ExcludeCPUCores[i] == cpu) return(true);
 

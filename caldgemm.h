@@ -108,7 +108,7 @@ public:
 		bool MultiThread;						//Use multiple threads
 		bool MultiThreadDivide;					//Use multiple threads for DivideBuffer as well
 		bool ImprovedScheduler;					//Tries to save bbuffers, replaces the round-robin scheduler
-		bool ParallelDMA;						//Use multiple threads to handle GPU DMA, this is incompatible with DynamicSched
+		unsigned int ParallelDMA;						//Use multiple threads to handle GPU DMA, this is incompatible with DynamicSched, acivated if m > setting and setting != 0
 		double GPURatio;						//Fraction of the matrix processed by GPU
 		bool UseCPU;							//use CPU for DGEMM
 		bool UseGPU;							//use GPUs for DGEMM
@@ -127,6 +127,7 @@ public:
 		int GPUMapping[max_devices];			//Mapping of GPU devices to CPU cores. Affects DivideBuffer Threads, merge threads take the succeeding cores.
 		int PostprocessMapping[max_devices];	//Mapping for postprocessing threads, default -1 = same mapping as GPU
 		int AllocMapping[max_devices];			//Core (die with that core in fact) where the memory for dma transfer is allocated
+		int DMAMapping[max_devices];			//Core for usage witgh ParallelDMA option
 		int PinMainThread;						//Pin main thread to specific device. Default: Use the first GPU preprocessing core
 		bool RepinDuringActiveWaitForEvent;		//Repin the Main CPU core that does the active wait for the event to the allocmapping of the GPU it waits for
 		int SleepDuringActiveWait;				//Sleep for n usec between queries for GPU event, -1 disable

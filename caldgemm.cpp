@@ -190,12 +190,13 @@ caldgemm::caldgemm_config::caldgemm_config()
 	NumaPinning = false;
 	ThirdPhaseThreshold = 0;
 	AlternateLookahead = 0;
-	ParallelDMA = false;
+	ParallelDMA = 0;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
 		PostprocessMapping[i] = -1;
 		AllocMapping[i] = -1;
+		DMAMapping[i] = 0;
 		DeviceNums[i] = i;
 	}
 	nExcludeCPUCores = 0;
@@ -598,7 +599,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	
 	if (Config->ParallelDMA)
 	{
-		DMAThreads.SetNumberOfThreads(nDevices - 1, this, &caldgemm::DMA_wrapper, 1, NULL);
+		DMAThreads.SetNumberOfThreads(nDevices - 1, this, &caldgemm::DMA_wrapper, 1, &Config->DMAMapping[1]);
 	}
 
 	if (Config->MemPolicy)
@@ -690,7 +691,7 @@ void* caldgemm::linpack_wrapper(void* arg)
 int caldgemm::cpuScheduler()
 {
 	int retVal = 0;
-	if (Config->UseCPU && Config->MultiThread && Config->DynamicSched && !Config->ParallelDMA)
+	if (Config->UseCPU && Config->MultiThread && Config->DynamicSched && (Config->ParallelDMA == 0 || Config->ParallelDMA >= Config->m))
 	{
 		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
@@ -2137,7 +2138,7 @@ recalculate_ratio:
 			next_buffer_B[ii] = 0;
 		}
 
-		if (Config->ParallelDMA)
+		if (Config->ParallelDMA != 0 && Config->m > Config->ParallelDMA)
 		{
 			DMAThreads.Start();
 			RunCALDGEMMMain(0);
