@@ -182,7 +182,11 @@ int qmalloc::qFree(void* ptr)
 #endif
 			qMallocUsed--;
 			if (i < qMallocUsed) memcpy(&qMallocs[i], &qMallocs[qMallocUsed], sizeof(qMallocData));
-			if (qMallocUsed == 0) free(qMallocs);
+			if (qMallocUsed == 0)
+			{
+				free(qMallocs);
+				qMallocCount = 0;
+			}
 			return(0);
 		}
 	}
