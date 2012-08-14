@@ -1126,7 +1126,7 @@ void* caldgemm::divide_wrapper(void* arg)
 			par->reset = 0;
 			if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread %d on Core %d waiting to operate on device %d\n", par->nThread, par->CPUCore, i);
 			par->curDevice = i;
-			if (pthread_mutex_lock(&par->cls->DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+			if (pthread_mutex_lock(&par->cls->DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 			if (par->terminate) break;
 			if (par->reset)
 			{
@@ -1141,7 +1141,7 @@ void* caldgemm::divide_wrapper(void* arg)
 				const int oldi = i;
 				i = par->cls->DGEMMTasks[i].skip_device_to;
 				par->cls->DGEMMTasks[oldi].skip_device_to = -1;
-				if (pthread_mutex_lock(&par->cls->DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+				if (pthread_mutex_lock(&par->cls->DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 			}
 			
 			if (par->cls->Config->Debug) fprintf(STD_OUT, "Divide Thread for device %d Starting processing (k = %d)\n", i, par->cls->DGEMMTasks[i].k);
