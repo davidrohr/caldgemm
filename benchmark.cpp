@@ -85,6 +85,8 @@ long seedused;
 
 caldgemm* dgemm_obj;
 
+size_t matrix_m, matrix_n;
+
 void PrintUsage()
 {
 	fprintf(STD_OUT,"Command Line Arguments\n");
@@ -145,7 +147,6 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n" );
 	fprintf(STD_OUT, "\t-Ux <int> Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping\n" );
 	fprintf(STD_OUT, "\t-UAx <int>Allocate memory for GPU x for die <int>, -1 = default mapping\n" );
-	fprintf(STD_OUT, "\t-UBx <int>Set DMA Mapping\n" );
 	fprintf(STD_OUT, "\t-V        Thread save GPU driver\n" );
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
@@ -163,7 +164,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-, <int>  Sleep for n usec during active wait\n");
 	fprintf(STD_OUT, "\t-:        Enable NUMA Pinning\n");
 	fprintf(STD_OUT, "\t-/ <list> Comma separated list of GPU devices to use (replaces -y for multiple devices)\n");
-	fprintf(STD_OUT, "\t-* <int>  Enable Parallel DMA option if m < <int>\n");
+	fprintf(STD_OUT, "\t-*        Enable Parallel DMA option\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -188,7 +189,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 	Config->VerboseTiming = false;
 	Config->TabularTiming = false;
 	Config->Debug = false;
-	Config->m = Config->n = 4096;
+	matrix_m = matrix_n = 4096;
 	Config->Iterations = 1;
 	//Config->DstMemory = 'g';
 	Config->UseCPU = Config->UseGPU = false;
@@ -239,8 +240,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			Config->DumpMatrix = true;
 			break;
 		case '*':
-			if (++x >= argc) return(1);
-			sscanf(argv[x], "%d", (int*) &Config->ParallelDMA);
+			Config->ParallelDMA = true;
 			break;
 		case '@':
 		{
@@ -359,7 +359,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			}
 			if (++x >= argc) return(1);
 			Config->AsyncDMA = Config->KeepBuffersMapped = true;
-			Config->m = Config->n = 86016;
+			matrix_m = matrix_n = 86016;
 			Config->MemPolicy = true;
 			Config->MultiThread = true;
 			Config->UseCPU = false;
@@ -377,12 +377,12 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			verifylarge = true;
 			break;
 		case '6':
-			fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (Config->m = Config->n = Config->Height * atoi(argv[++x])));
+			fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (matrix_m = matrix_n = Config->Height * atoi(argv[++x])));
 			break;
 		case '4':
-			Config->m = atoi(argv[++x]);
-			Config->m -= Config->m % Config->Height;
-			fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (Config->n = Config->m));
+			matrix_m = atoi(argv[++x]);
+			matrix_m -= matrix_m % Config->Height;
+			fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (matrix_n = matrix_m));
 			break;
 		case '5':
 			quietbench = true;
@@ -486,17 +486,6 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 				sscanf(argv[x], "%d", &Config->AllocMapping[gpuid]);
 				printf("Allocating memory for GPU %d on core %d\n", gpuid, Config->AllocMapping[gpuid]);
 			}
-			else if (argv[x][2] == 'B')
-			{
-				sscanf(&argv[x++][3], "%d", &gpuid);
-				if ((unsigned) gpuid >= sizeof(Config->DMAMapping) / sizeof(Config->DMAMapping[0]))
-				{
-					fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
-					break;
-				}
-				sscanf(argv[x], "%d", &Config->DMAMapping[gpuid]);
-				printf("DMA Mapping for GPU %d: core %d\n", gpuid, Config->DMAMapping[gpuid]);
-			}
 			else
 			{
 				sscanf(&argv[x++][2], "%d", &gpuid);
@@ -519,11 +508,11 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'm':
 			if (++x >= argc) return(1);
-			sscanf(argv[x], "%lld", (long long int*) &Config->m);
+			sscanf(argv[x], "%lld", (long long int*) &matrix_m);
 			break;
 		case 'n':
 			if (++x >= argc) return(1);
-			sscanf(argv[x], "%lld", (long long int*) &Config->n);
+			sscanf(argv[x], "%lld", (long long int*) &matrix_n);
 			break;
 		case 'x':
 			if (++x >= argc) return(1);
@@ -657,13 +646,13 @@ void SetupUserDataC(caldgemm::caldgemm_config &Config)
 {
 	if (fastinit || torture)
 	{
-		if (torture) memset(CC, 0, Config.m * pitch_c * sizeof(double));
+		if (torture) memset(CC, 0, matrix_m * pitch_c * sizeof(double));
 	}
 	else
 	{
-		for (size_t i = 0;i < Config.m;i++)
+		for (size_t i = 0;i < matrix_m;i++)
 		{
-			for (size_t j = 0;j < Config.n;j++)
+			for (size_t j = 0;j < matrix_n;j++)
 			{
 #ifdef TESTMODE
 				CC[i * pitch_c + j] = 0;
@@ -703,7 +692,7 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 
 		if (linpackpitch)
 		{
-			if (pitch_c < Config.m + Config.Width)
+			if (pitch_c < matrix_m + Config.Width)
 			{
 				fprintf(STD_OUT, "Pitch too small\n");
 				return(1);
@@ -712,9 +701,9 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		}
 		else
 		{
-			pitch_a = pitch_b = pitch_c = Config.m + Config.Width + (Config.m + Config.Width) % 8;
+			pitch_a = pitch_b = pitch_c = matrix_m + Config.Width + (matrix_m + Config.Width) % 8;
 		}
-		linpackmem = dgemm_obj->AllocMemory(pitch_c * (Config.n + Config.Width + 1) + 8, mem_page_lock, mem_huge_table, mem_gpu_access, true);
+		linpackmem = dgemm_obj->AllocMemory(pitch_c * (matrix_n + Config.Width + 1) + 8, mem_page_lock, mem_huge_table, mem_gpu_access, true);
 		if (linpackmem == NULL) {fprintf(STD_OUT, "Memory Allocation Error\n"); return(1);}
 
 		char* linpackmem2 = (char*) linpackmem;
@@ -728,22 +717,22 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		CC = linpackmem3 + Config.Width * (pitch_c + 1);
 		
 		width_a = Config.Width;
-		height_a = Config.m;
-		width_b = Config.n;
+		height_a = matrix_m;
+		width_b = matrix_n;
 		height_b = Config.Width;
 	}
 	else
 	{
 		if (transa)
 		{
-			pitch_a = Config.m;
+			pitch_a = matrix_m;
 			height_a = Config.Width;
-			width_a = Config.m;
+			width_a = matrix_m;
 		}
 		else
 		{
 			pitch_a = Config.Width;
-			height_a = Config.m;
+			height_a = matrix_m;
 			width_a = Config.Width;
 		}
 		if (pitch_a % 8) pitch_a += (8 - pitch_a % 8);
@@ -754,23 +743,23 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		if (transb)
 		{
 			pitch_b = Config.Width;
-			height_b = Config.n;
+			height_b = matrix_n;
 			width_b = Config.Width;
 		}
 		else
 		{
 			height_b = Config.Width;
-			pitch_b = Config.n;
-			width_b = Config.n;
+			pitch_b = matrix_n;
+			width_b = matrix_n;
 		}
 		if (pitch_b % 8) pitch_b += (8 - pitch_b % 8);
 		if (((pitch_b / 8) & 1) == 0)
 		{
 			pitch_b += 8;
 		}
-		pitch_c = Config.n;
+		pitch_c = matrix_n;
 		if (pitch_c % 8) pitch_c += (8 - pitch_c % 8);
-		if (Config.n % 8) fprintf(STD_OUT, "Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", (long long int) Config.n, (long long int) pitch_b);
+		if (matrix_n % 8) fprintf(STD_OUT, "Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", (long long int) matrix_n, (long long int) pitch_b);
 		if (((pitch_c / 8) & 1) == 0)
 		{
 			pitch_c += 8;
@@ -783,8 +772,8 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		AA = dgemm_obj->AllocMemory(height_a * pitch_a, mem_page_lock, mem_huge_table, mem_gpu_access);
 		if (!quietbench) fprintf(stderr, "...alloc B (%lld KB)", (long long int) (height_b * pitch_b * sizeof(double)  / 1024));
 		BB = dgemm_obj->AllocMemory(height_b * pitch_b, mem_page_lock, mem_huge_table, mem_gpu_access);
-		if (!quietbench) fprintf(stderr, "...alloc C (%lld KB)", (long long int) (Config.m * pitch_c * sizeof(double)  / 1024));
-		CC = dgemm_obj->AllocMemory(Config.m * pitch_c, mem_page_lock, mem_huge_table, mem_gpu_access, true);
+		if (!quietbench) fprintf(stderr, "...alloc C (%lld KB)", (long long int) (matrix_m * pitch_c * sizeof(double)  / 1024));
+		CC = dgemm_obj->AllocMemory(matrix_m * pitch_c, mem_page_lock, mem_huge_table, mem_gpu_access, true);
 
 		if (AA == NULL || BB == NULL || CC == NULL)
 		{
@@ -970,20 +959,20 @@ int main(int argc, char** argv)
 			}
 			bool tmpquiet = Config.Quiet, tmpverify = Config.Verify;
 			unsigned int tmpiter = Config.Iterations;
-			unsigned int tmpm = Config.m, tmpn = Config.n, tmpdebug = Config.Debug;
+			unsigned int tmpm = matrix_m, tmpn = matrix_n, tmpdebug = Config.Debug;
 			Config.Quiet = true;
 			Config.Verify = false;
 			Config.Iterations = 1;
 			Config.Debug = false;
-			if (Config.m > 2 * Config.Height) Config.m = 2 * Config.Height;
-			if (Config.n > 2 * Config.Height) Config.n = 2 * Config.Height;
-			if (dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
+			if (matrix_m > 2 * Config.Height) matrix_m = 2 * Config.Height;
+			if (matrix_n > 2 * Config.Height) matrix_n = 2 * Config.Height;
+			if (dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
 			{
 				fprintf(STD_OUT, "Error running CALDGEMM\nexiting\n");
 				return(1);
 			}
-			Config.m = tmpm;
-			Config.n = tmpn;
+			matrix_m = tmpm;
+			matrix_n = tmpn;
 			Config.Quiet = tmpquiet;
 			Config.Verify = tmpverify;
 			Config.Iterations = tmpiter;
@@ -1010,11 +999,11 @@ int main(int argc, char** argv)
 			{
 				if (iterations > 1 && !quietbench) fprintf(STD_OUT, "\nDGEMM Call Iteration %d\n\n", iter);
 #ifdef TESTMODE
-				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 0.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
+				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 0.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
 #else
-				size_t tmpn = Config.m > Config.n ? Config.m : Config.n;
+				size_t tmpn = matrix_m > matrix_n ? matrix_m : matrix_n;
 				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
-				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks))
+				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks))
 #endif
 				{
 					fprintf(STD_OUT, "Error running CALDGEMM\n");
@@ -1022,16 +1011,16 @@ int main(int argc, char** argv)
 				}
 				if (torture)
 				{
-					dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks);
+					dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks);
 				}
 			}
-		} while (benchmark && (Config.n += Config.Height) < 70000 && (Config.m += Config.Height) < 70000 && SetupUserData(Config) == 0);
+		} while (benchmark && (matrix_n += Config.Height) < 70000 && (matrix_m += Config.Height) < 70000 && SetupUserData(Config) == 0);
 		
 	}
 	
 	if (torture)
 	{
-		for (size_t i = 0;i < Config.m * pitch_c;i++)
+		for (size_t i = 0;i < matrix_m * pitch_c;i++)
 		{
 			if (CC[i] > 10E-10)
 			{
@@ -1052,12 +1041,12 @@ int main(int argc, char** argv)
 		Config.UseCPU = true;
 		Config.Verify = false;
 		Config.Quiet = true;
-		dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : 1.0, 1.0, Config.m, Config.Width, Config.n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb);
+		dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : 1.0, 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb);
 		fprintf(STD_OUT, "CPU DGEMM Comparison run complete, comparing results\n");
 		int verifyok = 1;
-		for (size_t i = 0;i < Config.m;i++)
+		for (size_t i = 0;i < matrix_m;i++)
 		{
-			for (size_t j = 0;j < Config.n;j++)
+			for (size_t j = 0;j < matrix_n;j++)
 			{
 				if (!isDoubleEqual(CC[i * pitch_c + j] * 1.0, (double) ((i + j) % 16)))
 				{

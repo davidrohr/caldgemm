@@ -139,7 +139,6 @@ public:
 		unsigned int AlternateLookahead;		//Alternate Lookahead implementation optimized for saving CPU cycles, set to an integer, AlternateLookahead is used as soon as n (since HPL is col major) is smaller than this value, 0 for disable
 		
 		size_t Height;							//height of subblock od A, width of subblock of B
-		size_t m, n;							//height of A, width of B, must be multiple of height
 		size_t Width;							//k for matrix multiply
 		bool AutoHeight;						//Automatically adjust height
 		int SmallTiles;							//ScheduleSmallTiles for alowing better GPU processing of the remainder parts
@@ -190,6 +189,8 @@ public:
 	virtual bool cpuUsed(int cpu);
 
 protected:
+
+	size_t matrix_m, matrix_n;
 
 	int RunCALDGEMMMain(int parallelDevice = -1);
 	int* tileDistribution;
@@ -424,6 +425,11 @@ protected:
 	};
 	qThreadClsArray<caldgemm, clsDMAParam> DMAThreads;
 	void DMA_wrapper(clsDMAParam* param);
+
+	void* merge_wrapper_a(mergeParameters* par);
+	void* divide_wrapper_a(divideParameters* par);
+	void* cblas_wrapper_a(cblasParameters* par);
+	void* linpack_wrapper_a();
 
 	//For Timing only
 	bool CPUOnlyRun;
