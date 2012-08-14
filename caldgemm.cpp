@@ -288,6 +288,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 
 void caldgemm::ensure_omp_thread_pinning()
 {
+	if (nDevices == 0) return;
 #ifndef USE_GOTO_BLAS
 	if (Config->Debug) fprintf(STD_OUT, "Performing OpenMP Blas Thread Pinning\n");
 	int* cpu_order = new int[conf_numprocs];
@@ -391,16 +392,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	strcpy(hostname, "Win32");
 #else
 	gethostname(hostname, 255);
-#endif
-
-#ifndef _WIN32
-	if (Config->UseGPU)
-	{
-		for (int i = 0;i < conf_numprocs;i++)
-		{
-			if (CPU_ISSET(i, &oldcpumask) && cpuUsed(i)) fprintf(STD_OUT, "WARNING: Core %d used by GotoBLAS main thread and CALDGEMM, be sure not to use CPU and GPU at the same time!\n", i);
-		}
-	}
 #endif
 
 	if (Config->PinCPU != -1)
@@ -508,7 +499,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	CPU_ZERO(&tmpmask);
 	CPU_SET(Config->PinMainThread, &tmpmask);
 	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
-
+	
 #ifdef CALDGEMM_DIVIDE_STATIC_BUFFER
 	divide_tmpBuffer = allocDivideBuffer();
 #endif
@@ -595,10 +586,20 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		}
 	}
 	
-	if (Config->ParallelDMA)
+	if (Config->ParallelDMA && nDevices)
 	{
 		DMAThreads.SetNumberOfThreads(nDevices - 1, this, &caldgemm::DMA_wrapper, 1, &Config->DMAMapping[1]);
 	}
+
+#ifndef _WIN32
+	if (Config->UseGPU)
+	{
+		for (int i = 0;i < conf_numprocs;i++)
+		{
+			if (CPU_ISSET(i, &oldcpumask) && cpuUsed(i)) fprintf(STD_OUT, "WARNING: Core %d used by GotoBLAS main thread and CALDGEMM, be sure not to use CPU and GPU at the same time!\n", i);
+		}
+	}
+#endif
 
 	if (Config->MemPolicy)
 	{
@@ -1874,7 +1875,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if ((Config->Height != BufferHeight && !Config->Quiet) || Config->Debug)  fprintf(STD_OUT, "Using Height %lld of max %lld\n", (long long int) Config->Height, (long long int) BufferHeight);
 	}
 
-	if (Config->Width > BufferWidth || Config->Height > BufferHeight) forceReinit = true;
+	if (Config->UseGPU && (Config->Width > BufferWidth || Config->Height > BufferHeight)) forceReinit = true;
 
 	if (Config->UseCPU)
 	    if (Config->UseGPU == false || matrix_m < Config->Height || matrix_n < Config->Height || (forceReinit && (long long int) MaxGpuM * (long long int) MaxGpuN * (long long int) Config->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Config->Width < 1024 && Config->Height < 1024)) forceCPU = true;
