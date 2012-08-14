@@ -2269,7 +2269,9 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task 
 			Timers.ATime.Reset();
 			Timers.ATime.Start();
 		}
+		pthread_mutex_unlock(&device_mutex[Task.device]);
 		if (pthread_mutex_lock(&obufferMutex[Task.device][Task.j])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+		pthread_mutex_lock(&device_mutex[Task.device]);
 		if (Config->AsyncTiming)
 		{
 			Timers.ATime.Stop();
