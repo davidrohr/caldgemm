@@ -2361,6 +2361,7 @@ int caldgemm::ExitCALDGEMM()
 		if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR unlocking blas mutex 0 to terminate thread\n");
 		if (Config->Debug) fprintf(STD_OUT, "Waiting for linpack slave to terminate\n");
 		if (pthread_mutex_lock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+		for (int i = 0;i < 2;i++) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[i])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 		for (int i = 0;i < 2;i++) if (pthread_mutex_destroy(&linpackParameters.linpackMutex[i])) fprintf(STD_OUT, "ERROR destroying mutex: %s - %d\n", __FILE__, __LINE__);
 
 		if (UseOutputPthreads())
