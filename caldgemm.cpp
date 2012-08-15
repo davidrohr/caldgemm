@@ -2350,8 +2350,8 @@ int caldgemm::ExitCALDGEMM()
 	if (Config->AlternateLookahead)
 	{
 		pthread_mutex_unlock(&alternateLinpackMutex);
-		pthread_mutex_destroy(&alternateLinpackMutex);
-		pthread_mutex_destroy(&tilesRemainingMutex);
+		if (pthread_mutex_destroy(&alternateLinpackMutex)) fprintf(STD_OUT, "ERROR destroying mutex: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_destroy(&tilesRemainingMutex)) fprintf(STD_OUT, "ERROR destroying mutex: %s - %d\n", __FILE__, __LINE__);
 	}
 
 	if (Config->MultiThread)
@@ -2382,6 +2382,7 @@ int caldgemm::ExitCALDGEMM()
 			{
 				dParam[i].terminate = 1;
 				if (pthread_mutex_unlock(&DGEMMTasks[dParam[i].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+				if (Config->Debug) fprintf(STD_OUT, "Waiting for divide threads to terminate\n");
 				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 			}
 		}
@@ -2421,7 +2422,7 @@ int caldgemm::ExitCALDGEMM()
 		{
 			for (int i = 0;i < nDevices;i++)
 			{
-				pthread_mutex_destroy(&device_mutex[i]);
+				if (pthread_mutex_destroy(&device_mutex[i])) fprintf(STD_OUT, "ERROR destroying mutex: %s - %d\n", __FILE__, __LINE__);
 			}
 		}
 	}
