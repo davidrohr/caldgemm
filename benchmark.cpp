@@ -995,6 +995,8 @@ int main(int argc, char** argv)
 		}
 		do
 		{
+			double *org_AA = AA, *org_BB = BB, *org_CC = CC;
+			size_t org_m = matrix_m, org_n = matrix_n;
 			for (int iter = 0;iter < iterations;iter++)
 			{
 				if (iterations > 1 && !quietbench) fprintf(STD_OUT, "\nDGEMM Call Iteration %d\n\n", iter);
@@ -1012,6 +1014,26 @@ int main(int argc, char** argv)
 				if (torture)
 				{
 					dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks);
+				}
+				
+				if (linpackmemory && iterations > 1)
+				{
+					if (matrix_m > Config.Width && matrix_n > Config.Width)
+					{
+						AA += Config.Width;
+						BB += Config.Width * pitch_c;
+						CC += Config.Width * (pitch_c + 1);
+						matrix_m -= Config.Width;
+						matrix_n -= Config.Width;
+					}
+					else
+					{
+						AA = org_AA;
+						BB = org_BB;
+						CC = org_CC;
+						matrix_m = org_m;
+						matrix_n = org_n;
+					}
 				}
 			}
 		} while (benchmark && (matrix_n += Config.Height) < 70000 && (matrix_m += Config.Height) < 70000 && SetupUserData(Config) == 0);

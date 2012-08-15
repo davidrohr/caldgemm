@@ -187,6 +187,8 @@ public:
 	int avgngflops;
 
 	virtual bool cpuUsed(int cpu);
+	
+	void printConfig();
 
 protected:
 

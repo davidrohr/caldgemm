@@ -2793,6 +2793,75 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DI
 	return(0);
 }
 
+void caldgemm::printConfig()
+{
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "DivideToGPU %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "DstMemory %c\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "ImplicitDriverSync %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "DynamicSched %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "SecondPhaseDynamicRuns %d\n", (int) AsyncDMA);
+
+	
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+	fprintf(STD_OUT, "AsyncDMA %d\n", (int) AsyncDMA);
+}
+
 #ifndef USE_GOTO_BLAS
 static int caldgemm_restrict_cpus = 0;
 static int current_num_threads = get_num_procs();
