@@ -1127,6 +1127,16 @@ void* caldgemm::divide_wrapper_a(divideParameters* par)
 
 	double* tmpBuffer = allocDivideBuffer();
 
+	for (int i = 0;i < nDevices;i++)
+	{
+		if (Config->GPUMapping[i] == par->CPUCore)
+		{
+			par->firstDevice = i;
+			break;
+		}
+	}
+
+	int mutex_to_unlock = par->nThread;
 	if (pthread_mutex_unlock(&DGEMMTasks[par->nThread].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finish mutex (%d)\n", par->nThread);
 	int i = 0;
 	while (true)
@@ -1134,14 +1144,17 @@ void* caldgemm::divide_wrapper_a(divideParameters* par)
 		if (Config->GPUMapping[i] == par->CPUCore)
 		{
 			par->reset = 0;
-			if (Config->Debug) fprintf(STD_OUT, "Divide Thread %d on Core %d waiting to operate on device %d\n", par->nThread, par->CPUCore, i);
 			par->curDevice = i;
+			if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finish mutex (%d): %s - %d\n", i, __FILE__, __LINE__);
+			if (Config->Debug) fprintf(STD_OUT, "Divide Thread %d on Core %d waiting to operate on device %d\n", par->nThread, par->CPUCore, i);
+
 			if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 			if (par->terminate) break;
 			if (par->reset)
 			{
 				if (Config->Debug) fprintf(STD_OUT, "Divide Thread %d resetting\n", par->nThread);
-				i = 0;
+				i = par->firstDevice;
+				mutex_to_unlock = i;
 				continue;
 			}
 			
@@ -1157,7 +1170,7 @@ void* caldgemm::divide_wrapper_a(divideParameters* par)
 			if (Config->Debug) fprintf(STD_OUT, "Divide Thread for device %d Starting processing (k = %d)\n", i, DGEMMTasks[i].k);
 			DGEMMPrepareAndExecute(DGEMMTasks[i] CALDGEMM_DIVBUFB);
 			
-			if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finish mutex (%d): %s - %d\n", i, __FILE__, __LINE__);
+			mutex_to_unlock = i;
 		}
 		i = (i + 1) % nDevices;
 	}
@@ -1350,16 +1363,6 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 		if (parallelDevice != -1) break;
 	}
 
-	if (Config->MultiThreadDivide && parallelDevice == -1 && UseInputPthreads())
-	{
-		for (int l = 0;l < nDevices;l++)
-		{
-			if (pthread_mutex_unlock(&DGEMMTasks[l].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-		}
-	}
-
-
-
 	if (RunCALDGEMM_Init()) return(0);
 
 	bool cpu_k_barrier_hit = false;
@@ -1460,7 +1463,7 @@ endimprovedphase:
 				if (Config->MultiThreadDivide && parallelDevice == -1 && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && DGEMMTasks[use_device].thread_running)
 				{
 					DGEMMTasks[use_device].thread_running = 0;
-					if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (k=%lld lastk = %lld)\n", use_device, (long long int) k, lastk[use_device]);
+					if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (k=%lld lastk = %lld j=%d)\n", use_device, (long long int) k, lastk[use_device], oldj[use_device]);
 
 					int tmpval = pthread_mutex_trylock(&DGEMMTasks[use_device].mutex_finished);
 					if (tmpval == EBUSY)
@@ -1567,7 +1570,7 @@ endimprovedphase:
 				if (nBlocks <= k && (signed) lastk[use_device] < cpu_k_barrier && Config->MultiThreadDivide && parallelDevice == -1 && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && DGEMMTasks[use_device].thread_running)
 				{
 					DGEMMTasks[use_device].thread_running = 0;
-					if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (late phase, k=%lld lastk = %lld)\n", use_device, (long long int) k, lastk[use_device]);
+					if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (late phase, k=%lld lastk = %lld j=%d)\n", use_device, (long long int) k, lastk[use_device], oldj[use_device]);
 					int tmpval = pthread_mutex_trylock(&DGEMMTasks[use_device].mutex_finished);
 					if (tmpval == EBUSY)
 					{
@@ -1679,15 +1682,14 @@ endimprovedphase:
 	}
 	if (Config->MultiThreadDivide && parallelDevice == -1 && UseInputPthreads())
 	{
-		for (int l = 0;l < nDevices;l++)
-		{
-			int tmp = pthread_mutex_trylock(&DGEMMTasks[l].mutex_finished);
-			if (tmp != 0 && tmp != EBUSY) fprintf(STD_OUT, "ERROR trylocking mutex (%d): %s - %d\n", l, __FILE__, __LINE__);
-		}
 		for (int l = 0;l < divideThreads;l++)
 		{
-			dParam[l].reset = 1;
-			if (pthread_mutex_unlock(&DGEMMTasks[dParam[l].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+			if (dParam[l].curDevice != dParam[l].firstDevice)
+			{
+				dParam[l].reset = 1;
+				if (pthread_mutex_unlock(&DGEMMTasks[dParam[l].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+				if (pthread_mutex_lock(&DGEMMTasks[dParam[l].firstDevice].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+			}
 		}
 	}
 
@@ -2401,7 +2403,7 @@ int caldgemm::ExitCALDGEMM()
 				if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR unlocking divide start mutex (%d)\n", i);
 				if (pthread_mutex_unlock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finished mutex (%d)\n", i);
 				if (pthread_mutex_destroy(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR destroying divide start mutex (%d)\n", i);
-				pthread_mutex_destroy(&DGEMMTasks[i].mutex_finished); //TODO, check why this fails
+				if (pthread_mutex_destroy(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR destroying divide finished mutex (%d)\n", i);
 			}
 		}
 		if (Config->MultiThreadDivide && UseMutexPerDevice())

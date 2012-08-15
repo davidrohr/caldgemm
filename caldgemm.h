@@ -415,6 +415,7 @@ protected:
 		int terminate;
 		int reset;
 		volatile int curDevice;
+		int firstDevice;
 	} dParam[max_devices];
 	int divideThreads;
 
