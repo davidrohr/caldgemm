@@ -147,6 +147,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n" );
 	fprintf(STD_OUT, "\t-Ux <int> Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping\n" );
 	fprintf(STD_OUT, "\t-UAx <int>Allocate memory for GPU x for die <int>, -1 = default mapping\n" );
+	fprintf(STD_OUT, "\t-UBx <int>Set DMA Mapping\n" );
 	fprintf(STD_OUT, "\t-V        Thread save GPU driver\n" );
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
@@ -164,7 +165,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-, <int>  Sleep for n usec during active wait\n");
 	fprintf(STD_OUT, "\t-:        Enable NUMA Pinning\n");
 	fprintf(STD_OUT, "\t-/ <list> Comma separated list of GPU devices to use (replaces -y for multiple devices)\n");
-	fprintf(STD_OUT, "\t-*        Enable Parallel DMA option\n");
+	fprintf(STD_OUT, "\t-* <int>  Enable Parallel DMA option if m < <int>\n");
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
@@ -240,7 +241,8 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			Config->DumpMatrix = true;
 			break;
 		case '*':
-			Config->ParallelDMA = true;
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", (int*) &Config->ParallelDMA);
 			break;
 		case '@':
 		{
@@ -485,6 +487,17 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 				}
 				sscanf(argv[x], "%d", &Config->AllocMapping[gpuid]);
 				printf("Allocating memory for GPU %d on core %d\n", gpuid, Config->AllocMapping[gpuid]);
+			}
+			else if (argv[x][2] == 'B')
+			{
+				sscanf(&argv[x++][3], "%d", &gpuid);
+				if ((unsigned) gpuid >= sizeof(Config->DMAMapping) / sizeof(Config->DMAMapping[0]))
+				{
+					fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+					break;
+				}
+				sscanf(argv[x], "%d", &Config->DMAMapping[gpuid]);
+				printf("DMA Mapping for GPU %d: core %d\n", gpuid, Config->DMAMapping[gpuid]);
 			}
 			else
 			{
