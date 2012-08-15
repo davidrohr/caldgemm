@@ -543,6 +543,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking divide start mutex (%d)\n", i);
 				DGEMMTasks[i].thread_running = 0;
 				DGEMMTasks[i].skip_device_to = -1;
+				DGEMMTasks[i].device = i;
 				pthread_mutex_init(&DGEMMTasks[i].mutex_finished, NULL);
 				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", i);
 				if (Config->GPUMapping[i] == Config->PinMainThread) continue;
@@ -568,6 +569,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 				}
 			}
 		}
+	}
+
+	for (int l = 0;l < nDevices;l++)
+	{
+		for (int i = 0;i < obuffercount;i++) DGEMMPrepareTaskEventReady[l][i] = false;
 	}
 
 	if (Config->Debug) fprintf(STD_OUT, "Using %d CPU cores at %d MHz, %d GPUs of %d shaders at %d MHz\n", conf_numprocs, conf_cpufreq, nDevices, conf_gpushaders, conf_gpufreq);
@@ -1341,7 +1347,6 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 		for (size_t ll = 0;ll < mb;ll++) buffer_pointers_A[l][ll] = -1;
 		buffer_pointers_B[l] = new int[nb];
 		for (size_t ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
-		for (int i = 0;i < obuffercount;i++) DGEMMPrepareTaskEventReady[l][i] = false;
 		if (parallelDevice != -1) break;
 	}
 
@@ -1456,7 +1461,6 @@ endimprovedphase:
 				{
 					DGEMMTasks[use_device].thread_running = 0;
 					if (Config->Debug) fprintf(STD_OUT, "Waiting for divide thread for device %d (k=%lld lastk = %lld)\n", use_device, (long long int) k, lastk[use_device]);
-					//if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 
 					int tmpval = pthread_mutex_trylock(&DGEMMTasks[use_device].mutex_finished);
 					if (tmpval == EBUSY)
@@ -1478,7 +1482,6 @@ endimprovedphase:
 
 				DGEMMPrepareAndExecuteTask& Task = DGEMMTasks[use_device];
 				Task.PrepareTasks[0].j = Task.PrepareTasks[1].j = -1;
-				Task.device = use_device;
 				Task.kernel_num = kernel_num;
 				Task.k = k;
 				Task.j = j[use_device];
@@ -1920,281 +1923,278 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, matrix_m, matrix_n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 		Timers.CPUTimer.Stop();
 		CPUOnlyRun = true;
-//		goto RunCALDGEMM_end;
 	}
 	else
 	{
-	CPUOnlyRun = false;
+		CPUOnlyRun = false;
 
-	if (ExecLinpack)
-	{
-		outputthreads = mymin(CALDGEMM_OUTPUT_THREADS_SLOW, outputthreads + CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK);
-	}
-
-	cpu_set_t main_mask;
-	CPU_ZERO(&main_mask);
-	CPU_SET(Config->PinMainThread, &main_mask);
-	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&main_mask));
-	sched_setaffinity(0, sizeof(cpu_set_t), &main_mask);
-
-	if (forceReinit)
-	{
-		if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Reinit for increased buffer width / height\n");
-		if (ReinitDevices()) return(1);
-	}
-
-	InitConstantData(alpha);
-
-	if (Config->SlowCPU)
-	{
-		GPURatio = 1.0;
-	}
-	else if (Config->GPURatio <= -0.99)
-	{
-		//Optimal ratio found using combined runs
-		if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000000) GPURatio = 0.75;
-		else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 600000000) GPURatio = 0.74;
-		else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 500000000) GPURatio = 0.73;
-		else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 200000000) GPURatio = 0.73;
-		else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 100000000) GPURatio = 0.72;
-		else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 7000000) GPURatio = 0.70;
-		else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000) GPURatio = 0.67;
-		else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 2500000) GPURatio = 0.60;
-		else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 1000000) GPURatio = 0.55;
-		else GPURatio = 0.50;
-		if (Config->Width < 1024) GPURatio *= (double) Config->Width / (double) 1024;
-		if (Config->Height < 1024) GPURatio *= (double) Config->Height / (double) 1024 * (double) Config->Height / (double) 1024;
-		
-		const int require_threads = outputthreads * nDevices + 1 + (ExecLinpack && Config->LinpackNodes > 1);
-		const double CPUscale = (double) (conf_cpufreq * mymax(conf_numprocs - require_threads, 1)) / (double) (2100 * (24 - require_threads));
-		const double GPUscale = (double) nDevices * conf_gpushaders * conf_gpufreq / (double) (850 * 20 * 64);
-		if (Config->Debug) fprintf(STD_OUT, "GPU Curve Ration: %1.3lf, CPUScale %1.3lf, GPUScale %1.3lf\n", GPURatio, CPUscale, GPUscale);
-		GPURatio = GPUscale * GPURatio / (GPUscale * GPURatio + (1.0 - GPURatio) * CPUscale);
-		
-		if (Config->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.3lf\n", GPURatio);
-		if (GPURatio > 1.) GPURatio = 1.0;
-		if ((matrix_n + 4) % 4096 < 8 && GPURatio > 0.5) GPURatio = 1. - 0.95 * (1. - GPURatio);
-	}
-	else
-	{
-		GPURatio = fabs(Config->GPURatio);
-	}
-
-	if (ExecLinpack && (Config->GPURatio < 0 || GPURatio < 0.99) && !Config->SlowCPU)
-	{
-		if (Config->GPURatio <= -0.99)
+		if (ExecLinpack)
 		{
-			if (ExecLinpack > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80 * Config->Width / 1024;
-			else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
-			if (GPURatio > 1.0) GPURatio = 1.0;
+			outputthreads = mymin(CALDGEMM_OUTPUT_THREADS_SLOW, outputthreads + CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK);
 		}
-		if (linpack_last_mn[ExecLinpack] > 0 && (((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackGPURatios[ExecLinpack] > 0.0001)
+
+		cpu_set_t main_mask;
+		CPU_ZERO(&main_mask);
+		CPU_SET(Config->PinMainThread, &main_mask);
+		if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&main_mask));
+		sched_setaffinity(0, sizeof(cpu_set_t), &main_mask);
+
+		if (forceReinit)
 		{
-			GPURatio = linpackGPURatios[ExecLinpack];
-			if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3lf\n", ExecLinpack, 100 * GPURatio);
+			if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Reinit for increased buffer width / height\n");
+			if (ReinitDevices()) return(1);
+		}
+
+		InitConstantData(alpha);
+
+		if (Config->SlowCPU)
+		{
+			GPURatio = 1.0;
+		}
+		else if (Config->GPURatio <= -0.99)
+		{
+			//Optimal ratio found using combined runs
+			if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000000) GPURatio = 0.75;
+			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 600000000) GPURatio = 0.74;
+			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 500000000) GPURatio = 0.73;
+			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 200000000) GPURatio = 0.73;
+			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 100000000) GPURatio = 0.72;
+			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 7000000) GPURatio = 0.70;
+			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000) GPURatio = 0.67;
+			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 2500000) GPURatio = 0.60;
+			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 1000000) GPURatio = 0.55;
+			else GPURatio = 0.50;
+			if (Config->Width < 1024) GPURatio *= (double) Config->Width / (double) 1024;
+			if (Config->Height < 1024) GPURatio *= (double) Config->Height / (double) 1024 * (double) Config->Height / (double) 1024;
+		
+			const int require_threads = outputthreads * nDevices + 1 + (ExecLinpack && Config->LinpackNodes > 1);
+			const double CPUscale = (double) (conf_cpufreq * mymax(conf_numprocs - require_threads, 1)) / (double) (2100 * (24 - require_threads));
+			const double GPUscale = (double) nDevices * conf_gpushaders * conf_gpufreq / (double) (850 * 20 * 64);
+			if (Config->Debug) fprintf(STD_OUT, "GPU Curve Ration: %1.3lf, CPUScale %1.3lf, GPUScale %1.3lf\n", GPURatio, CPUscale, GPUscale);
+			GPURatio = GPUscale * GPURatio / (GPUscale * GPURatio + (1.0 - GPURatio) * CPUscale);
+		
+			if (Config->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.3lf\n", GPURatio);
+			if (GPURatio > 1.) GPURatio = 1.0;
+			if ((matrix_n + 4) % 4096 < 8 && GPURatio > 0.5) GPURatio = 1. - 0.95 * (1. - GPURatio);
 		}
 		else
 		{
-			linpackGPURatios[ExecLinpack] = GPURatio;
-			if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3lf\n", ExecLinpack, 100 * GPURatio);
+			GPURatio = fabs(Config->GPURatio);
 		}
-	}
-	if (Config->GPURatio < 0 && Config->GPURatio > -0.99 && GPURatio < -Config->GPURatio) GPURatio = -Config->GPURatio;
 
-	gpu_ratio_used = GPURatio;
-
-	if (ExecLinpack && Config->AlternateLookahead <= matrix_n)
-	{
-		matrix_m -= Config->Width;
-		A += Config->Width * (TransposeA ? 1 : A_pitch);
-		C += Config->Width * (C_pitch);
-	}
-
-	cParam.dynamic_run = 0;
-	cParam.dynamic_run2 = 0;
-	cParam.borders_done = false;
-	SmallTileHeight = (Config->SmallTiles == 1 ? CALDGEMM_MIN_TILE_DIM : Config->Height);
-recalculate_ratio:
-	if (Config->UseCPU == true && Config->UseGPU == true)
-	{
-		if ((DGEMM_split_m = (Config->LinpackSwapN == NULL ? (matrix_m >= matrix_n) : 0)))
+		if (ExecLinpack && (Config->GPURatio < 0 || GPURatio < 0.99) && !Config->SlowCPU)
 		{
-			size_t virtualm = matrix_m + (matrix_n % SmallTileHeight) * matrix_m / matrix_n;
-			if (ExecLinpack && Config->AlternateLookahead <= matrix_n) virtualm += Config->Width * (0.25 + (float) matrix_m / matrix_n);
-			gpu_m = GPURatio * (float) virtualm + (SmallTileHeight - 1);
-			if (gpu_m > matrix_m)
+			if (Config->GPURatio <= -0.99)
 			{
-				if (Config->SmallTiles == 2 && SmallTileHeight > CALDGEMM_MIN_TILE_DIM)
-				{
-					if (SmallTileHeight > 1024) SmallTileHeight = 1024;
-					else SmallTileHeight = CALDGEMM_MIN_TILE_DIM;
-					goto recalculate_ratio;
-				}
-				gpu_m = matrix_m;
+				if (ExecLinpack > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80 * Config->Width / 1024;
+				else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
+				if (GPURatio > 1.0) GPURatio = 1.0;
 			}
-			gpu_m -= gpu_m % SmallTileHeight;
-			cParam.cblas_size = matrix_m - gpu_m;
-			gpu_n = matrix_n;
-			gpu_n -= gpu_n % SmallTileHeight;
-			if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld, Tilesize %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) matrix_m - gpu_m, (long long int) gpu_n, (long long int) SmallTileHeight);
-		}
-		else
-		{
-			size_t virtualn = matrix_n + (matrix_m % SmallTileHeight) * matrix_n / matrix_m;
-			if (ExecLinpack && Config->AlternateLookahead <= matrix_n) virtualn += Config->Width * (0.25 + (float) matrix_n / matrix_m);
-			gpu_n = GPURatio * (float) virtualn + (SmallTileHeight - 1);
-			if (gpu_n > matrix_n)
+			if (linpack_last_mn[ExecLinpack] > 0 && (((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackGPURatios[ExecLinpack] > 0.0001)
 			{
-				if (Config->SmallTiles == 2 && SmallTileHeight > CALDGEMM_MIN_TILE_DIM)
+				GPURatio = linpackGPURatios[ExecLinpack];
+				if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3lf\n", ExecLinpack, 100 * GPURatio);
+			}
+			else
+			{
+				linpackGPURatios[ExecLinpack] = GPURatio;
+				if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3lf\n", ExecLinpack, 100 * GPURatio);
+			}
+		}
+		if (Config->GPURatio < 0 && Config->GPURatio > -0.99 && GPURatio < -Config->GPURatio) GPURatio = -Config->GPURatio;
+
+		gpu_ratio_used = GPURatio;
+
+		if (ExecLinpack && Config->AlternateLookahead <= matrix_n)
+		{
+			matrix_m -= Config->Width;
+			A += Config->Width * (TransposeA ? 1 : A_pitch);
+			C += Config->Width * (C_pitch);
+		}
+
+		cParam.dynamic_run = 0;
+		cParam.dynamic_run2 = 0;
+		cParam.borders_done = false;
+		SmallTileHeight = (Config->SmallTiles == 1 ? CALDGEMM_MIN_TILE_DIM : Config->Height);
+	recalculate_ratio:
+		if (Config->UseCPU == true && Config->UseGPU == true)
+		{
+			if ((DGEMM_split_m = (Config->LinpackSwapN == NULL ? (matrix_m >= matrix_n) : 0)))
+			{
+				size_t virtualm = matrix_m + (matrix_n % SmallTileHeight) * matrix_m / matrix_n;
+				if (ExecLinpack && Config->AlternateLookahead <= matrix_n) virtualm += Config->Width * (0.25 + (float) matrix_m / matrix_n);
+				gpu_m = GPURatio * (float) virtualm + (SmallTileHeight - 1);
+				if (gpu_m > matrix_m)
 				{
-					if (SmallTileHeight > 1024) SmallTileHeight = 1024;
-					else SmallTileHeight = CALDGEMM_MIN_TILE_DIM;
-					goto recalculate_ratio;
+					if (Config->SmallTiles == 2 && SmallTileHeight > CALDGEMM_MIN_TILE_DIM)
+					{
+						if (SmallTileHeight > 1024) SmallTileHeight = 1024;
+						else SmallTileHeight = CALDGEMM_MIN_TILE_DIM;
+						goto recalculate_ratio;
+					}
+					gpu_m = matrix_m;
 				}
+				gpu_m -= gpu_m % SmallTileHeight;
+				cParam.cblas_size = matrix_m - gpu_m;
 				gpu_n = matrix_n;
+				gpu_n -= gpu_n % SmallTileHeight;
+				if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld, Tilesize %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) matrix_m - gpu_m, (long long int) gpu_n, (long long int) SmallTileHeight);
 			}
-			gpu_n -= gpu_n % SmallTileHeight;
-			cParam.cblas_size = matrix_n - gpu_n;
+			else
+			{
+				size_t virtualn = matrix_n + (matrix_m % SmallTileHeight) * matrix_n / matrix_m;
+				if (ExecLinpack && Config->AlternateLookahead <= matrix_n) virtualn += Config->Width * (0.25 + (float) matrix_n / matrix_m);
+				gpu_n = GPURatio * (float) virtualn + (SmallTileHeight - 1);
+				if (gpu_n > matrix_n)
+				{
+					if (Config->SmallTiles == 2 && SmallTileHeight > CALDGEMM_MIN_TILE_DIM)
+					{
+						if (SmallTileHeight > 1024) SmallTileHeight = 1024;
+						else SmallTileHeight = CALDGEMM_MIN_TILE_DIM;
+						goto recalculate_ratio;
+					}
+					gpu_n = matrix_n;
+				}
+				gpu_n -= gpu_n % SmallTileHeight;
+				cParam.cblas_size = matrix_n - gpu_n;
+				gpu_m = matrix_m;
+				gpu_m -= gpu_m % SmallTileHeight;
+				if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld, Tilesize %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) matrix_m, (long long int) matrix_n - gpu_n, (long long int) SmallTileHeight);
+			}
+		}
+		else
+		{
+			if (matrix_n % Config->Height || matrix_m % Config->Height)
+			{
+				fprintf(STD_OUT, "Invalid matrix size for GPU only (%lld %% %lld = %lld, %lld %% %lld = %lld)\n", (long long int) matrix_n, (long long int) Config->Height, (long long int) matrix_n % Config->Height, (long long int) matrix_m, (long long int) Config->Height, (long long int) matrix_m % Config->Height);
+				return(1);
+			}
+			gpu_n = matrix_n;
 			gpu_m = matrix_m;
-			gpu_m -= gpu_m % SmallTileHeight;
-			if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld, Tilesize %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) matrix_m, (long long int) matrix_n - gpu_n, (long long int) SmallTileHeight);
 		}
-	}
-	else
-	{
-		if (matrix_n % Config->Height || matrix_m % Config->Height)
-		{
-			fprintf(STD_OUT, "Invalid matrix size for GPU only (%lld %% %lld = %lld, %lld %% %lld = %lld)\n", (long long int) matrix_n, (long long int) Config->Height, (long long int) matrix_n % Config->Height, (long long int) matrix_m, (long long int) Config->Height, (long long int) matrix_m % Config->Height);
-			return(1);
-		}
-		gpu_n = matrix_n;
-		gpu_m = matrix_m;
-	}
-	DGEMM_favor_m = (Config->LinpackSwapN == NULL && (ExecLinpack == 0 || Config->AlternateLookahead <= matrix_n)) ? (gpu_m >= gpu_n) : 1;
+		DGEMM_favor_m = (Config->LinpackSwapN == NULL && (ExecLinpack == 0 || Config->AlternateLookahead <= matrix_n)) ? (gpu_m >= gpu_n) : 1;
 	
-	if (!Config->Quiet) fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c - Tiling %lld\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) SmallTileHeight);
+		if (!Config->Quiet) fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c - Tiling %lld\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) SmallTileHeight);
 	
-	//printThreadPinning();
+		//printThreadPinning();
 	
-	const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
-	const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
-	const size_t nBlocks = mb * nb;
-	cParam.cpu_k = nBlocks;
-	cpu_k_barrier = nBlocks;
-	gpu_k_barrier = -1;
-	if (Config->UseCPU)
-	{
-		if (!Config->MultiThread)
+		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
+		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
+		const size_t nBlocks = mb * nb;
+		cParam.cpu_k = nBlocks;
+		cpu_k_barrier = nBlocks;
+		gpu_k_barrier = -1;
+		if (Config->UseCPU)
 		{
-			cblas_wrapper((void*) &cParam);
-		}
-		if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-	}
-	else if (Config->LinpackSwapN != NULL)
-	{
-	    Config->linpack_swap_function();
-	}
-
-	if (Config->Debug)
-	{
-		if (DGEMM_favor_m)
-		{
-			fprintf(STD_OUT, "Favoring m direction, %lld blocks (%lld x %lld)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
-		}
-		else
-		{
-			fprintf(STD_OUT, "Not favoring m direction, %lld blocks (%lld x %lld)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
-		}
-	}
-
-	if (!Config->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > (size_t) (bbuffers[0] * nDevices)) fprintf(STD_OUT, "WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
-
-	Timers.GPUTimer.Start();
-
-	for (unsigned int i = 0; i < Config->Iterations; ++i)
-	{
-		AlternateLookaheadTilesRemaining = nb * ((Config->Width - 1) / Config->Height + 1);
-
-		if (Config->ImprovedScheduler)
-		{
-			tileDistribution = new int[nBlocks];
-			for (size_t l = 0;l < nBlocks;l++)
+			if (!Config->MultiThread)
 			{
-				size_t blockn, blockm;
-				int k;
-				if (DGEMM_favor_m)
+				cblas_wrapper((void*) &cParam);
+			}
+			if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+		}
+		else if (Config->LinpackSwapN != NULL)
+		{
+			Config->linpack_swap_function();
+		}
+
+		if (Config->Debug)
+		{
+			if (DGEMM_favor_m)
+			{
+				fprintf(STD_OUT, "Favoring m direction, %lld blocks (%lld x %lld)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
+			}
+			else
+			{
+				fprintf(STD_OUT, "Not favoring m direction, %lld blocks (%lld x %lld)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
+			}
+		}
+
+		if (!Config->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > (size_t) (bbuffers[0] * nDevices)) fprintf(STD_OUT, "WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
+
+		Timers.GPUTimer.Start();
+
+		for (unsigned int i = 0; i < Config->Iterations; ++i)
+		{
+			AlternateLookaheadTilesRemaining = nb * ((Config->Width - 1) / Config->Height + 1);
+
+			if (Config->ImprovedScheduler)
+			{
+				tileDistribution = new int[nBlocks];
+				for (size_t l = 0;l < nBlocks;l++)
 				{
-					blockn = l % nb;
-					blockm = l / nb;
-					k = blockn * mb + blockm;
+					size_t blockn, blockm;
+					int k;
+					if (DGEMM_favor_m)
+					{
+						blockn = l % nb;
+						blockm = l / nb;
+						k = blockn * mb + blockm;
+					}
+					else
+					{
+						blockm = l % mb;
+						blockn = l / mb;
+						k = blockn + blockm * nb;
+					}
+					tileDistribution[l] = nDevices * k / nBlocks;
+
+					//if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", l, tileDistribution[l]);
 				}
-				else
+			}
+
+			for (int ii = 0;ii < nDevices;ii++)
+			{
+				buffersMajor[ii] = -1;
+				for (int j = 0;j < bbuffers[ii];j++) buffersMinor[ii][j] = -1;
+				next_buffer_A[ii] = 0;
+				next_buffer_B[ii] = 0;
+			}
+
+			if (Config->ParallelDMA != 0 && matrix_m > Config->ParallelDMA)
+			{
+				DMAThreads.Start();
+				RunCALDGEMMMain(0);
+				DMAThreads.Sync();
+			}
+			else
+			{
+				if (RunCALDGEMMMain()) return(1);
+			}
+			if (Config->ImprovedScheduler)
+			{
+				delete[] tileDistribution;
+			}
+
+			if(Config->Verify && i < Config->Iterations - 1) AnalyzeResults();
+		}
+		Timers.GPUTimer.Stop();
+
+		if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&oldcpumask));
+		sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
+
+		if (Config->UseCPU)
+		{
+			if (Config->MultiThread)
+			{
+				Timers.ATime.Reset();
+				Timers.ATime.Start();
+			}
+			if (Config->Debug) fprintf(STD_OUT, "Waiting for CPU DGEMM to finish\n");
+			if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+			if (Config->MultiThread)
+			{
+				Timers.ATime.Stop();
+				cpu_wait_time = Timers.ATime.GetElapsedTime();
+				if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15 && cParam.cblas_size > 0)
 				{
-					blockm = l % mb;
-					blockn = l / mb;
-					k = blockn + blockm * nb;
+					fprintf(STD_OUT, "WARNING: CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
 				}
-				tileDistribution[l] = nDevices * k / nBlocks;
-
-				//if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", l, tileDistribution[l]);
+				else if (Config->Debug)
+				{
+					fprintf(STD_OUT, "CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
+				}
 			}
 		}
-
-		for (int ii = 0;ii < nDevices;ii++)
-		{
-			buffersMajor[ii] = -1;
-			for (int j = 0;j < bbuffers[ii];j++) buffersMinor[ii][j] = -1;
-			next_buffer_A[ii] = 0;
-			next_buffer_B[ii] = 0;
-		}
-
-		if (Config->ParallelDMA != 0 && matrix_m > Config->ParallelDMA)
-		{
-			DMAThreads.Start();
-			RunCALDGEMMMain(0);
-			DMAThreads.Sync();
-		}
-		else
-		{
-			if (RunCALDGEMMMain()) return(1);
-		}
-		if (Config->ImprovedScheduler)
-		{
-			delete[] tileDistribution;
-		}
-
-		if(Config->Verify && i < Config->Iterations - 1) AnalyzeResults();
-	}
-	Timers.GPUTimer.Stop();
-
-	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&oldcpumask));
-	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
-
-	if (Config->UseCPU)
-	{
-		if (Config->MultiThread)
-		{
-			Timers.ATime.Reset();
-			Timers.ATime.Start();
-		}
-		if (Config->Debug) fprintf(STD_OUT, "Waiting for CPU DGEMM to finish\n");
-		if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
-		if (Config->MultiThread)
-		{
-			Timers.ATime.Stop();
-			cpu_wait_time = Timers.ATime.GetElapsedTime();
-			if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15 && cParam.cblas_size > 0)
-			{
-			    fprintf(STD_OUT, "WARNING: CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
-			}
-			else if (Config->Debug)
-			{
-			    fprintf(STD_OUT, "CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
-			}
-		}
-	}
-
-//RunCALDGEMM_end:
 	}
 	if (Config->LinpackSwapN != NULL) *Config->LinpackSwapN = 0;
 	outputthreads = old_outputthreads;
