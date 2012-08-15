@@ -126,6 +126,9 @@ caldgemm::caldgemm()
 		}
 		fclose(fp);
 	}
+	
+	matrix_m = (size_t) -1;
+	matrix_n = (size_t) -1;
 }
 
 caldgemm::~caldgemm()
