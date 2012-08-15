@@ -628,7 +628,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	caldgemm_initialized = true;
 	
-	printConfig();
+	//printConfig();
 
 	return(0);
 }
