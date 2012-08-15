@@ -696,6 +696,9 @@ void* caldgemm::linpack_wrapper_a()
 	}
 
 	if (Config->Debug) fprintf(STD_OUT, "linpack slave terminating\n");
+
+	if (pthread_mutex_unlock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+
 	pthread_exit(NULL);
 	return(NULL);
 }
@@ -1090,8 +1093,10 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 		if (!Config->MultiThread) break;
 	}
 	if (Config->Debug) fprintf(STD_OUT, "blas slave terminating\n");
+
 	if (Config->MultiThread)
 	{
+		if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 		pthread_exit(NULL);
 	}
 	return(NULL);
@@ -1177,6 +1182,8 @@ void* caldgemm::divide_wrapper_a(divideParameters* par)
 	freeDivideBuffer(tmpBuffer);
 
 	if (Config->Debug) fprintf(STD_OUT, "Divide Thread %d for Core %d terminating\n", par->nThread, par->CPUCore);
+
+	if (pthread_mutex_unlock(&DGEMMTasks[par->nThread].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	pthread_exit(NULL);
 	return(NULL);
 }
@@ -1241,6 +1248,7 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	}
 	if (Config->Debug) fprintf(STD_OUT, "merge slave %d terminating\n", par->nMergeThread);
+	if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 	pthread_exit(NULL);
 	return(NULL);
 }
@@ -2329,8 +2337,14 @@ int caldgemm::ExitCALDGEMM()
 	{
 		if (Config->Debug) fprintf(STD_OUT, "Trying to terminate blas slave\n");
 		cParam.terminate = true;
-		if (Config->MultiThread && pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking blas mutex 1 to terminate thread\n");
+		if (Config->MultiThread)
+		{
+			if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking blas mutex 1 to terminate thread\n");
+			if (Config->Debug) fprintf(STD_OUT, "Waiting for blas threads to terminate\n");
+			if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR locking blas mutex\n");
+		}
 		if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR unlocking blas mutex 0 to terminate thread\n");
+		if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking blasMutex 1\n");
 	}
 
 	if (Config->AlternateLookahead)
@@ -2346,8 +2360,8 @@ int caldgemm::ExitCALDGEMM()
 		linpackParameters.terminate = true;
 		if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR unlocking blas mutex 0 to terminate thread\n");
 		if (Config->Debug) fprintf(STD_OUT, "Waiting for linpack slave to terminate\n");
-		while (pthread_mutex_trylock(&linpackParameters.linpackMutex[0]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-		if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR unlocking blasMutex 1\n");
+		if (pthread_mutex_lock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+		for (int i = 0;i < 2;i++) if (pthread_mutex_destroy(&linpackParameters.linpackMutex[i])) fprintf(STD_OUT, "ERROR destroying mutex: %s - %d\n", __FILE__, __LINE__);
 
 		if (UseOutputPthreads())
 		{
@@ -2356,16 +2370,9 @@ int caldgemm::ExitCALDGEMM()
 			{
 				for (int num_device = 0;num_device < nDevices;num_device++)
 				{
-					while (pthread_mutex_trylock(&mParam[num_device][i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-					if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mergeMutex %d/1\n", i);
+					if (pthread_mutex_lock(&mParam[num_device][i].mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 				}
 			}
-		}
-		if (Config->UseCPU && Config->UseGPU)
-		{
-			if (Config->Debug) fprintf(STD_OUT, "Waiting for blas threads to terminate\n");
-			while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-			if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking blasMutex 1\n");
 		}
 		
 		if (Config->MultiThreadDivide && UseInputPthreads())
@@ -2373,8 +2380,8 @@ int caldgemm::ExitCALDGEMM()
 			for (int i = 0;i < divideThreads;i++)
 			{
 				dParam[i].terminate = 1;
-				pthread_mutex_unlock(&DGEMMTasks[dParam[i].curDevice].mutex_start);
-				while (pthread_mutex_trylock(&DGEMMTasks[dParam[i].curDevice].mutex_start) != EBUSY) if (pthread_mutex_unlock(&DGEMMTasks[dParam[i].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+				if (pthread_mutex_unlock(&DGEMMTasks[dParam[i].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 			}
 		}
 	}
@@ -2390,7 +2397,11 @@ int caldgemm::ExitCALDGEMM()
 			for (int num_device = 0;num_device < nDevices;num_device++)
 			{
 				for (int i = 0;i < obuffercount;i++) if (pthread_mutex_destroy(&obufferMutex[num_device][i])) fprintf(STD_OUT, "ERROR destroying obuffermutex %d for device %d\n", i, num_device);
-				for (int i = 0;i < max_outputthreads;i++) for (int j = 0;j < 2;j++) if (pthread_mutex_destroy(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "ERROR destroying merge thread mutex %d/%d for device %d\n", i, j, num_device);
+				for (int i = 0;i < max_outputthreads;i++) for (int j = 0;j < 2;j++)
+				{
+					if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+					if (pthread_mutex_destroy(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "ERROR destroying merge thread mutex %d/%d for device %d\n", i, j, num_device);
+				}
 			}
 		}
 		if (pthread_mutex_destroy(&scheduleMutex)) fprintf(STD_OUT, "ERROR destroying schedule mutex\n");
