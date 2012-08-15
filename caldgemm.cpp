@@ -627,6 +627,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	goto_set_num_threads(conf_numprocs);
 
 	caldgemm_initialized = true;
+	
+	printConfig();
 
 	return(0);
 }
@@ -2797,7 +2799,7 @@ void caldgemm::printConfig()
 {
 	fprintf(STD_OUT, "AsyncDMA %d\n", (int) Config->AsyncDMA);
 	fprintf(STD_OUT, "DivideToGPU %d\n", (int) Config->DivideToGPU);
-	fprintf(STD_OUT, "DstMemory %c\n", (int) Config->DstMemory);
+	fprintf(STD_OUT, "DstMemory %c\n", Config->DstMemory);
 	fprintf(STD_OUT, "ImplicitDriverSync %d\n", (int) Config->ImplicitDriverSync);
 	fprintf(STD_OUT, "DynamicSched %d\n", (int) Config->DynamicSched);
 	fprintf(STD_OUT, "SecondPhaseDynamicRuns %d\n", (int) Config->SecondPhaseDynamicRuns);
@@ -2826,10 +2828,10 @@ void caldgemm::printConfig()
 	fprintf(STD_OUT, "SkipCPUProcessing %d\n", (int) Config->SkipCPUProcessing);
 	for (int i = 0;i < nDevices;i++)
 	{
-		fprintf(STD_OUT, "GPUMapping %d\n", (int) Config->GPUMapping[i]);
-		fprintf(STD_OUT, "PostprocessMapping %d\n", (int) Config->PostprocessMapping[i]);
-		fprintf(STD_OUT, "AllocMapping %d\n", (int) Config->AllocMapping[i]);
-		fprintf(STD_OUT, "DMAMapping %d\n", (int) Config->DMAMapping[i]);
+		fprintf(STD_OUT, "GPUMapping[%d] %d\n", i, (int) Config->GPUMapping[i]);
+		fprintf(STD_OUT, "PostprocessMapping[%d] %d\n", i, (int) Config->PostprocessMapping[i]);
+		fprintf(STD_OUT, "AllocMapping[%d] %d\n", i, (int) Config->AllocMapping[i]);
+		fprintf(STD_OUT, "DMAMapping[%d] %d\n", i, (int) Config->DMAMapping[i]);
 	}
 	fprintf(STD_OUT, "PinMainThread %d\n", (int) Config->PinMainThread);
 	fprintf(STD_OUT, "RepinDuringActiveWaitForEvent %d\n", (int) Config->RepinDuringActiveWaitForEvent);
@@ -2849,7 +2851,7 @@ void caldgemm::printConfig()
 	fprintf(STD_OUT, "AsyncTiming %d\n", (int) Config->AsyncTiming);
 	fprintf(STD_OUT, "DisplayTiming %d\n", (int) Config->DisplayTiming);
 	fprintf(STD_OUT, "NoPerformanceWarnings %d\n", (int) Config->NoPerformanceWarnings);
-	fprintf(STD_OUT, "PreOut %s\n", (int) Config->PreOut);
+	fprintf(STD_OUT, "PreOut %s\n", Config->PreOut);
 	fprintf(STD_OUT, "Quiet %d\n", (int) Config->Quiet);
 	fprintf(STD_OUT, "TabularTiming %d\n", (int) Config->TabularTiming);
 	fprintf(STD_OUT, "VerboseTiming %d\n", (int) Config->VerboseTiming);
@@ -2859,7 +2861,7 @@ void caldgemm::printConfig()
 	fprintf(STD_OUT, "HPLFactorizeRestrictCPUs %d\n", (int) Config->HPLFactorizeRestrictCPUs);
 	for (int i = 0;i < Config->nExcludeCPUCores;i++)
 	{
-		fprintf(STD_OUT, "ExcludeCPUCores %d\n", (int) Config->ExcludeCPUCores[i]);
+		fprintf(STD_OUT, "ExcludeCPUCores[%d] %d\n", i, (int) Config->ExcludeCPUCores[i]);
 	}
 }
 
