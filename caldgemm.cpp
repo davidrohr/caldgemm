@@ -1341,6 +1341,7 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 		for (size_t ll = 0;ll < mb;ll++) buffer_pointers_A[l][ll] = -1;
 		buffer_pointers_B[l] = new int[nb];
 		for (size_t ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
+		for (i = 0;i < obuffercount;i++) DGEMMPrepareTaskEventReady[l][i] = false;
 		if (parallelDevice != -1) break;
 	}
 
@@ -1601,6 +1602,8 @@ endimprovedphase:
 
 				if ((signed long int) lastk[use_device] != -1 && lastk[use_device] < nBlocks)
 				{
+					while (DGEMMPrepareTaskEventReady[use_device][oldj[use_device]] == false);
+					DGEMMPrepareTaskEventReady[use_device][oldj[use_device]] = false;
 					if (WaitForEvent(oldj[use_device], use_device, must_lock)) return(1);
 					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
 					if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
@@ -2294,6 +2297,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task 
 		DGEMM_prepare(Task.k, Task.j, Task.device CALDGEMM_DIVBUFB);
 	}
 	if (ExecuteKernels(Task, blockm, blockn)) return(1);
+	DGEMMPrepareTaskEventReady[Task.device][Task.j] = true;
 	pthread_mutex_unlock(&device_mutex[Task.device]);
 	return(0);
 }

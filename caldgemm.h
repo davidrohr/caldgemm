@@ -192,6 +192,18 @@ public:
 
 protected:
 
+	static const int obuffercount = 3;				//Not cal context count but number of copies of data buffers etc.
+	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
+	static const int vcpysize = 16;
+	static const int kernel_count = 3;
+#ifdef REUSE_BBUFFERS
+	static const int max_bbuffers = 21;
+	static const int max_bbuffers_g = 20;
+#else
+	static const int max_bbuffers = 3;
+	static const int max_bbuffers_g = 3;
+#endif	
+
 	size_t matrix_m, matrix_n;
 
 	int RunCALDGEMMMain(int parallelDevice = -1);
@@ -201,11 +213,11 @@ protected:
 	{
 		struct DGEMMPrepareTask
 		{
-			size_t k;
-			int j;
+			volatile size_t k;
+			volatile int j;
 		} PrepareTasks[2];
-		int k;
-		int j;
+		volatile int k;
+		volatile int j;
 		int device;
 		int kernel_num;
 		pthread_mutex_t mutex_start, mutex_finished;
@@ -214,6 +226,8 @@ protected:
 		volatile int skip_device_to;
 	} DGEMMTasks[max_devices];
 	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task CALDGEMM_DIVBUFA);
+
+	volatile bool DGEMMPrepareTaskEventReady[max_devices][obuffercount];
 
 	struct BufferProperties;
 
@@ -240,17 +254,6 @@ protected:
 
 	virtual int reserve_cpu_cores() = 0;
 
-	static const int obuffercount = 3;				//Not cal context count but number of copies of data buffers etc.
-	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
-	static const int vcpysize = 16;
-	static const int kernel_count = 3;
-#ifdef REUSE_BBUFFERS
-	static const int max_bbuffers = 21;
-	static const int max_bbuffers_g = 20;
-#else
-	static const int max_bbuffers = 3;
-	static const int max_bbuffers_g = 3;
-#endif	
 	int next_buffer_A[max_devices];
 	int next_buffer_B[max_devices];
 	int *buffer_pointers_A[max_devices];
