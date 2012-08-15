@@ -1466,12 +1466,11 @@ endimprovedphase:
 					if (tmpval == EBUSY)
 					{
 						int tmp_device = *(DGEMMTasks[use_device].next_device);
-						if (tmp_device != use_device)
+						if (tmp_device != use_device && DGEMMTasks[tmp_device].thread_running == 0)
 						{
-
-							if (Config->Debug) fprintf(STD_OUT, "Divide thread waiting for wrong device, skipping device %d\n", *(DGEMMTasks[use_device].next_device));
-							DGEMMTasks[*(DGEMMTasks[use_device].next_device)].skip_device_to = use_device;
-							if (pthread_mutex_unlock(&DGEMMTasks[*(DGEMMTasks[use_device].next_device)].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+							if (Config->Debug) fprintf(STD_OUT, "Divide thread waiting for wrong device, skipping device %d\n", tmp_device);
+							DGEMMTasks[tmp_device].skip_device_to = use_device;
+							if (pthread_mutex_unlock(&DGEMMTasks[tmp_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 						}
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
@@ -1573,12 +1572,11 @@ endimprovedphase:
 					if (tmpval == EBUSY)
 					{
 						int tmp_device = *(DGEMMTasks[use_device].next_device);
-						if (tmp_device != use_device)
+						if (tmp_device != use_device && DGEMMTasks[tmp_device].thread_running == 0)
 						{
-
-							if (Config->Debug) fprintf(STD_OUT, "Divide thread waiting for wrong device (late phase), skipping device %d\n", *(DGEMMTasks[use_device].next_device));
-							DGEMMTasks[*(DGEMMTasks[use_device].next_device)].skip_device_to = use_device;
-							if (pthread_mutex_unlock(&DGEMMTasks[*(DGEMMTasks[use_device].next_device)].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+							if (Config->Debug) fprintf(STD_OUT, "Divide thread waiting for wrong device (late phase), skipping device %d\n", tmp_device);
+							DGEMMTasks[tmp_device].skip_device_to = use_device;
+							if (pthread_mutex_unlock(&DGEMMTasks[tmp_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 						}
 						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
 					}
