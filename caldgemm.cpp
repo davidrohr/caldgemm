@@ -531,7 +531,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		pthread_t thr;
 		pthread_create(&thr, NULL, linpack_wrapper, this);
 		if (Config->Debug) fprintf(STD_OUT, "Waiting for linpack slave to start\n");
-		while (pthread_mutex_trylock(&linpackParameters.linpackMutex[1]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+		while (pthread_mutex_trylock(&linpackParameters.linpackMutex[0]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
 		pthread_mutex_init(&scheduleMutex, NULL);
 		
 		divideThreads = 0;
