@@ -484,7 +484,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 				pthread_t thr;
 				pthread_create(&thr, NULL, merge_wrapper, &mParam[device_num][i]);
 
-				while (pthread_mutex_trylock(&mParam[device_num][i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[device_num][i].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+				while (pthread_mutex_trylock(&mParam[device_num][i].mergeThreadMutex[0]) != EBUSY) if (pthread_mutex_unlock(&mParam[device_num][i].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mergeThreadMutex0: %s - %d\n", __FILE__, __LINE__);
 			}
 		}
 	}
@@ -527,11 +527,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	{
 		linpackParameters.terminate = false;
 		for (int j = 0;j < 2;j++) pthread_mutex_init(&linpackParameters.linpackMutex[j], NULL);
-		if (pthread_mutex_lock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_lock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR locking linpackMutex1: %s - %d\n", __FILE__, __LINE__);
 		pthread_t thr;
 		pthread_create(&thr, NULL, linpack_wrapper, this);
 		if (Config->Debug) fprintf(STD_OUT, "Waiting for linpack slave to start\n");
-		while (pthread_mutex_trylock(&linpackParameters.linpackMutex[0]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+		while (pthread_mutex_trylock(&linpackParameters.linpackMutex[0]) != EBUSY) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR unlocking linpackMutex0: %s - %d\n", __FILE__, __LINE__);
 		pthread_mutex_init(&scheduleMutex, NULL);
 		
 		divideThreads = 0;
@@ -584,13 +584,13 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		cParam.cls = this;
 		cParam.terminate = false;
 		for (int j = 0;j < 2;j++) pthread_mutex_init(&cParam.cblasMutex[j], NULL);
-		if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR locking cblasMutex0: %s - %d\n", __FILE__, __LINE__);
 		if (Config->MultiThread)
 		{
 			pthread_t thr;
 			pthread_create(&thr, NULL, cblas_wrapper, &cParam);
 			if (Config->Debug) fprintf(STD_OUT, "Waiting for cblas slave to start\n");
-			while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+			while (pthread_mutex_trylock(&cParam.cblasMutex[1]) != EBUSY) if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking cblasMutex1: %s - %d\n", __FILE__, __LINE__);
 		}
 	}
 	
@@ -684,7 +684,7 @@ void* caldgemm::linpack_wrapper_a()
 	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", getcpumask(&linpack_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
 
-	if (pthread_mutex_lock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+	if (pthread_mutex_lock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR locking linpackMutex0: %s - %d\n", __FILE__, __LINE__);
 	while (pthread_mutex_lock(&linpackParameters.linpackMutex[0]) == 0 && linpackParameters.terminate == false)
 	{
 		Timers.LinpackTimer2.Start();
@@ -692,12 +692,12 @@ void* caldgemm::linpack_wrapper_a()
 		Timers.LinpackTimer2.Stop();
 		Timers.BcastTimer.Start();
 
-		if (pthread_mutex_unlock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_unlock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR unlocking linpackMutex1: %s - %d\n", __FILE__, __LINE__);
 	}
 
 	if (Config->Debug) fprintf(STD_OUT, "linpack slave terminating\n");
 
-	if (pthread_mutex_unlock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	if (pthread_mutex_unlock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR unlocking linpackMutex1: %s - %d\n", __FILE__, __LINE__);
 
 	pthread_exit(NULL);
 	return(NULL);
@@ -884,7 +884,7 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 		sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 	}
 	
-	if (Config->MultiThread) if (pthread_mutex_lock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+	if (Config->MultiThread) if (pthread_mutex_lock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR locking cblasMutex1: %s - %d\n", __FILE__, __LINE__);
 	while (pthread_mutex_lock(&cParam.cblasMutex[1]) == 0 && par->terminate == false)
 	{
 		const size_t A_pitch_use = (TransposeA ? 1 : A_pitch);
@@ -1089,14 +1089,14 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 		caldgemm_goto_reserve_cpus(0);
 
 		if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking cblasmutex 0\n");
-		if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR unlocking cblasMutex0: %s - %d\n", __FILE__, __LINE__);
 		if (!Config->MultiThread) break;
 	}
 	if (Config->Debug) fprintf(STD_OUT, "blas slave terminating\n");
 
 	if (Config->MultiThread)
 	{
-		if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_unlock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR unlocking cblasMutex0: %s - %d\n", __FILE__, __LINE__);
 		pthread_exit(NULL);
 	}
 	return(NULL);
@@ -1152,7 +1152,7 @@ void* caldgemm::divide_wrapper_a(divideParameters* par)
 			if (pthread_mutex_unlock(&DGEMMTasks[mutex_to_unlock].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking divide finish mutex (%d): %s - %d\n", i, __FILE__, __LINE__);
 			if (Config->Debug) fprintf(STD_OUT, "Divide Thread %d on Core %d waiting to operate on device %d\n", par->nThread, par->CPUCore, i);
 
-			if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+			if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking mutex_start: %s - %d\n", __FILE__, __LINE__);
 			if (par->terminate) break;
 			if (par->reset)
 			{
@@ -1168,7 +1168,7 @@ void* caldgemm::divide_wrapper_a(divideParameters* par)
 				const int oldi = i;
 				i = DGEMMTasks[i].skip_device_to;
 				DGEMMTasks[oldi].skip_device_to = -1;
-				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking mutex_start: %s - %d\n", __FILE__, __LINE__);
 			}
 			
 			if (Config->Debug) fprintf(STD_OUT, "Divide Thread for device %d Starting processing (k = %d)\n", i, DGEMMTasks[i].k);
@@ -1183,7 +1183,7 @@ void* caldgemm::divide_wrapper_a(divideParameters* par)
 
 	if (Config->Debug) fprintf(STD_OUT, "Divide Thread %d for Core %d terminating\n", par->nThread, par->CPUCore);
 
-	if (pthread_mutex_unlock(&DGEMMTasks[par->nThread].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	if (pthread_mutex_unlock(&DGEMMTasks[par->nThread].mutex_finished)) fprintf(STD_OUT, "ERROR unlocking mutex_finished: %s - %d\n", __FILE__, __LINE__);
 	pthread_exit(NULL);
 	return(NULL);
 }
@@ -1225,7 +1225,7 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 
 	HighResTimer mergeTimer;
 
-	if (pthread_mutex_lock(&par->mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+	if (pthread_mutex_lock(&par->mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR locking mergeThreadMutex0: %s - %d\n", __FILE__, __LINE__);
 	while (pthread_mutex_lock(&par->mergeThreadMutex[0]) == 0 && par->terminate == false)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "\t\tSlave thread %d (device %d) starting merge process for obuffer %d (k = %lld)\n", par->nMergeThread, par->num_device, par->nContext, (long long int) par->k);
@@ -1244,11 +1244,11 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		}
 		CheckAlternateTilesRemaining(blockm);
 		if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex device %d obuffer %d (Slavethread %d)\n", par->num_device, par->nContext, par->nMergeThread);
-		if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-		if (pthread_mutex_unlock(&obufferMutex[par->num_device][par->nContext])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR unlocking mergeThreadMutex1: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_unlock(&obufferMutex[par->num_device][par->nContext])) fprintf(STD_OUT, "ERROR unlocking obufferMutex: %s - %d\n", __FILE__, __LINE__);
 	}
 	if (Config->Debug) fprintf(STD_OUT, "merge slave %d terminating\n", par->nMergeThread);
-	if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+	if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR unlocking mergeThreadMutex1: %s - %d\n", __FILE__, __LINE__);
 	pthread_exit(NULL);
 	return(NULL);
 }
@@ -1480,11 +1480,11 @@ endimprovedphase:
 						{
 							if (Config->Debug) fprintf(STD_OUT, "Divide thread waiting for wrong device, skipping device %d\n", tmp_device);
 							DGEMMTasks[tmp_device].skip_device_to = use_device;
-							if (pthread_mutex_unlock(&DGEMMTasks[tmp_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+							if (pthread_mutex_unlock(&DGEMMTasks[tmp_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex_start: %s - %d\n", __FILE__, __LINE__);
 						}
-						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex_finished: %s - %d\n", __FILE__, __LINE__);
 					}
-					else if (tmpval) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+					else if (tmpval) fprintf(STD_OUT, "ERROR locking mutex_finished: %s - %d\n", __FILE__, __LINE__);
 
 					if (Config->Debug) fprintf(STD_OUT, "Main thread: Divide thread for device %d finished\n", use_device);
 				}
@@ -1556,7 +1556,7 @@ endimprovedphase:
 				if (Config->MultiThreadDivide && parallelDevice == -1 && Config->GPUMapping[use_device] != Config->PinMainThread && UseInputPthreads() && cpu_k_barrier_hit == false)
 				{
 					if (Config->Debug) fprintf(STD_OUT, "Starting PrepareAndExecute task on divide thread for device %d (k = %lld)\n", use_device, (long long int) k);
-					if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+					if (pthread_mutex_unlock(&DGEMMTasks[use_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex_start: %s - %d\n", __FILE__, __LINE__);
 					DGEMMTasks[use_device].thread_running = 1;
 				}
 				else
@@ -1586,11 +1586,11 @@ endimprovedphase:
 						{
 							if (Config->Debug) fprintf(STD_OUT, "Divide thread waiting for wrong device (late phase), skipping device %d\n", tmp_device);
 							DGEMMTasks[tmp_device].skip_device_to = use_device;
-							if (pthread_mutex_unlock(&DGEMMTasks[tmp_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+							if (pthread_mutex_unlock(&DGEMMTasks[tmp_device].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex_start: %s - %d\n", __FILE__, __LINE__);
 						}
-						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+						if (pthread_mutex_lock(&DGEMMTasks[use_device].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex_finished: %s - %d\n", __FILE__, __LINE__);
 					}
-					else if (tmpval) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+					else if (tmpval) fprintf(STD_OUT, "ERROR trylocking mutex_finished: %s - %d\n", __FILE__, __LINE__);
 				}
 				size_t lastm, lastn;
 				DGEMM_getblocks(lastk[use_device], lastm, lastn);
@@ -1636,7 +1636,7 @@ endimprovedphase:
 							CheckAlternateTilesRemaining(lastm);
 						}
 						if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex device %d obuffer %d\n", use_device, oldj[use_device]);
-						if (Config->MultiThread && UseOutputPthreads() && pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+						if (Config->MultiThread && UseOutputPthreads() && pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking obufferMutex: %s - %d\n", __FILE__, __LINE__);
 					}
 					if (Config->MultiThread && UseOutputPthreads())
 					{
@@ -1648,8 +1648,8 @@ endimprovedphase:
 								if ((ll != use_device || l != oldj[ll]) && (signed) lastk[ll] != -1)
 								{
 									if (Config->Debug) fprintf(STD_OUT, "Waiting to finish merge process for device %d obuffer %d\n", ll, l);
-									if (pthread_mutex_lock(&obufferMutex[ll][l])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
-									if (pthread_mutex_unlock(&obufferMutex[ll][l])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+									if (pthread_mutex_lock(&obufferMutex[ll][l])) fprintf(STD_OUT, "ERROR locking obufferMutex: %s - %d\n", __FILE__, __LINE__);
+									if (pthread_mutex_unlock(&obufferMutex[ll][l])) fprintf(STD_OUT, "ERROR unlocking obufferMutex: %s - %d\n", __FILE__, __LINE__);
 								}
 								if (parallelDevice != -1) break;
 							}
@@ -1663,7 +1663,7 @@ endimprovedphase:
 						Timers.ATime.Reset();
 						Timers.ATime.Start();
 					}
-					if (pthread_mutex_lock(&mParam[use_device][iMergeThread[use_device]].mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+					if (pthread_mutex_lock(&mParam[use_device][iMergeThread[use_device]].mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR locking mergeThreadMutex1: %s - %d\n", __FILE__, __LINE__);
 
 					if (Config->AsyncTiming)
 					{
@@ -1674,7 +1674,7 @@ endimprovedphase:
 					mParam[use_device][iMergeThread[use_device]].nContext = oldj[use_device];
 					mParam[use_device][iMergeThread[use_device]].dst = C + (lastn * Config->Height + lastm * C_pitch * Config->Height);
 					mParam[use_device][iMergeThread[use_device]].k = lastk[use_device];
-					if (pthread_mutex_unlock(&mParam[use_device][iMergeThread[use_device]].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+					if (pthread_mutex_unlock(&mParam[use_device][iMergeThread[use_device]].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mergeThreadMutex0: %s - %d\n", __FILE__, __LINE__);
 					iMergeThread[use_device] = (iMergeThread[use_device] + 1) % outputthreads;
 				}
 
@@ -1694,8 +1694,8 @@ endimprovedphase:
 			if (dParam[l].curDevice != dParam[l].firstDevice)
 			{
 				dParam[l].reset = 1;
-				if (pthread_mutex_unlock(&DGEMMTasks[dParam[l].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-				if (pthread_mutex_lock(&DGEMMTasks[dParam[l].firstDevice].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+				if (pthread_mutex_unlock(&DGEMMTasks[dParam[l].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex_start: %s - %d\n", __FILE__, __LINE__);
+				if (pthread_mutex_lock(&DGEMMTasks[dParam[l].firstDevice].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex_finished: %s - %d\n", __FILE__, __LINE__);
 			}
 		}
 	}
@@ -2097,7 +2097,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 				cblas_wrapper((void*) &cParam);
 			}
-			if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+			if (pthread_mutex_unlock(&cParam.cblasMutex[1])) fprintf(STD_OUT, "ERROR unlocking cblasMutex1: %s - %d\n", __FILE__, __LINE__);
 		}
 		else if (Config->LinpackSwapN != NULL)
 		{
@@ -2187,7 +2187,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				Timers.ATime.Start();
 			}
 			if (Config->Debug) fprintf(STD_OUT, "Waiting for CPU DGEMM to finish\n");
-			if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+			if (pthread_mutex_lock(&cParam.cblasMutex[0])) fprintf(STD_OUT, "ERROR locking cblasMutex0: %s - %d\n", __FILE__, __LINE__);
 			if (Config->MultiThread)
 			{
 				Timers.ATime.Stop();
@@ -2287,7 +2287,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task 
 			Timers.ATime.Start();
 		}
 		pthread_mutex_unlock(&device_mutex[Task.device]);
-		if (pthread_mutex_lock(&obufferMutex[Task.device][Task.j])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_lock(&obufferMutex[Task.device][Task.j])) fprintf(STD_OUT, "ERROR locking obufferMutex: %s - %d\n", __FILE__, __LINE__);
 		pthread_mutex_lock(&device_mutex[Task.device]);
 		if (Config->AsyncTiming)
 		{
@@ -2326,8 +2326,8 @@ int caldgemm::ExitCALDGEMM()
 			{
 				if (Config->Debug) fprintf(STD_OUT, "Trying to terminate merge slave %d\n", i);
 				mParam[num_device][i].terminate = true;
-				if (pthread_mutex_lock(&mParam[num_device][i].mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
-				if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mergemutex %d/1 to terminate slave\n", i);
+				if (pthread_mutex_lock(&mParam[num_device][i].mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR locking mergeThreadMutex1: %s - %d\n", __FILE__, __LINE__);
+				if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[0])) fprintf(STD_OUT, "ERROR unlocking mergeThreadMutex0: %s - %d\n", __FILE__, __LINE__);
 			}
 		}
 	}
@@ -2351,8 +2351,8 @@ int caldgemm::ExitCALDGEMM()
 	if (Config->AlternateLookahead)
 	{
 		pthread_mutex_unlock(&alternateLinpackMutex);
-		if (pthread_mutex_destroy(&alternateLinpackMutex)) fprintf(STD_OUT, "ERROR destroying mutex: %s - %d\n", __FILE__, __LINE__);
-		if (pthread_mutex_destroy(&tilesRemainingMutex)) fprintf(STD_OUT, "ERROR destroying mutex: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_destroy(&alternateLinpackMutex)) fprintf(STD_OUT, "ERROR destroying alternateLinpackMutex: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_destroy(&tilesRemainingMutex)) fprintf(STD_OUT, "ERROR destroying tilesRemainingMutex: %s - %d\n", __FILE__, __LINE__);
 	}
 
 	if (Config->MultiThread)
@@ -2361,9 +2361,9 @@ int caldgemm::ExitCALDGEMM()
 		linpackParameters.terminate = true;
 		if (pthread_mutex_unlock(&linpackParameters.linpackMutex[0])) fprintf(STD_OUT, "ERROR unlocking blas mutex 0 to terminate thread\n");
 		if (Config->Debug) fprintf(STD_OUT, "Waiting for linpack slave to terminate\n");
-		if (pthread_mutex_lock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
-		for (int i = 0;i < 2;i++) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[i])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-		for (int i = 0;i < 2;i++) if (pthread_mutex_destroy(&linpackParameters.linpackMutex[i])) fprintf(STD_OUT, "ERROR destroying mutex: %s - %d\n", __FILE__, __LINE__);
+		if (pthread_mutex_lock(&linpackParameters.linpackMutex[1])) fprintf(STD_OUT, "ERROR locking linpackMutex1: %s - %d\n", __FILE__, __LINE__);
+		for (int i = 0;i < 2;i++) if (pthread_mutex_unlock(&linpackParameters.linpackMutex[i])) fprintf(STD_OUT, "ERROR unlocking linpackMutex: %s - %d\n", __FILE__, __LINE__);
+		for (int i = 0;i < 2;i++) if (pthread_mutex_destroy(&linpackParameters.linpackMutex[i])) fprintf(STD_OUT, "ERROR destroying linpackMutex: %s - %d\n", __FILE__, __LINE__);
 
 		if (UseOutputPthreads())
 		{
@@ -2372,7 +2372,7 @@ int caldgemm::ExitCALDGEMM()
 			{
 				for (int num_device = 0;num_device < nDevices;num_device++)
 				{
-					if (pthread_mutex_lock(&mParam[num_device][i].mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+					if (pthread_mutex_lock(&mParam[num_device][i].mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR locking mergeThreadMutex1: %s - %d\n", __FILE__, __LINE__);
 				}
 			}
 		}
@@ -2382,9 +2382,9 @@ int caldgemm::ExitCALDGEMM()
 			for (int i = 0;i < divideThreads;i++)
 			{
 				dParam[i].terminate = 1;
-				if (pthread_mutex_unlock(&DGEMMTasks[dParam[i].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+				if (pthread_mutex_unlock(&DGEMMTasks[dParam[i].curDevice].mutex_start)) fprintf(STD_OUT, "ERROR unlocking mutex_start: %s - %d\n", __FILE__, __LINE__);
 				if (Config->Debug) fprintf(STD_OUT, "Waiting for divide threads to terminate\n");
-				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex: %s - %d\n", __FILE__, __LINE__);
+				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking mutex_finished: %s - %d\n", __FILE__, __LINE__);
 			}
 		}
 	}
@@ -2404,8 +2404,8 @@ int caldgemm::ExitCALDGEMM()
 				{
 					for (int j = 0;j < 2;j++)
 					{
-						if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-						if (pthread_mutex_destroy(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "AAA ERROR destroying merge thread mutex device %d context %d mutex %d\n", num_device, i, j);
+						if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "ERROR unlocking mergeThreadMutex: %s - %d\n", __FILE__, __LINE__);
+						if (pthread_mutex_destroy(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "ERROR destroying merge thread mutex device %d context %d mutex %d\n", num_device, i, j);
 					}
 				}
 			}
@@ -2426,7 +2426,7 @@ int caldgemm::ExitCALDGEMM()
 		{
 			for (int i = 0;i < nDevices;i++)
 			{
-				if (pthread_mutex_destroy(&device_mutex[i])) fprintf(STD_OUT, "ERROR destroying mutex: %s - %d\n", __FILE__, __LINE__);
+				if (pthread_mutex_destroy(&device_mutex[i])) fprintf(STD_OUT, "ERROR destroying device_mutex: %s - %d\n", __FILE__, __LINE__);
 			}
 		}
 	}
