@@ -2399,10 +2399,13 @@ int caldgemm::ExitCALDGEMM()
 			for (int num_device = 0;num_device < nDevices;num_device++)
 			{
 				for (int i = 0;i < obuffercount;i++) if (pthread_mutex_destroy(&obufferMutex[num_device][i])) fprintf(STD_OUT, "ERROR destroying obuffermutex %d for device %d\n", i, num_device);
-				for (int i = 0;i < max_outputthreads;i++) for (int j = 0;j < 2;j++)
+				for (int i = 0;i < max_outputthreads;i++)
 				{
-					if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
-					if (pthread_mutex_destroy(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "ERROR destroying merge thread mutex %d/%d for device %d\n", i, j, num_device);
+					for (int j = 0;j < 2;j++)
+					{
+						if (pthread_mutex_unlock(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "ERROR unlocking mutex: %s - %d\n", __FILE__, __LINE__);
+						if (pthread_mutex_destroy(&mParam[num_device][i].mergeThreadMutex[j])) fprintf(STD_OUT, "AAA ERROR destroying merge thread mutex device %d context %d mutex %d\n", num_device, i, j);
+					}
 				}
 			}
 		}
