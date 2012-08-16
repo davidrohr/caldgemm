@@ -272,7 +272,7 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 		CHKRET(cudaStreamSynchronize(cuda_command_queues[Task.device][Task.j]), "Synchronizing CUDA Stream");
 		Timers.Kernel.Start();
 	}
-	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %lf beta %lf pitch %d\n", (int) height1, (int) height2, (int) width, Alpha, Beta, (int) pitch);
+	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d\n", (int) height1, (int) height2, (int) width, Alpha, Beta, (int) pitch);
 	dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
 	CUDAKernel <<<blocks, threads, 0, cuda_command_queues[Task.device][Task.j]>>> (cbuffer, abuffer, bbuffer, height1, height2, width, Alpha, Beta, pitch);
 	CHKRET(cudaGetLastError(), "CUDA Kernel Execution");

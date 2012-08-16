@@ -1309,7 +1309,7 @@ int caldgemm_cal::RunProgram(CALcontext *ctx, CALmodule *module, unsigned int Wi
 	{
 		if (event) WAITFOREVENTA(*ctx, *event);
 		Timers.Kernel.Stop();
-		if (Config->Debug) fprintf(STD_OUT, "\tTotal Kernel Time: %2.4lf\n", Timers.Kernel.GetElapsedTime());
+		if (Config->Debug) fprintf(STD_OUT, "\tTotal Kernel Time: %2.4f\n", Timers.Kernel.GetElapsedTime());
 	}
 
 	return(0);

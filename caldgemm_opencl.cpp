@@ -459,7 +459,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		clFinish(ocl_command_queues[Task.device][Task.j]);
 		Timers.Kernel.Start();
 	}
-	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %lf beta %lf\n", height1, height2, width, Alpha, Beta);
+	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f\n", height1, height2, width, Alpha, Beta);
 	cl_event* kernel_event;
 	if (Config->DstMemory == 'g') kernel_event = NULL;
 	else kernel_event = &ocl_events[Task.device][Task.j];

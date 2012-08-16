@@ -272,11 +272,11 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 #ifndef _WIN32
 						fprintf(STD_OUT, "\33[%sm%d\33[%sm", ok ? "01;32" : "01;31", ok, tmpcolor);
 #endif
-						fprintf(STD_OUT, "%+10.3lf\t", M[jj * pitch + ii]);
+						fprintf(STD_OUT, "%+10.3f\t", M[jj * pitch + ii]);
 					}
 					else
 					{
-						fprintf(STD_OUT, " %+10.3lf\t", M[jj * pitch + ii]);
+						fprintf(STD_OUT, " %+10.3f\t", M[jj * pitch + ii]);
 					}
 				}
 			}
@@ -1002,7 +1002,7 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 							else
 							{
 								Timers.BcastTimer.Stop();
-								if (!Config->NoPerformanceWarnings && Timers.BcastTimer.GetElapsedTime() > 1.0) fprintf(STD_OUT, "Bcast core idle for %2.4lf seconds\n", Timers.BcastTimer.GetElapsedTime());
+								if (!Config->NoPerformanceWarnings && Timers.BcastTimer.GetElapsedTime() > 1.0) fprintf(STD_OUT, "Bcast core idle for %2.4f seconds\n", Timers.BcastTimer.GetElapsedTime());
 
 								int require_threads_new = require_threads_base;
 								if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
@@ -1240,7 +1240,7 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		if (Config->Debug)
 		{
 		    mergeTimer.Stop();
-		    fprintf(STD_OUT, "\t\tMerge time: %2.3lf\n", mergeTimer.GetElapsedTime());
+		    fprintf(STD_OUT, "\t\tMerge time: %2.3f\n", mergeTimer.GetElapsedTime());
 		}
 		if (ExecLinpack && Config->AlternateLookahead > matrix_n) CheckAlternateTilesRemaining(blockm);
 		
@@ -1336,7 +1336,7 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 #else
 	const int kernel_num = (reinterpret_cast<unsigned long long int &>(Alpha) == double_one);
 #endif
-	if (Config->Debug && Config->UseGPU) fprintf(STD_OUT, "Using Kernel %d (alpha=0x%llX (%2.3lf), width = %lld)\n", kernel_num, (reinterpret_cast<long long int &>(Alpha)), Alpha, (long long int) Config->Width);
+	if (Config->Debug && Config->UseGPU) fprintf(STD_OUT, "Using Kernel %d (alpha=0x%llX (%2.3f), width = %lld)\n", kernel_num, (reinterpret_cast<long long int &>(Alpha)), Alpha, (long long int) Config->Width);
 
 	int oldj[max_devices];
 	int j[max_devices];
@@ -1669,7 +1669,7 @@ endimprovedphase:
 					if (Config->AsyncTiming)
 					{
 						Timers.ATime.Stop();
-						if ((!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001) || Config->Debug) fprintf(STD_OUT, "\t\tWARNING: Wait Time for merge thread: %1.5lf\n", Timers.ATime.GetElapsedTime());
+						if ((!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001) || Config->Debug) fprintf(STD_OUT, "\t\tWARNING: Wait Time for merge thread: %1.5f\n", Timers.ATime.GetElapsedTime());
 					}
 					if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking outputthread mutex %d to process device %d obuffer %d\n", iMergeThread[use_device], use_device, oldj[use_device]);
 					mParam[use_device][iMergeThread[use_device]].nContext = oldj[use_device];
@@ -1779,7 +1779,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		tmpt = TransA;TransA = TransB;TransB = tmpt;
 	}
 
-	if (!Config->Quiet) fprintf(STD_OUT, "Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%lf Beta=%lf LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", (long long int) matrix_m, (long long int) Config->Width, (long long int) matrix_n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA), (int) (TransB), (int) (orderColMajor), (long long int) A, (long long int) B, (long long int) C, (long long int) ((size_t) C - (size_t) A) / sizeof(double), (long long int) ((size_t) C - (size_t) B) / sizeof(double) / Config->Width);
+	if (!Config->Quiet) fprintf(STD_OUT, "Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%f Beta=%f LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", (long long int) matrix_m, (long long int) Config->Width, (long long int) matrix_n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA), (int) (TransB), (int) (orderColMajor), (long long int) A, (long long int) B, (long long int) C, (long long int) ((size_t) C - (size_t) A) / sizeof(double), (long long int) ((size_t) C - (size_t) B) / sizeof(double) / Config->Width);
 
 	TransposeA = TransA;
 	TransposeB = TransB;    
@@ -1978,10 +1978,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			const int require_threads = outputthreads * nDevices + 1 + (ExecLinpack && Config->LinpackNodes > 1);
 			const double CPUscale = (double) (conf_cpufreq * mymax(conf_numprocs - require_threads, 1)) / (double) (2100 * (24 - require_threads));
 			const double GPUscale = (double) nDevices * conf_gpushaders * conf_gpufreq / (double) (850 * 20 * 64);
-			if (Config->Debug) fprintf(STD_OUT, "GPU Curve Ration: %1.3lf, CPUScale %1.3lf, GPUScale %1.3lf\n", GPURatio, CPUscale, GPUscale);
+			if (Config->Debug) fprintf(STD_OUT, "GPU Curve Ration: %1.3f, CPUScale %1.3f, GPUScale %1.3f\n", GPURatio, CPUscale, GPUscale);
 			GPURatio = GPUscale * GPURatio / (GPUscale * GPURatio + (1.0 - GPURatio) * CPUscale);
 		
-			if (Config->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.3lf\n", GPURatio);
+			if (Config->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.3f\n", GPURatio);
 			if (GPURatio > 1.) GPURatio = 1.0;
 			if ((matrix_n + 4) % 4096 < 8 && GPURatio > 0.5) GPURatio = 1. - 0.95 * (1. - GPURatio);
 		}
@@ -2001,12 +2001,12 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			if (linpack_last_mn[ExecLinpack] > 0 && (((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackGPURatios[ExecLinpack] > 0.0001)
 			{
 				GPURatio = linpackGPURatios[ExecLinpack];
-				if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3lf\n", ExecLinpack, 100 * GPURatio);
+				if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3f\n", ExecLinpack, 100 * GPURatio);
 			}
 			else
 			{
 				linpackGPURatios[ExecLinpack] = GPURatio;
-				if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3lf\n", ExecLinpack, 100 * GPURatio);
+				if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3f\n", ExecLinpack, 100 * GPURatio);
 			}
 		}
 		if (Config->GPURatio < 0 && Config->GPURatio > -0.99 && GPURatio < -Config->GPURatio) GPURatio = -Config->GPURatio;
@@ -2082,7 +2082,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		}
 		DGEMM_favor_m = (Config->LinpackSwapN == NULL && (ExecLinpack == 0 || Config->AlternateLookahead <= matrix_n)) ? (gpu_m >= gpu_n) : 1;
 	
-		if (!Config->Quiet) fprintf(STD_OUT, "Ratio %lf - gpu_m %lld gpu_n %lld - Split %c Favor %c - Tiling %lld\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) SmallTileHeight);
+		if (!Config->Quiet) fprintf(STD_OUT, "Ratio %f - gpu_m %lld gpu_n %lld - Split %c Favor %c - Tiling %lld\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) SmallTileHeight);
 	
 		//printThreadPinning();
 	
@@ -2195,11 +2195,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				cpu_wait_time = Timers.ATime.GetElapsedTime();
 				if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15 && cParam.cblas_size > 0)
 				{
-					fprintf(STD_OUT, "WARNING: CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
+					fprintf(STD_OUT, "WARNING: CPU synchronisation took %2.4f sec\n", Timers.ATime.GetElapsedTime());
 				}
 				else if (Config->Debug)
 				{
-					fprintf(STD_OUT, "CPU synchronisation took %2.4lf sec\n", Timers.ATime.GetElapsedTime());
+					fprintf(STD_OUT, "CPU synchronisation took %2.4f sec\n", Timers.ATime.GetElapsedTime());
 				}
 			}
 		}
@@ -2234,7 +2234,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (!Config->NoPerformanceWarnings && Config->UseCPU && Config->UseGPU && !CPUOnlyRun && fabs(Timers.TotalCPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()) > 1.0)
 	{
-		fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4lf, CPU Time: %2.4lf (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime(), (long long int) matrix_m, (long long int) matrix_n);
+		fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4f, CPU Time: %2.4f (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime(), (long long int) matrix_m, (long long int) matrix_n);
 	}
 	displayMatrixTiming("caldgemm");
 	A = orig_a;
@@ -2257,7 +2257,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		}
 		const double tmpratio = cpu_wait_time > 0.15 ? 0.0 : 0.5;
 		const double newratio = tmpratio * linpackGPURatios[ExecLinpack] + (1.0 - tmpratio) * gpu_ratio_used;
-		if (Config->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.3lf, new: %2.3lf, factor: %2.3lf) => %2.3lf\n", ExecLinpack, 100 * linpackGPURatios[ExecLinpack], 100 * gpu_ratio_used, tmpratio, 100 * newratio);
+		if (Config->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.3f, new: %2.3f, factor: %2.3f) => %2.3f\n", ExecLinpack, 100 * linpackGPURatios[ExecLinpack], 100 * gpu_ratio_used, tmpratio, 100 * newratio);
 
 		linpackGPURatios[ExecLinpack] = newratio;
 		linpackCPUDGEMMTime[ExecLinpack] = Timers.CPUTimer.GetElapsedTime();
@@ -2293,7 +2293,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task 
 		if (Config->AsyncTiming)
 		{
 			Timers.ATime.Stop();
-			if ((!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001) || Config->Debug) fprintf(STD_OUT, "\t\tWait Time for output buffer: %1.5lf\n", Timers.ATime.GetElapsedTime());
+			if ((!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() > 0.001) || Config->Debug) fprintf(STD_OUT, "\t\tWait Time for output buffer: %1.5f\n", Timers.ATime.GetElapsedTime());
 		}
 	}
 	size_t blockm, blockn;
@@ -2590,7 +2590,7 @@ void caldgemm::displayMatrixTiming(const char* name)
 	double gflops_CPU = (double) 1e-09 * orig_m * orig_n * (2 * Config->Width + 2) * (double) Config->Iterations / Timers.System.GetElapsedTime();
 	avggflops = ((double) avgngflops * avggflops + gflops_CPU) / (double) (avgngflops + 1);
 	avgngflops++;
-	if (!Config->Quiet || (Config->DisplayTiming /*&& matrix_m * matrix_n >= 16 * 24 * 1024 * 1024*/)) fprintf(STD_OUT, "%sProgram: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3lf System Gflops %2.3lf\n", Config->PreOut, name, 
+	if (!Config->Quiet || (Config->DisplayTiming /*&& matrix_m * matrix_n >= 16 * 24 * 1024 * 1024*/)) fprintf(STD_OUT, "%sProgram: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3f System Gflops %2.3f\n", Config->PreOut, name, 
 		(long long int) orig_m, (long long int) Config->Width, (long long int) Config->Width, (long long int) orig_n, (long long int) orig_m, (long long int) orig_n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
 	if (Config->UseCPU == true && Config->UseGPU == true)
 	{
@@ -2613,7 +2613,7 @@ void caldgemm::displayMatrixTiming(const char* name)
 		
 		if (Config->GPUClock && matrix_m * matrix_n >= 24 * 24 * 1024 * 1024 && flopsg <= (double) 460 * (double) Config->GPUClock / (double) 850 - (double) 20)
 		{
-			fprintf(STD_OUT, "%sThrottling: %s (%2.3lf GFlops)\n", Config->PreOut, hostname, flopsg);
+			fprintf(STD_OUT, "%sThrottling: %s (%2.3f GFlops)\n", Config->PreOut, hostname, flopsg);
 		}
 
 		const double gpu_ratio_used_new = flopsg / (flopsc * (Timers.System.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() - Timers.LinpackTimer2.GetElapsedTime() - Timers.LinpackTimer3.GetElapsedTime()) / Timers.System.GetElapsedTime() + flopsg);
@@ -2621,11 +2621,11 @@ void caldgemm::displayMatrixTiming(const char* name)
 		{
 			char timingoutputbase[1024];
 			char *timingoutput = timingoutputbase;
-			timingoutput += sprintf(timingoutput, "%sGPU Time %2.4lf (%2.4lf Gflops)   CPU Time %2.4lf (%2.4lf Gflops)", Config->PreOut, Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
-			if (ExecLinpack) timingoutput += sprintf(timingoutput, "   Linpack Time: %2.4lf (%d, %2.4lf, %2.4lf)  Total CPU Time: %2.4lf", Timers.LinpackTimer1.GetElapsedTime(), ExecLinpack, Timers.LinpackTimer2.GetElapsedTime(), Timers.LinpackTimer3.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime());
+			timingoutput += sprintf(timingoutput, "%sGPU Time %2.4f (%2.4f Gflops)   CPU Time %2.4f (%2.4f Gflops)", Config->PreOut, Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
+			if (ExecLinpack) timingoutput += sprintf(timingoutput, "   Linpack Time: %2.4f (%d, %2.4f, %2.4f)  Total CPU Time: %2.4f", Timers.LinpackTimer1.GetElapsedTime(), ExecLinpack, Timers.LinpackTimer2.GetElapsedTime(), Timers.LinpackTimer3.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime());
 			if (Config->TabularTiming)
 			{
-				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.3lf Corrected: %2.3lf Guessed: %2.3lf , m*n: %.1E, CPU Wait Time: %2.3lf", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, gpu_ratio_used, (double) (matrix_m * matrix_n), cpu_wait_time);
+				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.3f Corrected: %2.3f Guessed: %2.3f , m*n: %.1E, CPU Wait Time: %2.3f", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, gpu_ratio_used, (double) (matrix_m * matrix_n), cpu_wait_time);
 			}
 			sprintf(timingoutput, "\n");
 			fwrite(timingoutputbase, 1, strlen(timingoutputbase), STD_OUT);
@@ -2643,10 +2643,10 @@ void caldgemm::displayMatrixTiming(const char* name)
 		double copyMerge = Config->MultiThread || UseOutputPthreads() == 0 ? 0 :((double) 1e-09 * matrix_m * matrix_n * sizeof(double) * (double)Config->Iterations / Timers.CounterMerge.GetElapsedTime());
 		double copyDivide = UseInputPthreads() ? (double) 1e-09 * (Config->Height * Timers.divideA + Config->Height * Timers.divideB) * Config->Width * sizeof(double) * (double)Config->Iterations / Timers.CounterDivide.GetElapsedTime() : 0;
 		fprintf(STD_OUT, "Times:  Kernel                    Divide (%d,%d)            Merge                   Copy To                 Copy From\n", Timers.divideA, Timers.divideB);
-		fprintf(STD_OUT, "        %2.4lf (%2.4lf Gflops)  %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf GB/s)    %2.4lf (%2.4lf Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
+		fprintf(STD_OUT, "        %2.4f (%2.4f Gflops)  %2.4f (%2.4f GB/s)    %2.4f (%2.4f GB/s)    %2.4f (%2.4f GB/s)    %2.4f (%2.4f Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
 		if (Config->TabularTiming)
 		{
-			fprintf(STD_OUT, "TIMES:\tw\t%lld\th\t%lld\tkernel\t%2.4lf\tdivide\t%2.4lf\tmerge\t%2.4lf\tcopyto\t%2.4lf\tcopyfr\t%2.4lf\n", (long long int) Config->Width, (long long int) Config->Height, gflops, copyDivide, copyMerge, copyto, copyfrom);
+			fprintf(STD_OUT, "TIMES:\tw\t%lld\th\t%lld\tkernel\t%2.4f\tdivide\t%2.4f\tmerge\t%2.4f\tcopyto\t%2.4f\tcopyfr\t%2.4f\n", (long long int) Config->Width, (long long int) Config->Height, gflops, copyDivide, copyMerge, copyto, copyfrom);
 		}
 	}
 }
@@ -2664,7 +2664,7 @@ unsigned int caldgemm::AnalyzeResults()
 		Timer.Start();
 		cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, matrix_m, matrix_n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
 		Timer.Stop();
-		if (!Config->Quiet) fprintf(STD_OUT, "CPU Time: %lf Gflops: %lf\n", Timer.GetElapsedTime(), (double)1e-09 * 2 * matrix_m * matrix_n * Config->Width / Timer.GetElapsedTime());
+		if (!Config->Quiet) fprintf(STD_OUT, "CPU Time: %f Gflops: %f\n", Timer.GetElapsedTime(), (double)1e-09 * 2 * matrix_m * matrix_n * Config->Width / Timer.GetElapsedTime());
 
 		int nblocksm = matrix_m / Config->Height + 1;
 		int* errortiles = (int*) malloc((matrix_n / Config->Height + 1) * nblocksm * sizeof(int));
