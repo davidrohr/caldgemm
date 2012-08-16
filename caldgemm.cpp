@@ -1242,7 +1242,8 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		    mergeTimer.Stop();
 		    fprintf(STD_OUT, "\t\tMerge time: %2.3lf\n", mergeTimer.GetElapsedTime());
 		}
-		CheckAlternateTilesRemaining(blockm);
+		if (ExecLinpack && Config->AlternateLookahead > matrix_n) CheckAlternateTilesRemaining(blockm);
+		
 		if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex device %d obuffer %d (Slavethread %d)\n", par->num_device, par->nContext, par->nMergeThread);
 		if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR unlocking mergeThreadMutex1: %s - %d\n", __FILE__, __LINE__);
 		if (pthread_mutex_unlock(&obufferMutex[par->num_device][par->nContext])) fprintf(STD_OUT, "ERROR unlocking obufferMutex: %s - %d\n", __FILE__, __LINE__);
