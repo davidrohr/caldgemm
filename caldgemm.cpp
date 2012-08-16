@@ -541,9 +541,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 			{
 				pthread_mutex_init(&DGEMMTasks[i].mutex_start, NULL);
 				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_start)) fprintf(STD_OUT, "ERROR locking divide start mutex (%d)\n", i);
-				DGEMMTasks[i].thread_running = 0;
-				DGEMMTasks[i].skip_device_to = -1;
-				DGEMMTasks[i].device = i;
 				pthread_mutex_init(&DGEMMTasks[i].mutex_finished, NULL);
 				if (pthread_mutex_lock(&DGEMMTasks[i].mutex_finished)) fprintf(STD_OUT, "ERROR locking divide finish mutex (%d)\n", i);
 				if (Config->GPUMapping[i] == Config->PinMainThread) continue;
@@ -574,6 +571,9 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	for (int l = 0;l < nDevices;l++)
 	{
 		for (int i = 0;i < obuffercount;i++) DGEMMPrepareTaskEventReady[l][i] = false;
+		DGEMMTasks[l].thread_running = 0;
+		DGEMMTasks[l].skip_device_to = -1;
+		DGEMMTasks[l].device = l;
 	}
 
 	if (Config->Debug) fprintf(STD_OUT, "Using %d CPU cores at %d MHz, %d GPUs of %d shaders at %d MHz\n", conf_numprocs, conf_cpufreq, nDevices, conf_gpushaders, conf_gpufreq);
