@@ -362,9 +362,9 @@ const char *caldgemm_cal::ILKernelName =
 #else
 "dcl_literal l1, %d.0, 1.0, -0.5, 2.0\n"
 #ifdef CALDGEMM_SHIFT_TEXTURE
-"dcl_literal l2, " mxstr(CALDGEMM_SHIFT_TEXTURE) ".0, 0x00000003, 0x00000002, 0.0\n"
+"dcl_literal l2, " mxstr(CALDGEMM_SHIFT_TEXTURE) ".0, 0x00000003, 0x00000002, -1.5\n"
 #elif defined(CALDGEMM_SINGLE_BUFFER)
-"dcl_literal l2, 0.0, 0x00000003, 0x00000002, 0.0\n"
+"dcl_literal l2, 0.0, 0x00000003, 0x00000002, -1.5\n"
 #endif
 #endif
 #endif
@@ -394,6 +394,9 @@ const char *caldgemm_cal::ILKernelName =
 #endif
 #endif
 #ifndef CALDGEMM_LATE_EXIT_CONDITION
+#ifdef CALDGEMM_SHIFT_TEXTURE
+"mov r100.z, l2.w\n"
+#endif
 "mov r0.w, l1.z\n"
 #endif
 #else
@@ -485,7 +488,11 @@ const char *caldgemm_cal::ILKernelName =
 "    ge r0.y, r11.x, cb0[1].x\n"				//cmp with width
 #else
 #if (defined(CALDGEMM_DUAL_ENTRY) | defined(CALDGEMM_TRANSPOSED_B) | (defined(CALDGEMM_48) & !defined(CALDGEMM_88))) & !defined(CALDGEMM_DOUBLE_BUFFERS)
+#ifdef CALDGEMM_SHIFT_TEXTURE
+"    add r100.z, r100.z, l1.w\n"
+#else
 "    add r0.z, r0.w, l1.y\n"
+#endif
 "    add r0.w, r0.w, l1.w\n"
 #else
 "    add r0.w, r0.w, l1.y\n"
