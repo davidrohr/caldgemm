@@ -59,6 +59,8 @@ extern "C"
 #define SHM_HUGETLB 04000
 #endif
 
+#include <math.h>
+
 #if !defined(USE_GOTO_BLAS) | defined(_WIN32)
 #include "cmodules/os_low_level_helper.h"
 extern "C" {
@@ -2749,6 +2751,7 @@ unsigned int caldgemm::AnalyzeResults()
 
 bool caldgemm::isDoubleEqual(double a, double b)
 {
+	if (isnan(a) || isnan(b) || isinf(a) || isinf(b)) return(false);
 	double epsilon1 = 1e-6;
 	double epsilon2 = 1e-4;
 
