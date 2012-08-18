@@ -187,6 +187,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	SkipCPUProcessing = false;
 	OutputThreads = -1;
 	RepinDuringActiveWaitForEvent = 0;
+	RepinMainThreadAlways = 0;
 	SleepDuringActiveWait = -1;
 	NumaPinning = false;
 	ThirdPhaseThreshold = 0;
@@ -1373,10 +1374,11 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 
 	if (RunCALDGEMM_Init()) return(0);
 
+
 	bool cpu_k_barrier_hit = false;
 	if (gpu_n && gpu_m)
 	{
-
+		int currentPinning = Config->PinMainThread;
 		for (size_t k = 0;k < nBlocks + 2 * (parallelDevice == -1 ? nDevices : 1);k++)
 		{
 restartkloop:
@@ -1396,7 +1398,7 @@ restartkloop:
 						if (Config->Debug) fprintf(STD_OUT, "Skipping tile %lld (m=%lld n=%lld) for device %d\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device);
 						k++;
 					}
-					if (k == nBlocks && parallelDevice == -1) goto endimprovedphase;
+					if (k == nBlocks && parallelDevice == -1 && Config->DynamicSched) goto endimprovedphase;
 				}
 				if (Config->ImprovedScheduler)
 				{
@@ -1450,7 +1452,7 @@ restartkloop:
 				if (Config->MultiThread) pthread_mutex_unlock(&scheduleMutex);
 			}
 
-			if (ImprovedSchedPhase1 && k >= nBlocks && parallelDevice == -1)
+			if (ImprovedSchedPhase1 && k >= nBlocks && parallelDevice == -1 && Config->DynamicSched)
 			{
 endimprovedphase:
 				if (Config->Debug) fprintf(STD_OUT, "First improved scheduling phase ended\n");
@@ -1462,6 +1464,14 @@ endimprovedphase:
 					forcePreparation[l] = 1;
 				}
 				goto restartkloop;
+			}
+
+			if (Config->RepinMainThreadAlways && currentPinning != Config->AllocMapping[use_device])
+			{
+				cpu_set_t tmpmask;
+				CPU_ZERO(&tmpmask);
+				CPU_SET(Config->AllocMapping[use_device], &tmpmask);
+				sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 			}
 
 			if (k < nBlocks)
@@ -1602,7 +1612,7 @@ endimprovedphase:
 					{
 							must_lock = 1;
 					}
-					else for (int ii = 0;ii < nDevices;ii++)
+					else if (Config->MultiThreadDivide) for (int ii = 0;ii < nDevices;ii++)
 					{
 						if (Config->GPUMapping[ii] != Config->PinMainThread)
 						{
@@ -1686,7 +1696,13 @@ endimprovedphase:
 			lastk[use_device] = k;
 			if (Config->MultiThread && parallelDevice == -1) use_device = (use_device + 1) % nDevices;
 		}
-
+		if (currentPinning != Config->PinMainThread)
+		{
+			cpu_set_t tmpmask;
+			CPU_ZERO(&tmpmask);
+			CPU_SET(Config->PinMainThread, &tmpmask);
+			sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+		}
 	}
 	if (Config->MultiThreadDivide && parallelDevice == -1 && UseInputPthreads())
 	{
@@ -2859,6 +2875,7 @@ void caldgemm::printConfig()
 	}
 	fprintf(STD_OUT, "PinMainThread %d\n", (int) Config->PinMainThread);
 	fprintf(STD_OUT, "RepinDuringActiveWaitForEvent %d\n", (int) Config->RepinDuringActiveWaitForEvent);
+	fprintf(STD_OUT, "RepinMainThreadAlways %d\n", (int) Config->RepinMainThreadAlways);
 	fprintf(STD_OUT, "SleepDuringActiveWait %d\n", (int) Config->SleepDuringActiveWait);
 	fprintf(STD_OUT, "ThreadSaveDriver %d\n", (int) Config->ThreadSaveDriver);
 	fprintf(STD_OUT, "PinCPU %d\n", (int) Config->PinCPU);
