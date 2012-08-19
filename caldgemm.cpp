@@ -1400,7 +1400,7 @@ restartkloop:
 						if (Config->Debug) fprintf(STD_OUT, "Skipping tile %lld (m=%lld n=%lld) for device %d\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device);
 						k++;
 					}
-					if (k == nBlocks && parallelDevice == -1 && Config->DynamicSched) goto endimprovedphase;
+					if (k == nBlocks && parallelDevice == -1 && (Config->DynamicSched || (signed) nBlocks < 2 * nDevices)) goto endimprovedphase;
 				}
 				if (Config->ImprovedScheduler)
 				{
@@ -1454,7 +1454,7 @@ restartkloop:
 				if (Config->MultiThread) pthread_mutex_unlock(&scheduleMutex);
 			}
 
-			if (ImprovedSchedPhase1 && k >= nBlocks && parallelDevice == -1 && Config->DynamicSched)
+			if (ImprovedSchedPhase1 && k >= nBlocks && parallelDevice == -1 && (Config->DynamicSched || (signed) nBlocks < 2 * nDevices))
 			{
 endimprovedphase:
 				if (Config->Debug) fprintf(STD_OUT, "First improved scheduling phase ended\n");
@@ -1474,6 +1474,8 @@ endimprovedphase:
 				CPU_ZERO(&tmpmask);
 				CPU_SET(Config->AllocMapping[use_device], &tmpmask);
 				sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+				if (Config->Debug) fprintf(STD_OUT, "Repinning to %d\n", Config->AllocMapping[use_device]);
+				currentPinning = Config->AllocMapping[use_device];
 			}
 
 			if (k < nBlocks)
