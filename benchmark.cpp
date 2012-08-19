@@ -162,7 +162,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-%%        Skip CPU Pre- and Postprocessing\n");
 	fprintf(STD_OUT, "\t-@ <list> Comma separated list of CPU cores to exclude\n");
 	fprintf(STD_OUT, "\t-.        Repin Main Thread During Active Wait for GPU Event\n");
-	fprintf(STD_OUT, "\t-(        Always repin main thread\n");
+	fprintf(STD_OUT, "\t-~        Always repin main thread\n");
 	fprintf(STD_OUT, "\t-, <int>  Sleep for n usec during active wait\n");
 	fprintf(STD_OUT, "\t-:        Enable NUMA Pinning\n");
 	fprintf(STD_OUT, "\t-/ <list> Comma separated list of GPU devices to use (replaces -y for multiple devices)\n");
@@ -321,7 +321,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 		case '.':
 			Config->RepinDuringActiveWaitForEvent = true;
 			break;
-		case '(':
+		case '~':
 			Config->RepinMainThreadAlways = true;
 			break;
 		case ':':
