@@ -652,7 +652,7 @@ int caldgemm::broadcastcore()
 
 bool caldgemm::cpuUsed(int cpu)
 {
-	if (cpu == Config->PinMainThread) return(true);
+	if (Config->UseGPU && cpu == Config->PinMainThread) return(true);
 	for (int i = 0;i < Config->nExcludeCPUCores;i++) if (Config->ExcludeCPUCores[i] == cpu) return(true);
 	return(false);
 }

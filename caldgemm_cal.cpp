@@ -2252,7 +2252,7 @@ int caldgemm_cal::RunCALDGEMM_Exit()
 
 bool caldgemm_cal::cpuUsed(int cpu)
 {
-	if (cpu == Config->PinMainThread) return(true);
+	if (Config->UseGPU && cpu == Config->PinMainThread) return(true);
 	for (int i = 0;i < nDevices;i++)
 	{
 		int procsreq = 1;
