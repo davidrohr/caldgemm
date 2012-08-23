@@ -68,9 +68,9 @@
 
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH		//Use prefetching in Divide / Merge Buffer
 #define CALDGEMM_STREAMING_STORES_DIVIDE		//Use streaming stores in Divide Buffer
-//#define CALDGEMM_STREAMING_STORES_MERGE		//Use streaming stores in Merge buffer
-//#define CALDGEMM_PREFETCH_MERGE_STORES		//Use prefetching in Merge buffer even when using streaming stores
-#define CALDGEMM_MERGE_NOPS 40					//Add nops to slow down merge process freeing resources for other tasks
+#define CALDGEMM_STREAMING_STORES_MERGE		//Use streaming stores in Merge buffer
+#define CALDGEMM_PREFETCH_MERGE_STORES		//Use prefetching in Merge buffer even when using streaming stores
+#define CALDGEMM_MERGE_NOPS 20					//Add nops to slow down merge process freeing resources for other tasks
 //#define CALDGEMM_MERGE_FLUSH				
 
 //#define CALDGEMM_LDAB_INC 1					//Inc for LDA and LDB to avoid bank conflics
@@ -78,9 +78,9 @@
 //#define CALDGEMM_LDC_INC 0					//see above
 
 #define CALDGEMM_LATE_EXIT_CONDITION			//Put exit condition at end of while loop
-#define CALDGEMM_SHIFT_TEXTURE 1				//Shift even numbered rows in texture by n pixels
+//#define CALDGEMM_SHIFT_TEXTURE 1				//Shift even numbered rows in texture by n pixels
 
-#define CALDGEMM_DIVIDE_STATIC_BUFFER			//Allocate tmpBuffer for divide staticly once and for all
+//#define CALDGEMM_DIVIDE_STATIC_BUFFER			//Allocate tmpBuffer for divide staticly once and for all
 #define CALDGEMM_DIVIDE_BLOCKING 128			//Blocking size for divideBuffer with SHIFT_TEXTURE = 1 (larger multiple of two)
-#define CALDGEMM_DIVIDE_TRANSPOSE_TWOPHASE		//Perform dividebuffer transposition in two phases such that fewer write combining buffers are used, Only works for 2 input buffers per matrix with A transposed!
+//#define CALDGEMM_DIVIDE_TRANSPOSE_TWOPHASE		//Perform dividebuffer transposition in two phases such that fewer write combining buffers are used, Only works for 2 input buffers per matrix with A transposed!
 #define CALDGEMM_TRANSPOSE_BLOCKING 8			//Blocking factor for the transposition (multiple of 2)
