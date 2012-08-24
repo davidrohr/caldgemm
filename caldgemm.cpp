@@ -1782,7 +1782,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	matrix_m = tmp_m;
 	matrix_n = tmp_n;
 	if ((signed) tmp_k != -1) Config->Width = tmp_k;
-
+	
 	A_pitch = ((signed) Apitch != -1) ? Apitch : Config->Width;
 	B_pitch = ((signed) Bpitch != -1) ? Bpitch : matrix_n;
 	C_pitch = ((signed) Cpitch != -1) ? Cpitch : matrix_n;
@@ -1969,7 +1969,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		if (forceReinit)
 		{
-			if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Reinit for increased buffer width / height\n");
+			fprintf(STD_OUT, "WARNING: Reinit for increased buffer width / height\n");
+			fprintf(STD_OUT, "Reinit not yet implemented correctly, exiting");
+			exit(1);
 			if (ReinitDevices()) return(1);
 		}
 
