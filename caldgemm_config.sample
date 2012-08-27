@@ -29,11 +29,11 @@
 //#define CALDGEMM_48							//4x8 tiling (implies memexport)
 #define CALDGEMM_44								//4x4 tiling
 //#define CALDGEMM_USE_MEMEXPORT				//Use Memexport for output instead of color buffers
-//#define CALDGEMM_COMPUTE_SHADER 64				//Use compute shader, define compute group size
+//#define CALDGEMM_COMPUTE_SHADER 64			//Use compute shader, define compute group size
 //#define CALDGEMM_DIAGONAL_TEXTURE				//Alternate storage format, only valid for 4x4 kernel, obsolete
 #define CALDGEMM_DUAL_ENTRY						//Unroll factor of 2 for 4x4 tiling
 //#define CALDGEMM_SINGLE_BUFFER				//Use a single buffer, 4x4 tiling a transposed, experimental
-//#define CALDGEMM_SINGLE_BUFFER_IMPROVED				//Alternative access scheme for single buffer, experimental
+//#define CALDGEMM_SINGLE_BUFFER_IMPROVED		//Alternative access scheme for single buffer, experimental
 //#define CALDGEMM_DUAL_BUFFERS					//Double number of buffers, 4x4 tiling a transposed, experimental
 //#define TESTMODE								//Activate Test Mode for debugging
 //#define TEST_KERNEL
@@ -68,8 +68,8 @@
 
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH		//Use prefetching in Divide / Merge Buffer
 #define CALDGEMM_STREAMING_STORES_DIVIDE		//Use streaming stores in Divide Buffer
-#define CALDGEMM_STREAMING_STORES_MERGE		//Use streaming stores in Merge buffer
-#define CALDGEMM_PREFETCH_MERGE_STORES		//Use prefetching in Merge buffer even when using streaming stores
+#define CALDGEMM_STREAMING_STORES_MERGE			//Use streaming stores in Merge buffer
+#define CALDGEMM_PREFETCH_MERGE_STORES			//Use prefetching in Merge buffer even when using streaming stores
 #define CALDGEMM_MERGE_NOPS 20					//Add nops to slow down merge process freeing resources for other tasks
 //#define CALDGEMM_MERGE_FLUSH				
 
@@ -82,5 +82,5 @@
 
 //#define CALDGEMM_DIVIDE_STATIC_BUFFER			//Allocate tmpBuffer for divide staticly once and for all
 #define CALDGEMM_DIVIDE_BLOCKING 128			//Blocking size for divideBuffer with SHIFT_TEXTURE = 1 (larger multiple of two)
-//#define CALDGEMM_DIVIDE_TRANSPOSE_TWOPHASE		//Perform dividebuffer transposition in two phases such that fewer write combining buffers are used, Only works for 2 input buffers per matrix with A transposed!
+//#define CALDGEMM_DIVIDE_TRANSPOSE_TWOPHASE	//Perform dividebuffer transposition in two phases such that fewer write combining buffers are used, Only works for 2 input buffers per matrix with A transposed!
 #define CALDGEMM_TRANSPOSE_BLOCKING 8			//Blocking factor for the transposition (multiple of 2)
