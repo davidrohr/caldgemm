@@ -815,33 +815,35 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int require_threads
 	const CBLAS_TRANSPOSE TransposeB = this->TransposeB ? CblasTrans : CblasNoTrans;
 	const size_t A_pitch_use = (this->TransposeA ? 1 : A_pitch);
 
-	if (Config->AlternateLookahead > matrix_n)
+	if (ExecLinpack >= 2)
 	{
-		if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tWaiting for GPUs to finish initial DGEMM part to start Linpack factorization\n");
-		pthread_mutex_lock(&alternateLinpackMutex);
-		_mm_mfence();
+		if (Config->AlternateLookahead > matrix_n)
+		{
+			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tWaiting for GPUs to finish initial DGEMM part to start Linpack factorization\n");
+			pthread_mutex_lock(&alternateLinpackMutex);
+			_mm_mfence();
+		}
+		else
+		{
+			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tDoing initial cblas runs to prepare Linpack factorization\n");
+			Timers.CPUTimer.Start();
+			cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->Width, matrix_n, Config->Width, Alpha, A - Config->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Config->Width * C_pitch, C_pitch);
+			Timers.CPUTimer.Stop();
+		}
+		if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tStarting Linpack factorization\n");
+		if (Config->HPLFactorizeRestrictCPUs == 1)
+		{
+			if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
+		}
+		else if (Config->HPLFactorizeRestrictCPUs >= 2)
+		{
+			caldgemm_goto_restrict_cpus(Config->HPLFactorizeRestrictCPUs);
+		}
+		Timers.LinpackTimer1.Start();
+		Config->linpack_factorize_function();
+		Timers.LinpackTimer1.Stop();
+		if (Config->HPLFactorizeRestrictCPUs >= 2) caldgemm_goto_restrict_cpus(0);
 	}
-	else
-	{
-		if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tDoing initial cblas runs to prepare Linpack factorization\n");
-		Timers.CPUTimer.Start();
-		cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, Config->Width, matrix_n, Config->Width, Alpha, A - Config->Width * A_pitch_use, A_pitch, B, B_pitch, Beta, C - Config->Width * C_pitch, C_pitch);
-		Timers.CPUTimer.Stop();
-	}
-#ifndef NO_ASYNC_LINPACK
-	if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tStarting Linpack factorization\n");
-	if (Config->HPLFactorizeRestrictCPUs == 1)
-	{
-		if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
-	}
-	else if (Config->HPLFactorizeRestrictCPUs >= 2)
-	{
-		caldgemm_goto_restrict_cpus(Config->HPLFactorizeRestrictCPUs);
-	}
-	Timers.LinpackTimer1.Start();
-	Config->linpack_factorize_function();
-	Timers.LinpackTimer1.Stop();
-	if (Config->HPLFactorizeRestrictCPUs >= 2) caldgemm_goto_restrict_cpus(0);
 	goto_set_num_threads(old_goto_threads - require_threads);
 
 	if (Config->LinpackNodes > 1)
@@ -857,7 +859,6 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int require_threads
 			Timers.LinpackTimer2.Stop();
 		}
 	}
-#endif
 }
 
 void* caldgemm::cblas_wrapper(void* arg)
@@ -1081,12 +1082,10 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 		} while (cpuScheduler());
 		Timers.CPUTimer.Stop();
 
-#ifndef NO_ASYNC_LINPACK
 		if (linpackfinished == false && ExecLinpack && Config->MultiThread && Config->LinpackNodes > 1)
 		{
 			pthread_mutex_lock(&linpackParameters.linpackMutex[1]);
 		}
-#endif
 		Timers.TotalCPUTimer.Stop();
 		goto_set_num_threads(old_goto_threads);
 		caldgemm_goto_reserve_cpus(0);
@@ -1245,7 +1244,7 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		    mergeTimer.Stop();
 		    fprintf(STD_OUT, "\t\tMerge time: %2.3f\n", mergeTimer.GetElapsedTime());
 		}
-		if (ExecLinpack && Config->AlternateLookahead > matrix_n) CheckAlternateTilesRemaining(blockm);
+		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n) CheckAlternateTilesRemaining(blockm);
 		
 		if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex device %d obuffer %d (Slavethread %d)\n", par->num_device, par->nContext, par->nMergeThread);
 		if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR unlocking mergeThreadMutex1: %s - %d\n", __FILE__, __LINE__);
@@ -1303,7 +1302,7 @@ void caldgemm::WaitForLASWP(size_t n)
 	if (Config->LinpackSwapN != NULL)
 	{
 		int shown = false;
-		while (*Config->LinpackSwapN < (n + 1) * Config->Height + (ExecLinpack && Config->AlternateLookahead <= matrix_n ? Config->Width : 0) && *Config->LinpackSwapN < gpu_m)
+		while (*Config->LinpackSwapN < (n + 1) * Config->Height + (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n ? Config->Width : 0) && *Config->LinpackSwapN < gpu_m)
 		{
 			if (Config->Debug && shown == false)
 			{
@@ -1646,7 +1645,7 @@ endimprovedphase:
 					{
 						if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
 						if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], (lastn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, (lastm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferHeight, BufferHeight, C_pitch)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
-						if (ExecLinpack && Config->AlternateLookahead > matrix_n)
+						if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n)
 						{
 							CheckAlternateTilesRemaining(lastm);
 						}
@@ -1825,7 +1824,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	Timers.System.Start();
 	
-	if (ExecLinpack && Config->AlternateLookahead <= matrix_n)
+	if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n)
 	{
 		if (matrix_m < Config->Width)
 		{
@@ -1922,7 +1921,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 		if (Config->Debug) fprintf(STD_OUT, "Running CPU only DGEMM\n");
 		if (Config->LinpackSwapN != NULL) Config->linpack_swap_function();
-#ifndef NO_ASYNC_LINPACK
 		if (ExecLinpack)
 		{
 			Timers.CPUTimer.Start();
@@ -1944,7 +1942,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			A += Config->Width * (TransposeA ? 1 : A_pitch);
 			C += Config->Width * (C_pitch);
 		}
-#endif
 		Timers.CPUTimer.Start();
 
 		goto_set_num_threads(conf_numprocs);
@@ -2035,7 +2032,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		gpu_ratio_used = GPURatio;
 
-		if (ExecLinpack && Config->AlternateLookahead <= matrix_n)
+		if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n)
 		{
 			matrix_m -= Config->Width;
 			A += Config->Width * (TransposeA ? 1 : A_pitch);
@@ -2052,7 +2049,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			if ((DGEMM_split_m = (Config->LinpackSwapN == NULL ? (matrix_m >= matrix_n) : 0)))
 			{
 				size_t virtualm = matrix_m + (matrix_n % SmallTileHeight) * matrix_m / matrix_n;
-				if (ExecLinpack && Config->AlternateLookahead <= matrix_n) virtualm += Config->Width * (0.25 + (float) matrix_m / matrix_n);
+				if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n) virtualm += Config->Width * (0.25 + (float) matrix_m / matrix_n);
 				gpu_m = GPURatio * (float) virtualm + (SmallTileHeight - 1);
 				if (gpu_m > matrix_m)
 				{
@@ -2073,7 +2070,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			else
 			{
 				size_t virtualn = matrix_n + (matrix_m % SmallTileHeight) * matrix_n / matrix_m;
-				if (ExecLinpack && Config->AlternateLookahead <= matrix_n) virtualn += Config->Width * (0.25 + (float) matrix_n / matrix_m);
+				if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n) virtualn += Config->Width * (0.25 + (float) matrix_n / matrix_m);
 				gpu_n = GPURatio * (float) virtualn + (SmallTileHeight - 1);
 				if (gpu_n > matrix_n)
 				{
@@ -2229,11 +2226,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (Config->LinpackSwapN != NULL) *Config->LinpackSwapN = 0;
 	outputthreads = old_outputthreads;
 
-#ifndef NO_ASYNC_LINPACK
 	if (!Config->UseCPU && ExecLinpack)
-#else
-	if (ExecLinpack)
-#endif
 	{
 		if (!Config->Quiet) fprintf(STD_OUT, "No asynchronous processing of linpack functions possible, executing linpack callback functions\n");
 		Timers.LinpackTimer1.Start();
@@ -2624,12 +2617,12 @@ void caldgemm::displayMatrixTiming(const char* name)
 		}
 		else if (DGEMM_split_m)
 		{
-			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * matrix_n + (matrix_n % SmallTileHeight) * (matrix_m - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack && Config->AlternateLookahead <= matrix_n ? Config->Width * matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * matrix_n + (matrix_n % SmallTileHeight) * (matrix_m - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n ? Config->Width * matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = (double) 1e-09 * ((matrix_m - cParam.cblas_size) * (matrix_n - matrix_n % SmallTileHeight) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / Timers.GPUTimer.GetElapsedTime();
 		}
 		else
 		{
-			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * matrix_m + (matrix_m % SmallTileHeight) * (matrix_n - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack && Config->AlternateLookahead <= matrix_n ? Config->Width * matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * matrix_m + (matrix_m % SmallTileHeight) * (matrix_n - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n ? Config->Width * matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
 			flopsg = (double) 1e-09 * ((matrix_n - cParam.cblas_size) * (matrix_m - matrix_m % SmallTileHeight) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / Timers.GPUTimer.GetElapsedTime();
 		}
 		
