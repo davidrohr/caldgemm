@@ -209,6 +209,7 @@ protected:
 
 	int RunCALDGEMMMain(int parallelDevice = -1);
 	int* tileDistribution;
+	int first_device_k[max_devices];
 
 	struct DGEMMPrepareAndExecuteTask
 	{

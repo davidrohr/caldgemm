@@ -1315,6 +1315,7 @@ void caldgemm::WaitForLASWP(size_t n)
 
 void caldgemm::CheckAlternateTilesRemaining(size_t m)
 {
+	if (Config->Debug) fprintf(STD_OUT, "Checking Alternate Tiles: m = %lld - Remaining = %d\n", (long long int) m, (int) AlternateLookaheadTilesRemaining);
 	if (m <= (Config->Width - 1) / Config->Height)
 	{
 		pthread_mutex_lock(&tilesRemainingMutex);
@@ -1355,7 +1356,17 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 	{
 		memset(j, 0, nDevices * sizeof(int));
 		memset(iMergeThread, 0, nDevices * sizeof(int));
-		memset(next_device_k, 0, nDevices * sizeof(size_t));
+		if (Config->ImprovedScheduler)
+		{
+			for (int i = 0;i < nDevices;i++)
+			{
+				next_device_k[i] = first_device_k[i] == -1 ? 0 : first_device_k[i];
+			}
+		}
+		else
+		{
+			memset(next_device_k, 0, nDevices * sizeof(size_t));
+		}
 	}
 	else
 	{
@@ -1798,7 +1809,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		tmpt = TransA;TransA = TransB;TransB = tmpt;
 	}
 
-	if (!Config->Quiet) fprintf(STD_OUT, "Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%f Beta=%f LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld))\n", (long long int) matrix_m, (long long int) Config->Width, (long long int) matrix_n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA), (int) (TransB), (int) (orderColMajor), (long long int) A, (long long int) B, (long long int) C, (long long int) ((size_t) C - (size_t) A) / sizeof(double), (long long int) ((size_t) C - (size_t) B) / sizeof(double) / Config->Width);
+	if (!Config->Quiet) fprintf(STD_OUT, "Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%f Beta=%f LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld), Linpack=%d)\n", (long long int) matrix_m, (long long int) Config->Width, (long long int) matrix_n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA), (int) (TransB), (int) (orderColMajor), (long long int) A, (long long int) B, (long long int) C, (long long int) ((size_t) C - (size_t) A) / sizeof(double), (long long int) ((size_t) C - (size_t) B) / sizeof(double) / Config->Width, (int) ExecLinpack);
 
 	TransposeA = TransA;
 	TransposeB = TransB;    
@@ -2128,11 +2139,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			if (DGEMM_favor_m)
 			{
-				fprintf(STD_OUT, "Favoring m direction, %lld blocks (%lld x %lld)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
+				fprintf(STD_OUT, "Favoring m direction, %lld blocks (%lld x %lld) (mb x nb)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
 			}
 			else
 			{
-				fprintf(STD_OUT, "Not favoring m direction, %lld blocks (%lld x %lld)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
+				fprintf(STD_OUT, "Not favoring m direction, %lld blocks (%lld x %lld) (mb x nb)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
 			}
 		}
 
@@ -2147,6 +2158,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			if (Config->ImprovedScheduler)
 			{
 				tileDistribution = new int[nBlocks];
+				for (int l = 0;l < nDevices;l++) first_device_k[l] = -1;
 				for (size_t l = 0;l < nBlocks;l++)
 				{
 					size_t blockn, blockm;
@@ -2164,8 +2176,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 						k = blockn + blockm * nb;
 					}
 					tileDistribution[l] = nDevices * k / nBlocks;
+					if (first_device_k[tileDistribution[l]] == -1) first_device_k[tileDistribution[l]] = l;
 
-					//if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", l, tileDistribution[l]);
+					if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", (long long int) l, tileDistribution[l]);
 				}
 			}
 
