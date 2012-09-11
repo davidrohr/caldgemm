@@ -160,6 +160,7 @@ public:
 		int GPUClock;							//GPU clock of the device used (to display throttling information)
 		
 		int HPLFactorizeRestrictCPUs;			//Set 1 to restrct thread count to 8, 2 for dynamic restriction
+		int LASWPSleep;					//Time in usec to sleep during checks whether LASWP is ready
 		volatile size_t *LinpackSwapN;			//Current status of linpack pivoting process
 		void (*linpack_factorize_function)();	//Linpack callback functions
 		void (*linpack_broadcast_function)();
@@ -301,7 +302,7 @@ protected:
 	}
 
 
-	inline void WaitForLASWP(size_t n);
+	inline void WaitForLASWP(size_t blockm);
 	void print_submatrices(double* M, size_t width, size_t height, size_t pitch, size_t subx, size_t suby, size_t stridex, size_t stridey, double* M2 = NULL);
 	int cpuScheduler();
 	int getcpumask(cpu_set_t* set);

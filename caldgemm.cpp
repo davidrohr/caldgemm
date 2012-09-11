@@ -72,6 +72,9 @@ int get_num_procs()
 }
 #endif
 
+extern "C" int HPL_CALDGEMM_gpu_height;
+int HPL_CALDGEMM_gpu_height = 1024;
+
 #ifdef DEBUG_MSG_TIMED
 inline void printelapsedtime(bool reset = false)
 {
@@ -195,6 +198,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	ThirdPhaseThreshold = 0;
 	AlternateLookahead = 0;
 	ParallelDMA = 0;
+	LASWPSleep = 0;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -1297,18 +1301,23 @@ int caldgemm::DumpMatrix(double* a, double* b, double* c, double alpha, double b
 	return(0);
 }
 
-void caldgemm::WaitForLASWP(size_t n)
+void caldgemm::WaitForLASWP(size_t blockm)
 {
 	if (Config->LinpackSwapN != NULL)
 	{
 		int shown = false;
-		while (*Config->LinpackSwapN < (n + 1) * Config->Height + (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n ? Config->Width : 0) && *Config->LinpackSwapN < gpu_m)
+		size_t need = (blockm + 1) * Config->Height;
+		if (need > gpu_m) need = gpu_m;
+		if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n) need += Config->Width;
+		//if (Config->Debug) fprintf(STD_OUT, "Checking LASWP / DTRSM... current: %lld need: %lld\n", (long long int) *Config->LinpackSwapN, (long long int) need);
+		while (*Config->LinpackSwapN < need)
 		{
 			if (Config->Debug && shown == false)
 			{
-				fprintf(STD_OUT, "Waiting for LASWP / DTRSM... %lld of %lld\n", (long long int) *Config->LinpackSwapN, (long long int) (n + 1) * Config->Height);
+				fprintf(STD_OUT, "Waiting for LASWP / DTRSM... current: %lld need: %lld\n", (long long int) *Config->LinpackSwapN, (long long int) need);
 				shown = true;
 			}
+			if (Config->LASWPSleep) usleep(Config->LASWPSleep);
 		}
 	}
 }
@@ -1539,7 +1548,6 @@ endimprovedphase:
 
 				if (next_device_k[use_device] == 0 || obuffercount == 1 || Config->AsyncDMA == false || forcePreparation[use_device])
 				{
-					WaitForLASWP(blockm);
 					Task.PrepareTasks[0].k = k;
 					Task.PrepareTasks[0].j = j[use_device];
 					if (Config->ImprovedScheduler && !ImprovedSchedPhase1)
@@ -1574,7 +1582,6 @@ endimprovedphase:
 					}
 					if ((signed) nextk < cpu_k_barrier)
 					{
-						WaitForLASWP(nextblockm);
 						Task.PrepareTasks[1].k = nextk;
 						Task.PrepareTasks[1].j = (j[use_device] + 1) % obuffercount;
 					}
@@ -1775,8 +1782,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 		if (Config->LinpackSwapN != NULL)
 		{
-		    Config->linpack_swap_function();
-		    Config->LinpackSwapN = 0;
+			HPL_CALDGEMM_gpu_height = 0;
+			Config->linpack_swap_function();
+			Config->LinpackSwapN = 0;
 		}
 
 		if (ExecuteLinpackCallbacks)
@@ -1939,6 +1947,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Config->Height > BufferHeight) Config->Height = BufferHeight;
 		if ((Config->Height != BufferHeight && !Config->Quiet) || Config->Debug)  fprintf(STD_OUT, "Using Height %lld of max %lld\n", (long long int) Config->Height, (long long int) BufferHeight);
 	}
+	HPL_CALDGEMM_gpu_height = Config->Height;
 
 	if (Config->UseGPU && (Config->Width > BufferWidth || Config->Height > BufferHeight)) forceReinit = true;
 
@@ -1948,7 +1957,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (forceCPU)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "Running CPU only DGEMM\n");
-		if (Config->LinpackSwapN != NULL) Config->linpack_swap_function();
+		if (Config->LinpackSwapN != NULL)
+		{
+			HPL_CALDGEMM_gpu_height = 0;
+			Config->linpack_swap_function();
+		}
 		if (ExecLinpack)
 		{
 			Timers.CPUTimer.Start();
@@ -2065,6 +2078,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			matrix_m -= Config->Width;
 			A += Config->Width * (TransposeA ? 1 : A_pitch);
 			C += Config->Width * (C_pitch);
+			HPL_CALDGEMM_gpu_height += Config->Width;
 		}
 
 		cParam.dynamic_run = 0;
@@ -2149,6 +2163,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		}
 		else if (Config->LinpackSwapN != NULL)
 		{
+			HPL_CALDGEMM_gpu_height = 0;
 			Config->linpack_swap_function();
 		}
 
@@ -2824,6 +2839,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DI
 
 	if (prepareM)
 	{
+		WaitForLASWP(blockm);
 		if (DGEMM_favor_m) buffersMajor[num_device] = blockm;
 		else if (buffersSufficiant0)
 		{
