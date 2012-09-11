@@ -1315,7 +1315,7 @@ void caldgemm::WaitForLASWP(size_t n)
 
 void caldgemm::CheckAlternateTilesRemaining(size_t m)
 {
-	if (Config->Debug) fprintf(STD_OUT, "Checking Alternate Tiles: m = %lld - Remaining = %d\n", (long long int) m, (int) AlternateLookaheadTilesRemaining);
+	//if (Config->Debug) fprintf(STD_OUT, "Checking Alternate Tiles: m = %lld - Remaining = %d\n", (long long int) m, (int) AlternateLookaheadTilesRemaining);
 	if (m <= (Config->Width - 1) / Config->Height)
 	{
 		pthread_mutex_lock(&tilesRemainingMutex);
@@ -1391,10 +1391,11 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 	if (gpu_n && gpu_m)
 	{
 		int currentPinning = Config->PinMainThread;
+//		int loop_detect = -1;
 		for (size_t k = 0;k < nBlocks + 2 * (parallelDevice == -1 ? nDevices : 1);k++)
 		{
 restartkloop:
-			//fprintf(STD_OUT, "!!!!! k %lld nd k %lld nextk %lld\n", k, next_device_k[use_device], nextk);
+			//fprintf(STD_OUT, "!!!!! k %lld nd k %lld nextk %lld\n", (long long int) k, (long long int) next_device_k[use_device], (long long int) nextk);
 			if (Config->ImprovedScheduler && !ImprovedSchedPhase1 && tileDistribution[next_device_k[use_device]] < 0) next_device_k[use_device] = 0;
 			if (next_device_k[use_device] != 0) k = next_device_k[use_device];
 			else if (nextk && nextk >= k) k = nextk + 1;
@@ -1407,19 +1408,35 @@ restartkloop:
 				{
 					while (k < nBlocks && tileDistribution[k] != use_device)
 					{
-						if (Config->Debug) fprintf(STD_OUT, "Skipping tile %lld (m=%lld n=%lld) for device %d\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device);
+						if (Config->Debug) fprintf(STD_OUT, "Skipping tile %lld (m=%lld n=%lld) for device %d, will be processed by device %d\n", (long long int) k, (long long int) blockm, (long long int) blockn, use_device, tileDistribution[k]);
 						k++;
 					}
 					if (k == nBlocks && parallelDevice == -1 && (Config->DynamicSched || (signed) nBlocks < 2 * nDevices)) goto endimprovedphase;
 				}
+			}
+			
+			if (k < nBlocks)
+			{
 				if (Config->ImprovedScheduler)
 				{
-					if (tileDistribution[k] < 0)
+					if (k >= nBlocks || tileDistribution[k] < 0)
 					{
-						if (Config->Debug) fprintf(STD_OUT, "Tile %lld (m=%lld n=%lld) already processed, skipping\n", (long long int) k, (long long int) blockm, (long long int) blockn);
+						if (Config->Debug)
+						{
+							DGEMM_getblocks(k, blockm, blockn);
+							fprintf(STD_OUT, "Tile %lld (m=%lld n=%lld) already processed, skipping\n", (long long int) k, (long long int) blockm, (long long int) blockn);
+						}
+/*						if (loop_detect == (signed) k)
+						{
+							fprintf(STD_OUT, "SCHEDULING ERROR: Loop Detected, k = %lld, next_device_k = %lld, nextk = %lld, ImprovedSched = %d, Phase1 = %d\n", (long long int) k, (long long int) next_device_k[use_device], (long long int) nextk, (int) Config->ImprovedScheduler, (int) ImprovedSchedPhase1);
+							exit(1);
+						}
+						loop_detect = k;*/
+						next_device_k[use_device] = 0;
 						continue;
 					}
 				}
+//				loop_detect = -1;
 				DGEMM_getblocks(k, blockm, blockn);
 
 				if (cParam.dynamic_run)
