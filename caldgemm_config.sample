@@ -36,6 +36,7 @@
 //#define CALDGEMM_SINGLE_BUFFER_IMPROVED		//Alternative access scheme for single buffer, experimental
 //#define CALDGEMM_DUAL_BUFFERS					//Double number of buffers, 4x4 tiling a transposed, experimental
 //#define TESTMODE								//Activate Test Mode for debugging
+//#define CALDGEMM_LOOP_DETECTION				//Enable loop detection
 //#define TEST_KERNEL
 //#define TEST_PARAMETERS
 //#define CALDGEMM_UNALIGNED_ADDRESSES

@@ -93,6 +93,7 @@ inline void printelapsedtime(bool reset = false)
 }
 #define fprintf(file, ...) {printelapsedtime();fprintf(stderr, __VA_ARGS__);}
 #endif
+//#define fprintf(file, ...) {fprintf(stderr, "Thread %d ", gettid());fprintf(stderr, __VA_ARGS__);}
 
 caldgemm::caldgemm()
 {
@@ -928,7 +929,6 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 		{
 			if (Config->HPLFactorizeRestrictCPUs == 1)
 			{
-			    if (8 < old_goto_threads - require_threads) goto_set_num_threads(8);
 			}
 			else if (Config->HPLFactorizeRestrictCPUs >= 2)
 			{
@@ -1400,7 +1400,9 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 	if (gpu_n && gpu_m)
 	{
 		int currentPinning = Config->PinMainThread;
-//		int loop_detect = -1;
+#ifdef CALDGEMM_LOOP_DETECTION
+		int loop_detect = -1, loop_detect2 = -1;
+#endif
 		for (size_t k = 0;k < nBlocks + 2 * (parallelDevice == -1 ? nDevices : 1);k++)
 		{
 restartkloop:
@@ -1421,7 +1423,20 @@ restartkloop:
 						k++;
 					}
 					if (k == nBlocks && parallelDevice == -1 && (Config->DynamicSched || (signed) nBlocks < 2 * nDevices)) goto endimprovedphase;
+					if (k >= nBlocks)
+					{
+						next_device_k[use_device] = 0;
+						if(!((obuffercount > 1) ? ((signed) lastk[use_device] != -1) : (k < nBlocks))) break;
+					}
 				}
+#ifdef CALDGEMM_LOOP_DETECTION
+				if (loop_detect2 == (signed) k)
+				{
+					fprintf(STD_OUT, "SCHEDULING ERROR A: Loop Detected, device = %d, k = %lld, next_device_k = %lld, nextk = %lld, ImprovedSched = %d, Phase1 = %d\n", use_device, (long long int) k, (long long int) next_device_k[use_device], (long long int) nextk, (int) Config->ImprovedScheduler, (int) ImprovedSchedPhase1);
+					exit(1);
+				}
+				loop_detect2 = k;
+#endif
 			}
 			
 			if (k < nBlocks)
@@ -1435,17 +1450,21 @@ restartkloop:
 							DGEMM_getblocks(k, blockm, blockn);
 							fprintf(STD_OUT, "Tile %lld (m=%lld n=%lld) already processed, skipping\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 						}
-/*						if (loop_detect == (signed) k)
+#ifdef CALDGEMM_LOOP_DETECTION
+						if (loop_detect == (signed) k)
 						{
-							fprintf(STD_OUT, "SCHEDULING ERROR: Loop Detected, k = %lld, next_device_k = %lld, nextk = %lld, ImprovedSched = %d, Phase1 = %d\n", (long long int) k, (long long int) next_device_k[use_device], (long long int) nextk, (int) Config->ImprovedScheduler, (int) ImprovedSchedPhase1);
+							fprintf(STD_OUT, "SCHEDULING ERROR B: Loop Detected, k = %lld, next_device_k = %lld, nextk = %lld, ImprovedSched = %d, Phase1 = %d\n", (long long int) k, (long long int) next_device_k[use_device], (long long int) nextk, (int) Config->ImprovedScheduler, (int) ImprovedSchedPhase1);
 							exit(1);
 						}
-						loop_detect = k;*/
+						loop_detect = k;
+#endif
 						next_device_k[use_device] = 0;
 						continue;
 					}
 				}
-//				loop_detect = -1;
+#ifdef CALDGEMM_LOOP_DETECTION
+				loop_detect = loop_detect2 = -1;
+#endif
 				DGEMM_getblocks(k, blockm, blockn);
 
 				if (cParam.dynamic_run)
