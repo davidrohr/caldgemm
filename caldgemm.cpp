@@ -1971,7 +1971,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (Config->UseGPU && (Config->Width > BufferWidth || Config->Height > BufferHeight)) forceReinit = true;
 
 	if (Config->UseCPU)
-	    if (Config->UseGPU == false || matrix_m < Config->Height || matrix_n < Config->Height || (forceReinit && (long long int) MaxGpuM * (long long int) MaxGpuN * (long long int) Config->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Config->Width < 1024 && Config->Height < 1024)) forceCPU = true;
+	{
+		if (Config->UseGPU == false || matrix_m < Config->Height || matrix_n < Config->Height || (forceReinit && (long long int) MaxGpuM * (long long int) MaxGpuN * (long long int) Config->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Config->Width < 1024 && Config->Height < 1024) || (ExecLinpack && matrix_m < Config->Width)) forceCPU = true;
+	}
 
 	if (forceCPU)
 	{
@@ -1983,8 +1985,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		}
 		if (ExecLinpack)
 		{
+			size_t usewidth = Config->Width > matrix_m ? matrix_m : Config->Width;
 			Timers.CPUTimer.Start();
-			cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, Config->Width, matrix_n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
+			cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, usewidth, matrix_n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 			Timers.CPUTimer.Stop();
 
 			if (Config->Debug) fprintf(STD_OUT, "DGEMM was running on CPU only, executing linpack callback functions\n");
@@ -1998,14 +2001,14 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				Timers.LinpackTimer2.Stop();
 			}
 
-			matrix_m -= Config->Width;
-			A += Config->Width * (TransposeA ? 1 : A_pitch);
-			C += Config->Width * (C_pitch);
+			matrix_m -= usewidth;
+			A += usewidth * (TransposeA ? 1 : A_pitch);
+			C += usewidth * (C_pitch);
 		}
 		Timers.CPUTimer.Start();
 
 		goto_set_num_threads(conf_numprocs);
-		cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, matrix_m, matrix_n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
+		if (matrix_m) cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, matrix_m, matrix_n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 		Timers.CPUTimer.Stop();
 		CPUOnlyRun = true;
 	}
@@ -2157,6 +2160,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				fprintf(STD_OUT, "Invalid matrix size for GPU only (%lld %% %lld = %lld, %lld %% %lld = %lld)\n", (long long int) matrix_n, (long long int) Config->Height, (long long int) matrix_n % Config->Height, (long long int) matrix_m, (long long int) Config->Height, (long long int) matrix_m % Config->Height);
 				return(1);
 			}
+			if (ExecLinpack)
+			{
+				fprintf(STD_OUT, "Linpack callbacks in CALDGEMM are only possible with UseCPU = true!\n");
+				return(1);
+			}
 			gpu_n = matrix_n;
 			gpu_m = matrix_m;
 		}
@@ -2289,20 +2297,6 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	}
 	if (Config->LinpackSwapN != NULL) *Config->LinpackSwapN = 0;
 	outputthreads = old_outputthreads;
-
-	if (!Config->UseCPU && ExecLinpack)
-	{
-		if (!Config->Quiet) fprintf(STD_OUT, "No asynchronous processing of linpack functions possible, executing linpack callback functions\n");
-		Timers.LinpackTimer1.Start();
-		Config->linpack_factorize_function();
-		Timers.LinpackTimer1.Stop();
-		if (Config->LinpackNodes > 1)
-		{
-			Timers.LinpackTimer2.Start();
-			Config->linpack_broadcast_function();
-			Timers.LinpackTimer2.Stop();
-		}
-	}
 
 	Timers.System.Stop();
 	if (Config->Debug) fprintf(STD_OUT, "DGEMM Run Complete\n");
