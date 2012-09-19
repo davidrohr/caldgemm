@@ -211,6 +211,10 @@ caldgemm::caldgemm_config::caldgemm_config()
 	}
 	nExcludeCPUCores = 0;
 	ExcludeCPUCores = NULL;
+
+	linpack_factorize_function = NULL;
+	linpack_broadcast_function = NULL;
+	linpack_swap_function = NULL;
 }
 
 int caldgemm::getcpumask(cpu_set_t* set)
@@ -432,6 +436,13 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
 	if (Config->ParallelDMA) Config->ImprovedScheduler = true;
+
+#ifndef USE_GOTO_BLAS
+	if (Config->ParallelDMA && linpack_broadcast_function && (Config->ParallelDMA > Config->AlternateLookahead || Config->DynamicSched))
+	{
+		fprintf(STD_OUT, "WARNING: There is a possible thread-pinning collision when using Parallel DMA in multi-node HPL if either Dynamic Scheduling is activated or ParallelDMA > AlternateLookahead\n");
+	}
+#endif
 
 	if (ValidateRuntime()) return(1);
 
@@ -720,7 +731,7 @@ void* caldgemm::linpack_wrapper_a()
 int caldgemm::cpuScheduler()
 {
 	int retVal = 0;
-	if (Config->UseCPU && Config->MultiThread && Config->DynamicSched && (Config->ParallelDMA == 0 || Config->ParallelDMA >= matrix_m))
+	if (Config->UseCPU && Config->MultiThread && Config->DynamicSched && (Config->ParallelDMA == 0 || Config->ParallelDMA >= matrix_n))
 	{
 		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
@@ -2258,7 +2269,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				next_buffer_B[ii] = 0;
 			}
 
-			if (Config->ParallelDMA != 0 && matrix_m > Config->ParallelDMA)
+			if (Config->ParallelDMA != 0 && matrix_n > Config->ParallelDMA)
 			{
 				DMAThreads.Start();
 				RunCALDGEMMMain(0);
