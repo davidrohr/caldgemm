@@ -483,7 +483,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 				pthread_mutex_init(&obufferMutex[device_num][i], NULL);
 			}
 
-			for (int i = 0;i < max_outputthreads;i++)
+			for (int i = 0;i < (Config->OutputThreads == -1 ? max_outputthreads : Config->OutputThreads);i++)
 			{
 				mParam[device_num][i].num_device = device_num;
 				mParam[device_num][i].cls = this;
@@ -665,6 +665,11 @@ bool caldgemm::cpuUsed(int cpu)
 
 void caldgemm::DMA_wrapper(caldgemm::clsDMAParam* par)
 {
+	{
+		char tmpName[32];
+		sprintf(tmpName, "DMA Thread %d", par->threadNum);
+		setThreadName(tmpName);
+	}
 	if (Config->Debug) fprintf(STD_OUT, "DMA wrapper thread %d running\n", par->threadNum);
 	while(par->WaitForTask())
 	{
@@ -2401,7 +2406,7 @@ int caldgemm::ExitCALDGEMM()
 	{
 		for (int num_device = 0;num_device < nDevices;num_device++)
 		{
-			for (int i = 0;i < max_outputthreads;i++)
+			for (int i = 0;i < (Config->OutputThreads == -1 ? max_outputthreads : Config->OutputThreads);i++)
 			{
 				if (Config->Debug) fprintf(STD_OUT, "Trying to terminate merge slave %d\n", i);
 				mParam[num_device][i].terminate = true;
@@ -2447,7 +2452,7 @@ int caldgemm::ExitCALDGEMM()
 		if (UseOutputPthreads())
 		{
 			if (Config->Debug) fprintf(STD_OUT, "Waiting for merge threads to terminate\n");
-			for (int i = 0;i < max_outputthreads;i++)
+			for (int i = 0;i < (Config->OutputThreads == -1 ? max_outputthreads : Config->OutputThreads);i++)
 			{
 				for (int num_device = 0;num_device < nDevices;num_device++)
 				{
@@ -2479,7 +2484,7 @@ int caldgemm::ExitCALDGEMM()
 			for (int num_device = 0;num_device < nDevices;num_device++)
 			{
 				for (int i = 0;i < obuffercount;i++) if (pthread_mutex_destroy(&obufferMutex[num_device][i])) fprintf(STD_OUT, "ERROR destroying obuffermutex %d for device %d\n", i, num_device);
-				for (int i = 0;i < max_outputthreads;i++)
+				for (int i = 0;i < (Config->OutputThreads == -1 ? max_outputthreads : Config->OutputThreads);i++)
 				{
 					for (int j = 0;j < 2;j++)
 					{
