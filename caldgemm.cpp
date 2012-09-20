@@ -200,6 +200,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	AlternateLookahead = 0;
 	ParallelDMA = 0;
 	LASWPSleep = 0;
+	MinimizeCPUPart = 0;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -2037,61 +2038,64 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		InitConstantData(alpha);
 
-		if (Config->SlowCPU)
+		if (Config->SlowCPU || matrix_n < Config->MinimizeCPUPart)
 		{
 			GPURatio = 1.0;
 		}
-		else if (Config->GPURatio <= -0.99)
-		{
-			//Optimal ratio found using combined runs
-			if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000000) GPURatio = 0.75;
-			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 600000000) GPURatio = 0.74;
-			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 500000000) GPURatio = 0.73;
-			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 200000000) GPURatio = 0.73;
-			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 100000000) GPURatio = 0.72;
-			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 7000000) GPURatio = 0.70;
-			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000) GPURatio = 0.67;
-			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 2500000) GPURatio = 0.60;
-			else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 1000000) GPURatio = 0.55;
-			else GPURatio = 0.50;
-			if (Config->Width < 1024) GPURatio *= (double) Config->Width / (double) 1024;
-			if (Config->Height < 1024) GPURatio *= (double) Config->Height / (double) 1024 * (double) Config->Height / (double) 1024;
-		
-			const int require_threads = outputthreads * nDevices + 1 + (ExecLinpack && Config->LinpackNodes > 1);
-			const double CPUscale = (double) (conf_cpufreq * mymax(conf_numprocs - require_threads, 1)) / (double) (2100 * (24 - require_threads));
-			const double GPUscale = (double) nDevices * conf_gpushaders * conf_gpufreq / (double) (850 * 20 * 64);
-			if (Config->Debug) fprintf(STD_OUT, "GPU Curve Ration: %1.3f, CPUScale %1.3f, GPUScale %1.3f\n", GPURatio, CPUscale, GPUscale);
-			GPURatio = GPUscale * GPURatio / (GPUscale * GPURatio + (1.0 - GPURatio) * CPUscale);
-		
-			if (Config->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.3f\n", GPURatio);
-			if (GPURatio > 1.) GPURatio = 1.0;
-			if ((matrix_n + 4) % 4096 < 8 && GPURatio > 0.5) GPURatio = 1. - 0.95 * (1. - GPURatio);
-		}
 		else
-		{
-			GPURatio = fabs(Config->GPURatio);
-		}
-
-		if (ExecLinpack && (Config->GPURatio < 0 || GPURatio < 0.99) && !Config->SlowCPU)
 		{
 			if (Config->GPURatio <= -0.99)
 			{
-				if (ExecLinpack > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80 * Config->Width / 1024;
-				else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
-				if (GPURatio > 1.0) GPURatio = 1.0;
-			}
-			if (linpack_last_mn[ExecLinpack] > 0 && (((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackGPURatios[ExecLinpack] > 0.0001)
-			{
-				GPURatio = linpackGPURatios[ExecLinpack];
-				if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3f\n", ExecLinpack, 100 * GPURatio);
+				//Optimal ratio found using combined runs
+				if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000000) GPURatio = 0.75;
+				else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 600000000) GPURatio = 0.74;
+				else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 500000000) GPURatio = 0.73;
+				else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 200000000) GPURatio = 0.73;
+				else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 100000000) GPURatio = 0.72;
+				else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 7000000) GPURatio = 0.70;
+				else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000) GPURatio = 0.67;
+				else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 2500000) GPURatio = 0.60;
+				else if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 1000000) GPURatio = 0.55;
+				else GPURatio = 0.50;
+				if (Config->Width < 1024) GPURatio *= (double) Config->Width / (double) 1024;
+				if (Config->Height < 1024) GPURatio *= (double) Config->Height / (double) 1024 * (double) Config->Height / (double) 1024;
+		
+				const int require_threads = outputthreads * nDevices + 1 + (ExecLinpack && Config->LinpackNodes > 1);
+				const double CPUscale = (double) (conf_cpufreq * mymax(conf_numprocs - require_threads, 1)) / (double) (2100 * (24 - require_threads));
+				const double GPUscale = (double) nDevices * conf_gpushaders * conf_gpufreq / (double) (850 * 20 * 64);
+				if (Config->Debug) fprintf(STD_OUT, "GPU Curve Ration: %1.3f, CPUScale %1.3f, GPUScale %1.3f\n", GPURatio, CPUscale, GPUscale);
+				GPURatio = GPUscale * GPURatio / (GPUscale * GPURatio + (1.0 - GPURatio) * CPUscale);
+		
+				if (Config->Debug) fprintf(STD_OUT, "GPURatio automatically set to %1.3f\n", GPURatio);
+				if (GPURatio > 1.) GPURatio = 1.0;
+				if ((matrix_n + 4) % 4096 < 8 && GPURatio > 0.5) GPURatio = 1. - 0.95 * (1. - GPURatio);
 			}
 			else
 			{
-				linpackGPURatios[ExecLinpack] = GPURatio;
-				if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3f\n", ExecLinpack, 100 * GPURatio);
+				GPURatio = fabs(Config->GPURatio);
 			}
+
+			if (ExecLinpack && (Config->GPURatio < 0 || GPURatio < 0.99) && !Config->SlowCPU)
+			{
+				if (Config->GPURatio <= -0.99)
+				{
+					if (ExecLinpack > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80 * Config->Width / 1024;
+					else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
+					if (GPURatio > 1.0) GPURatio = 1.0;
+				}
+				if (linpack_last_mn[ExecLinpack] > 0 && (((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackGPURatios[ExecLinpack] > 0.0001)
+				{
+					GPURatio = linpackGPURatios[ExecLinpack];
+					if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3f\n", ExecLinpack, 100 * GPURatio);
+				}
+				else
+				{
+					linpackGPURatios[ExecLinpack] = GPURatio;
+					if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3f\n", ExecLinpack, 100 * GPURatio);
+				}
+			}
+			if (Config->GPURatio < 0 && Config->GPURatio > -0.99 && GPURatio < -Config->GPURatio) GPURatio = -Config->GPURatio;
 		}
-		if (Config->GPURatio < 0 && Config->GPURatio > -0.99 && GPURatio < -Config->GPURatio) GPURatio = -Config->GPURatio;
 
 		gpu_ratio_used = GPURatio;
 
