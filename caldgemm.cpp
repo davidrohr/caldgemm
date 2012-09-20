@@ -1565,7 +1565,7 @@ endimprovedphase:
 				Task.k = k;
 				Task.j = j[use_device];
 
-				if (next_device_k[use_device] == 0 || obuffercount == 1 || Config->AsyncDMA == false || forcePreparation[use_device])
+				if (next_device_k[use_device] == 0 || (signed) lastk[use_device] == -1 || obuffercount == 1 || Config->AsyncDMA == false || forcePreparation[use_device])
 				{
 					Task.PrepareTasks[0].k = k;
 					Task.PrepareTasks[0].j = j[use_device];
@@ -2344,6 +2344,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task CALDGEMM_DIVBUFA)
 {
 	pthread_mutex_lock(&device_mutex[Task.device]);
+	//fprintf(STD_OUT, "DGEMMPrepareAndExecute device %d k1 %d j1 %d k2 %d j2 %d\n", Task.device, (int) Task.PrepareTasks[0].k, Task.PrepareTasks[0].j, (int) Task.PrepareTasks[1].k, Task.PrepareTasks[1].j);
 	for (int l = 0;l < 2;l++)
 	{
 		if (Task.PrepareTasks[l].j != -1)
@@ -2374,7 +2375,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task 
 
 	if (buffer_pointers_A[Task.device][blockm] < 0 || buffer_pointers_B[Task.device][blockn] < 0)
 	{
-		if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING, Buffer falsified by previous iteration, need to retransfer\n");
+		if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING, Buffer falsified by previous iteration, need to retransfer (ptr_a = %d, ptr_b = %d)\n", buffer_pointers_A[Task.device][blockm], buffer_pointers_B[Task.device][blockn]);
 		DGEMM_prepare(Task.k, Task.j, Task.device CALDGEMM_DIVBUFB);
 	}
 	if (ExecuteKernels(Task, blockm, blockn)) return(1);
