@@ -373,12 +373,27 @@ void caldgemm::ensure_omp_thread_pinning()
 		}
 		if (thread_id == nFreeCores) localcore = broadcast_cpu_core;
 		nFreeCores++;
-		for (int i = 0;i < conf_numprocs;i++)
+		
+		for (int j = 0;j < 2;j++)
 		{
-			if (cpuUsed(cpu_order[i]) && cpu_order[i] != main_blas_core)
+			for (int i = 0;i < conf_numprocs;i++)
 			{
-				if (thread_id == nFreeCores) localcore = cpu_order[i];
-				nFreeCores++;
+				if (cpuUsed(cpu_order[i]) && cpu_order[i] != main_blas_core)
+				{
+					size_t m = matrix_m, n = matrix_n;
+					matrix_m = matrix_n = (unsigned) -1;
+					bool isDMACore = cpuUsed(cpu_order[i]);
+					matrix_m = matrix_n = 0;
+					if (cpuUsed(cpu_order[i])) isDMACore = false;
+					matrix_m = m;
+					matrix_n = n;
+					
+					if ((Config->ParallelDMA != 0 && isDMACore) ^ j)
+					{
+						if (thread_id == nFreeCores) localcore = cpu_order[i];
+						nFreeCores++;
+					}
+				}
 			}
 		}
 
@@ -438,7 +453,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (Config->ParallelDMA) Config->ImprovedScheduler = true;
 
 #ifndef USE_GOTO_BLAS
-	if (Config->ParallelDMA && linpack_broadcast_function && (Config->ParallelDMA > Config->AlternateLookahead || Config->DynamicSched))
+	if (Config->ParallelDMA && Config->linpack_broadcast_function && (Config->ParallelDMA > Config->AlternateLookahead || Config->DynamicSched))
 	{
 		fprintf(STD_OUT, "WARNING: There is a possible thread-pinning collision when using Parallel DMA in multi-node HPL if either Dynamic Scheduling is activated or ParallelDMA > AlternateLookahead\n");
 	}
@@ -465,8 +480,15 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	outputthreads = Config->OutputThreads == -1 ? (Config->KeepBuffersMapped || Config->DstMemory == 'g' ? CALDGEMM_OUTPUT_THREADS : CALDGEMM_OUTPUT_THREADS_SLOW) : Config->OutputThreads;
 	
 #ifndef USE_GOTO_BLAS		//If we do not use GotoBLAS thread pinning determine main blas thread only after determining GPU devices to avoid collisions. Store the thread afterward as for GotoBLAS.
-	main_blas_core = 0;
-	while (cpuUsed(main_blas_core) && main_blas_core < get_num_procs() - 1) main_blas_core++;
+	if (Config->UseCPU)
+	{
+		main_blas_core = 0;
+		while (cpuUsed(main_blas_core) && main_blas_core < get_num_procs() - 1) main_blas_core++;
+	}
+	else
+	{
+		main_blas_core = Config->PinMainThread;
+	}
 	if (Config->Debug) fprintf(STD_OUT, "Pinning Main OpenMP BLAS thread to core %d\n", main_blas_core);
 	cpu_set_t blasset;
 	CPU_ZERO(&blasset);

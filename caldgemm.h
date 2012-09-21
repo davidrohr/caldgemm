@@ -192,6 +192,7 @@ public:
 	virtual bool cpuUsed(int cpu);
 	
 	void printConfig();
+	void setMatrixDim(size_t m, size_t n) {matrix_m = m;matrix_n = n;}
 
 protected:
 
