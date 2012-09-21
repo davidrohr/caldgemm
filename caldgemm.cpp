@@ -199,6 +199,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	ThirdPhaseThreshold = 0;
 	AlternateLookahead = 0;
 	ParallelDMA = 0;
+	GroupParallelDMA = 0;
 	LASWPSleep = 0;
 	MinimizeCPUPart = 0;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
@@ -753,7 +754,7 @@ void* caldgemm::linpack_wrapper_a()
 int caldgemm::cpuScheduler()
 {
 	int retVal = 0;
-	if (Config->UseCPU && Config->MultiThread && Config->DynamicSched && (Config->ParallelDMA == 0 || Config->ParallelDMA >= matrix_n))
+	if (Config->UseCPU && Config->MultiThread && Config->DynamicSched && (Config->ParallelDMA == 0 || Config->ParallelDMA > matrix_n))
 	{
 		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
@@ -2291,7 +2292,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				next_buffer_B[ii] = 0;
 			}
 
-			if (Config->ParallelDMA != 0 && matrix_n > Config->ParallelDMA)
+			if (Config->ParallelDMA != 0 && matrix_n >= Config->ParallelDMA)
 			{
 				DMAThreads.Start();
 				RunCALDGEMMMain(0);
@@ -2953,6 +2954,8 @@ void caldgemm::printConfig()
 	fprintf(STD_OUT, "MultiThreadDivide %d\n", (int) Config->MultiThreadDivide);
 	fprintf(STD_OUT, "ImprovedScheduler %d\n", (int) Config->ImprovedScheduler);
 	fprintf(STD_OUT, "ParallelDMA %d\n", (int) Config->ParallelDMA);
+	fprintf(STD_OUT, "GroupParallelDMA %d\n", (int) Config->GroupParallelDMA);
+	fprintf(STD_OUT, "MinimizeCPUPart %d\n", (int) Config->MinimizeCPUPart);
 	fprintf(STD_OUT, "GPURatio %d\n", (int) Config->GPURatio);
 	fprintf(STD_OUT, "UseCPU %d\n", (int) Config->UseCPU);
 	fprintf(STD_OUT, "UseGPU %d\n", (int) Config->UseGPU);
