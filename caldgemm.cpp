@@ -418,7 +418,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		return(1);
 	}
 
-
 #ifdef _WIN32
 	strcpy(hostname, "Win32");
 #else
@@ -474,6 +473,32 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->UseGPU = 0;
 		Config->UseCPU = 1;
 		Config->KeepBuffersMapped = 0;
+	}
+
+	if (Config->ParallelDMA && Config->GroupParallelDMA)
+	{
+		for (int i = 0;i < nDevices;i++)
+		{
+			if (Config->AllocMapping[i] == -1)
+			{
+				fprintf(STD_OUT, "Error during initialization, GroupParallelDMA activated but AllocMapping not set for GPU %d\n", i);
+				return(1);
+			}
+			bool found = false;
+			for (int j = 0;j < nDevices;j++)
+			{
+				if (Config->DMAMapping[j] == Config->AllocMapping[i])
+				{
+					found = true;
+					break;
+				}
+			}
+			if (found == false)
+			{
+				fprintf(STD_OUT, "Error during initialization, No DMAMapping thread found that maps to the AllocMapping of GPU %d\n", i);
+				return(1);
+			}
+		}
 	}
 
 	if (CheckDevices()) return(1);
@@ -1357,7 +1382,11 @@ void caldgemm::WaitForLASWP(size_t blockm)
 				fprintf(STD_OUT, "Waiting for LASWP / DTRSM... current: %lld need: %lld\n", (long long int) *Config->LinpackSwapN, (long long int) need);
 				shown = true;
 			}
+#ifdef _WIN32
+			if (Config->LASWPSleep) Sleep(Config->LASWPSleep / 1000);
+#else
 			if (Config->LASWPSleep) usleep(Config->LASWPSleep);
+#endif
 		}
 	}
 }
@@ -1395,42 +1424,57 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 	int iMergeThread[max_devices];
 	size_t blockm = 0, blockn = 0;
 	unsigned long long int lastk[max_devices];
-	int use_device = parallelDevice == -1 ? 0 : parallelDevice;
 	size_t nextk = 0;
 	size_t next_device_k[max_devices];
 	int ImprovedSchedPhase1 = Config->ImprovedScheduler;
 	int forcePreparation[max_devices];
 
+	int myUseDevice = 0;
+	int myNDevices;
+	int myDevices[max_devices];
 	if (parallelDevice == -1)
 	{
-		memset(j, 0, nDevices * sizeof(int));
-		memset(iMergeThread, 0, nDevices * sizeof(int));
-		if (Config->ImprovedScheduler)
+		myNDevices = nDevices;
+		for (int i = 0;i < nDevices;i++) myDevices[i] = i;
+	}
+	else if (matrix_n >= Config->GroupParallelDMA)
+	{
+		myNDevices = 1;
+		myDevices[0] = parallelDevice;
+	}
+	else
+	{
+		myNDevices = 0;
+		for (int i = 0;i < nDevices;i++)
 		{
-			for (int i = 0;i < nDevices;i++)
-			{
-				next_device_k[i] = first_device_k[i] == -1 ? 0 : first_device_k[i];
-			}
+			if (Config->AllocMapping[i] == Config->DMAMapping[parallelDevice]) myDevices[myNDevices++] = i;
 		}
-		else
+	}
+	int use_device = myDevices[myUseDevice];
+
+	memset(j, 0, myNDevices * sizeof(int));
+	memset(iMergeThread, 0, myNDevices * sizeof(int));
+	if (Config->ImprovedScheduler)
+	{
+		for (int i = 0;i < myNDevices;i++)
 		{
-			memset(next_device_k, 0, nDevices * sizeof(size_t));
+			next_device_k[i] = first_device_k[i] == -1 ? 0 : first_device_k[i];
 		}
 	}
 	else
 	{
-		j[parallelDevice] = iMergeThread[parallelDevice] = next_device_k[parallelDevice] = 0;
+		memset(next_device_k, 0, myNDevices * sizeof(size_t));
 	}
-	for (int l = 0;l < nDevices;l++)
+
+	for (int tl = 0;tl < myNDevices;tl++)
 	{
-		if (parallelDevice != -1) l = parallelDevice;
+		int l = myDevices[tl];
 		lastk[l] = -1;
 		forcePreparation[l] = 0;
 		buffer_pointers_A[l] = new int[mb];
 		for (size_t ll = 0;ll < mb;ll++) buffer_pointers_A[l][ll] = -1;
 		buffer_pointers_B[l] = new int[nb];
 		for (size_t ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
-		if (parallelDevice != -1) break;
 	}
 
 	if (RunCALDGEMM_Init()) return(0);
@@ -1443,7 +1487,7 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 #ifdef CALDGEMM_LOOP_DETECTION
 		int loop_detect = -1, loop_detect2 = -1;
 #endif
-		for (size_t k = 0;k < nBlocks + 2 * (parallelDevice == -1 ? nDevices : 1);k++)
+		for (size_t k = 0;k < nBlocks + 2 * myNDevices;k++)
 		{
 restartkloop:
 			//fprintf(STD_OUT, "!!!!! k %lld nd k %lld nextk %lld\n", (long long int) k, (long long int) next_device_k[use_device], (long long int) nextk);
@@ -1619,7 +1663,7 @@ endimprovedphase:
 					}
 					forcePreparation[use_device] = 0;
 				}
-				if (obuffercount > 1 && (signed) lastk[use_device] != -1 && Config->AsyncDMA && k + (parallelDevice == -1 ? ((nDevices - use_device - 1) % nDevices) : 0) + 1 < nBlocks && cpu_k_barrier_hit == false)
+				if (obuffercount > 1 && (signed) lastk[use_device] != -1 && Config->AsyncDMA && k + (myNDevices - use_device - 1) % myNDevices + 1 < nBlocks && cpu_k_barrier_hit == false)
 				{
 					if (ImprovedSchedPhase1) nextk = k + 1;
 					else nextk++;
@@ -1733,7 +1777,7 @@ endimprovedphase:
 				}
 				if (Config->VerboseTiming) Timers.CounterMerge.Start();
 
-				if (k == nBlocks + 2 * (parallelDevice == -1 ? nDevices : 1) - 1 || Config->MultiThread == false || UseOutputPthreads() == 0)
+				if (k == nBlocks + 2 * myNDevices - 1 || Config->MultiThread == false || UseOutputPthreads() == 0)
 				{
 					if (lastk[use_device] < nBlocks)
 					{
@@ -1750,16 +1794,15 @@ endimprovedphase:
 					{
 						for (int l = 0;l < obuffercount;l++)
 						{
-							for (int ll = 0;ll < nDevices;ll++)
+							for (int tll = 0;tll < myNDevices;tll++)
 							{
-								if (parallelDevice != -1) ll = parallelDevice;
+								int ll = myDevices[tll];
 								if ((ll != use_device || l != oldj[ll]) && (signed) lastk[ll] != -1)
 								{
 									if (Config->Debug) fprintf(STD_OUT, "Waiting to finish merge process for device %d obuffer %d\n", ll, l);
 									if (pthread_mutex_lock(&obufferMutex[ll][l])) fprintf(STD_OUT, "ERROR locking obufferMutex: %s - %d\n", __FILE__, __LINE__);
 									if (pthread_mutex_unlock(&obufferMutex[ll][l])) fprintf(STD_OUT, "ERROR unlocking obufferMutex: %s - %d\n", __FILE__, __LINE__);
 								}
-								if (parallelDevice != -1) break;
 							}
 						}
 					}
@@ -1791,7 +1834,11 @@ endimprovedphase:
 			oldj[use_device] = j[use_device];
 			j[use_device] = (j[use_device] + 1) % obuffercount;
 			lastk[use_device] = k;
-			if (Config->MultiThread && parallelDevice == -1) use_device = (use_device + 1) % nDevices;
+			if (Config->MultiThread)
+			{
+				myUseDevice = (myUseDevice + 1) % myNDevices;
+				use_device = myDevices[myUseDevice];
+			}
 		}
 		if (currentPinning != Config->PinMainThread)
 		{
@@ -1814,12 +1861,11 @@ endimprovedphase:
 		}
 	}
 
-	for (int l = 0;l < nDevices;l++)
+	for (int tl = 0;tl < myNDevices;tl++)
 	{
-		if (parallelDevice != -1) l = parallelDevice;
+		int l = myDevices[tl];
 		delete[] buffer_pointers_A[l];
 		delete[] buffer_pointers_B[l];
-		if (parallelDevice != -1) break;
 	}
 	if (RunCALDGEMM_Exit()) return(0);
 	return(0);
@@ -2850,7 +2896,9 @@ unsigned int caldgemm::AnalyzeResults()
 
 bool caldgemm::isDoubleEqual(double a, double b)
 {
+#ifndef _WIN32
 	if (isnan(a) || isnan(b) || isinf(a) || isinf(b)) return(false);
+#endif
 	double epsilon1 = 1e-6;
 	double epsilon2 = 1e-4;
 
