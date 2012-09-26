@@ -13,14 +13,18 @@ qSem::~qSem()
 	if (sem_destroy(&sem)) fprintf(stderr, "Error destroying semaphore");
 }
 
-void qSem::Lock()
+int qSem::Lock()
 {
-	if (sem_wait(&sem)) fprintf(stderr, "Error locking semaphore");
+	int retVal;
+	if (retVal = sem_wait(&sem)) fprintf(stderr, "Error locking semaphore");
+	return(retVal);
 }
 
-void qSem::Unlock()
+int qSem::Unlock()
 {
-	if (sem_post(&sem)) fprintf(stderr, "Error unlocking semaphire");
+	int retVal;
+	if (retVal = sem_post(&sem)) fprintf(stderr, "Error unlocking semaphire");
+	return(retVal);
 }
 
 int qSem::Trylock()

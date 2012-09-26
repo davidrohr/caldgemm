@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <sched.h>
 #endif
+#include "qsem.h"
 
 class qThreadServerException
 {
@@ -23,22 +24,20 @@ class qThreadParam
 public:
 	qThreadParam()
 	{
-		for (int i = 0;i < 2;i++) if (pthread_mutex_init(&threadMutex[i], NULL)) {fprintf(STD_OUT, "Error creating mutex\n");throw(qThreadServerException());}
-		for (int i = 0;i < 2;i++) if (pthread_mutex_lock(&threadMutex[i])) {fprintf(STD_OUT, "Error locking mutex\n");throw(qThreadServerException());}
+		for (int i = 0;i < 2;i++) threadMutex[i].Lock();
 		terminate = false;
 		pinCPU = -1;
 	}
 
 	~qThreadParam()
 	{
-		for (int i = 0;i < 2;i++) if (pthread_mutex_unlock(&threadMutex[i])) {fprintf(STD_OUT, "Error unlocking mutex\n");throw(qThreadServerException());}
-		for (int i = 0;i < 2;i++) if (pthread_mutex_destroy(&threadMutex[i])) {fprintf(STD_OUT, "Error destroying mutex\n");throw(qThreadServerException());}
+		for (int i = 0;i < 2;i++) threadMutex[i].Unlock();
 	}
 
 	bool WaitForTask()
 	{
-		if (pthread_mutex_unlock(&threadMutex[1])) {fprintf(STD_OUT, "Error unlocking mutex\n");throw(qThreadServerException());}
-		if (pthread_mutex_lock(&threadMutex[0])) {fprintf(STD_OUT, "Error locking mutex\n");throw(qThreadServerException());}
+		threadMutex[1].Unlock();
+		threadMutex[0].Lock();
 		return(!terminate);
 	}
 
@@ -46,7 +45,7 @@ public:
 
 protected:
 	int pinCPU;
-	pthread_mutex_t threadMutex[2];
+	qSem threadMutex[2];
 	volatile bool terminate;
 };
 
@@ -83,7 +82,7 @@ public:
 	
 	void WaitForSpawn()
 	{
-		if (pthread_mutex_lock(&threadParam.threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex\n");throw(qThreadServerException());}
+		threadParam.threadMutex[1].Lock();
 	}
 
 	~qThreadCls()
@@ -99,19 +98,19 @@ public:
 		qThreadParamCls<S>& threadParam = *((qThreadParamCls<S>*) &this->threadParam);
 	
 		threadParam.terminate = true;
-		if (pthread_mutex_unlock(&threadParam.threadMutex[0])) {fprintf(STD_OUT, "Error unlocking mutex\n");throw(qThreadServerException());}
-		if (pthread_mutex_lock(&threadParam.threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex\n");throw(qThreadServerException());}
+		threadParam.threadMutex[0].Unlock();
+		threadParam.threadMutex[1].Lock();
 		started = false;
 	}
 
 	void Start()
 	{
-		if (pthread_mutex_unlock(&threadParam.threadMutex[0])) {fprintf(STD_OUT, "Error unlocking mutex\n");throw(qThreadServerException());}
+		threadParam.threadMutex[0].Unlock();
 	}
 
 	void Sync()
 	{
-		if (pthread_mutex_lock(&threadParam.threadMutex[1])) {fprintf(STD_OUT, "Error locking mutex\n");throw(qThreadServerException());}
+		threadParam.threadMutex[1].Lock();
 	}
 		
 private:
@@ -135,7 +134,7 @@ template <class S, class T> void* qThreadCls<S, T>::qThreadWrapperCls(T* arg)
 	void (S::*pFunc)(T*) = (void (S::*)(T*)) arg_A->pFunc;
 	(arg_A->pCls->*pFunc)(arg);
 
-	if (pthread_mutex_unlock(&arg_A->threadMutex[1])) {fprintf(STD_OUT, "Error unlocking mutex\n");throw(qThreadServerException());}
+	arg_A->threadMutex[1].Unlock();
 	pthread_exit(NULL);
 	return(NULL);
 }

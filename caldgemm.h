@@ -225,7 +225,7 @@ protected:
 		volatile int j;
 		int device;
 		int kernel_num;
-		pthread_mutex_t mutex_start, mutex_finished;
+		qSem mutex_start, mutex_finished;
 		int thread_running;
 		volatile int* next_device;
 		volatile int skip_device_to;
@@ -320,7 +320,7 @@ protected:
 		int nContext;
 		int num_device;
 		bool terminate;
-		pthread_mutex_t mergeThreadMutex[2];
+		qSem mergeThreadMutex[2];
 		size_t k;
 	};
 	mergeParameters mParam[max_devices][max_outputthreads];
@@ -329,7 +329,7 @@ protected:
 
 	struct structLinpackParameters
 	{
-		pthread_mutex_t linpackMutex[2];
+		qSem linpackMutex[2];
 		bool terminate;
 	} linpackParameters;
 
@@ -409,7 +409,7 @@ protected:
 		size_t dynamic_run2;
 		bool borders_done;
 		bool terminate;
-		pthread_mutex_t cblasMutex[2];
+		qSem cblasMutex[2];
 	};
 
 	struct divideParameters
