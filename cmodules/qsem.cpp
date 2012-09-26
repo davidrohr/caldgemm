@@ -16,14 +16,14 @@ qSem::~qSem()
 int qSem::Lock()
 {
 	int retVal;
-	if (retVal = sem_wait(&sem)) fprintf(stderr, "Error locking semaphore");
+	if ((retVal = sem_wait(&sem))) fprintf(stderr, "Error locking semaphore");
 	return(retVal);
 }
 
 int qSem::Unlock()
 {
 	int retVal;
-	if (retVal = sem_post(&sem)) fprintf(stderr, "Error unlocking semaphire");
+	if ((retVal = sem_post(&sem))) fprintf(stderr, "Error unlocking semaphire");
 	return(retVal);
 }
 
