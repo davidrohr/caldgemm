@@ -68,7 +68,7 @@
 #endif
 
 #include "cmodules/threadserver.h"
-
+#include "cmodules/qsem.h"
 
 template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
 template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
@@ -325,7 +325,7 @@ protected:
 	};
 	mergeParameters mParam[max_devices][max_outputthreads];
 
-	pthread_mutex_t obufferMutex[max_devices][obuffercount];
+	qSem obufferMutex[max_devices][obuffercount];
 
 	struct structLinpackParameters
 	{

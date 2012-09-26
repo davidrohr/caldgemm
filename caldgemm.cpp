@@ -511,11 +511,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	{
 		for (int device_num = 0;device_num < nDevices;device_num++)
 		{
-			for (int i = 0;i < obuffercount;i++)
-			{
-				pthread_mutex_init(&obufferMutex[device_num][i], NULL);
-			}
-
 			for (int i = 0;i < (Config->OutputThreads == -1 ? max_outputthreads : Config->OutputThreads);i++)
 			{
 				mParam[device_num][i].num_device = device_num;
@@ -1291,7 +1286,7 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		
 		if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex device %d obuffer %d (Slavethread %d)\n", par->num_device, par->nContext, par->nMergeThread);
 		if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR unlocking mergeThreadMutex1: %s - %d\n", __FILE__, __LINE__);
-		if (pthread_mutex_unlock(&obufferMutex[par->num_device][par->nContext])) fprintf(STD_OUT, "ERROR unlocking obufferMutex: %s - %d\n", __FILE__, __LINE__);
+		obufferMutex[par->num_device][par->nContext].Unlock();
 	}
 	if (Config->Debug) fprintf(STD_OUT, "merge slave %d terminating\n", par->nMergeThread);
 	if (pthread_mutex_unlock(&par->mergeThreadMutex[1])) fprintf(STD_OUT, "ERROR unlocking mergeThreadMutex1: %s - %d\n", __FILE__, __LINE__);
@@ -1743,7 +1738,7 @@ endimprovedphase:
 							CheckAlternateTilesRemaining(lastm);
 						}
 						if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex device %d obuffer %d\n", use_device, oldj[use_device]);
-						if (Config->MultiThread && UseOutputPthreads() && pthread_mutex_unlock(&obufferMutex[use_device][oldj[use_device]])) fprintf(STD_OUT, "ERROR unlocking obufferMutex: %s - %d\n", __FILE__, __LINE__);
+						if (Config->MultiThread && UseOutputPthreads()) obufferMutex[use_device][oldj[use_device]].Unlock();
 					}
 					if (Config->MultiThread && UseOutputPthreads())
 					{
@@ -1755,8 +1750,8 @@ endimprovedphase:
 								if ((ll != use_device || l != oldj[ll]) && (signed) lastk[ll] != -1)
 								{
 									if (Config->Debug) fprintf(STD_OUT, "Waiting to finish merge process for device %d obuffer %d\n", ll, l);
-									if (pthread_mutex_lock(&obufferMutex[ll][l])) fprintf(STD_OUT, "ERROR locking obufferMutex: %s - %d\n", __FILE__, __LINE__);
-									if (pthread_mutex_unlock(&obufferMutex[ll][l])) fprintf(STD_OUT, "ERROR unlocking obufferMutex: %s - %d\n", __FILE__, __LINE__);
+									obufferMutex[ll][l].Lock();
+									obufferMutex[ll][l].Unlock();
 								}
 								if (parallelDevice != -1) break;
 							}
@@ -2404,7 +2399,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task 
 			Timers.ATime.Start();
 		}
 		pthread_mutex_unlock(&device_mutex[Task.device]);
-		if (pthread_mutex_lock(&obufferMutex[Task.device][Task.j])) fprintf(STD_OUT, "ERROR locking obufferMutex: %s - %d\n", __FILE__, __LINE__);
+		obufferMutex[Task.device][Task.j].Lock();
 		pthread_mutex_lock(&device_mutex[Task.device]);
 		if (Config->AsyncTiming)
 		{
@@ -2516,7 +2511,6 @@ int caldgemm::ExitCALDGEMM()
 		{
 			for (int num_device = 0;num_device < nDevices;num_device++)
 			{
-				for (int i = 0;i < obuffercount;i++) if (pthread_mutex_destroy(&obufferMutex[num_device][i])) fprintf(STD_OUT, "ERROR destroying obuffermutex %d for device %d\n", i, num_device);
 				for (int i = 0;i < (Config->OutputThreads == -1 ? max_outputthreads : Config->OutputThreads);i++)
 				{
 					for (int j = 0;j < 2;j++)
