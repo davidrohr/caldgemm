@@ -1346,7 +1346,7 @@ void caldgemm::WaitForLASWP(size_t blockm)
 				fprintf(STD_OUT, "Waiting for LASWP / DTRSM... current: %lld need: %lld\n", (long long int) *Config->LinpackSwapN, (long long int) need);
 				shown = true;
 			}
-			//if (Config->LASWPSleep) usleep(Config->LASWPSleep);
+			if (Config->LASWPSleep) usleep(Config->LASWPSleep);
 		}
 	}
 }
@@ -2829,7 +2829,7 @@ unsigned int caldgemm::AnalyzeResults()
 
 bool caldgemm::isDoubleEqual(double a, double b)
 {
-	//if (isnan(a) || isnan(b) || isinf(a) || isinf(b)) return(false);
+	if (isnan(a) || isnan(b) || isinf(a) || isinf(b)) return(false);
 	double epsilon1 = 1e-6;
 	double epsilon2 = 1e-4;
 
