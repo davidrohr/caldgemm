@@ -1,5 +1,6 @@
 #include "qsem.h"
 #include <errno.h>
+#include <stdio.h>
 
 qSem::qSem(int num)
 {
