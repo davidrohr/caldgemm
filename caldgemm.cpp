@@ -1280,8 +1280,8 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n) CheckAlternateTilesRemaining(blockm);
 		
 		if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex device %d obuffer %d (Slavethread %d)\n", par->num_device, par->nContext, par->nMergeThread);
-		par->mergeThreadMutex[1].Unlock();
 		obufferMutex[par->num_device][par->nContext].Unlock();
+		par->mergeThreadMutex[1].Unlock();
 	}
 	if (Config->Debug) fprintf(STD_OUT, "merge slave %d terminating\n", par->nMergeThread);
 	par->mergeThreadMutex[1].Unlock();
