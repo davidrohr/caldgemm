@@ -71,13 +71,6 @@ void setUnknownNames(char* name)
 	if (dp)
 	{
 		dirent* ent;
-		fprintf(STD_OUT, "%12s", "");
-		for (int i = 0;i < get_number_of_cpu_cores();i++)
-		{
-			fprintf(STD_OUT, " %2d", i);
-		}
-		fprintf(STD_OUT, "\n");
-		
 		while ((ent = readdir(dp)) != NULL)
 		{
 			pid_t tid = atoi(ent->d_name);
@@ -114,13 +107,6 @@ void setUnknownAffinity(int count, int* cores)
 	if (dp)
 	{
 		dirent* ent;
-		fprintf(STD_OUT, "%12s", "");
-		for (int i = 0;i < get_number_of_cpu_cores();i++)
-		{
-			fprintf(STD_OUT, " %2d", i);
-		}
-		fprintf(STD_OUT, "\n");
-		
 		while ((ent = readdir(dp)) != NULL)
 		{
 			pid_t tid = atoi(ent->d_name);
