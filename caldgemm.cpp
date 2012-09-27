@@ -352,8 +352,8 @@ void caldgemm::ensure_omp_thread_pinning()
 	
 	cpu_set_t noaffinity;
 	CPU_ZERO(&noaffinity);
-	for (int i = 0;i < conf_numprocs;i++) CPU_SET(i, &noaffinity);
-	sched_getaffinity(0, sizeof(noaffinity), &noaffinity);
+	for (int i = 0;i < conf_numprocs;i++) if (i != Config->PinMainThread) CPU_SET(i, &noaffinity);
+	sched_setaffinity(0, sizeof(noaffinity), &noaffinity);
 
 #pragma omp parallel num_threads(conf_numprocs)
 	{
