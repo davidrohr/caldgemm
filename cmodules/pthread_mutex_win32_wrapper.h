@@ -5,9 +5,14 @@
 #include <winbase.h>
 typedef HANDLE pthread_mutex_t;
 typedef HANDLE pthread_t;
+typedef HANDLE sem_t;
 
 #ifndef EBUSY
 #define EBUSY WAIT_TIMEOUT
+#endif
+
+#ifndef EAGAIN
+#define EAGAIN WAIT_TIMEOUT
 #endif
 
 static inline int pthread_mutex_init(pthread_mutex_t *mutex, const void* attr)
@@ -28,7 +33,7 @@ static inline int pthread_mutex_trylock(pthread_mutex_t *mutex)
 	DWORD retVal = WaitForSingleObject(*mutex, 0);
 	if (retVal == WAIT_TIMEOUT) return(EBUSY);
 	//printf("TRYLOCK %d\n", *mutex);
-	if (retVal == WAIT_OBJECT_0) return(0);
+	if (retVal != WAIT_FAILED) return(0);
 	return(1);
 }
 
@@ -59,6 +64,35 @@ static inline int pthread_join(pthread_t thread, void** retval)
 	while (GetExitCodeThread(thread, &ExitCode) == STILL_ACTIVE) Sleep(0);
 	if (retval != NULL) *retval = (void*) &ExitCode;
 	return(0);
+}
+
+static inline int sem_init(sem_t *sem, int pshared, unsigned int value)
+{
+	*sem = CreateSemaphore(NULL, value, value, NULL);
+	return((*sem) == NULL);
+}
+
+static inline int sem_destroy(sem_t *sem)
+{
+	return(CloseHandle(*sem) == 0);
+}
+
+static inline int sem_wait(sem_t *sem)
+{
+	return(WaitForSingleObject(*sem, INFINITE) == WAIT_FAILED);
+}
+
+static inline int sem_trywait(sem_t *sem)
+{
+	DWORD retVal = WaitForSingleObject(*sem, 0);
+	if (retVal == WAIT_TIMEOUT) return(EAGAIN);
+	if (retVal != WAIT_FAILED) return(0);
+	return(-1);
+}
+
+static inline int sem_post(sem_t *sem)
+{
+	return(ReleaseSemaphore(*sem, 1, NULL) == 0);
 }
 
 #endif

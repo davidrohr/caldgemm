@@ -68,7 +68,7 @@
 #endif
 
 #include "cmodules/threadserver.h"
-
+#include "cmodules/qsem.h"
 
 template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
 template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
@@ -226,7 +226,7 @@ protected:
 		volatile int j;
 		int device;
 		int kernel_num;
-		pthread_mutex_t mutex_start, mutex_finished;
+		qSem mutex_start, mutex_finished;
 		int thread_running;
 		volatile int* next_device;
 		volatile int skip_device_to;
@@ -321,16 +321,16 @@ protected:
 		int nContext;
 		int num_device;
 		bool terminate;
-		pthread_mutex_t mergeThreadMutex[2];
+		qSem mergeThreadMutex[2];
 		size_t k;
 	};
 	mergeParameters mParam[max_devices][max_outputthreads];
 
-	pthread_mutex_t obufferMutex[max_devices][obuffercount];
+	qSem obufferMutex[max_devices][obuffercount];
 
 	struct structLinpackParameters
 	{
-		pthread_mutex_t linpackMutex[2];
+		qSem linpackMutex[2];
 		bool terminate;
 	} linpackParameters;
 
@@ -410,7 +410,7 @@ protected:
 		size_t dynamic_run2;
 		bool borders_done;
 		bool terminate;
-		pthread_mutex_t cblasMutex[2];
+		qSem cblasMutex[2];
 	};
 
 	struct divideParameters

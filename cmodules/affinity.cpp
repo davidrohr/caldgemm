@@ -61,6 +61,78 @@ void setThreadName(char* name)
 	pthread_mutex_unlock(&lockedVector.lock);
 }
 
+void setUnknownNames(char* name)
+{
+	pid_t pid = getpid();
+#ifndef _WIN32
+	char dirname[1024];
+	sprintf(dirname, "/proc/%d/task", (int) pid);
+	DIR* dp = opendir(dirname);
+	if (dp)
+	{
+		dirent* ent;
+		while ((ent = readdir(dp)) != NULL)
+		{
+			pid_t tid = atoi(ent->d_name);
+			if (tid != 0)
+			{
+				int found = false;
+				for (size_t i = 0;i < lockedVector.threadNames.size();i++)
+				{
+					if (lockedVector.threadNames[i].thread_id == tid)
+					{
+						found = true;
+					}
+				}
+				if (found == false)
+				{
+					threadNameStruct tmp;
+					tmp.thread_id = tid;
+					tmp.name = name;
+					lockedVector.threadNames.push_back(tmp);
+				}
+			}
+		}
+	}
+#endif
+}
+
+void setUnknownAffinity(int count, int* cores)
+{
+	pid_t pid = getpid();
+#ifndef _WIN32
+	char dirname[1024];
+	sprintf(dirname, "/proc/%d/task", (int) pid);
+	DIR* dp = opendir(dirname);
+	if (dp)
+	{
+		dirent* ent;
+		while ((ent = readdir(dp)) != NULL)
+		{
+			pid_t tid = atoi(ent->d_name);
+			if (tid != 0)
+			{
+				int found = false;
+				for (size_t i = 0;i < lockedVector.threadNames.size();i++)
+				{
+					if (lockedVector.threadNames[i].thread_id == tid)
+					{
+						found = true;
+					}
+				}
+				if (found == false)
+				{
+					cpu_set_t tmpset;
+					CPU_ZERO(&tmpset);
+					for (int i = 0;i < count;i++) CPU_SET(cores[i], &tmpset);
+					sched_setaffinity(tid, sizeof(tmpset), &tmpset);
+				}
+			}
+		}
+	}
+#endif
+}
+
 void printThreadPinning()
 {
 	pid_t pid = getpid();
