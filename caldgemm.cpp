@@ -1449,6 +1449,7 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 		{
 			if (Config->AllocMapping[i] == Config->DMAMapping[parallelDevice]) myDevices[myNDevices++] = i;
 		}
+		if (myNDevices == 0) return(0);
 	}
 	int use_device = myDevices[myUseDevice];
 
