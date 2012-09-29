@@ -1452,23 +1452,12 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 	}
 	int use_device = myDevices[myUseDevice];
 
-	memset(j, 0, myNDevices * sizeof(int));
-	memset(iMergeThread, 0, myNDevices * sizeof(int));
-	if (Config->ImprovedScheduler)
-	{
-		for (int i = 0;i < myNDevices;i++)
-		{
-			next_device_k[i] = first_device_k[i] == -1 ? 0 : first_device_k[i];
-		}
-	}
-	else
-	{
-		memset(next_device_k, 0, myNDevices * sizeof(size_t));
-	}
-
 	for (int tl = 0;tl < myNDevices;tl++)
 	{
 		int l = myDevices[tl];
+		next_device_k[l] = (!Config->ImprovedScheduler || first_device_k[l] == -1) ? 0 : first_device_k[l];
+		j[l] = 0;
+		iMergeThread[l] = 0;
 		lastk[l] = -1;
 		forcePreparation[l] = 0;
 		buffer_pointers_A[l] = new int[mb];
@@ -1478,7 +1467,6 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 	}
 
 	if (RunCALDGEMM_Init()) return(0);
-
 
 	bool cpu_k_barrier_hit = false;
 	if (gpu_n && gpu_m)
