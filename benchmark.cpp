@@ -201,10 +201,6 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 	Config->DivideToGPU = false;
 	Config->AsyncDMA = false;
 	Config->KeepBuffersMapped = false;
-
-	Config->linpack_factorize_function = linpack_fake1;
-	Config->linpack_broadcast_function = linpack_fake2;
-	Config->linpack_swap_function = linpack_fake3;
 #endif
 
 	for (unsigned int x = 1; x < argc; ++x)
@@ -351,6 +347,9 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'C':
 			linpack_callbacks = true;
+			Config->linpack_factorize_function = linpack_fake1;
+			Config->linpack_broadcast_function = linpack_fake2;
+			Config->linpack_swap_function = linpack_fake3;
 			break;
 		case 'P':
 			if (++x >= argc) return(1);
