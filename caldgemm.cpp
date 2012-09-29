@@ -668,7 +668,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 
 #ifndef _WIN32
-	if (Config->UseGPU)
+	if (Config->UseGPU && Config->UseCPU)
 	{
 		for (int i = 0;i < conf_numprocs;i++)
 		{
