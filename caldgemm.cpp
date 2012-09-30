@@ -1652,7 +1652,7 @@ endimprovedphase:
 					}
 					forcePreparation[use_device] = 0;
 				}
-				if (obuffercount > 1 && (signed) lastk[use_device] != -1 && Config->AsyncDMA && k + (myNDevices - use_device - 1) % myNDevices + 1 < nBlocks && cpu_k_barrier_hit == false)
+				if (obuffercount > 1 && (signed) lastk[use_device] != -1 && Config->AsyncDMA && k + (myNDevices - myUseDevice - 1) % myNDevices + 1 < nBlocks && cpu_k_barrier_hit == false)
 				{
 					if (ImprovedSchedPhase1) nextk = k + 1;
 					else nextk++;
