@@ -2199,7 +2199,28 @@ int caldgemm_cal::reserve_cpu_cores()
 		}
 		if (matrix_n >= Config->ParallelDMA && Config->ParallelDMA != 0)
 		{
-			if (i)
+			if (matrix_n < Config->GroupParallelDMA)
+			{
+				if (Config->AllocMapping[i] != Config->PinMainThread)
+				{
+					bool found = false;
+					for (int j = 0;j < i;j++)
+					{
+						if (Config->AllocMapping[j] == Config->AllocMapping[i])
+						{
+							found = true;
+							break;
+						}
+					}
+					if (!found)
+					{
+						caldgemm_goto_reserve_cpu(Config->AllocMapping[i], 1);
+						if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for Grouped DMA Thread\n", Config->AllocMapping[i]);
+						nthreads++;
+					}
+				}
+			}
+			else if (i)
 			{
 				caldgemm_goto_reserve_cpu(Config->DMAMapping[i], 1);
 				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DMA Thread\n", Config->DMAMapping[i]);
@@ -2262,7 +2283,10 @@ bool caldgemm_cal::cpuUsed(int cpu)
 		}
 		if ((Config->MultiThreadDivide ? (cpu >= Config->GPUMapping[i]) : (cpu > Config->GPUMapping[i])) && cpu < Config->GPUMapping[i] + procsreq) return(true);
 		if (Config->PostprocessMapping[i] != -1 && cpu >= Config->PostprocessMapping[i] && cpu < Config->PostprocessMapping[i] + outputthreads) return(true);
-		if (matrix_n >= Config->ParallelDMA && Config->ParallelDMA != 0 && Config->DMAMapping[i] == cpu) return(true);
+		if (Config->ParallelDMA && matrix_n >= Config->ParallelDMA)
+		{
+			if ((matrix_n < Config->GroupParallelDMA ? Config->AllocMapping[i] : Config->DMAMapping[i]) == cpu) return(true);
+		}
 	}
 	for (int i = 0;i < Config->nExcludeCPUCores;i++) if (Config->ExcludeCPUCores[i] == cpu) return(true);
 
