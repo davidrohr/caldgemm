@@ -2285,7 +2285,7 @@ bool caldgemm_cal::cpuUsed(int cpu)
 		if (Config->PostprocessMapping[i] != -1 && cpu >= Config->PostprocessMapping[i] && cpu < Config->PostprocessMapping[i] + outputthreads) return(true);
 		if (Config->ParallelDMA && matrix_n >= Config->ParallelDMA)
 		{
-			if ((matrix_n < Config->GroupParallelDMA ? Config->AllocMapping[i] : Config->DMAMapping[i]) == cpu) return(true);
+			if (((matrix_n < Config->GroupParallelDMA && (unsigned) Config->GroupParallelDMA != -1) ? Config->AllocMapping[i] : Config->DMAMapping[i]) == cpu) return(true);
 		}
 	}
 	for (int i = 0;i < Config->nExcludeCPUCores;i++) if (Config->ExcludeCPUCores[i] == cpu) return(true);
