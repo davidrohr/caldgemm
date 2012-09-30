@@ -428,12 +428,11 @@ protected:
 	cblasParameters cParam;
 
 	void RunLinpackFactorization(int old_goto_threads, int require_threads);
-	//For Verfify only
-	double* D;
+	
+	double* D;									//For Verfify only
 
 	class clsDMAParam : public qThreadParamCls<caldgemm>
 	{
-
 	};
 	qThreadClsArray<caldgemm, clsDMAParam> DMAThreads;
 	void DMA_wrapper(clsDMAParam* param);
@@ -443,7 +442,6 @@ protected:
 	void* cblas_wrapper_a(cblasParameters* par);
 	void* linpack_wrapper_a();
 
-	//For Timing only
 	bool CPUOnlyRun;
 	int ExecLinpack;
 	double gpu_ratio_used;
