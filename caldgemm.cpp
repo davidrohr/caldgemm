@@ -202,6 +202,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	GroupParallelDMA = 0;
 	LASWPSleep = 0;
 	MinimizeCPUPart = 0;
+	PinBroadcastThread = -1;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -383,24 +384,27 @@ void caldgemm::ensure_omp_thread_pinning()
 		if (thread_id == nFreeCores) localcore = broadcast_cpu_core;
 		nFreeCores++;
 		
-		for (int j = 0;j < 2;j++)
+#pragma omp critical
 		{
-			for (int i = 0;i < conf_numprocs;i++)
+			for (int j = 0;j < 2;j++)
 			{
-				if (cpuUsed(cpu_order[i]) && cpu_order[i] != main_blas_core)
+				for (int i = 0;i < conf_numprocs;i++)
 				{
-					size_t m = matrix_m, n = matrix_n;
-					matrix_m = matrix_n = (unsigned) -1;
-					bool isDMACore = cpuUsed(cpu_order[i]);
-					matrix_m = matrix_n = 0;
-					if (cpuUsed(cpu_order[i])) isDMACore = false;
-					matrix_m = m;
-					matrix_n = n;
-					
-					if ((Config->ParallelDMA != 0 && isDMACore) ^ j)
+					if (cpuUsed(cpu_order[i]) && cpu_order[i] != main_blas_core)
 					{
-						if (thread_id == nFreeCores) localcore = cpu_order[i];
-						nFreeCores++;
+						size_t m = matrix_m, n = matrix_n;
+						matrix_m = matrix_n = (size_t) -1;
+						bool isDMACore = cpuUsed(cpu_order[i]);
+						matrix_m = matrix_n = 0;
+						if (cpuUsed(cpu_order[i])) isDMACore = false;
+						matrix_m = m;
+						matrix_n = n;
+					
+						if ((Config->ParallelDMA != 0 && isDMACore) ^ j)
+						{
+							if (thread_id == nFreeCores) localcore = cpu_order[i];
+							nFreeCores++;
+						}
 					}
 				}
 			}
@@ -578,15 +582,22 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	divide_tmpBuffer = allocDivideBuffer();
 #endif
 
-	int linpackCPU = 0;
-	while (linpackCPU < conf_numprocs)
+	if (Config->PinBroadcastThread == -1)
 	{
-		if (cpuUsed(linpackCPU) == false && linpackCPU != main_blas_core) break;
-		linpackCPU++;
+		int linpackCPU = 0;
+		while (linpackCPU < conf_numprocs)
+		{
+			if (cpuUsed(linpackCPU) == false && linpackCPU != main_blas_core) break;
+			linpackCPU++;
+		}
+		if (linpackCPU >= conf_numprocs) linpackCPU = 0;
+		broadcast_cpu_core = linpackCPU;
 	}
-	if (linpackCPU >= conf_numprocs) linpackCPU = 0;
-	broadcast_cpu_core = linpackCPU;
-	if (Config->Debug) fprintf(STD_OUT, "Broadcast CPU core set to %d\n", linpackCPU);
+	else
+	{
+		broadcast_cpu_core = Config->PinBroadcastThread;
+	}
+	if (Config->Debug) fprintf(STD_OUT, "Broadcast CPU core set to %d\n", broadcast_cpu_core);
 
 	if (Config->AlternateLookahead)
 	{
