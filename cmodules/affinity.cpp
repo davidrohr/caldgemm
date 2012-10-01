@@ -74,7 +74,7 @@ void setUnknownNames(char* name)
 		while ((ent = readdir(dp)) != NULL)
 		{
 			pid_t tid = atoi(ent->d_name);
-			if (tid != 0)
+			if (tid != 0 && tid != pid)
 			{
 				int found = false;
 				for (size_t i = 0;i < lockedVector.threadNames.size();i++)
@@ -110,7 +110,7 @@ void setUnknownAffinity(int count, int* cores)
 		while ((ent = readdir(dp)) != NULL)
 		{
 			pid_t tid = atoi(ent->d_name);
-			if (tid != 0)
+			if (tid != 0 && tid != pid)
 			{
 				int found = false;
 				for (size_t i = 0;i < lockedVector.threadNames.size();i++)
@@ -181,6 +181,13 @@ void printThreadPinning()
 					}
 				}
 				if (found == false) fprintf(STD_OUT, "Unknown Thread");
+				if (CPU_COUNT(&threadmask) == 1)
+				{
+					for (int i = 0;i < get_number_of_cpu_cores();i++)
+					{
+						if (CPU_ISSET(i, &threadmask)) fprintf(STD_OUT, " - Pinned to core %d", i);
+					}
+				}
 				fprintf(STD_OUT, "\n");
 			}
 		}
