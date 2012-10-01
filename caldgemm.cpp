@@ -370,22 +370,22 @@ void caldgemm::ensure_omp_thread_pinning()
 		cpu_set_t localset;
 		int localcore = thread_id * 2;
 
-		int nFreeCores = 0;
-		if (thread_id == nFreeCores) localcore = main_blas_core;
-		nFreeCores++;
-		for (int i = 0;i < conf_numprocs;i++)
-		{
-			if (cpuUsed(cpu_order[i]) == false && cpu_order[i] != broadcast_cpu_core && cpu_order[i] != main_blas_core)
-			{
-				if (thread_id == nFreeCores) localcore = cpu_order[i];
-				nFreeCores++;
-			}
-		}
-		if (thread_id == nFreeCores) localcore = broadcast_cpu_core;
-		nFreeCores++;
-		
 #pragma omp critical
 		{
+			int nFreeCores = 0;
+			if (thread_id == nFreeCores) localcore = main_blas_core;
+			nFreeCores++;
+			for (int i = 0;i < conf_numprocs;i++)
+			{
+				if (cpuUsed(cpu_order[i]) == false && cpu_order[i] != broadcast_cpu_core && cpu_order[i] != main_blas_core)
+				{
+					if (thread_id == nFreeCores) localcore = cpu_order[i];
+					nFreeCores++;
+				}
+			}
+			if (thread_id == nFreeCores) localcore = broadcast_cpu_core;
+			nFreeCores++;
+		
 			for (int j = 0;j < 2;j++)
 			{
 				for (int i = 0;i < conf_numprocs;i++)
