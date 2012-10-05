@@ -163,6 +163,7 @@ public:
 		int GPUClock;							//GPU clock of the device used (to display throttling information)
 		
 		int HPLFactorizeRestrictCPUs;			//Set 1 to restrct thread count to 8, 2 for dynamic restriction
+		int (*HPLFactorizeRestrictCallback)(int matrix_n);		//Callback function to restrict number of cores used for factorization by the return value
 		int LASWPSleep;					//Time in usec to sleep during checks whether LASWP is ready
 		volatile size_t *LinpackSwapN;			//Current status of linpack pivoting process
 		void (*linpack_factorize_function)();	//Linpack callback functions

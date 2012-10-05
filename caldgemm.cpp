@@ -185,6 +185,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	LinpackNodes = 0;
 	LinpackSwapN = NULL;
 	HPLFactorizeRestrictCPUs = 2;
+	HPLFactorizeRestrictCallback = NULL;
 	MPIRank = -1;
 	PreOut = EmptyOut;
 	GPUClock = 0;
@@ -1010,8 +1011,7 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 		}
 		Timers.LinpackTimer3.Stop();
 
-		if (matrix_n > 110000) require_threads_base += 4;
-		else if (matrix_n > 70000) require_threads_base += 2;
+		if (Config->HPLFactorizeRestrictCallback != NULL) require_threads_base += Config->HPLFactorizeRestrictCallback(matrix_n);
 		int require_threads = require_threads_base;
 
 		if (ExecLinpack && Config->AlternateLookahead <= matrix_n)
