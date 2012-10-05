@@ -890,7 +890,7 @@ TryThirdRun:
 	return(retVal);
 }
 
-void caldgemm::RunLinpackFactorization(int old_goto_threads, int require_threads)
+void caldgemm::RunLinpackFactorization(int old_goto_threads, int& require_threads)
 {
 	const CBLAS_TRANSPOSE TransposeA = this->TransposeA ? CblasTrans : CblasNoTrans;
 	const CBLAS_TRANSPOSE TransposeB = this->TransposeB ? CblasTrans : CblasNoTrans;
@@ -925,12 +925,14 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int require_threads
 		Timers.LinpackTimer1.Stop();
 		if (Config->HPLFactorizeRestrictCPUs >= 2) caldgemm_goto_restrict_cpus(0);
 	}
-	goto_set_num_threads(old_goto_threads - require_threads);
 
 	if (Config->LinpackNodes > 1)
 	{
 		if (Config->MultiThread)
 		{
+			caldgemm_goto_reserve_cpu(broadcast_cpu_core, 1);
+			require_threads++;
+
 			linpackParameters.linpackMutex[0].Unlock();
 		}
 		else
@@ -940,6 +942,7 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int require_threads
 			Timers.LinpackTimer2.Stop();
 		}
 	}
+	goto_set_num_threads(old_goto_threads - require_threads);
 }
 
 void* caldgemm::cblas_wrapper(void* arg)
@@ -981,17 +984,11 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 		int old_goto_threads = get_num_procs();
 
 		int require_threads_base = reserve_cpu_cores();
-		int require_threads = require_threads_base;
 		
-		if (ExecLinpack && Config->LinpackNodes > 1)
+		if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu \n", require_threads_base);
+		if (old_goto_threads > require_threads_base)
 		{
-			caldgemm_goto_reserve_cpu(broadcast_cpu_core, 1);
-			require_threads++;
-		}
-		if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu (/ Linpack)\n", require_threads);
-		if (old_goto_threads > require_threads)
-		{
-			goto_set_num_threads(old_goto_threads - require_threads);
+			goto_set_num_threads(old_goto_threads - require_threads_base);
 		}
 		else
 		{
@@ -1001,20 +998,30 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 
 		Timers.TotalCPUTimer.Start();
 		Timers.LinpackTimer3.Start();
+		bool cpus_restricted = false;
+		if (Config->HPLFactorizeRestrictCPUs >= 2 && (Config->LinpackSwapN != NULL || (ExecLinpack && Config->AlternateLookahead <= matrix_n)))
+		{
+			caldgemm_goto_restrict_cpus(Config->HPLFactorizeRestrictCPUs);
+			cpus_restricted = true;
+		}
 		if (Config->LinpackSwapN != NULL)
 		{
-			if (Config->HPLFactorizeRestrictCPUs == 1)
-			{
-			}
-			else if (Config->HPLFactorizeRestrictCPUs >= 2)
-			{
-			    caldgemm_goto_restrict_cpus(Config->HPLFactorizeRestrictCPUs);
-			}
 			Config->linpack_swap_function();
-			if (Config->HPLFactorizeRestrictCPUs >= 2)
-			{
-			    caldgemm_goto_restrict_cpus(0);
-			}
+		}
+		Timers.LinpackTimer3.Stop();
+
+		if (matrix_n > 110000) require_threads_base += 4;
+		else if (matrix_n > 70000) require_threads_base += 2;
+		int require_threads = require_threads_base;
+
+		if (ExecLinpack && Config->AlternateLookahead <= matrix_n)
+		{
+			RunLinpackFactorization(old_goto_threads, require_threads);
+		}
+		
+		if (cpus_restricted)
+		{
+			caldgemm_goto_restrict_cpus(0);
 			if (old_goto_threads > require_threads)
 			{
 				goto_set_num_threads(old_goto_threads - require_threads);
@@ -1024,12 +1031,7 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 				goto_set_num_threads(1);
 			}
 		}
-		Timers.LinpackTimer3.Stop();
 
-		if (ExecLinpack && Config->AlternateLookahead <= matrix_n)
-		{
-			RunLinpackFactorization(old_goto_threads, require_threads);
-		}
 
 		Timers.CPUTimer.Start();
 		bool linpackfinished = false;

@@ -428,7 +428,7 @@ protected:
 
 	cblasParameters cParam;
 
-	void RunLinpackFactorization(int old_goto_threads, int require_threads);
+	void RunLinpackFactorization(int old_goto_threads, int& require_threads);
 	
 	double* D;									//For Verfify only
 
