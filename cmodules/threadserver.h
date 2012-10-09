@@ -68,14 +68,14 @@ public:
 
 	void SpawnThread(S* pCls, void (S::*pFunc)(T*), int threadNum = 0, int pinCPU = -1, bool wait = true)
 	{
-		qThreadParamCls<S>& threadParam = *((qThreadParamCls<S>*) &this->threadParam);
+		qThreadParamCls<S>& XthreadParam = *((qThreadParamCls<S>*) &this->threadParam);
 
-		threadParam.pCls = pCls;
-		threadParam.pFunc = (void (S::*)(void*)) pFunc;
-		threadParam.threadNum = threadNum;
-		threadParam.pinCPU = pinCPU;
+		XthreadParam.pCls = pCls;
+		XthreadParam.pFunc = (void (S::*)(void*)) pFunc;
+		XthreadParam.threadNum = threadNum;
+		XthreadParam.pinCPU = pinCPU;
 		pthread_t thr;
-		pthread_create(&thr, NULL, (void* (*) (void*)) &qThreadWrapperCls, &threadParam);
+		pthread_create(&thr, NULL, (void* (*) (void*)) &qThreadWrapperCls, &XthreadParam);
 		if (wait) WaitForSpawn();
 		started = true;
 	}
@@ -95,11 +95,11 @@ public:
 
 	void End()
 	{
-		qThreadParamCls<S>& threadParam = *((qThreadParamCls<S>*) &this->threadParam);
+		qThreadParamCls<S>& XthreadParam = *((qThreadParamCls<S>*) &this->threadParam);
 	
-		threadParam.terminate = true;
-		threadParam.threadMutex[0].Unlock();
-		threadParam.threadMutex[1].Lock();
+		XthreadParam.terminate = true;
+		XthreadParam.threadMutex[0].Unlock();
+		XthreadParam.threadMutex[1].Lock();
 		started = false;
 	}
 

@@ -40,7 +40,9 @@
 //#define TEST_KERNEL
 //#define TEST_PARAMETERS
 //#define CALDGEMM_UNALIGNED_ADDRESSES
+#ifndef STD_OUT
 #define STD_OUT stdout							//Output for all messages
+#endif
 #define CALDGEMM_OUTPUT_THREADS 1				//Number of Output threads
 #define CALDGEMM_OUTPUT_THREADS_SLOW 2			//Number of output threads when KeepBuffersMapped = false
 #define CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK 0	//Number of additional output threads when running in linpack mode
