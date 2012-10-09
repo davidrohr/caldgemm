@@ -2396,7 +2396,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	print_submatrices(C, 12, 24, C_pitch, 1, 1, 1, 1);
 #endif
 
-	if (!Config->NoPerformanceWarnings && Config->UseCPU && Config->UseGPU && !CPUOnlyRun && fabs(Timers.TotalCPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()) > 1.0)
+	if (!Config->NoPerformanceWarnings && Config->DynamicSched && Config->UseCPU && Config->UseGPU && !CPUOnlyRun && fabs(Timers.TotalCPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()) > 1.0)
 	{
 		fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4f, CPU Time: %2.4f (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime(), (long long int) matrix_m, (long long int) matrix_n);
 	}
