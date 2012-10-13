@@ -82,18 +82,18 @@ inline void printelapsedtime(bool reset = false)
     static long long int begin;
     if (init == 1 || reset)
     {
-	init = 0;
-	timespec b;
-	clock_gettime(CLOCK_REALTIME, &b);
-	begin = (long long int) b.tv_sec * 1000000 + (long long int) b.tv_nsec / 1000;
+		init = 0;
+		timespec b;
+		clock_gettime(CLOCK_REALTIME, &b);
+		begin = (long long int) b.tv_sec * 1000000 + (long long int) b.tv_nsec / 1000;
     }
     timespec a;
     clock_gettime(CLOCK_REALTIME, &a);
-    fprintf(stderr, "%lld ", (long long int) a.tv_sec * 1000000 + (long long int) a.tv_nsec / 1000 - begin);
+    fprintf(STD_OUT, "%lld ", (long long int) a.tv_sec * 1000000 + (long long int) a.tv_nsec / 1000 - begin);
 }
-#define fprintf(file, ...) {printelapsedtime();fprintf(stderr, __VA_ARGS__);}
+#define fprintf(file, ...) {printelapsedtime();fprintf(STD_OUT, __VA_ARGS__);}
 #endif
-//#define fprintf(file, ...) {fprintf(stderr, "Thread %d ", gettid());fprintf(stderr, __VA_ARGS__);}
+//#define fprintf(file, ...) {fprintf(STD_OUT, "Thread %d ", gettid());fprintf(stderr, __VA_ARGS__);}
 
 caldgemm::caldgemm()
 {

@@ -1000,19 +1000,19 @@ int main(int argc, char** argv)
 			Config.Debug = tmpdebug;
 			if (!quietbench)
 			{
-				fprintf(stderr, "Done\n");
+				fprintf(STD_OUT, "Done\n");
 			}
 		}
 #endif
 		if (!quietbench)
 		{
-			fprintf(stderr, "Initializing Matrix C\n");
+			fprintf(STD_OUT, "Initializing Matrix C\n");
 		}
 		SetupUserDataC(Config);
 		dgemm_obj->ResetTimers();
 		if (!quietbench)
 		{
-			fprintf(stderr, "Running Benchmark\n");
+			fprintf(STD_OUT, "Running Benchmark\n");
 		}
 		do
 		{

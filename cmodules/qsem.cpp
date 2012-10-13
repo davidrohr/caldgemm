@@ -2,28 +2,32 @@
 #include <errno.h>
 #include <stdio.h>
 
+#ifndef STD_OUT
+#define STD_OUT stdout
+#endif
+
 qSem::qSem(int num)
 {
 	max = num;
-	if (sem_init(&sem, 0, num)) fprintf(stderr, "Error initializing semaphore");
+	if (sem_init(&sem, 0, num)) fprintf(STD_OUT, "Error initializing semaphore");
 }
 
 qSem::~qSem()
 {
-	if (sem_destroy(&sem)) fprintf(stderr, "Error destroying semaphore");
+	if (sem_destroy(&sem)) fprintf(STD_OUT, "Error destroying semaphore");
 }
 
 int qSem::Lock()
 {
 	int retVal;
-	if ((retVal = sem_wait(&sem))) fprintf(stderr, "Error locking semaphore");
+	if ((retVal = sem_wait(&sem))) fprintf(STD_OUT, "Error locking semaphore");
 	return(retVal);
 }
 
 int qSem::Unlock()
 {
 	int retVal;
-	if ((retVal = sem_post(&sem))) fprintf(stderr, "Error unlocking semaphire");
+	if ((retVal = sem_post(&sem))) fprintf(STD_OUT, "Error unlocking semaphire");
 	return(retVal);
 }
 
