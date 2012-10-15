@@ -61,8 +61,8 @@ extern "C"
 
 #include <math.h>
 
-#if !defined(USE_GOTO_BLAS) | defined(_WIN32)
 #include "cmodules/os_low_level_helper.h"
+#if !defined(USE_GOTO_BLAS) | defined(_WIN32)
 extern "C" {
 extern int get_num_procs();
 int get_num_procs()
