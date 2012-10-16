@@ -64,7 +64,7 @@ DEFINES						+= USE_GOTO_BLAS
 ifeq ($(ARCH), i686-pc-cygwin)
 EXTRAOBJFILES				+= ../GotoBLAS2/libgoto2.lib
 else
-LIBS						+= gfortran
+#LIBS						+= gfortran
 EXTRAOBJFILES				+= ../GotoBLAS2/libgoto2.a
 endif
 else

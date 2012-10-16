@@ -135,6 +135,8 @@ caldgemm::caldgemm()
 	
 	matrix_m = (size_t) -1;
 	matrix_n = (size_t) -1;
+	
+	cParam.dynamic_size = 0; //Make Valgrind happy
 }
 
 caldgemm::~caldgemm()
@@ -536,7 +538,17 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	CPU_SET(main_blas_core, &blasset);
 	sched_setaffinity(0, sizeof(blasset), &blasset);
 
-	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);		//GotoBLAS has its own thread pinning, store old value here.
+	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);		//As for GotoBLAS above, store pinning here
+#else	//Set main blas core for GotoBLAS
+	for (int i = 0;i < conf_numprocs;i++)
+	{
+		main_blas_core = 0;
+		if (CPU_ISSET(i, &oldcpumask))
+		{
+			main_blas_core = i;
+			break;
+		}
+	}
 #endif
 
 	if (InitDevices()) return(1);
@@ -566,12 +578,12 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		}
 	}
 	
-	if (Config->MultiThreadDivide && UseMutexPerDevice())
+	if (Config->MultiThread && UseMutexPerDevice())
 	{
-	    for (int i = 0;i < nDevices;i++)
-	    {
+		for (int i = 0;i < nDevices;i++)
+		{
 			pthread_mutex_init(&device_mutex[i], NULL);
-	    }
+		}
 	}
 
 	cpu_set_t tmpmask;
@@ -1941,7 +1953,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		tmpt = TransA;TransA = TransB;TransB = tmpt;
 	}
 
-	if (!Config->Quiet) fprintf(STD_OUT, "Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%f Beta=%f LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld), Linpack=%d)\n", (long long int) matrix_m, (long long int) Config->Width, (long long int) matrix_n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA), (int) (TransB), (int) (orderColMajor), (long long int) A, (long long int) B, (long long int) C, (long long int) ((size_t) C - (size_t) A) / sizeof(double), (long long int) ((size_t) C - (size_t) B) / sizeof(double) / Config->Width, (int) ExecLinpack);
+	if (!Config->Quiet) fprintf(STD_OUT, "Starting DGEMM Run m=%lld k=%lld n=%lld Alpha=%f Beta=%f LDA=0x%lx LDB=0x%lx LDC=0x%lx At=%d Bt=%d ColMajor=%d (A=0x%llx, B=0x%llx, C=0x%llx, (C-A=%lld, (C-B)/w=%lld), Linpack=%d)\n", (long long int) matrix_m, (long long int) Config->Width, (long long int) matrix_n, Alpha, Beta, A_pitch, B_pitch, C_pitch, (int) (TransA), (int) (TransB), (int) (orderColMajor), (long long int) A, (long long int) B, (long long int) C, (long long int) ((size_t) C - (size_t) A) / sizeof(double), (long long int) ((size_t) C - (size_t) B) / sizeof(double) / Config->Width, (int) ExecuteLinpackCallbacks);
 
 	TransposeA = TransA;
 	TransposeB = TransB;    
@@ -2246,6 +2258,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		}
 		else
 		{
+			DGEMM_split_m = 0;
 			if (matrix_n % Config->Height || matrix_m % Config->Height)
 			{
 				fprintf(STD_OUT, "Invalid matrix size for GPU only (%lld %% %lld = %lld, %lld %% %lld = %lld)\n", (long long int) matrix_n, (long long int) Config->Height, (long long int) matrix_n % Config->Height, (long long int) matrix_m, (long long int) Config->Height, (long long int) matrix_m % Config->Height);
@@ -2434,7 +2447,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task CALDGEMM_DIVBUFA)
 {
-	pthread_mutex_lock(&device_mutex[Task.device]);
+	if (Config->MultiThread && UseMutexPerDevice()) pthread_mutex_lock(&device_mutex[Task.device]);
 	//fprintf(STD_OUT, "DGEMMPrepareAndExecute device %d k1 %d j1 %d k2 %d j2 %d\n", Task.device, (int) Task.PrepareTasks[0].k, Task.PrepareTasks[0].j, (int) Task.PrepareTasks[1].k, Task.PrepareTasks[1].j);
 	for (int l = 0;l < 2;l++)
 	{
@@ -2452,9 +2465,9 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task 
 			Timers.ATime.Reset();
 			Timers.ATime.Start();
 		}
-		pthread_mutex_unlock(&device_mutex[Task.device]);
+		if (Config->MultiThread && UseMutexPerDevice()) pthread_mutex_unlock(&device_mutex[Task.device]);
 		obufferMutex[Task.device][Task.j].Lock();
-		pthread_mutex_lock(&device_mutex[Task.device]);
+		if (Config->MultiThread && UseMutexPerDevice()) pthread_mutex_lock(&device_mutex[Task.device]);
 		if (Config->AsyncTiming)
 		{
 			Timers.ATime.Stop();
@@ -2471,7 +2484,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task 
 	}
 	if (ExecuteKernels(Task, blockm, blockn)) return(1);
 	DGEMMPrepareTaskEventReady[Task.device][Task.j] = true;
-	pthread_mutex_unlock(&device_mutex[Task.device]);
+	if (Config->MultiThread && UseMutexPerDevice()) pthread_mutex_unlock(&device_mutex[Task.device]);
 	return(0);
 }
 
@@ -2578,7 +2591,7 @@ int caldgemm::ExitCALDGEMM()
 				DGEMMTasks[i].mutex_finished.Unlock();
 			}
 		}
-		if (Config->MultiThreadDivide && UseMutexPerDevice())
+		if (Config->MultiThread && UseMutexPerDevice())
 		{
 			for (int i = 0;i < nDevices;i++)
 			{
