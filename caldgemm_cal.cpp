@@ -25,6 +25,8 @@
 #include "caldgemm_cal.h"
 #include "caldgemm_common.h"
 
+#include "cmodules/util_adl.h"
+
 #define ILKernelName ILKernel
 #include "caldgemm.il"
 #undef ILKernelName
@@ -128,10 +130,27 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 
 caldgemm_cal::caldgemm_cal() : caldgemm()
 {
+    adl_util_initialized = 0;
 }
 
 caldgemm_cal::~caldgemm_cal()
 {
+    if (adl_util_initialized)
+    {
+	adl_temperature_check_exit();
+    }
+}
+
+double caldgemm_cal::getMaxGPUTemperature()
+{
+    if (adl_util_initialized == 0)
+    {
+	if (adl_temperature_check_init()) return(-1.);
+	adl_util_initialized = 1;
+    }
+    double retVal;
+    if (adl_temperature_check_run(&retVal, !Config->Quiet)) return(-1.);
+    return(retVal);
 }
 
 int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose CALDGEMM_DIVBUFA)

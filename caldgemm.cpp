@@ -3064,6 +3064,11 @@ void caldgemm::printConfig()
 	}
 }
 
+double caldgemm::getMaxGPUTemperature()
+{
+    return(0.);
+}
+
 #ifndef USE_GOTO_BLAS
 static int caldgemm_restrict_cpus = 0;
 static int current_num_threads = get_num_procs();

@@ -20,7 +20,7 @@ EXTRAOBJFILES				=
 CONFIG_STATIC				= 0
 EXTRAFLAGSGCC				= 
 
-CPPFILES					= caldgemm.cpp benchmark.cpp cmodules/timer.cpp cmodules/qmalloc.cpp caldgemm_cpu.cpp cmodules/affinity.cpp cmodules/threadserver.cpp cmodules/qsem.cpp
+CPPFILES					= caldgemm.cpp benchmark.cpp cmodules/timer.cpp cmodules/qmalloc.cpp caldgemm_cpu.cpp cmodules/affinity.cpp cmodules/threadserver.cpp cmodules/qsem.cpp cmodules/util_adl.cpp
 CXXFILES					=
 ASMFILES					=
 CUFILES						=

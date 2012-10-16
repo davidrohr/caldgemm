@@ -193,6 +193,7 @@ public:
 	int avgngflops;
 
 	virtual bool cpuUsed(int cpu);
+	virtual double getMaxGPUTemperature();
 	
 	void printConfig();
 	void setMatrixDim(size_t m, size_t n) {matrix_m = m;matrix_n = n;}

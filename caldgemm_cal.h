@@ -40,8 +40,10 @@ public:
 	virtual ~caldgemm_cal();
 
 	virtual bool cpuUsed(int cpu);
+	virtual double getMaxGPUTemperature();
 
 private:
+	int adl_util_initialized;
 	virtual int UseOutputPthreads();
 	virtual int UseInputPthreads();
 	virtual int UseMutexPerDevice();
