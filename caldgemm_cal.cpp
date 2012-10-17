@@ -93,7 +93,9 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 	do
 	{
 		if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 		r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr]);
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
 		if (r == CAL_RESULT_ERROR)
 		{
@@ -137,7 +139,7 @@ caldgemm_cal::~caldgemm_cal()
 {
     if (adl_util_initialized)
     {
-	adl_temperature_check_exit();
+		adl_temperature_check_exit();
     }
 }
 
@@ -145,8 +147,8 @@ double caldgemm_cal::getMaxGPUTemperature()
 {
     if (adl_util_initialized == 0)
     {
-	if (adl_temperature_check_init()) return(-1.);
-	adl_util_initialized = 1;
+		if (adl_temperature_check_init()) return(-1.);
+		adl_util_initialized = 1;
     }
     double retVal;
     if (adl_temperature_check_run(&retVal, !Config->Quiet)) return(-1.);
@@ -169,7 +171,9 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 	{
 		for (int i = 0;i < numBuffers;i++)
 		{
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			CHKERR(calResMap(&dst[i].ptr_void, &dst[i].pitch, dst[i].res, 0), "mapping input buffer for buffer division");
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			if (((size_t) dst[i].ptr_void) & (vcpysize - 1))
 			{
 				fprintf(STD_OUT, "Invalid alignment\n");
@@ -782,7 +786,9 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 	{
 		for (int i = 0;i < numBuffers;i++)
 		{
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			CHKERR(calResUnmap(dst[i].res), "unmapping input buffer for buffer division");
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 	}
 	return(0);
@@ -806,7 +812,9 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 	{
 		for (unsigned int i = 0;i < dwBuffersC;i++)
 		{
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			CHKERR(calResMap(&src[i].ptr_void, &src[i].pitch, src[i].res, 0), "mapping output buffer for merging");
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			if (((size_t) src[i].ptr_void) & (vcpysize - 1))
 			{
 				fprintf(STD_OUT, "Invalid alignment\n");
@@ -1076,7 +1084,9 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 	{
 		for (unsigned int i = 0;i < dwBuffersC;i++)
 		{
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			CHKERR(calResUnmap(src[i].res), "unmapping output buffer for merging");
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 	}
 	return(0);
@@ -1292,7 +1302,9 @@ int caldgemm_cal::SetupKernel(const char* ILKernel, CALmodule* module, CALcontex
 int caldgemm_cal::RunProgram(CALcontext *ctx, CALmodule *module, unsigned int Width, unsigned int Height, CALevent* event)
 {
 	CALfunc func;
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	CHKERR(calModuleGetEntry(&func, *ctx, *module, "main"), "finding module entry point");
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 
 #ifdef CALDGEMM_COMPUTE_SHADER
 	CALprogramGrid pg;
@@ -1431,12 +1443,16 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 		if (data[i].CALMemory)
 		{
 			//if (Config->Debug) fprintf(STD_OUT, "GPUHandle: %d, CPUHandle: %d\n", data[i].dstMem, data[i].mem);
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			CHKERR(calMemCopy(&events[nDevice][nContext], *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			continue;
 		}
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 		CHKERR(calResMap((void**)&ptr, &pitch, _Res[i], 0), "mapping buffer");
 		memcpy(data[i].ptr_char, ptr, data[i].DataSize * data[i].VectorSize * data[i].Width * data[i].Height);
 		CHKERR(calResUnmap(_Res[i]), "unmapping buffer");
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}
 	if (Config->VerboseTiming)
 	{
@@ -1456,16 +1472,20 @@ int caldgemm_cal::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProper
 		if (data[i].CALMemory == constants) continue;
 		if (data[i].CALMemory)
 		{
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 #ifdef CALDGEMM_44_BT_64_CONVERT
 			CHKERR(calMemCopy(event, *ctx, data[i].mem, data[i].tmpmem, 0), "copying to gpu");
 #else
 			CHKERR(calMemCopy(event, *ctx, data[i].mem, dest_data[i].dstMem, 0), "copying data to gpu");
 #endif
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			continue;
 		}
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 		CHKERR(calResMap((void**)&ptr, &pitch, _Res[i], 0), "Mapping Buffer");
 		memcpy(ptr, data[i].ptr_char, data[i].DataSize * data[i].VectorSize * data[i].Width * data[i].Height);
 		CHKERR(calResUnmap(_Res[i]), "unmapping buffer");
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}
 	if (Config->VerboseTiming && constants == false) WAITFOREVENTA(*ctx, *event);
 #ifdef CALDGEMM_44_BT_64_CONVERT
@@ -1687,8 +1707,10 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 	if (!DGEMM_favor_m && buffersSwitchable)
 	{
 		const int buffer_pos = buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : 2);
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 		for (unsigned int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pos][dwBuffersA + l].dstMem), "setting kernel memory A");
 		for (unsigned int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2][l].dstMem), "setting kernel memory B");
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 #ifdef CALDGEMM_44_BT_64_CONVERT
 		for (int ll = 0;ll < 2;ll++)
 		{
@@ -1698,8 +1720,10 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 				if (Config->Debug) fprintf(STD_OUT, "\tStarting conversion kernel for device %d input matrix %d (path 1)\n", Task.device, ll);
 				for (unsigned int i = 0; i < ((ll == 1) ? dwBuffersB : dwBuffersA); ++i)
 				{
+					if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 					CHKERR(calCtxSetMem(ctxs[Task.device], progNamesConvert[Task.device][i], chkBuffer[0].conversionBuffer[i].tmpmem), "setting convert kernel memory in");
 					CHKERR(calCtxSetMem(ctxs[Task.device], progNamesConvert[Task.device][i + dwBuffersA], chkBuffer[i].dstMem), "setting convert kernel memory out");
+					if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 				}
 				if (RunProgram(&ctxs[Task.device], &modulesConvert[Task.device], chkBuffer[0].Width, chkBuffer[0].Height, &events[Task.device][Task.j]))
 				{
@@ -1719,8 +1743,10 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 #else
 		const bool buffersSufficiant = false;
 #endif
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 		for (unsigned int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % 2][l].dstMem), "setting kernel memory A");
 		for (unsigned int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][l].dstMem), "setting kernel memory B");
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 #ifdef CALDGEMM_44_BT_64_CONVERT
 		for (int ll = 0;ll < 2;ll++)
 		{
@@ -1730,8 +1756,10 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 				if (Config->Debug) fprintf(STD_OUT, "\tStarting conversion kernel for device %d input matrix %d (path 2)\n", Task.device, ll);
 				for (unsigned int i = 0; i < ((ll == 1) ? dwBuffersB : dwBuffersA); ++i)
 				{
+					if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 					CHKERR(calCtxSetMem(ctxs[Task.device], progNamesConvert[Task.device][i], chkBuffer[0].conversionBuffer[i].tmpmem), "setting convert kernel memory in");
 					CHKERR(calCtxSetMem(ctxs[Task.device], progNamesConvert[Task.device][i + dwBuffersA], chkBuffer[i].dstMem), "setting convert kernel memory out");
+					if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 				}
 				if (RunProgram(&ctxs[Task.device], &modulesConvert[Task.device], chkBuffer[0].Width, chkBuffer[0].Height, &events[Task.device][Task.j]))
 				{
@@ -1743,10 +1771,14 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 		}
 #endif
 	}
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	for (unsigned int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) / TILING_X, (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
 	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(Task.device, resourceHandlers[Task.device][Task.j] + numInputs + numConstantBuffers, datas[Task.device][Task.j] + numInputs + numConstantBuffers, numOutputs, Task.j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	calCtxFlush(ctxs[Task.device]);
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	return(0);
 }
 
@@ -2178,7 +2210,9 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
 		}
 	}
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	calCtxFlush(ctxs[num_device]);
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	
 	return(0);
 }

@@ -192,7 +192,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	PreOut = EmptyOut;
 	GPUClock = 0;
 	SmallTiles = 0;
-	ThreadSaveDriver = false;
+	ThreadSaveDriver = 0;
 	SkipCPUProcessing = false;
 	OutputThreads = -1;
 	RepinDuringActiveWaitForEvent = 0;
@@ -689,6 +689,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (Config->ParallelDMA && nDevices)
 	{
 		DMAThreads.SetNumberOfThreads(nDevices - 1, this, &caldgemm::DMA_wrapper, 1, &Config->DMAMapping[1]);
+	}
+
+	if (Config->ThreadSaveDriver == -1)
+	{
+		pthread_mutex_init(&globalDriverLock, NULL);
 	}
 
 #ifndef _WIN32
@@ -1761,7 +1766,7 @@ endimprovedphase:
 				size_t lastm, lastn;
 				DGEMM_getblocks(lastk[use_device], lastm, lastn);
 				int must_lock = 0;
-				if (!Config->ThreadSaveDriver)
+				if (Config->ThreadSaveDriver != 1)
 				{
 					if (parallelDevice >= 0)
 					{
@@ -2598,6 +2603,11 @@ int caldgemm::ExitCALDGEMM()
 				if (pthread_mutex_destroy(&device_mutex[i])) fprintf(STD_OUT, "ERROR destroying device_mutex: %s - %d\n", __FILE__, __LINE__);
 			}
 		}
+	}
+
+	if (Config->ThreadSaveDriver == -1)
+	{
+		pthread_mutex_destroy(&globalDriverLock);
 	}
 
 #ifdef CALDGEMM_DIVIDE_STATIC_BUFFER

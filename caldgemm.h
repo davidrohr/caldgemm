@@ -135,7 +135,7 @@ public:
 		bool RepinDuringActiveWaitForEvent;		//Repin the Main CPU core that does the active wait for the event to the allocmapping of the GPU it waits for
 		bool RepinMainThreadAlways;				//Superseedes the above setting. The main thread is always repinned to the allocmapping core of each GPU when working for this GPU
 		int SleepDuringActiveWait;				//Sleep for n usec between queries for GPU event, -1 disable
-		bool ThreadSaveDriver;					//Assume GPU driver to be thread save
+		int ThreadSaveDriver;					//Assume GPU driver to be thread save
 		int PinCPU;								//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
 		int OutputThreads;						//Number of output threads
@@ -444,6 +444,8 @@ protected:
 	void* divide_wrapper_a(divideParameters* par);
 	void* cblas_wrapper_a(cblasParameters* par);
 	void* linpack_wrapper_a();
+
+	pthread_mutex_t globalDriverLock;
 
 	bool CPUOnlyRun;
 	int ExecLinpack;
