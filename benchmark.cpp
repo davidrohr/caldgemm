@@ -1048,6 +1048,7 @@ int main(int argc, char** argv)
 						return(1);
 					}
 				}
+				fflush(STD_OUT);
 				if (torture)
 				{
 					dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks);
