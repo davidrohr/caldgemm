@@ -1775,7 +1775,7 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 	for (unsigned int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) / TILING_X, (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
-	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && CopyDataFromGPU(Task.device, resourceHandlers[Task.device][Task.j] + numInputs + numConstantBuffers, datas[Task.device][Task.j] + numInputs + numConstantBuffers, numOutputs, Task.j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && FetchResult(Task.device, Task.j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	calCtxFlush(ctxs[Task.device]);
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
