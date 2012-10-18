@@ -1043,7 +1043,7 @@ int main(int argc, char** argv)
 				if (MaxGPUTemperature > 0)
 				{
 					int tmpVal = (int) dgemm_obj->getMaxGPUTemperature();
-					if (tmpVal > MaxGPUTemperature)
+					if (tmpVal > MaxGPUTemperature && tmpVal < 500)
 					{
 						fprintf(STD_OUT, "Maximum GPU Temperature of %d exceeded, temperature is %d\n", MaxGPUTemperature, tmpVal);
 						return(1);
