@@ -729,7 +729,7 @@ struct gpu_mem_struct_opencl
 static gpu_mem_struct_opencl gpu_mem[MAX_GPU_MEM_COUNT];
 static int nGPUMEM = 0;
 
-double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix)
+double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix, bool interleave)
 {
 	if (gpuaccessible)
 	{
@@ -770,7 +770,7 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 	}
 	else
 	{
-		return (caldgemm::AllocMemory(nDoubles, page_locked, huge_pages));
+		return (caldgemm::AllocMemory(nDoubles, page_locked, huge_pages, gpuaccessible, Cmatrix, interleave));
 	}
 }
 

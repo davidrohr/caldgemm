@@ -6,7 +6,7 @@
 class qmalloc
 {
 public:
-	static void* qMalloc(size_t size, bool huge, bool executable, bool locked, void* alloc_addr = NULL);
+	static void* qMalloc(size_t size, bool huge, bool executable, bool locked, void* alloc_addr = NULL, int interleave = false);
 	static int qFree(void* ptr);
 
 private:	

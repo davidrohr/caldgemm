@@ -11,13 +11,22 @@
 /// Demonstrates some basic ADL functions - create, destroy, obtaining adapter and display information.
 /// If the display capabilities allow, increases, decreases and restores the brightness of each display
 
+#ifdef _WIN32
+#define WINDOWS
+#else
 #define LINUX
+#endif
+
 #include "../../ADL/include/adl_sdk.h"
+#ifdef LINUX
 #include <dlfcn.h>	//dyopen, dlsym, dlclose
+#include <unistd.h>	//sleep
+#else
+#include <windows.h>
+#include <winbase.h>
+#endif
 #include <stdlib.h>	
 #include <string.h>	//memeset
-#include <unistd.h>	//sleep
-
 #include <stdio.h>
 
 #ifndef MAINPROG
@@ -56,18 +65,30 @@ ADL_ADAPTER_ID_GET               ADL_Adapter_ID_Get;
 
 int nAdapters;
 int* nAdapterIndizes;
+#ifdef LINUX
 void *hDLL;		// Handle to .so library
+#else
+HINSTANCE hDLL;
+#endif
+
+#ifndef LINUX
+void* dlsym(HINSTANCE lib, char* name)
+{
+	return(GetProcAddress(lib, name));
+}
+#endif
 
 int adl_temperature_check_init()
 {
-
-	
     LPAdapterInfo     lpAdapterInfo = NULL;
     int  iNumberAdapters;
-    
+#ifdef LINUX
     setenv("DISPLAY", ":0", 1);
-
-    hDLL = dlopen( "libatiadlxx.so", RTLD_LAZY|RTLD_GLOBAL);
+	hDLL = dlopen( "libatiadlxx.so", RTLD_LAZY|RTLD_GLOBAL);
+#else
+	hDLL = LoadLibrary( "atiadlxx.dll" );
+#endif
+    
 
         if (NULL == hDLL)
         {
@@ -177,7 +198,11 @@ int adl_temperature_check_run(double* max_temperature, int verbose)
 int adl_temperature_check_exit()
 {
     ADL_Main_Control_Destroy ();
+#ifdef LINUX
     dlclose(hDLL);
+#else
+	FreeLibrary(hDLL);
+#endif
 
     return(0);
 }

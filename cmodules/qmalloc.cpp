@@ -12,6 +12,21 @@
 #ifndef MAP_HUGETLB
 #define MAP_HUGETLB 0x40000 /* arch specific */
 #endif
+
+#include <syscall.h>
+#include <numaif.h>
+#ifndef MPOL_DEFAULT
+#define MPOL_DEFAULT 0
+#endif
+#ifndef MPOL_PREFERRED
+#define MPOL_PREFERRED 1
+#endif
+#ifndef MPOL_BIND
+#define MPOL_BIND 2
+#endif
+#ifndef MPOL_INTERLEAVE
+#define MPOL_INTERLEAVE 3
+#endif
 #endif
 
 #ifndef STD_OUT
@@ -55,7 +70,7 @@ static void Privilege(TCHAR* pszPrivilege, BOOL bEnable)
 }
 #endif
 
-void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, void* alloc_addr)
+void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, void* alloc_addr, int interleave)
 {
 	int pagesize;
 	void* addr;
@@ -100,6 +115,11 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 	{
 		protect = PAGE_EXECUTE_READWRITE;
 	}
+	if (interleave)
+	{
+		fprintf(stderr, "Interleaved allocation not supported on Windows\n");
+		exit(1);
+	}
 	addr = VirtualAlloc(alloc_addr, size, flags, protect);
 #else
 	int flags = MAP_ANONYMOUS | MAP_PRIVATE;
@@ -107,8 +127,28 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 	if (huge) flags |= MAP_HUGETLB;
 	if (executable) prot |= PROT_EXEC;
 	if (locked) flags |= MAP_LOCKED;
+	unsigned long oldnodemask;
+	int oldpolicy;
+	if (interleave && locked) //mmap will perform a memory lock, so we have to change memory policy beforehand
+	{
+		syscall(SYS_get_mempolicy, &oldpolicy, &oldnodemask, sizeof(oldnodemask) * 8, NULL, 0);
+		unsigned long nodemask = 0xffffff;
+		syscall(SYS_set_mempolicy, MPOL_INTERLEAVE, &nodemask, sizeof(nodemask) * 8);
+	}
 	addr = mmap(alloc_addr, size, prot, flags, 0, 0);
 	if (addr == MAP_FAILED) addr = NULL;
+	if (interleave)
+	{
+		if (locked)	//Restore old memory policy
+		{
+			syscall(SYS_set_mempolicy, oldpolicy, &oldnodemask, sizeof(oldnodemask) * 8);
+		}
+		else if (addr) //Set memory policy for region
+		{
+			unsigned long nodemask = 0xffffff;
+			mbind(addr, size, MPOL_INTERLEACE, &nodemask, sizeof(nodemask) * 8, 0);
+		}
+	}
 #endif
 
 	if (alloc_addr != NULL && addr != alloc_addr)
