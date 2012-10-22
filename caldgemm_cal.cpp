@@ -1502,7 +1502,7 @@ int caldgemm_cal::ValidateCALRuntime()
 	CALVersion available;
 	calGetVersion(&available.major, &available.minor, &available.imp);
 	
-	if (Config->ImplicitDriverSync == -1)
+	if (Config->ImplicitDriverSync == -1 && Config->UseDMAFetchQueue == 0)
 	{
 		if (available.major > 2 || available.minor > 4 || (available.minor == 4 && available.imp > 900)) Config->ImplicitDriverSync = 0;
 		else Config->ImplicitDriverSync = 1;

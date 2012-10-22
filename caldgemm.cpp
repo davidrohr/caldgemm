@@ -138,7 +138,7 @@ caldgemm::caldgemm()
 	
 	cParam.dynamic_size = 0; //Make Valgrind happy
 
-	for (int i = 0;i < max_devices;i++)
+	for (unsigned int i = 0;i < max_devices;i++)
 	{
 		dma_fetch_queue_tasks[i].k = (size_t) -1;
 	}
