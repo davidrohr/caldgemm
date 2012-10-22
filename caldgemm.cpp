@@ -701,7 +701,10 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	{
 		pthread_mutex_init(&globalDriverLock, NULL);
 	}
-
+	if (Config->UseDMAFetchQueue)
+	{
+		pthread_mutex_init(&dma_queue_mutex, NULL);
+	}
 #ifndef _WIN32
 	if (Config->UseGPU && Config->UseCPU)
 	{
@@ -2618,6 +2621,10 @@ int caldgemm::ExitCALDGEMM()
 	if (Config->ThreadSaveDriver == -1)
 	{
 		pthread_mutex_destroy(&globalDriverLock);
+	}
+	if (Config->UseDMAFetchQueue)
+	{
+		pthread_mutex_destroy(&dma_queue_mutex);
 	}
 
 #ifdef CALDGEMM_DIVIDE_STATIC_BUFFER

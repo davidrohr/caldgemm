@@ -1783,8 +1783,10 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 	{
 		if (Config->UseDMAFetchQueue)
 		{
+			pthread_mutex_lock(&dma_queue_mutex);
 			dma_fetch_queue_tasks[Task.device].j = Task.j;
 			dma_fetch_queue_tasks[Task.device].k = Task.k;
+			pthread_mutex_unlock(&dma_queue_mutex);
 		}
 		else if (Config->ImplicitDriverSync)
 		{
@@ -2164,6 +2166,7 @@ int caldgemm_cal::FetchResult(int device, int j, int m, int n)
 
 int caldgemm_cal::CheckDMAQueue(int device, int forcej)
 {
+	pthread_mutex_lock(&dma_queue_mutex);
 	if (dma_fetch_queue_tasks[device].k != (size_t) -1 && (forcej == -1 || dma_fetch_queue_tasks[device].j == forcej))
 	{
 		size_t blockm, blockn;
@@ -2172,7 +2175,9 @@ int caldgemm_cal::CheckDMAQueue(int device, int forcej)
 		if (FetchResult(device, dma_fetch_queue_tasks[device].j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
 		if (forcej != -1 && WaitForEvent(forcej, device)) return(1);
 		dma_fetch_queue_tasks[device].k = (size_t) -1;
-	}	return(0);
+	}
+	pthread_mutex_unlock(&dma_queue_mutex);
+	return(0);
 }
 
 int caldgemm_cal::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch)
