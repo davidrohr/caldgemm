@@ -103,6 +103,11 @@ int caldgemm_cpu::FetchResult(int device, int j, int m, int n)
 	return(0);
 }
 
+int caldgemm_cpu::CheckDMAQueue(int device, int forcej)
+{
+	return(0);
+}
+
 int caldgemm_cpu::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch)
 {
 	if (Config->Debug) fprintf(STD_OUT, "CALDGEMM_CPU RunMergeBuffers\n");

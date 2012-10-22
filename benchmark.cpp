@@ -99,6 +99,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-i        Print IL Kernel used\n" );
 	fprintf(STD_OUT, "\t-o  <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n" );
 	fprintf(STD_OUT, "\t-I  <int> Set implicit driver sync\n" );
+	fprintf(STD_OUT, "\t-^  <int> Set DMA queue parameter\n" );
 	fprintf(STD_OUT, "\t-h  <int> block size for matrix multiply, default 4096\n" );
 	fprintf(STD_OUT, "\t-H  <int> Reduced block size for actual matrix multiply (buffer size given by -h)\n" );
 	fprintf(STD_OUT, "\t-w  <int> k for matrix multiply, default 1024\n" );
@@ -437,6 +438,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 		case 'I':
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", (int*) &Config->ImplicitDriverSync);
+			break;
+		case '^':
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", (int*) &Config->UseDMAFetchQueue);
 			break;
 		case 'E':
 			if (++x >= argc) return(1);

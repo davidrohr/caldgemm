@@ -137,6 +137,11 @@ caldgemm::caldgemm()
 	matrix_n = (size_t) -1;
 	
 	cParam.dynamic_size = 0; //Make Valgrind happy
+
+	for (int i = 0;i < max_devices;i++)
+	{
+		dma_fetch_queue_tasks[i].k = (size_t) -1;
+	}
 }
 
 caldgemm::~caldgemm()
@@ -206,6 +211,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	LASWPSleep = 0;
 	MinimizeCPUPart = 0;
 	PinBroadcastThread = -1;
+	UseDMAFetchQueue = 0;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -1788,7 +1794,11 @@ endimprovedphase:
 					DGEMMPrepareTaskEventReady[use_device][oldj[use_device]] = false;
 					if (WaitForEvent(oldj[use_device], use_device, must_lock)) return(1);
 					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
-					if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
+					if (Config->UseDMAFetchQueue == 1 && Config->DstMemory == 'g')
+					{
+						if (CheckDMAQueue(use_device, oldj[use_device])) return(1);
+					}
+					else if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
 					{
 						if (FetchResult(use_device, oldj[use_device], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
 						if (WaitForEvent(oldj[use_device], use_device)) return(1);
@@ -3007,6 +3017,7 @@ void caldgemm::printConfig()
 	fprintf(STD_OUT, "DivideToGPU %d\n", (int) Config->DivideToGPU);
 	fprintf(STD_OUT, "DstMemory %c\n", Config->DstMemory);
 	fprintf(STD_OUT, "ImplicitDriverSync %d\n", (int) Config->ImplicitDriverSync);
+	fprintf(STD_OUT, "UseDMAFetchQueue %d\n", (int) Config->UseDMAFetchQueue);
 	fprintf(STD_OUT, "DynamicSched %d\n", (int) Config->DynamicSched);
 	fprintf(STD_OUT, "SecondPhaseDynamicRuns %d\n", (int) Config->SecondPhaseDynamicRuns);
 	fprintf(STD_OUT, "ThirdPhaseDynamicRuns %d\n", (int) Config->ThirdPhaseDynamicRuns);

@@ -99,6 +99,7 @@ public:
 		bool DivideToGPU;						//Write preprocessed data difrectly to GPU
 		char DstMemory;							//Dst memory of kernel on GPU (g) or CPU (c)
 		int ImplicitDriverSync;					//Assume the CAL driver enforces an explicit sync when starting CAL kernel
+		int UseDMAFetchQueue;					//0: do not use an additional pipeline step for DMA fetch, 1: When starting a new kernel, ensure to start dma fetch for previous kernel beforehand, 2: add extra pipeline step for dma fetch
 		bool DynamicSched;						//Dynamically schedule CPU DGEMM
 		bool SecondPhaseDynamicRuns;			//3rd phase in dynamic scheduling
 		bool ThirdPhaseDynamicRuns;				//3rd phase in dynamic scheduling
@@ -464,6 +465,15 @@ protected:
 	char hostname[256];							//Store hostname of node for host dependant debug code
 	
 	int conf_numprocs, conf_cpufreq, conf_numgpus, conf_gpufreq, conf_gpushaders;
+
+	struct dma_fetch_queue_task
+	{
+		size_t k;
+		int j;
+	};
+	dma_fetch_queue_task dma_fetch_queue_tasks[max_devices];
+
+	virtual int CheckDMAQueue(int device, int forcej = -1) = 0;
 };
 
 #endif

@@ -1774,8 +1774,23 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	for (unsigned int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
+	if (Config->DstMemory == 'g' && Config->UseDMAFetchQueue)
+	{
+		CheckDMAQueue(Task.device);
+	}
 	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) / TILING_X, (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
-	if (Config->ImplicitDriverSync && Config->DstMemory == 'g' && FetchResult(Task.device, Task.j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+	if (Config->DstMemory == 'g')
+	{
+		if (Config->UseDMAFetchQueue)
+		{
+			dma_fetch_queue_tasks[Task.device].j = Task.j;
+			dma_fetch_queue_tasks[Task.device].k = Task.k;
+		}
+		else if (Config->ImplicitDriverSync)
+		{
+			if (FetchResult(Task.device, Task.j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+		}
+	}
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	calCtxFlush(ctxs[Task.device]);
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
@@ -2145,6 +2160,19 @@ int caldgemm_cal::ExitRuntime()
 int caldgemm_cal::FetchResult(int device, int j, int m, int n)
 {
 	return(CopyDataFromGPU(device, resourceHandlers[device][j] + numInputs + numConstantBuffers, datas[device][j] + numInputs + numConstantBuffers, numOutputs, j, m, n));
+}
+
+int caldgemm_cal::CheckDMAQueue(int device, int forcej)
+{
+	if (dma_fetch_queue_tasks[device].k != (size_t) -1 && (forcej == -1 || dma_fetch_queue_tasks[device].j == forcej))
+	{
+		size_t blockm, blockn;
+		DGEMM_getblocks(dma_fetch_queue_tasks[device].k, blockm, blockn);
+		if (WaitForEvent(dma_fetch_queue_tasks[device].j, device)) return(1);
+		if (FetchResult(device, dma_fetch_queue_tasks[device].j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
+		if (forcej != -1 && WaitForEvent(forcej, device)) return(1);
+		dma_fetch_queue_tasks[device].k = (size_t) -1;
+	}	return(0);
 }
 
 int caldgemm_cal::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch)

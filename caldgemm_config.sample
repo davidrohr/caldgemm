@@ -66,7 +66,6 @@
 //#define CALDGEMM_FORCE_K 16					//Force K Parameter to simulate different kernel perfoemance
 
 #define _NO_AMD_CPU								//Set to run on Intel CPU without prefetchw avaiable
-#define _NO_NUMAIF_H								//Workaround if numaif.h not present
 //#define USE_OLD_HUGE_MALLOC					//Use old method to allocate huge tables
 
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH		//Use prefetching in Divide / Merge Buffer

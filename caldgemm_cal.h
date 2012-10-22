@@ -151,6 +151,7 @@ private:
 	virtual int ExitDevices();
 	virtual int WaitForEvent(int, int, int lock = 0);
 	virtual int FetchResult(int device, int j, int m, int n);
+	virtual int CheckDMAQueue(int device, int forcej = -1);
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch);
 	virtual int reserve_cpu_cores();
 };
