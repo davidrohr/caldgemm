@@ -468,11 +468,11 @@ protected:
 
 	struct dma_fetch_queue_task
 	{
-		size_t k;
-		int j;
+		volatile size_t k;
+		volatile int j;
+		pthread_mutex_t mutex;
 	};
 	dma_fetch_queue_task dma_fetch_queue_tasks[max_devices];
-	pthread_mutex_t dma_queue_mutex;
 
 	virtual int CheckDMAQueue(int device, int forcej = -1) = 0;
 };

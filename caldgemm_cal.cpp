@@ -1783,10 +1783,10 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 	{
 		if (Config->UseDMAFetchQueue)
 		{
-			pthread_mutex_lock(&dma_queue_mutex);
+			pthread_mutex_lock(&dma_fetch_queue_tasks[Task.device].mutex);
 			dma_fetch_queue_tasks[Task.device].j = Task.j;
 			dma_fetch_queue_tasks[Task.device].k = Task.k;
-			pthread_mutex_unlock(&dma_queue_mutex);
+			pthread_mutex_unlock(&dma_fetch_queue_tasks[Task.device].mutex);
 		}
 		else if (Config->ImplicitDriverSync)
 		{
@@ -2166,17 +2166,19 @@ int caldgemm_cal::FetchResult(int device, int j, int m, int n)
 
 int caldgemm_cal::CheckDMAQueue(int device, int forcej)
 {
-	pthread_mutex_lock(&dma_queue_mutex);
-	if (dma_fetch_queue_tasks[device].k != (size_t) -1 && (forcej == -1 || dma_fetch_queue_tasks[device].j == forcej))
+	pthread_mutex_lock(&dma_fetch_queue_tasks[device].mutex);
+	const size_t k = dma_fetch_queue_tasks[device].k;
+	const int j = dma_fetch_queue_tasks[device].j;
+	if (k != (size_t) -1 && (forcej == -1 || j == forcej))
 	{
 		size_t blockm, blockn;
-		DGEMM_getblocks(dma_fetch_queue_tasks[device].k, blockm, blockn);
-		if (WaitForEvent(dma_fetch_queue_tasks[device].j, device)) return(1);
-		if (FetchResult(device, dma_fetch_queue_tasks[device].j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
+		DGEMM_getblocks(k, blockm, blockn);
+		if (WaitForEvent(j, device)) return(1);
+		if (FetchResult(device, j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
 		if (forcej != -1 && WaitForEvent(forcej, device)) return(1);
 		dma_fetch_queue_tasks[device].k = (size_t) -1;
 	}
-	pthread_mutex_unlock(&dma_queue_mutex);
+	pthread_mutex_unlock(&dma_fetch_queue_tasks[device].mutex);
 	return(0);
 }
 

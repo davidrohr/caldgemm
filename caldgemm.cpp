@@ -703,7 +703,10 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 	if (Config->UseDMAFetchQueue)
 	{
-		pthread_mutex_init(&dma_queue_mutex, NULL);
+		for (int i = 0;i < nDevices;i++)
+		{
+			pthread_mutex_init(&dma_fetch_queue_tasks[i].mutex, NULL);
+		}
 	}
 #ifndef _WIN32
 	if (Config->UseGPU && Config->UseCPU)
@@ -2624,7 +2627,10 @@ int caldgemm::ExitCALDGEMM()
 	}
 	if (Config->UseDMAFetchQueue)
 	{
-		pthread_mutex_destroy(&dma_queue_mutex);
+		for (int i = 0;i < nDevices;i++)
+		{
+			pthread_mutex_destroy(&dma_fetch_queue_tasks[i].mutex);
+		}
 	}
 
 #ifdef CALDGEMM_DIVIDE_STATIC_BUFFER
