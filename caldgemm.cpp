@@ -3016,6 +3016,11 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DI
 	}
 	else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 
+	if (prepareM || prepareN)
+	{
+		if (CheckDMAQueue(num_device, j)) return(1);
+	}
+
 	if(DGEMM_prepare_backend(k, j, num_device, prepareM, prepareN, buffersSufficiant, buffersSufficiant0 CALDGEMM_DIVBUFB)) return(1);
 
 	if (prepareM) next_buffer_A[num_device]++;
