@@ -1434,7 +1434,7 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 	if (Config->DstMemory == 'c') return 0;
 	CALcontext* ctx = &ctxs[nDevice];
 	if (Config->VerboseTiming) Timers.CounterCopyFrom.Start();
-	if (Config->Debug == true) fprintf(STD_OUT, "\tFetching part of C from GPU (m = %lld, n = %lld)\n", (long long int) lastm, (long long int) lastn);
+	if (Config->Debug == true) fprintf(STD_OUT, "\tFetching part of C from GPU (m = %lld, n = %lld device=%d context=%d)\n", (long long int) lastm, (long long int) lastn, nDevice, nContext);
 	unsigned int pitch;
 	char* ptr;
 	if (Config->ImplicitDriverSync == 0) WaitForEvent(nContext, nDevice);
@@ -1454,6 +1454,7 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 		CHKERR(calResUnmap(_Res[i]), "unmapping buffer");
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}
+	calCtxFlush(*ctx);
 	if (Config->VerboseTiming)
 	{
 		WaitForEvent(nContext, nDevice);
@@ -1702,7 +1703,6 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 {
 	if (WaitForEvent(Task.j, Task.device)) return(1);
 
-	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable)
 	{
@@ -1778,6 +1778,7 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 	{
 		CheckDMAQueue(Task.device);
 	}
+	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) / TILING_X, (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
 	if (Config->DstMemory == 'g')
 	{
