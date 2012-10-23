@@ -2212,10 +2212,11 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)
 		{
-			int destbuffer;
+			int destbuffer, destbufferadd = 0;
 			if (!DGEMM_favor_m && buffersSufficiant0)
 			{
-				destbuffer = buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2) + dwBuffersA;
+				destbuffer = buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2);
+				destbufferadd = dwBuffersA;
 			}
 			else
 			{
@@ -2223,7 +2224,7 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 			}
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % 2, destbuffer);
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
-			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], num_device, datas[num_device][destbuffer])) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
+			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], num_device, datas[num_device][destbuffer] + destbufferadd)) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
 		}
 	}
@@ -2241,18 +2242,19 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)
 		{
-			int destbuffer;
+			int destbuffer, destbufferadd = 0;
 			if (!DGEMM_favor_m && buffersSufficiant0)
 			{
 				destbuffer = next_buffer_B[num_device] % 2;
 			}
 			else
 			{
-				destbuffer = (buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)) + dwBuffersA;
+				destbuffer = buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2);
+				destbufferadd = dwBuffersA;
 			}
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % 2, destbuffer);
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
-			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][destbuffer])) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
+			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][destbuffer] + destbufferadd)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
 		}
 	}
