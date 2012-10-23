@@ -296,7 +296,7 @@ int caldgemm_opencl::InitDevices()
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		for (int j = 0;j < 2;j++)
+		for (int j = 0;j < ibuffercount;j++)
 		{
 #ifdef CALDGEMM_TRANSPOSED_B
 			ocl_abuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferWidth / 2, BufferHeight, 0, NULL, &ocl_error);
@@ -408,9 +408,9 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable)
 	{
-		const int buffer_pos = buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : 2);
+		const int buffer_pos = buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : ibuffercount);
 		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 1, sizeof(cl_mem), &ocl_bbuffers[Task.device][buffer_pos]), "Error setting kernel memory A");
-		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 2, sizeof(cl_mem), &ocl_abuffers[Task.device][buffer_pointers_B[Task.device][blockn] % 2]), "Error setting kernel memory B");
+		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 2, sizeof(cl_mem), &ocl_abuffers[Task.device][buffer_pointers_B[Task.device][blockn] % ibuffercount]), "Error setting kernel memory B");
 	}
 	else
 #endif
@@ -420,8 +420,8 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 #else
 		const bool buffersSufficiant = false;
 #endif
-		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 1, sizeof(cl_mem), &ocl_abuffers[Task.device][buffer_pointers_A[Task.device][blockm] % 2]), "Error setting kernel memory A");
-		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 2, sizeof(cl_mem), &ocl_bbuffers[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])]), "Error setting kernel memory B");
+		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 1, sizeof(cl_mem), &ocl_abuffers[Task.device][buffer_pointers_A[Task.device][blockm] % ibuffercount]), "Error setting kernel memory A");
+		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 2, sizeof(cl_mem), &ocl_bbuffers[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % ibuffercount) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])]), "Error setting kernel memory B");
 	}
 
 	int pitch, offset;
@@ -555,11 +555,11 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{
-			dest_image = &ocl_bbuffers[num_device][buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2)];
+			dest_image = &ocl_bbuffers[num_device][buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : ibuffercount)];
 		}
 		else
 		{
-			dest_image = &ocl_abuffers[num_device][next_buffer_A[num_device] % 2];
+			dest_image = &ocl_abuffers[num_device][next_buffer_A[num_device] % ibuffercount];
 		}
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer A to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
@@ -605,11 +605,11 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{
-			dest_image = &ocl_abuffers[num_device][next_buffer_B[num_device] % 2];
+			dest_image = &ocl_abuffers[num_device][next_buffer_B[num_device] % ibuffercount];
 		}
 		else
 		{
-			dest_image = &ocl_bbuffers[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)];
+			dest_image = &ocl_bbuffers[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % ibuffercount)];
 		}
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
@@ -660,7 +660,7 @@ int caldgemm_opencl::ExitDevices()
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		for (int j = 0;j < 2;j++)
+		for (int j = 0;j < ibuffercount;j++)
 		{
 			clReleaseMemObject(ocl_abuffers[i][j]);
 		}

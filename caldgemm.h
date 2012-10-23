@@ -201,7 +201,8 @@ public:
 
 protected:
 
-	static const int obuffercount = 3;				//Not cal context count but number of copies of data buffers etc.
+	static const int obuffercount = 3; //Number of replicated of output data buffers, also named context within caldgemm (not to be mistaken for gpu context)
+	static const int ibuffercount = 3;
 	static const int max_outputthreads = CALDGEMM_OUTPUT_THREADS_SLOW;
 	static const int vcpysize = 16;
 	static const int kernel_count = 3;
@@ -331,7 +332,7 @@ protected:
 	mergeParameters mParam[max_devices][max_outputthreads];
 
 	qSem obufferMutex[max_devices][obuffercount];
-	bool prepare_pending[max_devices][obuffercount];;
+	bool prepare_pending[max_devices][obuffercount];
 
 	struct structLinpackParameters
 	{

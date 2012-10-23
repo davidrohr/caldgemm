@@ -69,7 +69,7 @@ private:
 	cl_device_id ocl_devices[max_devices];
 	cl_context ocl_contexts[max_devices];
 	cl_command_queue ocl_command_queues[max_devices][obuffercount];
-	cl_mem ocl_abuffers[max_devices][2];
+	cl_mem ocl_abuffers[max_devices][ibuffercount];
 	cl_mem ocl_bbuffers[max_devices][max_bbuffers];
 	cl_mem ocl_cbuffers[max_devices][obuffercount];
 	cl_mem ocl_tmp_abuffers[max_devices][obuffercount];

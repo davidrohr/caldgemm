@@ -1712,15 +1712,15 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable)
 	{
-		const int buffer_pos = buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : 2);
+		const int buffer_pos = buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : ibuffercount);
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 		for (unsigned int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pos][dwBuffersA + l].dstMem), "setting kernel memory A");
-		for (unsigned int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2][l].dstMem), "setting kernel memory B");
+		for (unsigned int l = 0;l < dwBuffersB;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][dwBuffersA + l], datas[Task.device][buffer_pointers_B[Task.device][blockn] % ibuffercount][l].dstMem), "setting kernel memory B");
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 #ifdef CALDGEMM_44_BT_64_CONVERT
 		for (int ll = 0;ll < 2;ll++)
 		{
-			BufferProperties* const chkBuffer = ((ll == 1) ? datas[Task.device][buffer_pointers_B[Task.device][blockn] % 2] : &datas[Task.device][buffer_pos][dwBuffersA]);
+			BufferProperties* const chkBuffer = ((ll == 1) ? datas[Task.device][buffer_pointers_B[Task.device][blockn] % ibuffercount] : &datas[Task.device][buffer_pos][dwBuffersA]);
 			if (chkBuffer[0].conversionBuffer != NULL)
 			{
 				if (Config->Debug) fprintf(STD_OUT, "\tStarting conversion kernel for device %d input matrix %d (path 1)\n", Task.device, ll);
@@ -1750,13 +1750,13 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 		const bool buffersSufficiant = false;
 #endif
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-		for (unsigned int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % 2][l].dstMem), "setting kernel memory A");
-		for (unsigned int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][l].dstMem), "setting kernel memory B");
+		for (unsigned int l = 0;l < dwBuffersA;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][buffer_pointers_A[Task.device][blockm] % ibuffercount][l].dstMem), "setting kernel memory A");
+		for (unsigned int l = dwBuffersA;l < dwBuffersA + dwBuffersB;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][l], datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % ibuffercount) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][l].dstMem), "setting kernel memory B");
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 #ifdef CALDGEMM_44_BT_64_CONVERT
 		for (int ll = 0;ll < 2;ll++)
 		{
-			BufferProperties* const chkBuffer = ((ll == 1) ? &datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][dwBuffersA] : datas[Task.device][buffer_pointers_A[Task.device][blockm] % 2]);
+			BufferProperties* const chkBuffer = ((ll == 1) ? &datas[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % ibuffercount) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])][dwBuffersA] : datas[Task.device][buffer_pointers_A[Task.device][blockm] % ibuffercount]);
 			if (chkBuffer[0].conversionBuffer != NULL)
 			{
 				if (Config->Debug) fprintf(STD_OUT, "\tStarting conversion kernel for device %d input matrix %d (path 2)\n", Task.device, ll);
@@ -2201,13 +2201,13 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 
 	if (prepareM)
 	{
-		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % 2);
+		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount);
 		if (Config->VerboseTiming) Timers.CounterDivide.Start();
 		Timers.divideA++;
 #ifdef CALDGEMM_TRANSPOSED_A
-		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA ? 1 : A_pitch), (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, Config->Width, BufferHeight, BufferWidth, A_pitch, dwBuffersA, TransposeA == false CALDGEMM_DIVBUFB)) return(1);
+		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % ibuffercount], A + blockm * Config->Height * (TransposeA ? 1 : A_pitch), (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, Config->Width, BufferHeight, BufferWidth, A_pitch, dwBuffersA, TransposeA == false CALDGEMM_DIVBUFB)) return(1);
 #else
-		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % 2], A + blockm * Config->Height * (TransposeA ? 1 : A_pitch), Config->Width, (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA CALDGEMM_DIVBUFB)) return(1);
+		if (divideBuffer(Config->DivideToGPU && !DGEMM_favor_m && buffersSufficiant ? (datas[num_device][blockm] + dwBuffersA) : datas[num_device][next_buffer_A[num_device] % ibuffercount], A + blockm * Config->Height * (TransposeA ? 1 : A_pitch), Config->Width, (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferWidth, BufferHeight, A_pitch, dwBuffersA, TransposeA CALDGEMM_DIVBUFB)) return(1);
 #endif
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)
@@ -2215,29 +2215,29 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 			int destbuffer, destbufferadd = 0;
 			if (!DGEMM_favor_m && buffersSufficiant0)
 			{
-				destbuffer = buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2);
+				destbuffer = buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : ibuffercount);
 				destbufferadd = dwBuffersA;
 			}
 			else
 			{
-				destbuffer = next_buffer_A[num_device] % 2;
+				destbuffer = next_buffer_A[num_device] % ibuffercount;
 			}
-			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % 2, destbuffer);
+			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, destbuffer);
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
-			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], num_device, datas[num_device][destbuffer] + destbufferadd)) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
+			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % ibuffercount], dwBuffersA, false, &events[num_device][j], num_device, datas[num_device][destbuffer] + destbufferadd)) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
 		}
 	}
 
 	if (prepareN)
 	{
-		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % 2);
+		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount);
 		if (Config->VerboseTiming) Timers.CounterDivide.Start();
 		Timers.divideB++;
 #ifdef CALDGEMM_TRANSPOSED_B
-		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), Config->Width, (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, BufferWidth, BufferHeight, B_pitch, dwBuffersB, TransposeB == false CALDGEMM_DIVBUFB);
+		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % ibuffercount] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), Config->Width, (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, BufferWidth, BufferHeight, B_pitch, dwBuffersB, TransposeB == false CALDGEMM_DIVBUFB);
 #else
-		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB CALDGEMM_DIVBUFB);
+		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % ibuffercount] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB CALDGEMM_DIVBUFB);
 #endif
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)
@@ -2245,16 +2245,16 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 			int destbuffer, destbufferadd = 0;
 			if (!DGEMM_favor_m && buffersSufficiant0)
 			{
-				destbuffer = next_buffer_B[num_device] % 2;
+				destbuffer = next_buffer_B[num_device] % ibuffercount;
 			}
 			else
 			{
-				destbuffer = buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2);
+				destbuffer = buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % ibuffercount);
 				destbufferadd = dwBuffersA;
 			}
-			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % 2, destbuffer);
+			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount, destbuffer);
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
-			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][destbuffer] + destbufferadd)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
+			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % ibuffercount] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][destbuffer] + destbufferadd)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
 		}
 	}

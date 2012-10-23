@@ -166,7 +166,7 @@ int caldgemm_cuda::InitDevices()
 	for (int i = 0;i < nDevices;i++)
 	{
 		CHKRET(cudaSetDevice(cuda_devices[i]), "Setting CUDA Device");
-		for (int j = 0;j < 2;j++)
+		for (int j = 0;j < ibuffercount;j++)
 		{
 			CHKRET(cudaMalloc(&cuda_abuffers[i][j], BufferWidth * BufferHeight * sizeof(double)), "Error allocating device memory (A)");
 		}
@@ -233,9 +233,9 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable)
 	{
-		const int buffer_pos = buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : 2);
+		const int buffer_pos = buffer_pointers_A[Task.device][blockm] % (buffer_pointers_A[Task.device][blockm] < bbuffers[Task.device] ? bbuffers[Task.device] : ibuffercount);
 		abuffer = (double*) cuda_bbuffers[Task.device][buffer_pos];
-		bbuffer = (double*) cuda_abuffers[Task.device][buffer_pointers_B[Task.device][blockn] % 2];
+		bbuffer = (double*) cuda_abuffers[Task.device][buffer_pointers_B[Task.device][blockn] % ibuffercount];
 	}
 	else
 #endif
@@ -245,8 +245,8 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 #else
 		const bool buffersSufficiant = false;
 #endif
-		abuffer = (double*) cuda_abuffers[Task.device][buffer_pointers_A[Task.device][blockm] % 2];
-		bbuffer = (double*) cuda_bbuffers[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % 2) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])];
+		abuffer = (double*) cuda_abuffers[Task.device][buffer_pointers_A[Task.device][blockm] % ibuffercount];
+		bbuffer = (double*) cuda_bbuffers[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % ibuffercount) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])];
 	}
 
 	double* cbuffer;
@@ -363,11 +363,11 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{
-			dest_image = cuda_bbuffers[num_device][buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2)];
+			dest_image = cuda_bbuffers[num_device][buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : ibuffercount)];
 		}
 		else
 		{
-			dest_image = cuda_abuffers[num_device][next_buffer_A[num_device] % 2];
+			dest_image = cuda_abuffers[num_device][next_buffer_A[num_device] % ibuffercount];
 		}
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer A to GPU: region %d x %d\n", (int) width, (int) height);
@@ -405,11 +405,11 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{
-			dest_image = cuda_abuffers[num_device][next_buffer_B[num_device] % 2];
+			dest_image = cuda_abuffers[num_device][next_buffer_B[num_device] % ibuffercount];
 		}
 		else
 		{
-			dest_image = cuda_bbuffers[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)];
+			dest_image = cuda_bbuffers[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % ibuffercount)];
 		}
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) width, (int) height);
@@ -453,7 +453,7 @@ int caldgemm_cuda::ExitDevices()
 	for (int i = 0;i < nDevices;i++)
 	{
 		CHKRET(cudaSetDevice(cuda_devices[i]), "Setting CUDA Device");
-		for (int j = 0;j < 2;j++)
+		for (int j = 0;j < ibuffercount;j++)
 		{
 			CHKRET(cudaFree(cuda_abuffers[i][j]), "Freeing memory A %d %d\n", i, j);
 		}

@@ -64,7 +64,7 @@ private:
 
 	int cuda_devices[max_devices];
 	cudaStream_t cuda_command_queues[max_devices][obuffercount];
-	void* cuda_abuffers[max_devices][2];
+	void* cuda_abuffers[max_devices][ibuffercount];
 	void* cuda_bbuffers[max_devices][max_bbuffers];
 	void* cuda_cbuffers[max_devices][obuffercount];
 	void* cuda_tmp_abuffers[max_devices][obuffercount];
