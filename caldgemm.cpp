@@ -2473,7 +2473,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task CALDGEMM_DIVBUFA)
 {
 	if (Config->MultiThread && UseMutexPerDevice()) pthread_mutex_lock(&device_mutex[Task.device]);
-	fprintf(STD_OUT, "DGEMMPrepareAndExecute device %d k1 %d j1 %d k2 %d j2 %d\n", Task.device, (int) Task.PrepareTasks[0].k, Task.PrepareTasks[0].j, (int) Task.PrepareTasks[1].k, Task.PrepareTasks[1].j);
+	if (Config->Debug) fprintf(STD_OUT, "DGEMMPrepareAndExecute device %d k1 %d j1 %d k2 %d j2 %d\n", Task.device, (int) Task.PrepareTasks[0].k, Task.PrepareTasks[0].j, (int) Task.PrepareTasks[1].k, Task.PrepareTasks[1].j);
 	for (int l = 0;l < 2;l++)
 	{
 		if (Task.PrepareTasks[l].j != -1)

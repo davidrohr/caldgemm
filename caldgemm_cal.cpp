@@ -1354,14 +1354,14 @@ int caldgemm_cal::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Bu
 	{
 		for (unsigned int i = 0; i < numHandles;++i)
 		{
-			if ((nContext == 0 || i != dwBuffersA + dwBuffersB) && (nContext < 2 || i >= dwBuffersA) && (nContext < obuffercount || i < dwBuffersA + dwBuffersB) && data[i].ptr_char)
+			if ((nContext == 0 || i != dwBuffersA + dwBuffersB) && (nContext < ibuffercount || i >= dwBuffersA) && (nContext < obuffercount || i < dwBuffersA + dwBuffersB) && data[i].ptr_char)
 			{
 #ifdef DEBUG_MSG_ALLOCATION
 				if (Config->Debug) fprintf(STD_OUT, "Freeing CAL Host memory, device %d context %d buffer %d\n", num_device, nContext, i);
 #endif
 				if (data[i].CALMemory)
 				{
-					if ((Config->DstMemory == 'g' || i <= dwBuffersA + dwBuffersB) && (Config->DivideToGPU == false || i >= dwBuffersA + dwBuffersB + numConstantBuffers) && nContext < 2)
+					if ((Config->DstMemory == 'g' || i <= dwBuffersA + dwBuffersB) && (Config->DivideToGPU == false || i >= dwBuffersA + dwBuffersB + numConstantBuffers) && nContext < ibuffercount)
 					{
 						calResUnmap(data[i].res);
 						calCtxReleaseMem(*ctx, data[i].mem);
@@ -1375,7 +1375,7 @@ int caldgemm_cal::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Bu
 				data[i].ptr_char = NULL;
 			}
 #ifdef CALDGEMM_44_BT_64_CONVERT
-			if (nContext < 2 && i < dwBuffersA + dwBuffersB)
+			if (nContext < ibuffercount && i < dwBuffersA + dwBuffersB)
 			{
 #ifdef DEBUG_MSG_ALLOCATION
 				if (Config->Debug) fprintf(STD_OUT, "Freeing temporary CAL memory, device %d context %d buffer %d\n", num_device, nContext, i);
@@ -1391,7 +1391,7 @@ int caldgemm_cal::CleanupData(CALcontext* ctx, CALresource* &resourceHandler, Bu
 	{
 		for (unsigned int i = 0; i < numHandles; i++)
 		{
-			if ((nContext == 0 || i != dwBuffersA + dwBuffersB) && (nContext < 2 || i >= dwBuffersA) && (nContext < obuffercount || i < dwBuffersA + dwBuffersB) && resourceHandler[i])
+			if ((nContext == 0 || i != dwBuffersA + dwBuffersB) && (nContext < ibuffercount || i >= dwBuffersA) && (nContext < obuffercount || i < dwBuffersA + dwBuffersB) && resourceHandler[i])
 			{
 #ifdef DEBUG_MSG_ALLOCATION
 				if (Config->Debug) fprintf(STD_OUT, "Freeing CAL GPU memory, device %d context %d buffer %d\n", num_device, nContext, i);
@@ -1818,7 +1818,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 	for (unsigned int i = 0; i < cStop; ++i)
 	{
 		if (nContext >= 1 && i == dwBuffersA + dwBuffersB) continue;
-		if (nContext >= 2 && i < dwBuffersA) continue;
+		if (nContext >= ibuffercount && i < dwBuffersA) continue;
 		if (nContext >= obuffercount && (i < dwBuffersA || i >= bStop)) continue;
 
 		cpu_set_t tmpmask;
@@ -1930,7 +1930,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 
 #ifdef CALDGEMM_44_BT_64
 #ifdef CALDGEMM_44_BT_64_CONVERT
-		if (i < dwBuffersA + dwBuffersB && nContext < 2)
+		if (i < dwBuffersA + dwBuffersB && nContext < ibuffercount)
 #else
 		if (i < dwBuffersA + dwBuffersB)
 #endif
@@ -1948,7 +1948,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 		if (tHeight > 1)
 		{
 			data[i].CALMemory = true;
-			if ((Config->DstMemory == 'g' || i < dwBuffersA + dwBuffersB) && (Config->DivideToGPU == false || i >= dwBuffersA + dwBuffersB) && (nContext < 2 || (Config->DstMemory == 'g' && i >= dwBuffersA + dwBuffersB + numConstantBuffers)))
+			if ((Config->DstMemory == 'g' || i < dwBuffersA + dwBuffersB) && (Config->DivideToGPU == false || i >= dwBuffersA + dwBuffersB) && (nContext < ibuffercount || (Config->DstMemory == 'g' && i >= dwBuffersA + dwBuffersB + numConstantBuffers)))
 			{
 				allocated = true;
 #ifdef DEBUG_MSG_ALLOCATION
@@ -2009,7 +2009,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 		CALresource* resuse;
 		CALmem* memuse;
 #ifdef CALDGEMM_44_BT_64_CONVERT
-		if (i <= dwBuffersA + dwBuffersB && nContext < 2)
+		if (i <= dwBuffersA + dwBuffersB && nContext < ibuffercount)
 		{
 #ifdef DEBUG_MSG_ALLOCATION
 			if (Config->Debug) fprintf(STD_OUT, "Allocating temporary device buffer for device %d context %d buffer %d\n", num_device, nContext, i);
