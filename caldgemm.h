@@ -331,6 +331,7 @@ protected:
 	mergeParameters mParam[max_devices][max_outputthreads];
 
 	qSem obufferMutex[max_devices][obuffercount];
+	bool prepare_pending[max_devices][obuffercount];;
 
 	struct structLinpackParameters
 	{

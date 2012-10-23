@@ -141,6 +141,10 @@ caldgemm::caldgemm()
 	for (unsigned int i = 0;i < max_devices;i++)
 	{
 		dma_fetch_queue_tasks[i].k = (size_t) -1;
+		for (int j = 0;j < obuffercount;j++)
+		{
+		    prepare_pending[i][j] = false;
+		}
 	}
 }
 
@@ -3016,6 +3020,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DI
 	}
 	else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 
+	if (prepareM || prepareN) prepare_pending[num_device][j] = true;
 	if(DGEMM_prepare_backend(k, j, num_device, prepareM, prepareN, buffersSufficiant, buffersSufficiant0 CALDGEMM_DIVBUFB)) return(1);
 
 	if (prepareM) next_buffer_A[num_device]++;

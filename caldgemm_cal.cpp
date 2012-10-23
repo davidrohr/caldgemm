@@ -25,6 +25,8 @@
 #include "caldgemm_cal.h"
 #include "caldgemm_common.h"
 
+//#include "cal_fake.h"
+
 #include "cmodules/util_adl.h"
 
 #define ILKernelName ILKernel
@@ -1701,7 +1703,11 @@ int caldgemm_cal::InitConstantData(double alpha)
 
 int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn)
 {
-	if (WaitForEvent(Task.j, Task.device)) return(1);
+	if (prepare_pending[Task.device][Task.j])
+	{
+	    prepare_pending[Task.device][Task.j] = false;
+	    if (WaitForEvent(Task.j, Task.device)) return(1);
+	}
 
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable)
@@ -2174,7 +2180,7 @@ int caldgemm_cal::CheckDMAQueue(int device, int forcej)
 	{
 		size_t blockm, blockn;
 		DGEMM_getblocks(k, blockm, blockn);
-		if (WaitForEvent(j, device)) return(1);
+		if (forcej == -1 && WaitForEvent(j, device)) return(1);
 		if (FetchResult(device, j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
 		if (forcej != -1 && WaitForEvent(forcej, device)) return(1);
 		dma_fetch_queue_tasks[device].k = (size_t) -1;
