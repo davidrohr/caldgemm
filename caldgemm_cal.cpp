@@ -162,7 +162,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 	const int gpu_pitch = dst[0].pitch * 2;
 
 	if (Config->SkipCPUProcessing) return(0);
-	if (Config->Debug) fprintf(STD_OUT, "\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", (long long int) src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
+	//if (Config->Debug) fprintf(STD_OUT, "\t\tSRC=0x%llx, w: %d, h: %d, pitch: %d (gpuw: %d, gpuh: %d, transpose: %d)\n", (long long int) src, width, height, pitch, gpu_width, gpu_height, (int) transpose);
 	
 #if defined(CALDGEMM_DOUBLE_BUFFERS)
 	fprintf(STD_OUT, "ERROR: divideBuffer not implemented for current configuration, skipping\n");
@@ -2201,7 +2201,7 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 
 	if (prepareM)
 	{
-		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, buffer = %d)\n", num_device, (long long int) k, next_buffer_A[num_device] % 2);
+		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % 2);
 		if (Config->VerboseTiming) Timers.CounterDivide.Start();
 		Timers.divideA++;
 #ifdef CALDGEMM_TRANSPOSED_A
@@ -2212,23 +2212,25 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)
 		{
-			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld, context=%d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, j);
-			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
+			int destbuffer;
 			if (!DGEMM_favor_m && buffersSufficiant0)
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], num_device, datas[num_device][buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying A to GPU (minor)\n"); return(1);}
+				destbuffer = buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : 2) + dwBuffersA;
 			}
 			else
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], num_device)) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
+				destbuffer = next_buffer_A[num_device] % 2;
 			}
+			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % 2, destbuffer);
+			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
+			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % 2], dwBuffersA, false, &events[num_device][j], num_device, datas[num_device][destbuffer])) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
 		}
 	}
 
 	if (prepareN)
 	{
-		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, buffer = %d, context=%d)\n", num_device, (long long int) k, next_buffer_B[num_device] % 2, j);
+		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % 2);
 		if (Config->VerboseTiming) Timers.CounterDivide.Start();
 		Timers.divideB++;
 #ifdef CALDGEMM_TRANSPOSED_B
@@ -2239,16 +2241,18 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)
 		{
-			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
-			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
+			int destbuffer;
 			if (!DGEMM_favor_m && buffersSufficiant0)
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][next_buffer_B[num_device] % 2])) {fprintf(STD_OUT, "Error copying B to GPU (major)\n"); return(1);}
+				destbuffer = next_buffer_B[num_device] % 2;
 			}
 			else
 			{
-				if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)] + dwBuffersA)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
+				destbuffer = (buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % 2)) + dwBuffersA;
 			}
+			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % 2, destbuffer);
+			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
+			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % 2] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][destbuffer])) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
 		}
 	}

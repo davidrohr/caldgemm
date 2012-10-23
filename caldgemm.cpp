@@ -1340,7 +1340,7 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 	if (Config->Debug) fprintf(STD_OUT, "Merge Thread %d, setting CPU mask %X\n", par->nMergeThread, getcpumask(&merge_mask));
 	sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
 
-	HighResTimer mergeTimer;
+	//HighResTimer mergeTimer;
 
 	par->mergeThreadMutex[0].Lock();
 	while (par->mergeThreadMutex[0].Lock() == 0 && par->terminate == false)
@@ -1348,17 +1348,17 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		if (Config->Debug) fprintf(STD_OUT, "\t\tSlave thread %d (device %d) starting merge process for obuffer %d (k = %lld)\n", par->nMergeThread, par->num_device, par->nContext, (long long int) par->k);
 		size_t blockm, blockn;
 		DGEMM_getblocks(par->k, blockm, blockn);
-		if (Config->Debug)
+		/*if (Config->Debug)
 		{
 		    mergeTimer.Reset();
 		    mergeTimer.Start();
-		}
+		}*/
 		RunMergeBuffers(par->dst, par->num_device, par->nContext, (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferHeight, BufferHeight, C_pitch);
-		if (Config->Debug)
+		/*if (Config->Debug)
 		{
 		    mergeTimer.Stop();
 		    fprintf(STD_OUT, "\t\tMerge time: %2.3f\n", mergeTimer.GetElapsedTime());
-		}
+		}*/
 		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n) CheckAlternateTilesRemaining(blockm);
 		
 		if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex device %d obuffer %d (Slavethread %d)\n", par->num_device, par->nContext, par->nMergeThread);
@@ -2473,7 +2473,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task CALDGEMM_DIVBUFA)
 {
 	if (Config->MultiThread && UseMutexPerDevice()) pthread_mutex_lock(&device_mutex[Task.device]);
-	//fprintf(STD_OUT, "DGEMMPrepareAndExecute device %d k1 %d j1 %d k2 %d j2 %d\n", Task.device, (int) Task.PrepareTasks[0].k, Task.PrepareTasks[0].j, (int) Task.PrepareTasks[1].k, Task.PrepareTasks[1].j);
+	fprintf(STD_OUT, "DGEMMPrepareAndExecute device %d k1 %d j1 %d k2 %d j2 %d\n", Task.device, (int) Task.PrepareTasks[0].k, Task.PrepareTasks[0].j, (int) Task.PrepareTasks[1].k, Task.PrepareTasks[1].j);
 	for (int l = 0;l < 2;l++)
 	{
 		if (Task.PrepareTasks[l].j != -1)
@@ -3001,7 +3001,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DI
 		}
 		buffer_pointers_A[num_device][blockm] = next_buffer_A[num_device];
 	}
-	else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of A (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
+	else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of A (device = %d, k = %lld, j = %d, m = %lld, n = %lld)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn);
 
 	if (prepareN)
 	{
@@ -3018,7 +3018,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DI
 		}
 		buffer_pointers_B[num_device][blockn] = next_buffer_B[num_device];
 	}
-	else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
+	else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (device = %d, k = %lld, j = %d, m = %lld, n = %lld)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn);
 
 	if (prepareM || prepareN) prepare_pending[num_device][j] = true;
 	if(DGEMM_prepare_backend(k, j, num_device, prepareM, prepareN, buffersSufficiant, buffersSufficiant0 CALDGEMM_DIVBUFB)) return(1);
