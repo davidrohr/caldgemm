@@ -2206,7 +2206,7 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)
 		{
-			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
+			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld, context=%d)\n", (long long int) k, (long long int) blockm, (long long int) blockn, j);
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
 			if (!DGEMM_favor_m && buffersSufficiant0)
 			{
@@ -2222,7 +2222,7 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 
 	if (prepareN)
 	{
-		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, buffer = %d)\n", num_device, (long long int) k, next_buffer_B[num_device] % 2);
+		if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, buffer = %d, context=%d)\n", num_device, (long long int) k, next_buffer_B[num_device] % 2, j);
 		if (Config->VerboseTiming) Timers.CounterDivide.Start();
 		Timers.divideB++;
 #ifdef CALDGEMM_TRANSPOSED_B
@@ -2246,9 +2246,12 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
 		}
 	}
-	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-	calCtxFlush(ctxs[num_device]);
-	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
+	if (prepareM || prepareN)
+	{
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
+		calCtxFlush(ctxs[num_device]);
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
+	}
 	
 	return(0);
 }
