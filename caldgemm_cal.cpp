@@ -2338,6 +2338,7 @@ int caldgemm_cal::reserve_cpu_cores()
 				caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
 				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
 				nthreads++;
+				if (Config->GPUMapping[i] == Config->PinMainThread) mainfound = 1;
 			}
 		}
 		for (int j = 0;j < outputthreads;j++)
@@ -2347,7 +2348,6 @@ int caldgemm_cal::reserve_cpu_cores()
 			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", merge_core);
 		}
 		nthreads += outputthreads;
-		if (Config->GPUMapping[i] == Config->PinMainThread) mainfound = 1;
 	}
 	if (mainfound == 0 || !Config->MultiThreadDivide)
 	{
