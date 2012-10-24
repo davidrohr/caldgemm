@@ -133,9 +133,16 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 	int oldpolicy;
 	if (interleave && locked) //mmap will perform a memory lock, so we have to change memory policy beforehand
 	{
-		syscall(SYS_get_mempolicy, &oldpolicy, &oldnodemask, sizeof(oldnodemask) * 8, NULL, 0);
+/*		if (syscall(SYS_get_mempolicy, &oldpolicy, &oldnodemask, sizeof(oldnodemask) * 8, NULL, 0) != 0)
+		{
+		    fprintf(stderr, "Error obtaining memory policy\n");
+		    exit(1);
+		}*/
 		unsigned long nodemask = 0xffffff;
-		syscall(SYS_set_mempolicy, MPOL_INTERLEAVE, &nodemask, sizeof(nodemask) * 8);
+		if (syscall(SYS_set_mempolicy, MPOL_INTERLEAVE, &nodemask, sizeof(nodemask) * 8) != 0)
+		{
+		    fprintf(stderr, "Error setting memory policy\n");
+		}
 	}
 	addr = mmap(alloc_addr, size, prot, flags, 0, 0);
 	if (addr == MAP_FAILED) addr = NULL;
@@ -143,7 +150,11 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 	{
 		if (locked)	//Restore old memory policy
 		{
-			syscall(SYS_set_mempolicy, oldpolicy, &oldnodemask, sizeof(oldnodemask) * 8);
+			//syscall(SYS_set_mempolicy, oldpolicy, &oldnodemask, sizeof(oldnodemask) * 8);
+			if (syscall(SYS_set_mempolicy, MPOL_DEFAULT, NULL) != 0)
+			{
+			    fprintf(stderr, "Error setting memory policy\n");
+			}
 		}
 		else if (addr) //Set memory policy for region
 		{
