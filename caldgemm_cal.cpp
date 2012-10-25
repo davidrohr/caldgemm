@@ -102,7 +102,7 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 			{
 				r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr].events[i]);
 			} while (r == CAL_RESULT_OK && ++i < events[devicenr][eventnr].nEvents);
-			if (r == CAL_RESULT_OK && i == events[devicenr][eventnr].nEvents) events[devicenr][eventnr].nEvents = 0;
+			if (r == CAL_RESULT_OK && i == events[devicenr][eventnr].nEvents) events[devicenr][eventnr].Reset();
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
 

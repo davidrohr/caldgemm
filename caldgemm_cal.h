@@ -142,10 +142,12 @@ private:
 			}
 			return(&events[nEvents++]);
 		}
+		inline void Reset() {nEvents = 0;}
 #else
 		CALevent events[1];
 		static const int nEvents = 1;
 		inline CALevent* GetNextEvent() {return(&events[0]);}
+		inline void Reset() {};
 #endif
 	};
 
