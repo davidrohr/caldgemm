@@ -1465,9 +1465,10 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 	return 0;
 }
 
-int caldgemm_cal::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, int num_device, BufferProperties* dest_data)
+int caldgemm_cal::CopyDataToGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, int nContext, bool constants, BufferProperties* dest_data)
 {
 	if (dest_data == NULL) dest_data = data;
+	CALcontext* ctx = &ctxs[nDevice];
 	unsigned int pitch;
 	char* ptr;
 	for (unsigned int i = 0; i < num; ++i)
@@ -1477,9 +1478,9 @@ int caldgemm_cal::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProper
 		{
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 #ifdef CALDGEMM_44_BT_64_CONVERT
-			CHKERR(calMemCopy(event, *ctx, data[i].mem, data[i].tmpmem, 0), "copying to gpu");
+			CHKERR(calMemCopy(&events[nDevice][nContext], *ctx, data[i].mem, data[i].tmpmem, 0), "copying to gpu");
 #else
-			CHKERR(calMemCopy(event, *ctx, data[i].mem, dest_data[i].dstMem, 0), "copying data to gpu");
+			CHKERR(calMemCopy(&events[nDevice][nContext], *ctx, data[i].mem, dest_data[i].dstMem, 0), "copying data to gpu");
 #endif
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			continue;
@@ -1490,7 +1491,7 @@ int caldgemm_cal::CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProper
 		CHKERR(calResUnmap(_Res[i]), "unmapping buffer");
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}
-	if (Config->VerboseTiming && constants == false) WAITFOREVENTA(*ctx, *event);
+	if (Config->VerboseTiming && constants == false) WAITFOREVENTA(*ctx, events[nDevice][nContext]);
 #ifdef CALDGEMM_44_BT_64_CONVERT
 	if (!constants)
 	{
@@ -1695,7 +1696,7 @@ int caldgemm_cal::InitConstantData(double alpha)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "%d", i);
 		cal_init_constant_data(datas[i][0], alpha);
-		if (CopyDataToGPU(&ctxs[i], resourceHandlers[i][0] + numInputs, datas[i][0] + numInputs, numConstantBuffers, true, &events[i][0], i)) return(1);
+		if (CopyDataToGPU(i, resourceHandlers[i][0] + numInputs, datas[i][0] + numInputs, numConstantBuffers, 0, true)) return(1);
 	}
 	if (Config->Debug) fprintf(STD_OUT, "   Done\n");
 	return(0);
@@ -2224,7 +2225,7 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 			}
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, destbuffer);
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
-			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % ibuffercount], dwBuffersA, false, &events[num_device][j], num_device, datas[num_device][destbuffer] + destbufferadd)) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
+			if (CopyDataToGPU(num_device, resourceHandlers[num_device][j], datas[num_device][next_buffer_A[num_device] % ibuffercount], dwBuffersA, j, false,  datas[num_device][destbuffer] + destbufferadd)) {fprintf(STD_OUT, "Error copying A to GPU (major)\n"); return(1);}
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
 		}
 	}
@@ -2254,7 +2255,7 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 			}
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount, destbuffer);
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
-			if (CopyDataToGPU(&ctxs[num_device], resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % ibuffercount] + dwBuffersA, dwBuffersB, false, &events[num_device][j], num_device, datas[num_device][destbuffer] + destbufferadd)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
+			if (CopyDataToGPU(num_device, resourceHandlers[num_device][j] + dwBuffersA, datas[num_device][next_buffer_B[num_device] % ibuffercount] + dwBuffersA, dwBuffersB, j, false, datas[num_device][destbuffer] + destbufferadd)) {fprintf(STD_OUT, "Error copying B to GPU (minor)\n"); return(1);}
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Stop();
 		}
 	}

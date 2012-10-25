@@ -124,7 +124,7 @@ private:
 	int Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device);
 	int SetupData(CALmodule* module, CALresource* &_Res, BufferProperties* &data, CALdevice* device, CALcontext* ctx, unsigned int numInputs, unsigned int numOutputs, unsigned int numConstantBuffers, CALname** ctxProgNames, int nContext, unsigned int num_device);
 	int CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, int nContext, size_t lastm, size_t lastn);
-	int CopyDataToGPU(CALcontext* ctx, CALresource* _Res, BufferProperties* data, unsigned int num, bool constants, CALevent* event, int num_device, BufferProperties* dest_data = NULL);
+	int CopyDataToGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, int nContext, bool constants, BufferProperties* dest_data = NULL);
 	int ValidateCALRuntime();
 
 	BufferProperties* datas[max_devices][max_bbuffers];

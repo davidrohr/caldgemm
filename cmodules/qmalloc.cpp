@@ -129,8 +129,8 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 	if (huge) flags |= MAP_HUGETLB;
 	if (executable) prot |= PROT_EXEC;
 	if (locked) flags |= MAP_LOCKED;
-	unsigned long oldnodemask;
-	int oldpolicy;
+	//unsigned long oldnodemask;
+	//int oldpolicy;
 	if (interleave && locked) //mmap will perform a memory lock, so we have to change memory policy beforehand
 	{
 /*		if (syscall(SYS_get_mempolicy, &oldpolicy, &oldnodemask, sizeof(oldnodemask) * 8, NULL, 0) != 0)
