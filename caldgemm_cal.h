@@ -123,9 +123,31 @@ private:
 	int CleanupData(CALcontext* ctx, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device);
 	int Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module, CALresource* &resourceHandler, BufferProperties* &data, unsigned int numHandles, int nContext, unsigned int num_device);
 	int SetupData(CALmodule* module, CALresource* &_Res, BufferProperties* &data, CALdevice* device, CALcontext* ctx, unsigned int numInputs, unsigned int numOutputs, unsigned int numConstantBuffers, CALname** ctxProgNames, int nContext, unsigned int num_device);
-	int CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, int nContext, size_t lastm, size_t lastn);
+	int CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, int nContext, size_t lastm, size_t lastn, int mustlock = 0);
 	int CopyDataToGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, int nContext, bool constants, BufferProperties* dest_data = NULL);
 	int ValidateCALRuntime();
+
+	class eventCls
+	{
+	public:
+#ifdef CALDGEMM_QUERY_ALL_EVENTS
+		CALevent events[9];
+		int nEvents;
+		inline CALevent* GetNextEvent()
+		{
+			if (nEvents == 9)
+			{
+				fprintf(STD_OUT, "Event buffer overflow\n");
+				exit(1);
+			}
+			return(&events[nEvents++]);
+		}
+#else
+		CALevent events[1];
+		static const int nEvents = 1;
+		inline CALevent* GetNextEvent() {return(&events[0]);}
+#endif
+	};
 
 	BufferProperties* datas[max_devices][max_bbuffers];
 	CALdevice devices[max_devices];
@@ -136,7 +158,7 @@ private:
 	CALmodule fakeModule;
 	CALname *progNames[max_devices][kernel_count];
 	CALname progNamesConvert[max_devices][2 * dwBuffersA];
-	CALevent events[max_devices][obuffercount];
+	eventCls events[max_devices][obuffercount];
 	unsigned int device_nums[max_devices];
 
 	static const char *ILKernel, *ILKernelALPHA1, *ILKernelLinpack, *ILFakeKernel, *ILConvertKernel;
@@ -150,7 +172,7 @@ private:
 	virtual int ExitRuntime();
 	virtual int ExitDevices();
 	virtual int WaitForEvent(int, int, int lock = 0);
-	virtual int FetchResult(int device, int j, int m, int n);
+	virtual int FetchResult(int device, int j, int m, int n, int mustlock = 0);
 	virtual int CheckDMAQueue(int device, int forcej = -1);
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch);
 	virtual int reserve_cpu_cores();

@@ -92,27 +92,35 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 		CPU_SET(Config->AllocMapping[devicenr], &blasset);
 		sched_setaffinity(0, sizeof(blasset), &blasset);
 	}
-	do
+	for (int i = 0;i < events[devicenr][eventnr].nEvents;i++)
 	{
-		if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
-		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-		r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr]);
-		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
-		if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
-		if (r == CAL_RESULT_ERROR)
+		do
 		{
-			fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString());
-			return(1);
-		}
-		else if (Config->SleepDuringActiveWait != -1 && r == CAL_RESULT_PENDING)
-		{
+			if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
+			do
+			{
+				r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr].events[i]);
+			} while (r == CAL_RESULT_OK && ++i < events[devicenr][eventnr].nEvents);
+			if (r == CAL_RESULT_OK && i == events[devicenr][eventnr].nEvents) events[devicenr][eventnr].nEvents = 0;
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
+			if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
+
+			if (r == CAL_RESULT_ERROR)
+			{
+				fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString());
+				return(1);
+			}
+			else if (Config->SleepDuringActiveWait != -1 && r == CAL_RESULT_PENDING)
+			{
 #ifdef _WIN32
-			Sleep(Config->SleepDuringActiveWait / 1000);
+				Sleep(Config->SleepDuringActiveWait / 1000);
 #else
-			usleep(Config->SleepDuringActiveWait);
+				usleep(Config->SleepDuringActiveWait);
 #endif
-		}
-	} while (r == CAL_RESULT_PENDING);
+			}
+		} while (r == CAL_RESULT_PENDING);
+	}
 	if (needrepin)
 	{
 		sched_setaffinity(0, sizeof(oldset), &oldset);
@@ -1431,7 +1439,7 @@ int caldgemm_cal::Cleanup(CALdevice* device, CALcontext* ctx, CALmodule* module,
 	return(0);
 }
 
-int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, int nContext, size_t lastm, size_t lastn)
+int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperties* data, unsigned int num, int nContext, size_t lastm, size_t lastn, int mustlock)
 {
 	if (Config->DstMemory == 'c') return 0;
 	CALcontext* ctx = &ctxs[nDevice];
@@ -1446,7 +1454,9 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 		{
 			//if (Config->Debug) fprintf(STD_OUT, "GPUHandle: %d, CPUHandle: %d\n", data[i].dstMem, data[i].mem);
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-			CHKERR(calMemCopy(&events[nDevice][nContext], *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
+			if (mustlock) pthread_mutex_lock(&device_mutex[nDevice]);
+			CHKERR(calMemCopy(events[nDevice][nContext].GetNextEvent(), *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
+			if (mustlock) pthread_mutex_unlock(&device_mutex[nDevice]);
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			continue;
 		}
@@ -1478,9 +1488,9 @@ int caldgemm_cal::CopyDataToGPU(int nDevice, CALresource* _Res, BufferProperties
 		{
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 #ifdef CALDGEMM_44_BT_64_CONVERT
-			CHKERR(calMemCopy(&events[nDevice][nContext], *ctx, data[i].mem, data[i].tmpmem, 0), "copying to gpu");
+			CHKERR(calMemCopy(events[nDevice][nContext].GetNextEvent(), *ctx, data[i].mem, data[i].tmpmem, 0), "copying to gpu");
 #else
-			CHKERR(calMemCopy(&events[nDevice][nContext], *ctx, data[i].mem, dest_data[i].dstMem, 0), "copying data to gpu");
+			CHKERR(calMemCopy(events[nDevice][nContext].GetNextEvent(), *ctx, data[i].mem, dest_data[i].dstMem, 0), "copying data to gpu");
 #endif
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			continue;
@@ -1491,7 +1501,7 @@ int caldgemm_cal::CopyDataToGPU(int nDevice, CALresource* _Res, BufferProperties
 		CHKERR(calResUnmap(_Res[i]), "unmapping buffer");
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}
-	if (Config->VerboseTiming && constants == false) WAITFOREVENTA(*ctx, events[nDevice][nContext]);
+	if (Config->VerboseTiming && constants == false) WaitForEvent(nContext, nDevice);
 #ifdef CALDGEMM_44_BT_64_CONVERT
 	if (!constants)
 	{
@@ -1565,6 +1575,15 @@ int caldgemm_cal::ValidateRuntime()
 		Config->Height += 256 - Config->Height % 256;
 	}
 
+#ifdef CALDGEMM_QUERY_ALL_EVENTS
+	if (Config->ThreadSaveDriver == 1)
+	{
+		fprintf(STD_OUT, "CAL runtime with CALLDGEMM_QUERY_ALL_EVENTS can only be used if ThreadSaveDriver != 1\n");
+		return(1);
+	}
+#endif
+
+
 	return(0);
 }
 
@@ -1609,7 +1628,7 @@ int caldgemm_cal::CheckDevices()
 		CHKERR(calCtxGetMem(&tmpmem, ctxs[0], tmpres), "checking for CAL patch (getmem)");
 		CHKERR(calCtxSetMem(ctxs[0], tmpname, tmpmem), "checking for CAL patch (setmem)");
 
-		if (RunProgram(&ctxs[0], &fakeModule, 0, 0, &events[0][0]))
+		if (RunProgram(&ctxs[0], &fakeModule, 0, 0, &events[0][0].events[0]))
 		{
 			fprintf(STD_OUT, "Error running test kernel on GPU\nKeepBuffersMapped disabled\n");
 			Config->KeepBuffersMapped = false;
@@ -1732,7 +1751,7 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 					CHKERR(calCtxSetMem(ctxs[Task.device], progNamesConvert[Task.device][i + dwBuffersA], chkBuffer[i].dstMem), "setting convert kernel memory out");
 					if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 				}
-				if (RunProgram(&ctxs[Task.device], &modulesConvert[Task.device], chkBuffer[0].Width, chkBuffer[0].Height, &events[Task.device][Task.j]))
+				if (RunProgram(&ctxs[Task.device], &modulesConvert[Task.device], chkBuffer[0].Width, chkBuffer[0].Height, events[Task.device][Task.j].GetNextEvent()))
 				{
 					fprintf(STD_OUT, "Error running conversion kernel\n");
 					return(1);
@@ -1768,7 +1787,7 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 					CHKERR(calCtxSetMem(ctxs[Task.device], progNamesConvert[Task.device][i + dwBuffersA], chkBuffer[i].dstMem), "setting convert kernel memory out");
 					if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 				}
-				if (RunProgram(&ctxs[Task.device], &modulesConvert[Task.device], chkBuffer[0].Width, chkBuffer[0].Height, &events[Task.device][Task.j]))
+				if (RunProgram(&ctxs[Task.device], &modulesConvert[Task.device], chkBuffer[0].Width, chkBuffer[0].Height, events[Task.device][Task.j].GetNextEvent()))
 				{
 					fprintf(STD_OUT, "Error running conversion kernel\n");
 					return(1);
@@ -1783,10 +1802,10 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	if (Config->DstMemory == 'g' && Config->UseDMAFetchQueue)
 	{
-		CheckDMAQueue(Task.device);
+		if (CheckDMAQueue(Task.device)) return(1);
 	}
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
-	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) / TILING_X, (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) / TILING_Y, &events[Task.device][Task.j])) {fprintf(STD_OUT, "Error running program\n"); return 1;}
+	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) / TILING_X, (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) / TILING_Y, events[Task.device][Task.j].GetNextEvent())) {fprintf(STD_OUT, "Error running program\n"); return 1;}
 	if (Config->DstMemory == 'g')
 	{
 		if (Config->UseDMAFetchQueue)
@@ -2167,9 +2186,9 @@ int caldgemm_cal::ExitRuntime()
 	return(0);
 }
 
-int caldgemm_cal::FetchResult(int device, int j, int m, int n)
+int caldgemm_cal::FetchResult(int device, int j, int m, int n, int mustlock)
 {
-	return(CopyDataFromGPU(device, resourceHandlers[device][j] + numInputs + numConstantBuffers, datas[device][j] + numInputs + numConstantBuffers, numOutputs, j, m, n));
+	return(CopyDataFromGPU(device, resourceHandlers[device][j] + numInputs + numConstantBuffers, datas[device][j] + numInputs + numConstantBuffers, numOutputs, j, m, n, mustlock));
 }
 
 int caldgemm_cal::CheckDMAQueue(int device, int forcej)
@@ -2182,7 +2201,7 @@ int caldgemm_cal::CheckDMAQueue(int device, int forcej)
 		size_t blockm, blockn;
 		DGEMM_getblocks(k, blockm, blockn);
 		if (forcej == -1 && WaitForEvent(j, device)) return(1);
-		if (FetchResult(device, j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
+		if (FetchResult(device, j, blockm, blockn, forcej != -1)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
 		if (forcej != -1 && WaitForEvent(forcej, device)) return(1);
 		dma_fetch_queue_tasks[device].k = (size_t) -1;
 	}

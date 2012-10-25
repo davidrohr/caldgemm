@@ -253,7 +253,7 @@ protected:
 	virtual int InitConstantData(double alpha) = 0;
 	virtual int ExitRuntime() = 0;
 	virtual int WaitForEvent(int, int, int lock = 0) = 0;
-	virtual int FetchResult(int device, int j, int m, int n) = 0;
+	virtual int FetchResult(int device, int j, int m, int n, int mustlock = 0) = 0;
 	virtual int ExitDevices() = 0;
 
 	virtual	int Initialize (bool nocalinit) = 0;

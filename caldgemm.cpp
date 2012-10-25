@@ -1810,7 +1810,7 @@ endimprovedphase:
 					}
 					else if (Config->ImplicitDriverSync == 0 && Config->DstMemory == 'g')
 					{
-						if (FetchResult(use_device, oldj[use_device], lastm, lastn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
+						if (FetchResult(use_device, oldj[use_device], lastm, lastn, Config->MultiThread && UseMutexPerDevice())) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
 						if (WaitForEvent(oldj[use_device], use_device)) return(1);
 					}
 				}

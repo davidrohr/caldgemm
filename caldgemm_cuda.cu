@@ -315,7 +315,7 @@ int caldgemm_cuda::ExitRuntime()
 	return(0);
 }
 
-int caldgemm_cuda::FetchResult(int device, int j, int m, int n)
+int caldgemm_cuda::FetchResult(int device, int j, int m, int n, int mustlock)
 {
 	if (Config->Debug) fprintf(STD_OUT, "CUDA FetchResult\n");
 	return(0);

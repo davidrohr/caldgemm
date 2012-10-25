@@ -86,3 +86,5 @@
 #define CALDGEMM_DIVIDE_BLOCKING 128			//Blocking size for divideBuffer with SHIFT_TEXTURE = 1 (larger multiple of two)
 //#define CALDGEMM_DIVIDE_TRANSPOSE_TWOPHASE	//Perform dividebuffer transposition in two phases such that fewer write combining buffers are used, Only works for 2 input buffers per matrix with A transposed!
 #define CALDGEMM_TRANSPOSE_BLOCKING 8			//Blocking factor for the transposition (multiple of 2)
+
+#define CALDGEMM_QUERY_ALL_EVENTS				//Query for all events, not only the last one in a queue

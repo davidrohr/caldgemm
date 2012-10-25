@@ -506,7 +506,7 @@ int caldgemm_opencl::ExitRuntime()
 	return(0);
 }
 
-int caldgemm_opencl::FetchResult(int device, int j, int m, int n)
+int caldgemm_opencl::FetchResult(int device, int j, int m, int n, int mustlock)
 {
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL FetchResult\n");
 	return(0);

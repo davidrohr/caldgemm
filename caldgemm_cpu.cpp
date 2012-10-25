@@ -97,7 +97,7 @@ int caldgemm_cpu::ExitRuntime()
 	return(0);
 }
 
-int caldgemm_cpu::FetchResult(int device, int j, int m, int n)
+int caldgemm_cpu::FetchResult(int device, int j, int m, int n, int mustlock)
 {
 	if (Config->Debug) fprintf(STD_OUT, "CALDGEMM_CPU FetchResult\n");
 	return(0);
