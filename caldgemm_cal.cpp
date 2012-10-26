@@ -92,6 +92,13 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 		CPU_SET(Config->AllocMapping[devicenr], &blasset);
 		sched_setaffinity(0, sizeof(blasset), &blasset);
 	}
+#ifdef CALDGEMM_USE_CAL_WAIT_FOR_EVENTS
+	if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
+	CHKERR(calCtxWaitForEvents(ctxs[devicenr], events[devicenr][eventnr].events, events[devicenr][eventnr].nEvents, CAL_WAIT_POLLING), "during calCtxWaitForEvents");
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
+	if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
+#else
 	for (int i = 0;i < events[devicenr][eventnr].nEvents;i++)
 	{
 		do
@@ -121,6 +128,7 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 			}
 		} while (r == CAL_RESULT_PENDING);
 	}
+#endif
 	if (needrepin)
 	{
 		sched_setaffinity(0, sizeof(oldset), &oldset);
@@ -1217,6 +1225,10 @@ int caldgemm_cal::Initialize(bool nocalinit)
 
 	if (!nocalinit) CHKERR(calInit(), "initializing CAL");
 
+#ifdef CALDGEMM_USE_CAL_WAIT_FOR_EVENTS
+	CHKERR(calExtGetProc((CALextproc*) &calCtxWaitForEvents, (CALextid) CAL_PRIVATE_EXT_SYNC_OBJECT, "calCtxWaitForEvents"), "obtaining calCtxWaitForEvent");
+#endif
+
 	numInputs = dwBuffersA + dwBuffersB;
 	numOutputs = dwBuffersC;
 	numConstantBuffers = 1;
@@ -1650,8 +1662,7 @@ int caldgemm_cal::CheckDevices()
 }
 
 int caldgemm_cal::InitDevices()
-{
-	
+{	
 	for (int device_num = 0;device_num < nDevices;device_num++)
 	{
 		cpu_set_t tmpmask;

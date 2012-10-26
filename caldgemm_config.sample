@@ -88,3 +88,4 @@
 #define CALDGEMM_TRANSPOSE_BLOCKING 8			//Blocking factor for the transposition (multiple of 2)
 
 //#define CALDGEMM_QUERY_ALL_EVENTS				//Query for all events, not only the last one in a queue
+//#define CALDGEMM_USE_CAL_WAIT_FOR_EVENTS		//Use different method for queriying CAL events

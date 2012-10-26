@@ -28,6 +28,7 @@
 #include <cal.h>
 #include <cal_ext.h>
 #include <calcl.h>
+#include "cal_private_ext.h"
 
 #include <emmintrin.h>
 
@@ -147,6 +148,8 @@ private:
 		inline void Reset() {};
 #endif
 	};
+
+	PFNCALCTXWAITFOREVENTS calCtxWaitForEvents;
 
 	BufferProperties* datas[max_devices][max_bbuffers];
 	CALdevice devices[max_devices];
