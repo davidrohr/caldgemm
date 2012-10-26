@@ -137,6 +137,7 @@ int caldgemm_cuda::ValidateRuntime()
 {
 	if (Config->Debug) fprintf(STD_OUT, "CUDA ValidateRuntime\n");
 
+	Config->GPU_C = true;
 	CHKRET(cudaGetDeviceCount(&nDevices), "Getting Device Count");
 	if (nDevices == 0) ERRRET("No CUDA device for this platform found\n");
 	if (Config->Debug) fprintf(STD_OUT, "%d CUDA devices found for this platform\n", nDevices);
@@ -485,12 +486,6 @@ int caldgemm_cuda::ExitDevices()
 int caldgemm_cuda::UseOutputPthreads() {return(0);}
 int caldgemm_cuda::UseInputPthreads() {return(0);}
 int caldgemm_cuda::UseMutexPerDevice() {return(0);}
-
-int caldgemm_cuda::reserve_cpu_cores()
-{
-
-	return(0);
-}
 
 int caldgemm_cuda::RunCALDGEMM_Init()
 {

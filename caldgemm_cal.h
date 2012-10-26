@@ -39,7 +39,6 @@ public:
 	caldgemm_cal();
 	virtual ~caldgemm_cal();
 
-	virtual bool cpuUsed(int cpu);
 	virtual double getMaxGPUTemperature();
 
 private:
@@ -112,8 +111,6 @@ private:
 	void checkCalPatch();
 	void cal_init_constant_data(BufferProperties* &data, double alpha);
 	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0 CALDGEMM_DIVBUFA);
-	virtual int RunCALDGEMM_Init();
-	virtual int RunCALDGEMM_Exit();
 
 	struct CALVersion {unsigned int major, minor, imp;};
 
@@ -177,7 +174,6 @@ private:
 	virtual int FetchResult(int device, int j, int m, int n, int mustlock = 0);
 	virtual int CheckDMAQueue(int device, int forcej = -1);
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch);
-	virtual int reserve_cpu_cores();
 };
 
 #endif

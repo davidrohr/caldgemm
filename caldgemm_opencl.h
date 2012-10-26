@@ -58,7 +58,6 @@ private:
 	virtual int FetchResult(int device, int j, int m, int n, int mustlock = 0);
 	virtual int CheckDMAQueue(int device, int forcej = -1);
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch);
-	virtual int reserve_cpu_cores();
 	virtual int RunCALDGEMM_Init();
 	virtual int RunCALDGEMM_Exit();
 
@@ -72,11 +71,14 @@ private:
 	cl_mem ocl_abuffers[max_devices][ibuffercount];
 	cl_mem ocl_bbuffers[max_devices][max_bbuffers];
 	cl_mem ocl_cbuffers[max_devices][obuffercount];
-	cl_mem ocl_tmp_abuffers[max_devices][obuffercount];
-	cl_mem ocl_tmp_bbuffers[max_devices][obuffercount];
+	cl_mem ocl_tmp_abuffers[max_devices][ibuffercount > obuffercount ? ibuffercount : obuffercount];
+	cl_mem ocl_tmp_bbuffers[max_devices][ibuffercount > obuffercount ? ibuffercount : obuffercount];
 	cl_event ocl_events[max_devices][obuffercount];
 	cl_program ocl_program[max_devices][4];
 	cl_kernel ocl_kernel[max_devices][4];
+
+	double* ocl_tmp_abuffers_ptr[max_devices][ibuffercount];
+	double* ocl_tmp_bbuffers_ptr[max_devices][ibuffercount];
 
 	cl_event ocl_conversion_events[max_devices][2];
 	int ocl_conversion_events_use[max_devices][2];
@@ -84,6 +86,7 @@ private:
 	static const char *OCLKernel, *OCLKernelALPHA1, *OCLKernelLinpack, *OCLConvertKernel;
 
 	int WaitForEventAndRelease(cl_event* pEvent);
+	int divideBuffer(double* src, size_t pitch_src, double* dest, size_t nSrcRows, size_t nSrcCols, bool transpose);
 
 	double* C_matrix_base;
 	cl_mem* C_matrix_base_obj;

@@ -115,6 +115,7 @@ public:
 		unsigned int MinimizeCPUPart;			//Set GPURatio to 1.0 as soon as matrix n dimension is below this value
 		bool UseCPU;							//use CPU for DGEMM
 		bool UseGPU;							//use GPUs for DGEMM
+		int GPU_C;								//Store the C matrix on CPU, not every option is supported by every backend, -1 = auto detect
 
 		int OpenCLPlatform;						//OpenCL Platform ID to use
 		int DeviceNum;							//CAL Device to use (-1 for all devices)
@@ -260,10 +261,10 @@ protected:
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch) = 0;
 	virtual int DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0 CALDGEMM_DIVBUFA) = 0;
 	virtual int ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn) = 0;
-	virtual int RunCALDGEMM_Init() = 0;
-	virtual int RunCALDGEMM_Exit() = 0;
+	virtual int RunCALDGEMM_Init();
+	virtual int RunCALDGEMM_Exit();
 
-	virtual int reserve_cpu_cores() = 0;
+	virtual int reserve_cpu_cores();
 
 	int next_buffer_A[max_devices];
 	int next_buffer_B[max_devices];

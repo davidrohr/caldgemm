@@ -52,7 +52,7 @@ int caldgemm_cpu::Initialize(bool nocalinit)
 int caldgemm_cpu::ValidateRuntime()
 {
 	if (Config->Debug) fprintf(STD_OUT, "CALDGEMM_CPU ValidateRuntime\n");
-
+	Config->GPU_C = false;
 	return(0);
 }
 
@@ -131,19 +131,3 @@ int caldgemm_cpu::ExitDevices()
 int caldgemm_cpu::UseOutputPthreads() {return(0);}
 int caldgemm_cpu::UseInputPthreads() {return(0);}
 int caldgemm_cpu::UseMutexPerDevice() {return(0);}
-
-int caldgemm_cpu::reserve_cpu_cores()
-{
-	return(0);
-}
-
-int caldgemm_cpu::RunCALDGEMM_Init()
-{
-	return(0);
-}
-
-int caldgemm_cpu::RunCALDGEMM_Exit()
-{
-	return(0);
-}
-

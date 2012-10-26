@@ -216,6 +216,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	MinimizeCPUPart = 0;
 	PinBroadcastThread = -1;
 	UseDMAFetchQueue = 0;
+	GPU_C = -1;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -763,8 +764,103 @@ int caldgemm::broadcastcore()
 bool caldgemm::cpuUsed(int cpu)
 {
 	if (Config->UseGPU && cpu == Config->PinMainThread) return(true);
+
+	if (UseInputPthreads() || UseOutputPthreads())
+	{
+		for (int i = 0;i < nDevices;i++)
+		{
+			int procsreq = 1;
+			for (int j = i;j < nDevices;j++)
+			{
+				if (Config->GPUMapping[i] == Config->GPUMapping[j] && Config->PostprocessMapping[j] == -1) procsreq += outputthreads;
+			}
+			if ((Config->MultiThreadDivide ? (cpu >= Config->GPUMapping[i]) : (cpu > Config->GPUMapping[i])) && cpu < Config->GPUMapping[i] + procsreq) return(true);
+			if (Config->PostprocessMapping[i] != -1 && cpu >= Config->PostprocessMapping[i] && cpu < Config->PostprocessMapping[i] + outputthreads) return(true);
+			if (Config->ParallelDMA && matrix_n >= Config->ParallelDMA)
+			{
+				if (((matrix_n < Config->GroupParallelDMA || (signed) Config->GroupParallelDMA == -1) ? Config->AllocMapping[i] : Config->DMAMapping[i]) == cpu) return(true);
+			}
+		}
+		for (int i = 0;i < Config->nExcludeCPUCores;i++) if (Config->ExcludeCPUCores[i] == cpu) return(true);
+	}
 	for (int i = 0;i < Config->nExcludeCPUCores;i++) if (Config->ExcludeCPUCores[i] == cpu) return(true);
 	return(false);
+}
+
+int caldgemm::reserve_cpu_cores()
+{
+	if (!(UseInputPthreads() || UseOutputPthreads())) return(0);
+	int nthreads = 0;
+	int mainfound = 0;
+	for (int i = 0;i < nDevices;i++)
+	{
+		int offset = 0;
+		for (int j = 0;j < i;j++)
+		{
+			if (Config->GPUMapping[i] == Config->GPUMapping[j] && Config->PostprocessMapping[j] != -1) offset++;
+		}
+		if (matrix_n >= Config->ParallelDMA && Config->ParallelDMA != 0)
+		{
+			if (matrix_n < Config->GroupParallelDMA)
+			{
+				if (Config->AllocMapping[i] != Config->PinMainThread)
+				{
+					bool found = false;
+					for (int j = 0;j < i;j++)
+					{
+						if (Config->AllocMapping[j] == Config->AllocMapping[i])
+						{
+							found = true;
+							break;
+						}
+					}
+					if (!found)
+					{
+						caldgemm_goto_reserve_cpu(Config->AllocMapping[i], 1);
+						if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for Grouped DMA Thread\n", Config->AllocMapping[i]);
+						nthreads++;
+					}
+				}
+			}
+			else if (i)
+			{
+				caldgemm_goto_reserve_cpu(Config->DMAMapping[i], 1);
+				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DMA Thread\n", Config->DMAMapping[i]);
+				nthreads++;
+			}
+		}
+		else
+		{
+			if (offset == 0 && Config->MultiThreadDivide)
+			{
+				caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
+				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
+				nthreads++;
+				if (Config->GPUMapping[i] == Config->PinMainThread) mainfound = 1;
+			}
+		}
+		for (int j = 0;j < outputthreads;j++)
+		{
+			const int merge_core = Config->PostprocessMapping[i] == -1 ? (Config->GPUMapping[i] + 1 + offset * outputthreads + j) : (Config->PostprocessMapping[i] + j);
+			caldgemm_goto_reserve_cpu(merge_core, 1);
+			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", merge_core);
+		}
+		nthreads += outputthreads;
+	}
+	if (mainfound == 0 || !Config->MultiThreadDivide)
+	{
+		caldgemm_goto_reserve_cpu(Config->PinMainThread, 1);
+		if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for Main Thread\n", Config->PinMainThread);
+		nthreads++;
+	}
+	for (int i = 0;i < Config->nExcludeCPUCores;i++)
+	{
+		caldgemm_goto_reserve_cpu(Config->ExcludeCPUCores[i], 1);
+		if (Config->Debug) fprintf(STD_OUT, "Excluding Core %d\n", Config->ExcludeCPUCores[i]);
+	}
+	nthreads += Config->nExcludeCPUCores;
+	if (Config->Debug) fprintf(STD_OUT, "Reserved %d cores\n", nthreads);
+	return(nthreads);
 }
 
 void caldgemm::DMA_wrapper(caldgemm::clsDMAParam* par)
@@ -3106,6 +3202,16 @@ void caldgemm::printConfig()
 double caldgemm::getMaxGPUTemperature()
 {
     return(0.);
+}
+
+int caldgemm::RunCALDGEMM_Init()
+{
+	return(0);
+}
+
+int caldgemm::RunCALDGEMM_Exit()
+{
+	return(0);
 }
 
 #ifndef USE_GOTO_BLAS
