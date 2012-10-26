@@ -588,7 +588,9 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 #endif
 		if (Config->GPU_C == 0)
 		{
+			if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount);
 			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], region[1], region[0], arg_transpose)) return(1);
+			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, destbuffer);
 		}
 		else
 		{
@@ -647,7 +649,9 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 		if (Config->GPU_C == 0)
 		{
+			if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount);
 			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], region[1], region[0], arg_transpose)) return(1);
+			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount, destbuffer);
 		}
 		else
 		{
