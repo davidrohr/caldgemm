@@ -76,12 +76,11 @@ const char* caldgemm_cal::ILConvertKernel =
 "end\n"
 ;
 
-#define CHKERR(cmd, text) if (cmd != CAL_RESULT_OK) {fprintf(STD_OUT, "Error '%s' while " text "\n", calGetErrorString());return(1);}
+#define CHKERR(cmd, text) if ((cmd) != CAL_RESULT_OK) {fprintf(STD_OUT, "Error '%s' while " text "\n", calGetErrorString());return(1);}
 #define WAITFOREVENTA(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
 int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 {
-	CALresult r;
 	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr);
 	cpu_set_t blasset, oldset;
 	bool needrepin = Config->RepinDuringActiveWaitForEvent && !Config->RepinMainThreadAlways && (Config->ParallelDMA == 0 || Config->ParallelDMA > matrix_n) && Config->AllocMapping[devicenr] != -1 && Config->AllocMapping[devicenr] != Config->PinMainThread;
@@ -95,10 +94,17 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 #ifdef CALDGEMM_USE_CAL_WAIT_FOR_EVENTS
 	if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-	CHKERR(calCtxWaitForEvents(ctxs[devicenr], events[devicenr][eventnr].events, events[devicenr][eventnr].nEvents, CAL_WAIT_POLLING), "during calCtxWaitForEvents");
+#ifdef CALDGEMM_USE_CAL_WAIT_FOR_EVENTS_NO_POLL
+	CALuint flag = CAL_WAIT_LOW_CPU_UTILIZATION;
+#else
+	CALuint flag = CAL_WAIT_POLLING;
+#endif
+	CHKERR(calCtxWaitForEvents(ctxs[devicenr], events[devicenr][eventnr].events, events[devicenr][eventnr].nEvents, flag), "during calCtxWaitForEvents");
+	events[devicenr][eventnr].Reset();
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
 #else
+	CALresult r;
 	for (int i = 0;i < events[devicenr][eventnr].nEvents;i++)
 	{
 		do
