@@ -12,7 +12,9 @@
 #define NUM_FAKE_NAME 1000
 #define NUM_MODULE_NAMES 24
 
-#define PASSTHROUGH
+#define CAL_FAKE_PASSTHROUGH
+#define CAL_FAKE_CHECKMEM
+//#define CAL_FAKE_VERBOSE
 
 class cal_fake_event
 {
@@ -93,7 +95,9 @@ public:
 
 	CALresult AddEvent(CALevent* pevent, bool lock = true)
 	{
-		//printf("CREATE %d\n", curevent);
+#ifdef CAL_FAKE_VERBOSE
+		printf("CREATE %d\n", curevent);
+#endif
 		*pevent = curevent;
 		if (lock) pthread_mutex_lock(&mutex);
 		if (event[curevent].initialized) event[curevent].reused = 1;
@@ -131,7 +135,7 @@ public:
 		else
 		{
 			event[num].timer.Stop();
-#ifndef PASSTHROUGH
+#ifndef CAL_FAKE_PASSTHROUGH
 			if (event[num].timer.GetElapsedTime() <= event[num].delay)
 			{
 				event[num].timer.Start();
@@ -213,11 +217,13 @@ public:
 	CALresult FakeMemcpy(CALmem mem1, CALmem mem2, CALevent* ev)
 	{
 		pthread_mutex_lock(&mutex);
+#ifdef CAL_FAKE_CHECKMEM
 		if (mem[mem1].active || mem[mem2].active)
 		{
 			fprintf(stderr, "Memory active when starting memcpy\n");
 			while(true);
 		}
+#endif
 		AddEvent(ev, false);
 		event[*ev].nmems = 2;
 		event[*ev].mems[0] = mem1;
@@ -236,6 +242,7 @@ public:
 			fprintf(stderr, "Invalid func/module");
 			while(true);
 		}
+#ifdef CAL_FAKE_CHECKMEM
 		for (int i = 0;i < module[func].nnames;i++)
 		{
 			if (mem[name[module[func].names[i]].mem].active)
@@ -245,6 +252,7 @@ public:
 			}
 			mem[name[module[func].names[i]].mem].active = 1;
 		}
+#endif
 		AddEvent(ev, false);
 		event[*ev].nmems = module[func].nnames;
 		for (int i = 0;i < module[func].nnames;i++) event[*ev].mems[i] = name[module[func].names[i]].mem;
@@ -284,7 +292,7 @@ public:
 
 cal_fake fake;
 
-#ifndef PASSTHROUGH
+#ifndef CAL_FAKE_PASSTHROUGH
 #define calCtxRunProgram(event, ctx, func, rect) fake.FakeKernel(func, event)
 #define calMemCopy(event, ctx, src, dest, flags) fake.FakeMemcpy(src, dest, event)
 #define calCtxIsEventDone(ctx, event) fake.QueryEvent(event)
