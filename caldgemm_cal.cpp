@@ -1464,7 +1464,7 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 	if (Config->DstMemory == 'c') return 0;
 	CALcontext* ctx = &ctxs[nDevice];
 	if (Config->VerboseTiming) Timers.CounterCopyFrom.Start();
-	if (Config->Debug == true) fprintf(STD_OUT, "\tFetching part of C from GPU (m = %lld, n = %lld device=%d context=%d)\n", (long long int) lastm, (long long int) lastn, nDevice, nContext);
+	if (Config->Debug == true) fprintf(STD_OUT, "\tFetching part of C from GPU (m = %lld, n = %lld device = %d context = %d)\n", (long long int) lastm, (long long int) lastn, nDevice, nContext);
 	unsigned int pitch;
 	char* ptr;
 	if (Config->ImplicitDriverSync == 0) WaitForEvent(nContext, nDevice);
@@ -2213,6 +2213,7 @@ int caldgemm_cal::FetchResult(int device, int j, int m, int n, int mustlock)
 
 int caldgemm_cal::CheckDMAQueue(int device, int forcej)
 {
+	if (forcej != -1) pthread_mutex_lock(&device_mutex[device]);
 	pthread_mutex_lock(&dma_fetch_queue_tasks[device].mutex);
 	const size_t k = dma_fetch_queue_tasks[device].k;
 	const int j = dma_fetch_queue_tasks[device].j;
@@ -2221,11 +2222,12 @@ int caldgemm_cal::CheckDMAQueue(int device, int forcej)
 		size_t blockm, blockn;
 		DGEMM_getblocks(k, blockm, blockn);
 		if (forcej == -1 && WaitForEvent(j, device)) return(1);
-		if (FetchResult(device, j, blockm, blockn, forcej != -1)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
+		if (FetchResult(device, j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
 		if (forcej != -1 && WaitForEvent(forcej, device)) return(1);
 		dma_fetch_queue_tasks[device].k = (size_t) -1;
 	}
 	pthread_mutex_unlock(&dma_fetch_queue_tasks[device].mutex);
+	if (forcej != -1) pthread_mutex_unlock(&device_mutex[device]);
 	return(0);
 }
 
