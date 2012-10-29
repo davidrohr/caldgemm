@@ -3005,7 +3005,7 @@ unsigned int caldgemm::AnalyzeResults()
 		{
 			fprintf(STD_OUT, "Passed!\n");
 		}
-		if (!Config->Quiet && (errors || Config->Debug))
+		if (!Config->NoPerformanceWarnings && (errors || Config->Debug))
 		{
 			fprintf(STD_OUT, "GPU output matrix\n");
 			print_submatrices(C, matrix_n, matrix_m, C_pitch, 1, 1, Config->Height, Config->Height);
@@ -3013,7 +3013,7 @@ unsigned int caldgemm::AnalyzeResults()
 			print_submatrices(D, matrix_n, matrix_m, C_pitch, 1, 1, Config->Height, Config->Height, C);
 		}
 
-		if (!Config->Quiet && errors)
+		if (!Config->NoPerformanceWarnings && errors)
 		{
 			fprintf(STD_OUT, "Number of errors in tiles\n");
 			for (size_t i = 0;i < matrix_m;i += Config->Height)
