@@ -17,7 +17,7 @@
 
 #define CAL_FAKE_PASSTHROUGH
 #define CAL_FAKE_CHECKMEM
-#define CAL_FAKE_VERBOSE
+//#define CAL_FAKE_VERBOSE
 
 class cal_fake_event
 {
@@ -241,11 +241,11 @@ public:
 		return(CAL_RESULT_OK);
 	}
 
-	CALresult FakeMemcpy(CALmem mem1, CALmem mem2, CALevent* ev)
+	CALresult FakeMemcpy(CALmem mem1, CALmem mem2, CALevent* ev, int allowOverlap = 0)
 	{
 		pthread_mutex_lock(&mutex);
 #ifdef CAL_FAKE_CHECKMEM
-		if (mem[mem1].active || mem[mem2].active)
+		if (allowOverlap == 0 && (mem[mem1].active || mem[mem2].active))
 		{
 			fprintf(stderr, "Memory active when starting memcpy (src: %d, dst: %d)\n", mem[mem1].active, mem[mem2].active);
 			while(true);
@@ -261,7 +261,7 @@ public:
 		return(CAL_RESULT_OK);
 	}
 
-	CALresult FakeKernel(CALfunc func, CALevent* ev)
+	CALresult FakeKernel(CALfunc func, CALevent* ev, int allowOverlap)
 	{
 		pthread_mutex_lock(&mutex);
 		if (func > (unsigned) curmodule)
@@ -272,9 +272,9 @@ public:
 #ifdef CAL_FAKE_CHECKMEM
 		for (int i = 0;i < module[func].nnames;i++)
 		{
-			if (mem[name[module[func].names[i]].mem].active)
+			if (i >= allowOverlap && mem[name[module[func].names[i]].mem].active)
 			{
-				fprintf(stderr, "Memory %d (of %d) active when starting kernel\n", i, module[func].nnames);
+				fprintf(stderr, "Memory %d (of %d) active when starting kernel (allowed overlap %d)\n", i, module[func].nnames, allowOverlap);
 				ListMemCollisions(name[module[func].names[i]].mem);
 				while(true);
 			}
@@ -335,13 +335,25 @@ cal_fake fake;
 
 static inline CALresult calCtxRunProgram_a(CALevent* event, CALcontext ctx, CALfunc func, CALdomain* rect)
 {
-	fake.FakeKernel(func, event);
+	fake.FakeKernel(func, event, 0);
 	return(calCtxRunProgram(&fake.event[*event].through, ctx, fake.module[func].throughFunc, rect));
 }
 
 static inline CALresult calMemCopy_a(CALevent* event, CALcontext ctx, CALmem src, CALmem dest, CALuint flags)
 {
-	fake.FakeMemcpy(src, dest, event);
+	fake.FakeMemcpy(src, dest, event, 0);
+	return(calMemCopy(&fake.event[*event].through, ctx, fake.mem[src].through, fake.mem[dest].through, flags));
+}
+
+static inline CALresult calCtxRunProgram_b(CALevent* event, CALcontext ctx, CALfunc func, CALdomain* rect, int allowOverlap = 0)
+{
+	fake.FakeKernel(func, event, allowOverlap);
+	return(calCtxRunProgram(&fake.event[*event].through, ctx, fake.module[func].throughFunc, rect));
+}
+
+static inline CALresult calMemCopy_b(CALevent* event, CALcontext ctx, CALmem src, CALmem dest, CALuint flags, int allowOverlap = 0)
+{
+	fake.FakeMemcpy(src, dest, event, allowOverlap);
 	return(calMemCopy(&fake.event[*event].through, ctx, fake.mem[src].through, fake.mem[dest].through, flags));
 }
 

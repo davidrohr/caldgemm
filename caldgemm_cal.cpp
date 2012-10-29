@@ -1369,7 +1369,18 @@ int caldgemm_cal::RunProgram(CALcontext *ctx, CALmodule *module, unsigned int Wi
 #ifdef CALDGEMM_COMPUTE_SHADER
 	CHKERR(calCtxRunProgramGrid(event, *ctx, &pg), "executing kernel");
 #else
-	CHKERR(calCtxRunProgram(event, *ctx, func, &rect), "executing kernel");
+
+#ifdef CAL_FAKE_H
+	if (Config->UseDMAFetchQueue == 0)
+	{
+		CHKERR(calCtxRunProgram_b(event, *ctx, func, &rect, dwBuffersA + dwBuffersB + 1), "executing kernel");
+	}
+	else
+#endif
+	{
+		CHKERR(calCtxRunProgram(event, *ctx, func, &rect), "executing kernel");
+	}
+
 #endif
 
 	if (Config->VerboseTiming)
@@ -1481,7 +1492,16 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 			//if (Config->Debug) fprintf(STD_OUT, "GPUHandle: %d, CPUHandle: %d\n", data[i].dstMem, data[i].mem);
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			if (mustlock) pthread_mutex_lock(&device_mutex[nDevice]);
-			CHKERR(calMemCopy(events[nDevice][nContext].GetNextEvent(), *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
+#ifdef CAL_FAKE_H
+			if (Config->DstMemory == 'g' && Config->ImplicitDriverSync)
+			{
+				CHKERR(calMemCopy_b(events[nDevice][nContext].GetNextEvent(), *ctx, data[i].dstMem, data[i].mem, 0, 1), "copying data from gpu");
+			}
+			else
+#endif
+			{
+				CHKERR(calMemCopy(events[nDevice][nContext].GetNextEvent(), *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
+			}
 			if (mustlock) pthread_mutex_unlock(&device_mutex[nDevice]);
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			dma_pending[nDevice][nContext] = 1;
