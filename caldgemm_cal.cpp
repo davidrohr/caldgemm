@@ -806,6 +806,7 @@ int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, in
 #endif
 	}
 
+	_mm_mfence();
 	if (Config->DivideToGPU)
 	{
 		for (int i = 0;i < numBuffers;i++)
@@ -1104,6 +1105,7 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 
 	delete[] position;
 	}
+	_mm_mfence();
 	if (Config->DstMemory == 'c' && !Config->KeepBuffersMapped)
 	{
 		for (unsigned int i = 0;i < dwBuffersC;i++)
