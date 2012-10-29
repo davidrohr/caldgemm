@@ -107,28 +107,22 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
 #else
-	CALresult r;
+	CALresult r = CAL_RESULT_OK;
 	do
 	{
 		if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 		
-		if (events[devicenr][eventnr].nEvents == 0)
+		for (int i = 0;i < events[devicenr][eventnr].nEvents;i++)
 		{
-			r = CAL_RESULT_OK;
-		}
-		else
-		{
-			for (int i = 0;i < events[devicenr][eventnr].nEvents;i++)
+			do
 			{
-				do
-				{
-					r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr].events[i]);
-				} while (i && r == CAL_RESULT_PENDING);
-				if (i == 0 && r == CAL_RESULT_PENDING) break;
-			}
-			if (r == CAL_RESULT_OK) events[devicenr][eventnr].Reset();
+				r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr].events[i]);
+			} while (i && r == CAL_RESULT_PENDING);
+			if (i == 0 && r == CAL_RESULT_PENDING) break;
 		}
+		if (r == CAL_RESULT_OK) events[devicenr][eventnr].Reset();
+
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
 		if (r == CAL_RESULT_ERROR)
