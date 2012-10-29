@@ -28,6 +28,7 @@
 //#include "cal_fake.h"
 
 #include "cmodules/util_adl.h"
+#include "cmodules/affinity.h"
 
 #define ILKernelName ILKernel
 #include "caldgemm.il"
@@ -76,6 +77,8 @@ const char* caldgemm_cal::ILConvertKernel =
 "end\n"
 ;
 
+//#define fprintf(file, ...) {fprintf(STD_OUT, "Thread %d ", gettid());fprintf(stderr, __VA_ARGS__);}
+
 #define CHKERR(cmd, text) if ((cmd) != CAL_RESULT_OK) {fprintf(STD_OUT, "Error '%s' while " text "\n", calGetErrorString());return(1);}
 #define WAITFOREVENTA(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
@@ -105,40 +108,49 @@ int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 	if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
 #else
 	CALresult r;
-	for (int i = 0;i < events[devicenr][eventnr].nEvents;i++)
+	do
 	{
-		do
+		if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
+		
+		if (events[devicenr][eventnr].nEvents == 0)
 		{
-			if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
-			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-			do
+			r = CAL_RESULT_OK;
+		}
+		else
+		{
+			for (int i = 0;i < events[devicenr][eventnr].nEvents;i++)
 			{
-				r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr].events[i]);
-			} while (r == CAL_RESULT_OK && ++i < events[devicenr][eventnr].nEvents);
-			if (r == CAL_RESULT_OK && i == events[devicenr][eventnr].nEvents) events[devicenr][eventnr].Reset();
-			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
-			if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
-
-			if (r == CAL_RESULT_ERROR)
-			{
-				fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString());
-				return(1);
+				do
+				{
+					r = calCtxIsEventDone(ctxs[devicenr], events[devicenr][eventnr].events[i]);
+				} while (i && r == CAL_RESULT_PENDING);
+				if (i == 0 && r == CAL_RESULT_PENDING) break;
 			}
-			else if (Config->SleepDuringActiveWait != -1 && r == CAL_RESULT_PENDING)
-			{
+			if (r == CAL_RESULT_OK) events[devicenr][eventnr].Reset();
+		}
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
+		if (lock) pthread_mutex_unlock(&device_mutex[devicenr]);
+		if (r == CAL_RESULT_ERROR)
+		{
+			fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString());
+			return(1);
+		}
+		else if (Config->SleepDuringActiveWait != -1 && r == CAL_RESULT_PENDING)
+		{
 #ifdef _WIN32
-				Sleep(Config->SleepDuringActiveWait / 1000);
+			Sleep(Config->SleepDuringActiveWait / 1000);
 #else
-				usleep(Config->SleepDuringActiveWait);
+			usleep(Config->SleepDuringActiveWait);
 #endif
-			}
-		} while (r == CAL_RESULT_PENDING);
-	}
+		}
+	} while (r == CAL_RESULT_PENDING);
 #endif
 	if (needrepin)
 	{
 		sched_setaffinity(0, sizeof(oldset), &oldset);
 	}
+	if (Config->Debug) fprintf(STD_OUT, "\tDONE: Waiting for event from device %d obuffer %d...\n", devicenr, eventnr);
 	return(0);
 }
 
@@ -1478,6 +1490,7 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 			CHKERR(calMemCopy(events[nDevice][nContext].GetNextEvent(), *ctx, data[i].dstMem, data[i].mem, 0), "copying data from gpu");
 			if (mustlock) pthread_mutex_unlock(&device_mutex[nDevice]);
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
+			dma_pending[nDevice][nContext] = 1;
 			continue;
 		}
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
@@ -1743,9 +1756,9 @@ int caldgemm_cal::InitConstantData(double alpha)
 
 int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn)
 {
-	if (prepare_pending[Task.device][Task.j])
+	if (dma_pending[Task.device][Task.j])
 	{
-	    prepare_pending[Task.device][Task.j] = false;
+	    dma_pending[Task.device][Task.j] = false;
 	    if (WaitForEvent(Task.j, Task.device)) return(1);
 	}
 
@@ -2223,11 +2236,12 @@ int caldgemm_cal::CheckDMAQueue(int device, int forcej)
 		DGEMM_getblocks(k, blockm, blockn);
 		if (forcej == -1 && WaitForEvent(j, device)) return(1);
 		if (FetchResult(device, j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n");return(1);}
-		if (forcej != -1 && WaitForEvent(forcej, device)) return(1);
 		dma_fetch_queue_tasks[device].k = (size_t) -1;
 	}
 	pthread_mutex_unlock(&dma_fetch_queue_tasks[device].mutex);
+	if (forcej != -1 && WaitForEvent(forcej, device)) return(1);
 	if (forcej != -1) pthread_mutex_unlock(&device_mutex[device]);
+
 	return(0);
 }
 

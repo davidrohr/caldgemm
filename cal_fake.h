@@ -1,3 +1,6 @@
+#ifndef CAL_FAKE_H
+#define CAL_FAKE_H
+
 #include "cmodules/timer.h"
 #ifdef _WIN32
 #include "cmodules/pthread_mutex_win32_wrapper.h"
@@ -10,11 +13,11 @@
 #define NUM_FAKE_MEM 10000
 #define NUM_FAKE_MODULE 100
 #define NUM_FAKE_NAME 1000
-#define NUM_MODULE_NAMES 24
+#define NUM_MODULE_NAMES 13
 
 #define CAL_FAKE_PASSTHROUGH
 #define CAL_FAKE_CHECKMEM
-//#define CAL_FAKE_VERBOSE
+#define CAL_FAKE_VERBOSE
 
 class cal_fake_event
 {
@@ -96,10 +99,15 @@ public:
 	CALresult AddEvent(CALevent* pevent, bool lock = true)
 	{
 #ifdef CAL_FAKE_VERBOSE
-		printf("CREATE %d\n", curevent);
+		fprintf(STD_OUT, "CREATE EVENT %d\n", curevent);
 #endif
 		*pevent = curevent;
 		if (lock) pthread_mutex_lock(&mutex);
+		if (event[curevent].initialized && !event[curevent].queried)
+		{
+			printf("------------------------ Event reused before queried\n");
+			while (true);
+		}
 		if (event[curevent].initialized) event[curevent].reused = 1;
 		event[curevent].initialized = 1;
 		event[curevent].queried = 0;
@@ -114,7 +122,9 @@ public:
 
 	CALresult QueryEvent(CALevent num)
 	{
-		//printf("QUERY %d\n", num);
+#ifdef CAL_FAKE_VERBOSE
+		fprintf(STD_OUT, "QUERY EVENT %d\n", num);
+#endif
 		CALresult retVal;
 		pthread_mutex_lock(&mutex);
 		if (num >= NUM_FAKE_EVENTS)
@@ -145,13 +155,30 @@ public:
 #endif
 			{
 				event[num].queried = 1;
-				for (int i = 0;i < event[num].nmems;i++) mem[event[num].mems[i]].active = 0;
+				for (int i = 0;i < event[num].nmems;i++) mem[event[num].mems[i]].active--;
 				retVal = CAL_RESULT_OK;
 			}
 		}
 		pthread_mutex_unlock(&mutex);
 		if(retVal == CAL_RESULT_BAD_HANDLE) while(true);
 		return(retVal);
+	}
+	
+	void ListMemCollisions(int mem)
+	{
+	    for (int i = 0;i < NUM_FAKE_EVENTS;i++)
+	    {
+		if (event[i].initialized && !event[i].queried)
+		{
+		    for (int j = 0;j < event[i].nmems;j++)
+		    {
+			if (event[i].mems[j] == mem)
+			{
+			    printf("Collision with event %d\n", i);
+			}
+		    }
+		}
+	    }
 	}
 
 	CALresult AddMemHandle(CALmem* m)
@@ -220,7 +247,7 @@ public:
 #ifdef CAL_FAKE_CHECKMEM
 		if (mem[mem1].active || mem[mem2].active)
 		{
-			fprintf(stderr, "Memory active when starting memcpy\n");
+			fprintf(stderr, "Memory active when starting memcpy (src: %d, dst: %d)\n", mem[mem1].active, mem[mem2].active);
 			while(true);
 		}
 #endif
@@ -228,8 +255,8 @@ public:
 		event[*ev].nmems = 2;
 		event[*ev].mems[0] = mem1;
 		event[*ev].mems[1] = mem2;
-		mem[mem1].active = 1;
-		mem[mem2].active = 1;
+		mem[mem1].active++;
+		mem[mem2].active++;
 		pthread_mutex_unlock(&mutex);
 		return(CAL_RESULT_OK);
 	}
@@ -247,10 +274,11 @@ public:
 		{
 			if (mem[name[module[func].names[i]].mem].active)
 			{
-				fprintf(stderr, "Memory active when starting kernel\n");
+				fprintf(stderr, "Memory %d (of %d) active when starting kernel\n", i, module[func].nnames);
+				ListMemCollisions(name[module[func].names[i]].mem);
 				while(true);
 			}
-			mem[name[module[func].names[i]].mem].active = 1;
+			mem[name[module[func].names[i]].mem].active++;
 		}
 #endif
 		AddEvent(ev, false);
@@ -376,5 +404,7 @@ static inline CALresult calModuleGetEntry_a(CALfunc* func, CALcontext ctx, CALmo
 #define calModuleUnload calModuleUnload_a
 #define calModuleGetName calModuleGetName_a
 #define calModuleGetEntry calModuleGetEntry_a
+
+#endif
 
 #endif
