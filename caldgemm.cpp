@@ -3037,7 +3037,7 @@ bool caldgemm::isDoubleEqual(double a, double b)
 #ifndef _WIN32
 	if (isnan(a) || isnan(b) || isinf(a) || isinf(b)) return(false);
 #endif
-	double epsilon1 = 1e-6;
+	double epsilon1 = 1e-3;
 	double epsilon2 = 1e-4;
 
 	if(fabs(b) <1e-13)
