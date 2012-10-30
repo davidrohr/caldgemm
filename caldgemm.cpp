@@ -2509,7 +2509,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 				Timers.ATime.Stop();
 				cpu_wait_time = Timers.ATime.GetElapsedTime();
-				if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15 && cParam.cblas_size > 0)
+				if (Config->DynamicSched && !Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15 && cParam.cblas_size > 0)
 				{
 					fprintf(STD_OUT, "WARNING: CPU synchronisation took %2.4f sec\n", Timers.ATime.GetElapsedTime());
 				}
@@ -2982,8 +2982,8 @@ unsigned int caldgemm::AnalyzeResults()
 					if (errors < 5) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le, Relative: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j], (D[i * C_pitch + j] - C[i * C_pitch + j]) / D[i * C_pitch + j]);
 					++errors;
 					errortiles[j / Config->Height * nblocksm + i / Config->Height]++;
-					if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] > 0.05) errorsrel[0]++;
-					else if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] < 0.0001) errorsrel[2]++;
+					if (fabs((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j]) > 0.05) errorsrel[0]++;
+					else if (fabs((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j]) < 0.0001) errorsrel[2]++;
 					else errorsrel[1]++;
 				}
 				++total;
@@ -2998,10 +2998,10 @@ unsigned int caldgemm::AnalyzeResults()
 			}
 			else
 			{
-				fprintf(STD_OUT, "FAILED\n");
+				fprintf(STD_OUT, "FAILED (Host %s)\n", hostname);
 			}
 		}
-		else
+		else if (!Config->Quiet)
 		{
 			fprintf(STD_OUT, "Passed!\n");
 		}
@@ -3037,16 +3037,22 @@ bool caldgemm::isDoubleEqual(double a, double b)
 #ifndef _WIN32
 	if (isnan(a) || isnan(b) || isinf(a) || isinf(b)) return(false);
 #endif
-	double epsilon1 = 1e-3;
-	double epsilon2 = 1e-4;
-
-	if(fabs(b) <1e-13)
+	double valmax = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
+	if (valmax < 1e-15)
 	{
-		return (fabs(a-b) < epsilon1);
+		return(fabs(a - b) < 1e16);
+	}
+	else if (valmax < 1e-9)
+	{
+		return(fabs((a - b)/valmax) < 5e-2);
+	}
+	else if(valmax < 1e-8)
+	{
+		return (fabs((a-b)/valmax) < 1e-3);
 	}
 	else
 	{
-		return (fabs((a-b)/b) < epsilon2);
+		return (fabs((a-b)/valmax) < 1e-4);
 	}
 }
 
