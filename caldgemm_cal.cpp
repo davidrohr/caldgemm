@@ -1371,7 +1371,7 @@ int caldgemm_cal::RunProgram(CALcontext *ctx, CALmodule *module, unsigned int Wi
 #else
 
 #ifdef CAL_FAKE_H
-	if (Config->UseDMAFetchQueue == 0)
+	if (Config->UseDMAFetchQueue < matrix_n)
 	{
 		CHKERR(calCtxRunProgram_b(event, *ctx, func, &rect, dwBuffersA + dwBuffersB + 1), "executing kernel");
 	}
@@ -1484,7 +1484,7 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 	if (Config->Debug == true) fprintf(STD_OUT, "\tFetching part of C from GPU (m = %lld, n = %lld device = %d context = %d)\n", (long long int) lastm, (long long int) lastn, nDevice, nContext);
 	unsigned int pitch;
 	char* ptr;
-	if (Config->ImplicitDriverSync == 0) WaitForEvent(nContext, nDevice);
+	if (Config->UseDMAFetchQueue >= matrix_n || Config->ImplicitDriverSync == 0) WaitForEvent(nContext, nDevice);
 	for (unsigned int i = 0; i < num; ++i)
 	{
 		if (data[i].CALMemory)
@@ -1493,7 +1493,7 @@ int caldgemm_cal::CopyDataFromGPU(int nDevice, CALresource* _Res, BufferProperti
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			if (mustlock) pthread_mutex_lock(&device_mutex[nDevice]);
 #ifdef CAL_FAKE_H
-			if (Config->DstMemory == 'g' && Config->ImplicitDriverSync)
+			if (Config->DstMemory == 'g' && Config->UseDMAFetchQueue < matrix_n && Config->ImplicitDriverSync)
 			{
 				CHKERR(calMemCopy_b(events[nDevice][nContext].GetNextEvent(), *ctx, data[i].dstMem, data[i].mem, 0, 1), "copying data from gpu");
 			}
@@ -1563,7 +1563,7 @@ int caldgemm_cal::ValidateCALRuntime()
 	CALVersion available;
 	calGetVersion(&available.major, &available.minor, &available.imp);
 	
-	if (Config->ImplicitDriverSync == -1 && Config->UseDMAFetchQueue == 0)
+	if (Config->ImplicitDriverSync == -1)
 	{
 		if (available.major > 2 || available.minor > 4 || (available.minor == 4 && available.imp > 900)) Config->ImplicitDriverSync = 0;
 		else Config->ImplicitDriverSync = 1;
@@ -1847,7 +1847,7 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	for (unsigned int l = 0;l < dwBuffersC;l++) CHKERR(calCtxSetMem(ctxs[Task.device], progNames[Task.device][Task.kernel_num][numInputs + numConstantBuffers + l], datas[Task.device][Task.j][numInputs + numConstantBuffers + l].dstMem), "setting kernel output memroy");
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
-	if (Config->DstMemory == 'g' && Config->UseDMAFetchQueue)
+	if (Config->DstMemory == 'g' && Config->UseDMAFetchQueue >= matrix_n)
 	{
 		if (CheckDMAQueue(Task.device)) return(1);
 	}
@@ -1855,7 +1855,7 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) / TILING_X, (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) / TILING_Y, events[Task.device][Task.j].GetNextEvent())) {fprintf(STD_OUT, "Error running program\n"); return 1;}
 	if (Config->DstMemory == 'g')
 	{
-		if (Config->UseDMAFetchQueue)
+		if (Config->UseDMAFetchQueue >= matrix_n)
 		{
 			pthread_mutex_lock(&dma_fetch_queue_tasks[Task.device].mutex);
 			dma_fetch_queue_tasks[Task.device].j = Task.j;

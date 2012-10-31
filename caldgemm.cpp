@@ -1900,7 +1900,7 @@ endimprovedphase:
 					DGEMMPrepareTaskEventReady[use_device][oldj[use_device]] = false;
 					if (WaitForEvent(oldj[use_device], use_device, must_lock)) return(1);
 					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
-					if (Config->UseDMAFetchQueue == 1 && Config->DstMemory == 'g')
+					if (Config->UseDMAFetchQueue >= matrix_n && Config->DstMemory == 'g')
 					{
 						if (CheckDMAQueue(use_device, oldj[use_device])) return(1);
 					}
