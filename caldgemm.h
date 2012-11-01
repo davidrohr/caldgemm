@@ -99,7 +99,7 @@ public:
 		bool DivideToGPU;						//Write preprocessed data difrectly to GPU
 		char DstMemory;							//Dst memory of kernel on GPU (g) or CPU (c)
 		int ImplicitDriverSync;					//Assume the CAL driver enforces an explicit sync when starting CAL kernel
-		int UseDMAFetchQueue;					//When starting a new kernel, ensure to start dma fetch for previous kernel beforehand. Used if UseDMAFetchQueue >= matrix_n
+		unsigned int UseDMAFetchQueue;					//When starting a new kernel, ensure to start dma fetch for previous kernel beforehand. Used if UseDMAFetchQueue >= matrix_n
 		bool DynamicSched;						//Dynamically schedule CPU DGEMM
 		bool SecondPhaseDynamicRuns;			//3rd phase in dynamic scheduling
 		bool ThirdPhaseDynamicRuns;				//3rd phase in dynamic scheduling
