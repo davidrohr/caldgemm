@@ -214,6 +214,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	GroupParallelDMA = 0;
 	LASWPSleep = 0;
 	MinimizeCPUPart = 0;
+	MinimizeCPUDuringFact = 0;
 	PinBroadcastThread = -1;
 	UseDMAFetchQueue = 0;
 	GPU_C = -1;
@@ -2258,7 +2259,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		InitConstantData(alpha);
 
-		if (Config->SlowCPU || matrix_n < Config->MinimizeCPUPart)
+		if (Config->SlowCPU || matrix_n < Config->MinimizeCPUPart || (Config->MinimizeCPUDuringFact && ExecLinpack >= 2))
 		{
 			GPURatio = 1.0;
 		}

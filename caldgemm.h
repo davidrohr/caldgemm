@@ -113,6 +113,7 @@ public:
 		unsigned int GroupParallelDMA;			//Use in combination with ParallelDMA. Group devices with identical AllocMapping setting to one thread, at least one paralleDMA thread with that DMAMapping must exist. Activated if n < setting., make sure to have a preprocessing thread set to each CPU core used for this feature, the thread won't be used but it will ensure correct core pinning. -1 for always Grouped parallel DMA.
 		double GPURatio;						//Fraction of the matrix processed by GPU
 		unsigned int MinimizeCPUPart;			//Set GPURatio to 1.0 as soon as matrix n dimension is below this value
+		int MinimizeCPUDuringFact;				//Always minimize CPU part during factorization
 		bool UseCPU;							//use CPU for DGEMM
 		bool UseGPU;							//use GPUs for DGEMM
 		int GPU_C;								//Store the C matrix on CPU, not every option is supported by every backend, -1 = auto detect
