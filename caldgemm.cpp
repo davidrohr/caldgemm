@@ -1144,7 +1144,7 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 		if (Config->HPLFactorizeRestrictCallback != NULL) require_threads_base += Config->HPLFactorizeRestrictCallback(matrix_n);
 		int require_threads = require_threads_base;
 
-		if (ExecLinpack && Config->AlternateLookahead <= matrix_n)
+		if ((ExecLinpack && Config->AlternateLookahead <= matrix_n) || ExecLinpack == 1)
 		{
 			RunLinpackFactorization(old_goto_threads, require_threads);
 		}
@@ -1282,7 +1282,7 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 				}
 			}
 			
-			if (ExecLinpack && par->borders_done == false && Config->AlternateLookahead > matrix_n)
+			if (ExecLinpack >= 2 && par->borders_done == false && Config->AlternateLookahead > matrix_n)
 			{
 				Timers.CPUTimer.Stop();
 				RunLinpackFactorization(old_goto_threads, require_threads);
