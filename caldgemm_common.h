@@ -61,3 +61,14 @@ static inline void caldgemm_goto_restrict_cpus(int) {}
 #else
 #define CAST_FOR_MMPREFETCH (char*)
 #endif
+
+#ifdef VTRACE
+#include <vt_user.h>
+#include <pthread.h>
+extern pthread_mutex_t global_vt_mutex;
+#define VT_USER_START_A(a) {pthread_mutex_lock(&global_vt_mutex);VT_USER_START(a);pthread_mutex_unlock(&global_vt_mutex);}
+#define VT_USER_END_A(a) {pthread_mutex_lock(&global_vt_mutex);VT_USER_END(a);pthread_mutex_unlock(&global_vt_mutex);}
+#else
+#define VT_USER_START_A(a)
+#define VT_USER_END_A(a)
+#endif

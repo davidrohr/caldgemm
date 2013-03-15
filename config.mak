@@ -85,6 +85,8 @@ LIBS						+= gfortran
 endif
 endif
 
+INCLUDEPATHS				+= $(OPENMPI_PATH)/include/vampirtrace
+
 endif
 
 caldgemm_config.h:			caldgemm_config.sample
