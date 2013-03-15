@@ -148,7 +148,7 @@ public:
 		size_t Height;							//height of subblock od A, width of subblock of B
 		size_t Width;							//k for matrix multiply
 		bool AutoHeight;						//Automatically adjust height
-		int SmallTiles;							//ScheduleSmallTiles for alowing better GPU processing of the remainder parts
+		int SmallTiles;							//ScheduleSmallTiles for alowing better GPU processing of the remainder parts, 1 for aleays using MIN_TILE_SIZE for border tiles, 2 for automatic adaption between MIN_TILE_SIZE and Config->Height
 
 		bool Disassemble;						//Print the disassembled IL kernel
 		bool PrintILKernel;						//Print the IL kernel source
