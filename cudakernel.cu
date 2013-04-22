@@ -15,7 +15,6 @@ __global__ void CUDAKernelName(double* C, double* A, double* B, size_t height1, 
 			}
 			double* destptr = &C[j * pitch + i];
 			*destptr = Alpha * addval + Beta * *destptr;
-			C[j * pitch + i] += 1.0;
 		}
 	}
 }

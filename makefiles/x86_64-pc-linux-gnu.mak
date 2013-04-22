@@ -134,6 +134,7 @@ endif
 endif
 
 ifeq ("$(CONFIG_CUDA)", "1")
+COMMONINCLUDEPATHS			+= "$(CUDAPATH)/include"
 COMMONINCLUDEPATHS			+= "$(CUDASDKPATH)/C/common/inc"
 endif
 
