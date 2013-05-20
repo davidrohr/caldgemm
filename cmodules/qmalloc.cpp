@@ -163,7 +163,7 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 			exit(1);
 #else
 			unsigned long nodemask = 0xffffff;
-			mbind(addr, size, MPOL_INTERLEACE, &nodemask, sizeof(nodemask) * 8, 0);
+			mbind(addr, size, MPOL_INTERLEAVE, &nodemask, sizeof(nodemask) * 8, 0);
 #endif
 		}
 	}
