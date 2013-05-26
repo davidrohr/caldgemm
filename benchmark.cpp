@@ -155,7 +155,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n" );
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n" );
 	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n" );
-	fprintf(STD_OUT, "\t-O <int>  Backend to use: not 0 = CAL, 1 = OpenCL, 2 = CUDA, 3 = CPUOnly\n" );
+	fprintf(STD_OUT, "\t-O <int>  Backend to use: 0 = CAL, 1 = OpenCL, 2 = CUDA, 3 = CPUOnly\n" );
+	fprintf(STD_OUT, "\t-Oc <int> Set GPU_C parameter\n" );
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n" );
 	fprintf(STD_OUT, "\t-J <int>  Allow small tiles to process the remainder on GPU (0 disable, 1 enable, 2 auto)\n");
 	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
@@ -451,8 +452,16 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			fastinit = true;
 			break;
 		case 'O':
-			if (++x >= argc) return(1);
-			sscanf(argv[x], "%d", &use_opencl_not_cal);
+			if (argv[x][2] == 'c')
+			{
+				if (++x >= argc) return(1);
+				sscanf(argv[x], "%d", &Config->GPU_C);
+			}
+			else
+			{
+				if (++x >= argc) return(1);
+				sscanf(argv[x], "%d", &use_opencl_not_cal);
+			}
 			break;
 		case 'F':
 			if (++x >= argc) return(1);
@@ -817,16 +826,16 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 	}
 
 #ifdef TESTMODE
-	for (int i = 0;i < height_a;i++)
+	for (unsigned int i = 0;i < height_a;i++)
 	{
-		for (int j = 0;j < width_a;j++)
+		for (unsigned int j = 0;j < width_a;j++)
 		{
 			AA[i * pitch_a + j] = 1;
 		}
 	}
-	for (int i = 0;i < height_b;i++)
+	for (unsigned int i = 0;i < height_b;i++)
 	{
-		for (int j = 0;j < width_b;j++)
+		for (unsigned int j = 0;j < width_b;j++)
 		{
 			BB[i * pitch_b + j] = 1;
 		}

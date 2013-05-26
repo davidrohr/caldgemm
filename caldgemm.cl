@@ -38,43 +38,47 @@ OCL_KERNEL_PRE
 
 #elif defined(CALDGEMM_TRANSPOSED_A)
 
-//const char *caldgemm_opencl::OCLKernelName =
-//OCL_KERNEL_PRE
-//"union double_read {uint4 f; double2 d;};\n"
-//"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
-//"{\n"
-//"	const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;\n"
-//"	int i, j, k;\n"
-//"	for (i = get_global_id(1);i < height2;i += get_global_size(1))\n"
-//"	{\n"
-//"		for (j = get_global_id(0);j < height1;j += get_global_size(0))\n"
-//"		{\n"
-//"			double addval = 0.;\n"
-//#ifdef CALDGEMM_FORCE_K
-//"			for (k = 0;k < " qon_mxstr(CALDGEMM_FORCE_K) ";k++)\n"
-//#else
-//"			for (k = 0;k < width;k++)\n"
-//#endif
-//"			{\n"
-//"				float2 coord;\n"
-//"				union double_read tmp, tmp2;\n"
-//"				coord.x = i / 2;\n"
-//"				coord.y = k;\n"
-//"				tmp.f = read_imageui(A, sampler, coord);\n"
-//"				coord.x = j / 2;\n"
-//"				tmp2.f = read_imageui(B, sampler, coord);\n"
-//"				double v1 = (i & 1) ? tmp.d.y : tmp.d.x, v2 = (j & 1) ? tmp2.d.y : tmp2.d.x;\n"
-//"				addval += v1 * v2;\n"
-//"			}\n"
-//"			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + alpha * addval;\n"
-//"		}\n"
-//"	}\n"
-//"}\n"
-//;
+#ifndef OCL_TILES_KERNEL
 
 const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
-"#pragma OPENCL EXTENSION CP_FP_FMA\n"
+"union double_read {uint4 f; double2 d;};\n"
+"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
+"{\n"
+"	const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;\n"
+"	int i, j, k;\n"
+"	for (i = get_global_id(1);i < height2;i += get_global_size(1))\n"
+"	{\n"
+"		for (j = get_global_id(0);j < height1;j += get_global_size(0))\n"
+"		{\n"
+"			double addval = 0.;\n"
+#ifdef CALDGEMM_FORCE_K
+"			for (k = 0;k < " qon_mxstr(CALDGEMM_FORCE_K) ";k++)\n"
+#else
+"			for (k = 0;k < width;k++)\n"
+#endif
+"			{\n"
+"				float2 coord;\n"
+"				union double_read tmp, tmp2;\n"
+"				coord.x = i / 2;\n"
+"				coord.y = k;\n"
+"				tmp.f = read_imageui(A, sampler, coord);\n"
+"				coord.x = j / 2;\n"
+"				tmp2.f = read_imageui(B, sampler, coord);\n"
+"				double v1 = (i & 1) ? tmp.d.y : tmp.d.x, v2 = (j & 1) ? tmp2.d.y : tmp2.d.x;\n"
+"				addval += v1 * v2;\n"
+"			}\n"
+"			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + alpha * addval;\n"
+"		}\n"
+"	}\n"
+"}\n"
+;
+
+#else
+
+const char *caldgemm_opencl::OCLKernelName =
+OCL_KERNEL_PRE
+"//#pragma OPENCL EXTENSION CP_FP_FMA\n"
 "union double_read {uint4 f; double2 d;};\n"
 "#define OCL_TILING_X " qon_mxstr(OCL_TILING_X) "\n"
 "#define OCL_TILING_Y " qon_mxstr(OCL_TILING_Y) "\n"
@@ -135,5 +139,7 @@ OCL_KERNEL_PRE
 "	}\n"
 "}\n"
 ;
+*/
 
+#endif
 #endif

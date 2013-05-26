@@ -94,3 +94,7 @@
 //#define CALDGEMM_MAX_GPU_RATIO 0.99				//Max GPU ratio, ensures CPU always gets a small part. This small part is required to calculate the size of the next CPU part based on GPU and CPU performance
 #define CALDGEMM_LOOKAHEAD_RATIO_MODIFIER 0.2	//Decrease CPU Part of matrix when using lookahead to compensate for performance fluctuations
 //#define VTRACE
+
+#define OCL_TILING_X 4
+#define OCL_TILING_Y 4
+//#define OCL_TILED_KERNEL
