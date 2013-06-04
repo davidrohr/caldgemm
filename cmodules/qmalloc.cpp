@@ -14,7 +14,7 @@
 #endif
 
 #include <syscall.h>
-#ifndef _NO_NUMAIF_H
+#ifdef _NUMAIF_H
 #include <numaif.h>
 #endif
 #ifndef MPOL_DEFAULT
@@ -158,7 +158,7 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 		}
 		else if (addr) //Set memory policy for region
 		{
-#ifdef _NO_NUMAIF_H
+#ifndef _NUMAIF_H
 			fprintf(stderr, "Interleaved memory can only be used with non-locked memory if numaif.h is present\n");
 			exit(1);
 #else
