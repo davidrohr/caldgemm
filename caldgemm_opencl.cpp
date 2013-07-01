@@ -550,12 +550,25 @@ int caldgemm_opencl::CheckDMAQueue(int device, int forcej)
 
 int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch)
 {
+	if (Config->GPU_C) return(0);
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL RunMergeBuffers\n");
+	double* src = ocl_tmp_cbuffers_ptr[device][j];
+	for (int i = 0;i < height;i++)
+	{
+		for (int j = 0;j < width;j++)
+		{
+			dst[j] = src[j];
+		}
+		src += gpu_width;
+		dst += pitch;
+	}
 	return(0);
 }
 
 int caldgemm_opencl::divideBuffer(double* src, size_t pitch_src, double* dest, size_t nSrcRows, size_t nSrcCols, bool transpose)
 {
+	if (Config->GPU_C) return(0);
+	if (Config->Debug) fprintf(STD_OUT, "OPENCL divideBuffers\n");
 	return(0);
 }
 
