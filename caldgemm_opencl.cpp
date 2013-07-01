@@ -352,8 +352,8 @@ int caldgemm_opencl::InitDevices()
 			}
 			else
 			{
-				CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], 1, &ocl_tmp_abuffers_ptr[i][j], 0, 0, NULL, NULL), "Error migrating mem object");
-				CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], 1, &ocl_tmp_bbuffers_ptr[i][j], 0, 0, NULL, NULL), "Error migrating mem object");
+				CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], 1, &ocl_tmp_abuffers[i][j], 0, 0, NULL, NULL), "Error migrating mem object");
+				CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], 1, &ocl_tmp_bbuffers[i][j], 0, 0, NULL, NULL), "Error migrating mem object");
 			}
 		}
 
@@ -380,42 +380,39 @@ int caldgemm_opencl::InitDevices()
 				else break;
 			}
 			CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], 1, &ocl_bbuffers[i][j], 0, 0, NULL, NULL), "Error migrating mem object");
-			
+
 			bbuffers[i] = j + 1;
 		}
 		if (Config->Debug) fprintf(STD_OUT, "Allocated %d BBuffers on Device %d\n", bbuffers[i], i);
-	}
 
-	for (int j = 0;j < 3 + 1;j++)
-	{
-		const char* sourceCode;
-		switch (j)
+		for (int j = 0;j < 3 + 1;j++)
 		{
-		case 0:
-			sourceCode = OCLKernel;
-			break;
-		case 1:
-			sourceCode = OCLKernelALPHA1;
-			break;
-		case 2:
-			sourceCode = OCLKernelLinpack;
-			break;
-		case 3:
-			sourceCode = OCLConvertKernel;
-			break;
-		}
+			const char* sourceCode;
+			switch (j)
+			{
+			case 0:
+				sourceCode = OCLKernel;
+				break;
+			case 1:
+				sourceCode = OCLKernelALPHA1;
+				break;
+			case 2:
+				sourceCode = OCLKernelLinpack;
+				break;
+			case 3:
+				sourceCode = OCLConvertKernel;
+				break;
+			}
 
-		if (Config->PrintILKernel && i == 0)
-		{
-			fprintf(STD_OUT, "OpenCL Kernel %d:\n%s\n\n", j, sourceCode);
-		}
+			if (Config->PrintILKernel)
+			{
+				fprintf(STD_OUT, "OpenCL Kernel %d:\n%s\n\n", j, sourceCode);
+			}
 
-		ocl_program[j] = clCreateProgramWithSource(ocl_context, 1, &sourceCode, NULL, &ocl_error);
-		CHKRET(ocl_error, "Error creating program object");
+			ocl_program[i][j] = clCreateProgramWithSource(ocl_context, 1, &sourceCode, NULL, &ocl_error);
+			CHKRET(ocl_error, "Error creating program object");
 
-		for (int i = 0;i < nDevices;i++)
-		{
-			ocl_error = clBuildProgram(ocl_program[j], 1, &ocl_devices[i], Config->Disassemble ? "-save-temps=." : "", NULL, NULL);
+			ocl_error = clBuildProgram(ocl_program[i][j], 1, &ocl_devices[i], Config->Disassemble ? "-save-temps=." : "", NULL, NULL);
 			if (ocl_error != CL_SUCCESS)
 			{
 				fprintf(STD_OUT, "OpenCL Error while building program: %d\n", ocl_error);
@@ -645,7 +642,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, dest_image_id);
 #ifdef CALDGEMM_TRANSPOSED_B
 			region[0] = Config->Width;
-			region[1] = Config->Heiht;
+			region[1] = Config->Height;
 #else
 			region[0] = Config->Height;
 			region[1] = Config->Width;
@@ -783,7 +780,7 @@ int caldgemm_opencl::ExitDevices()
 			{
 				clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_cbuffers[i][j], ocl_tmp_cbuffers_ptr[i][j], 0, NULL, NULL);
 				clFinish(ocl_command_queues[i][0]);
-				clReleaseMemObject(ocl_command_queues[i][0]);
+				clReleaseMemObject(ocl_tmp_cbuffers[i][j]);
 			}
 		}
 		for (int j = 0;j < (Config->GPU_C ? obuffercount : ibuffercount);j++)
@@ -847,12 +844,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 }
 
 #define MAX_GPU_MEM_COUNT 64
-struct gpu_mem_struct_opencl
-{
-	void* ptr[max_devices];
-	cl_mem mem_obj;
-};
-static gpu_mem_struct_opencl gpu_mem[MAX_GPU_MEM_COUNT];
+static caldgemm_opencl::gpu_mem_struct_opencl gpu_mem[MAX_GPU_MEM_COUNT];
 static int nGPUMEM = 0;
 
 double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix, bool interleave)

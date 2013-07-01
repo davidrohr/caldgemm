@@ -75,7 +75,7 @@ private:
 	cl_mem ocl_tmp_bbuffers[max_devices][ibuffercount > obuffercount ? ibuffercount : obuffercount];
 	cl_mem ocl_tmp_cbuffers[max_devices][obuffercount];
 	cl_event ocl_events[max_devices][obuffercount];
-	cl_program ocl_program[4];
+	cl_program ocl_program[max_devices][4];
 	cl_kernel ocl_kernel[max_devices][4];
 
 	double* ocl_tmp_abuffers_ptr[max_devices][ibuffercount];
@@ -94,6 +94,13 @@ private:
 	cl_mem* C_matrix_base_obj;
 
 	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16;
+
+public:
+	struct gpu_mem_struct_opencl
+	{
+		void* ptr[caldgemm_opencl::max_devices];
+		cl_mem mem_obj;
+	};
 };
 
 #endif
