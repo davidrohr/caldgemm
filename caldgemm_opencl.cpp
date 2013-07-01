@@ -310,10 +310,18 @@ int caldgemm_opencl::InitDevices()
 
 		for (int j = 0;j < obuffercount;j++)
 		{
-			if (Config->GPU_C == 0 || Config->DstMemory == 'g')
+			if (Config->DstMemory == 'g')
 			{
 				ocl_cbuffers[i][j] = clCreateBuffer(ocl_contexts[i], CL_MEM_READ_WRITE, BufferHeight * BufferHeight * sizeof(double), NULL, &ocl_error);
 				CHKRET(ocl_error, "Error allocating device memory (C)");
+			}
+			if (Config->GPU_C == 0)
+			{
+				ocl_tmp_cbuffers[i][j] = clCreateBuffer(ocl_context[i], CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, BufferHeight * BufferHeight * sizeof(double), NULL, &ocl_error);
+				CHKRET(ocl_error, "Error allocating host memory (C tmp)");
+
+				ocl_tmp_cbuffers_ptr[i][j] = (double*) clEnqueueMapBuffer(ocl_command_queues[i][0], ocl_tmp_cbuffers[i][j], CL_TRUE, CL_MAP_READ, 0, BufferHeight * BufferHeight * sizeof(double), 0, NULL, NULL, &ocl_error);
+				CHKRET(ocl_error, "Error mapping host memory (C tmp)");
 			}
 		}
 
@@ -524,6 +532,10 @@ int caldgemm_opencl::ExitRuntime()
 int caldgemm_opencl::FetchResult(int device, int j, int m, int n, int mustlock)
 {
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL FetchResult\n");
+	if (Config->GPU_C == 0 && Config->DstMemory == 'g')
+	{
+
+	}
 	return(0);
 }
 
@@ -566,19 +578,21 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 		Timers.divideA++;
 
+		int dest_image_id;
 		cl_mem *dest_image;
-		region[0] = (TransposeA ? Config->Height : Config->Width) * sizeof(double);
-		region[1] = (TransposeA ? Config->Width : Config->Height);
+
 		size_t pitch = A_pitch;
 		void* src_ptr = A + blockm * Config->Height * (TransposeA ? 1 : A_pitch);
 		
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{
-			dest_image = &ocl_bbuffers[num_device][buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : ibuffercount)];
+			dest_image_id = buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : ibuffercount);
+			dest_image = &ocl_bbuffers[num_device][dest_image_id];
 		}
 		else
 		{
-			dest_image = &ocl_abuffers[num_device][next_buffer_A[num_device] % ibuffercount];
+			dest_image_id = next_buffer_A[num_device] % ibuffercount;
+			dest_image = &ocl_abuffers[num_device][dest_image_id];
 		}
 
 #ifdef CALDGEMM_TRANSPOSED_B
@@ -586,21 +600,31 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 #elif defined(CALDGEMM_TRANSPOSED_A)
 		int arg_transpose = !TransposeA;
 #endif
+		int arg_width = region[0] / sizeof(double), arg_height = region[1];
 		if (Config->GPU_C == 0)
 		{
 			if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount);
-			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], region[1], region[0], arg_transpose)) return(1);
-			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, destbuffer);
+			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], TransposeA ? Config->Width : Config->Height, TransposeA ? Config->Height : Config->Width, arg_transpose)) return(1);
+			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, dest_image_id);
+#ifdef CALDGEMM_TRANSPOSED_B
+			region[0] = Config->Width;
+			region[1] = Config->Heiht;
+#else
+			region[0] = Config->Height;
+			region[1] = Config->Width;
+#endif
+			CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
 		}
 		else
 		{
+			region[0] = (TransposeA ? Config->Height : Config->Width) * sizeof(double);
+			region[1] = (TransposeA ? Config->Width : Config->Height);
 			cl_mem dest_buffer_tmp = ocl_tmp_abuffers[num_device][j];
 			if (Config->Debug) fprintf(STD_OUT, "Transfer A to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 			CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, 0, NULL, NULL), "Error copying A");
 			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, A, 0");
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, A, 1");
-			int arg_width = region[0] / sizeof(double), arg_height = region[1];
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &arg_width), "Error setting kernel arg, A, 2");
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &arg_height), "Error setting kernel arg, A, 3");
 		
@@ -625,20 +649,21 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 		Timers.divideB++;
 
+		int dest_image_id;
 		cl_mem *dest_image;
 		
-		region[0] = (TransposeB ? Config->Width : Config->Height) * sizeof(double);
-		region[1] = (TransposeB ? Config->Height : Config->Width);
 		size_t pitch = B_pitch;
 		void* src_ptr = B + blockn * Config->Height * (TransposeB ? B_pitch : 1);
 
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{
-			dest_image = &ocl_abuffers[num_device][next_buffer_B[num_device] % ibuffercount];
+			dest_image_id = next_buffer_B[num_device] % ibuffercount;
+			dest_image = &ocl_abuffers[num_device][dest_image_id];
 		}
 		else
 		{
-			dest_image = &ocl_bbuffers[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % ibuffercount)];
+			dest_image_id = buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % ibuffercount);
+			dest_image = &ocl_bbuffers[num_device][dest_image_id];
 		}
 
 #ifdef CALDGEMM_TRANSPOSED_B
@@ -646,22 +671,32 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 #elif defined(CALDGEMM_TRANSPOSED_A)
 		int arg_transpose = TransposeB;
 #endif
+		int arg_width = region[0] / sizeof(double), arg_height = region[1];
 
 		if (Config->GPU_C == 0)
 		{
 			if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount);
-			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], region[1], region[0], arg_transpose)) return(1);
-			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount, destbuffer);
+			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], TransposeB ? Config->Height : Config->Width, TransposeB ? Config->Width : Config->Height, arg_transpose)) return(1);
+			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount, dest_image_id);
+#ifdef CALDGEMM_TRANSPOSED_B
+			region[0] = Config->Height;
+			region[1] = Config->Width;
+#else
+			region[0] = Config->Width;
+			region[1] = Config->Height;
+#endif
+			CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_bbuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
 		}
 		else
 		{
+			region[0] = (TransposeB ? Config->Width : Config->Height) * sizeof(double);
+			region[1] = (TransposeB ? Config->Height : Config->Width);
 			cl_mem dest_buffer_tmp = ocl_tmp_bbuffers[num_device][j];
 			if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 			CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, 0, NULL, NULL), "Error copying B");
 			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, B, 0");
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, B, 1");
-			int arg_width = region[0] / sizeof(double), arg_height = region[1];
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &arg_width), "Error setting kernel arg, B, 2");
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &arg_height), "Error setting kernel arg, B, 3");
 
@@ -706,7 +741,13 @@ int caldgemm_opencl::ExitDevices()
 		}
 		for (int j = 0;j < obuffercount;j++)
 		{
-			if (Config->GPU_C == 0 || Config->DstMemory == 'g') clReleaseMemObject(ocl_cbuffers[i][j]);
+			if (Config->DstMemory == 'g') clReleaseMemObject(ocl_cbuffers[i][j]);
+			if (Config->GPU_C == 0)
+			{
+				clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_cbuffers[i][j], ocl_tmp_cbuffers_ptr[i][j], 0, NULL, NULL);
+				clFinish(ocl_command_queues[i][0]);
+				clReleaseMemObject(ocl_command_queues[i][0]);
+			}
 		}
 		for (int j = 0;j < Config->GPU_C ? obuffercount : ibuffercount;j++)
 		{

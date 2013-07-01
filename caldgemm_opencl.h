@@ -73,12 +73,14 @@ private:
 	cl_mem ocl_cbuffers[max_devices][obuffercount];
 	cl_mem ocl_tmp_abuffers[max_devices][ibuffercount > obuffercount ? ibuffercount : obuffercount];
 	cl_mem ocl_tmp_bbuffers[max_devices][ibuffercount > obuffercount ? ibuffercount : obuffercount];
+	cl_mem ocl_tmp_cbuffers[max_devices][obuffercount];
 	cl_event ocl_events[max_devices][obuffercount];
 	cl_program ocl_program[max_devices][4];
 	cl_kernel ocl_kernel[max_devices][4];
 
 	double* ocl_tmp_abuffers_ptr[max_devices][ibuffercount];
 	double* ocl_tmp_bbuffers_ptr[max_devices][ibuffercount];
+	double* ocl_tmp_cbuffers_ptr[max_devices][obuffercount];
 
 	cl_event ocl_conversion_events[max_devices][2];
 	int ocl_conversion_events_use[max_devices][2];
