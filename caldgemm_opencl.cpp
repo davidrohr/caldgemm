@@ -148,8 +148,10 @@ static const char* opencl_error_string(int errorcode)
 #define CHKRET(result, ...) \
 	if (result != CL_SUCCESS) \
 	{ \
-		fprintf(STD_OUT, "OpenCL Error %d: %s\n", result, opencl_error_string(result)); \
-		ERRRET(__VA_ARGS__); \
+		fprintf(STD_OUT, __VA_ARGS__); \
+		fprintf(STD_OUT, ":\n"); \
+		fprintf(STD_OUT, "OpenCL Error %d: (%s: %d) %s\n", result, __FILE__, __LINE__, opencl_error_string(result)); \
+		return(1); \
 	}
 
 caldgemm_opencl::caldgemm_opencl() : caldgemm()
@@ -300,10 +302,17 @@ int caldgemm_opencl::InitDevices()
 	{
 		for (int j = 0;j < ibuffercount;j++)
 		{
+			cl_image_desc image_desc;
+			memset(&image_desc, 0, sizeof(image_desc));
+			image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
 #ifdef CALDGEMM_TRANSPOSED_B
-			ocl_abuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferWidth / 2, BufferHeight, 0, NULL, &ocl_error);
+			image_desc.image_width = BufferWidth / 2;
+			image_desc.image_height = BufferHeight;
+			ocl_abuffers[i][j] = clCreateImage(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
 #elif defined(CALDGEMM_TRANSPOSED_A)
-			ocl_abuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight / 2, BufferWidth, 0, NULL, &ocl_error);
+			image_desc.image_width = BufferHeight / 2;
+			image_desc.image_height = BufferWidth;
+			ocl_abuffers[i][j] = clCreateImage(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
 #endif
 			CHKRET(ocl_error, "Error allocating device memory (A)");
 		}
@@ -325,13 +334,13 @@ int caldgemm_opencl::InitDevices()
 			}
 		}
 
-		for (int j = 0;j < Config->GPU_C ? obuffercount : ibuffercount;j++)
+		for (int j = 0;j < (Config->GPU_C ? obuffercount : ibuffercount);j++)
 		{
 			cl_int tmp_flags = Config->GPU_C ? CL_MEM_READ_ONLY : (CL_MEM_ALLOC_HOST_PTR | CL_MEM_READ_WRITE);
-			ocl_tmp_abuffers[i][j] = clCreateBuffer(ocl_contexts[i], CL_MEM_READ_ONLY, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
-			CHKRET(ocl_error, "Error allocating device memory (A tmp)");
+			ocl_tmp_abuffers[i][j] = clCreateBuffer(ocl_contexts[i], tmp_flags, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
+			CHKRET(ocl_error, "Error allocating device memory (A tmp - Width: %lld Height: %lld)", (long long int) BufferWidth, (long long int) BufferHeight);
 
-			ocl_tmp_bbuffers[i][j] = clCreateBuffer(ocl_contexts[i], CL_MEM_READ_ONLY, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
+			ocl_tmp_bbuffers[i][j] = clCreateBuffer(ocl_contexts[i], tmp_flags, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
 			CHKRET(ocl_error, "Error allocating device memory (B tmp)");
 
 			if (Config->GPU_C == 0)
@@ -346,10 +355,17 @@ int caldgemm_opencl::InitDevices()
 
 		for (int j = 0;j < num_bbuffers;j++)
 		{
+			cl_image_desc image_desc;
+			memset(&image_desc, 0, sizeof(image_desc));
+			image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
 #ifdef CALDGEMM_TRANSPOSED_B
-			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferWidth / 2, BufferHeight, 0, NULL, &ocl_error);
+			image_desc.image_width = BufferWidth / 2;
+			image_desc.image_height = BufferHeight;
+			ocl_bbuffers[i][j] = clCreateImage(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
 #elif defined(CALDGEMM_TRANSPOSED_A)
-			ocl_bbuffers[i][j] = clCreateImage2D(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, BufferHeight / 2, BufferWidth, 0, NULL, &ocl_error);
+			image_desc.image_width = BufferHeight / 2;
+			image_desc.image_height = BufferWidth;
+			ocl_bbuffers[i][j] = clCreateImage(ocl_contexts[i], CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
 #endif
 			if (ocl_error != CL_SUCCESS)
 			{
@@ -749,7 +765,7 @@ int caldgemm_opencl::ExitDevices()
 				clReleaseMemObject(ocl_command_queues[i][0]);
 			}
 		}
-		for (int j = 0;j < Config->GPU_C ? obuffercount : ibuffercount;j++)
+		for (int j = 0;j < (Config->GPU_C ? obuffercount : ibuffercount);j++)
 		{
 			if (Config->GPU_C == 0)
 			{

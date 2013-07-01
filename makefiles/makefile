@@ -22,7 +22,8 @@ endif
 ALLDEP						= makefiles/makefile $(CONFIGFILE) makefiles/$(ARCHFILE) config.mak
 
 #GCC Compiler Options
-GCCFLAGSOPT					= -O3 $(GCCFLAGSARCH) -ftree-vectorize -fweb -frename-registers -minline-all-stringops -funit-at-a-time -mfpmath=sse -ftracer -finline-limit=1200 -funroll-loops -fpeel-loops -fprefetch-loop-arrays -finline-functions -ggdb
+GCCFLAGSOPT					= -O3 $(GCCFLAGSARCH) -fweb -frename-registers -minline-all-stringops -mfpmath=sse -ftracer -funroll-loops -fpeel-loops -fprefetch-loop-arrays -ffast-math -ggdb
+#-fgcse-sm -fgcse-las -fmodulo-sched -fipa-pta -floop-interchange -floop-block 
 GCCFLAGSDBG					= -O0 $(GCCFLAGSARCH) -ggdb
 GCCFLAGSCOMMON				= $(MULTITHREADGCC) -pipe -DGCC_RUNTIME $(GCCPROF) $(EXTRAFLAGSGCC) -Wall -Wno-write-strings
 GCCFLAGS32					= -m32 -mrtd

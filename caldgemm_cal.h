@@ -129,11 +129,11 @@ private:
 	{
 	public:
 #ifdef CALDGEMM_QUERY_ALL_EVENTS
-		CALevent events[9];
-		int nEvents;
+		CALevent events[13];
+		volatile int nEvents;
 		inline CALevent* GetNextEvent()
 		{
-			if (nEvents == 9)
+			if (nEvents == 13)
 			{
 				fprintf(STD_OUT, "Event buffer overflow\n");
 				exit(1);

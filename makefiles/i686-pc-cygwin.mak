@@ -3,11 +3,11 @@ VSPATH						:= ${VS100COMNTOOLS}../..
 VSPATH9						:= ${VS90COMNTOOLS}../..
 VSPATH8						:= ${VS80COMNTOOLS}../..
 VSPATH6						:= c:/Utility/Speeches/Visual Studio 6
-ICCPATH						:= ${ICPP_COMPILER12}
+ICCPATH						:= ${ICPP_COMPILER13}
 VECTORCPATH					:= c:/Utility/speeches/Codeplay
 WINPATH						:= /cygdrive/c/Windows
 CUDAPATH					:= $(CUDA_PATH)
-AMDPATH						:= $(AMDAPPSDKSAMPLESROOT)
+AMDPATH						:= $(AMDAPPSDKROOT)
 CUDASDKPATH					:= $(CUDAPATH)sdk
 DIRECTXPATH					:= $(DXSDK_DIR)
 
@@ -215,7 +215,7 @@ COMMONINCLUDEPATHS			+= "$(CUDAPATH)include" "$(CUDASDKPATH)/C/common/inc"
 endif
 
 ifeq ("$(CONFIG_CAL)", "1")
-COMMONINCLUDEPATHS			+= "$(AMDPATH)include\CAL"
+COMMONINCLUDEPATHS			+= "$(AMDPATH)/include/CAL"
 endif
 
 ifeq ($(CC_i686-pc-cygwin), GCC)

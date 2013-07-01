@@ -99,7 +99,7 @@ public:
 		bool DivideToGPU;						//Write preprocessed data difrectly to GPU
 		char DstMemory;							//Dst memory of kernel on GPU (g) or CPU (c)
 		int ImplicitDriverSync;					//Assume the CAL driver enforces an explicit sync when starting CAL kernel
-		int UseDMAFetchQueue;					//0: do not use an additional pipeline step for DMA fetch, 1: When starting a new kernel, ensure to start dma fetch for previous kernel beforehand, 2: add extra pipeline step for dma fetch
+		unsigned int UseDMAFetchQueue;					//When starting a new kernel, ensure to start dma fetch for previous kernel beforehand. Used if UseDMAFetchQueue >= matrix_n
 		bool DynamicSched;						//Dynamically schedule CPU DGEMM
 		bool SecondPhaseDynamicRuns;			//3rd phase in dynamic scheduling
 		bool ThirdPhaseDynamicRuns;				//3rd phase in dynamic scheduling
@@ -112,7 +112,9 @@ public:
 		unsigned int ParallelDMA;				//Use multiple threads to handle GPU DMA, this is incompatible with DynamicSched, acivated if n >= setting and setting != 0, DMA cores defined by DMAMapping
 		unsigned int GroupParallelDMA;			//Use in combination with ParallelDMA. Group devices with identical AllocMapping setting to one thread, at least one paralleDMA thread with that DMAMapping must exist. Activated if n < setting., make sure to have a preprocessing thread set to each CPU core used for this feature, the thread won't be used but it will ensure correct core pinning. -1 for always Grouped parallel DMA.
 		double GPURatio;						//Fraction of the matrix processed by GPU
+		double GPURatioDuringFact;			//Use modified GPU Ratio during factorization, works currently only with negative GPURatio
 		unsigned int MinimizeCPUPart;			//Set GPURatio to 1.0 as soon as matrix n dimension is below this value
+		int MinimizeCPUDuringFact;				//Always minimize CPU part during factorization
 		bool UseCPU;							//use CPU for DGEMM
 		bool UseGPU;							//use GPUs for DGEMM
 		int GPU_C;								//Store the C matrix on CPU, not every option is supported by every backend, -1 = auto detect
@@ -147,7 +149,7 @@ public:
 		size_t Height;							//height of subblock od A, width of subblock of B
 		size_t Width;							//k for matrix multiply
 		bool AutoHeight;						//Automatically adjust height
-		int SmallTiles;							//ScheduleSmallTiles for alowing better GPU processing of the remainder parts
+		int SmallTiles;							//ScheduleSmallTiles for alowing better GPU processing of the remainder parts, 1 for aleays using MIN_TILE_SIZE for border tiles, 2 for automatic adaption between MIN_TILE_SIZE and Config->Height
 
 		bool Disassemble;						//Print the disassembled IL kernel
 		bool PrintILKernel;						//Print the IL kernel source
@@ -333,7 +335,7 @@ protected:
 	mergeParameters mParam[max_devices][max_outputthreads];
 
 	qSem obufferMutex[max_devices][obuffercount];
-	bool prepare_pending[max_devices][obuffercount];
+	bool dma_pending[max_devices][obuffercount];
 
 	struct structLinpackParameters
 	{

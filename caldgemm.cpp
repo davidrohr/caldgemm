@@ -143,7 +143,7 @@ caldgemm::caldgemm()
 		dma_fetch_queue_tasks[i].k = (size_t) -1;
 		for (int j = 0;j < obuffercount;j++)
 		{
-		    prepare_pending[i][j] = false;
+		    dma_pending[i][j] = false;
 		}
 	}
 }
@@ -181,6 +181,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	UseGPU = true;
 	UseCPU = true;
 	GPURatio = -1.0;
+	GPURatioDuringFact = 0.0;
 	DynamicSched = true;
 	ThirdPhaseDynamicRuns = true;
 	SecondPhaseDynamicRuns = true;
@@ -214,6 +215,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	GroupParallelDMA = 0;
 	LASWPSleep = 0;
 	MinimizeCPUPart = 0;
+	MinimizeCPUDuringFact = 0;
 	PinBroadcastThread = -1;
 	UseDMAFetchQueue = 0;
 	GPU_C = -1;
@@ -1143,7 +1145,7 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 		if (Config->HPLFactorizeRestrictCallback != NULL) require_threads_base += Config->HPLFactorizeRestrictCallback(matrix_n);
 		int require_threads = require_threads_base;
 
-		if (ExecLinpack && Config->AlternateLookahead <= matrix_n)
+		if ((ExecLinpack && Config->AlternateLookahead <= matrix_n) || ExecLinpack == 1)
 		{
 			RunLinpackFactorization(old_goto_threads, require_threads);
 		}
@@ -1170,12 +1172,15 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 			{
 				size_t blockm, blockn;
 				DGEMM_getblocks(par->cpu_k, blockm, blockn);
+				VT_USER_START_A("CPU DGEMM Phase 3");
 				cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, blockm == gpu_m / Config->Height ? (gpu_m % Config->Height) : Config->Height, blockn == gpu_n / Config->Height ? (gpu_n % Config->Height) : Config->Height, Config->Width, Alpha, A + blockm * Config->Height * A_pitch_use, A_pitch, B + blockn * Config->Height * B_pitch_use, B_pitch, Beta, C + blockm * Config->Height * C_pitch + blockn * Config->Height, C_pitch);
+				VT_USER_END_A("CPU DGEMM Phase 3");
 			}
 			else
 			{
 				if (par->dynamic_run)
 				{
+					VT_USER_START_A("CPU DGEMM Phase 2");
 					if (DGEMM_favor_m)
 					{
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Config->Width, Alpha, A + (gpu_m - par->dynamic_run) * A_pitch_use, A_pitch, B + (gpu_n - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (gpu_m - par->dynamic_run) * C_pitch + gpu_n - par->dynamic_size, C_pitch);
@@ -1184,6 +1189,7 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 					{
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Config->Width, Alpha, A + (gpu_m - par->dynamic_size) * A_pitch_use, A_pitch, B + (gpu_n - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (gpu_m - par->dynamic_size) * C_pitch + gpu_n - par->dynamic_run, C_pitch);
 					}
+					VT_USER_END_A("CPU DGEMM Phase 2");
 				}
 
 				size_t cblas2;
@@ -1204,8 +1210,23 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 
 				if (DGEMM_split_m)	//favor splitting m because of consecutive memory
 				{
+					if (matrix_n % SmallTileHeight && par->borders_done == false)
+					{
+						VT_USER_START_A("CPU DGEMM Borders");
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - par->cblas_size, matrix_n % SmallTileHeight, Config->Width, Alpha, A, A_pitch, B + (matrix_n - matrix_n % SmallTileHeight) * B_pitch_use, B_pitch, Beta, C + matrix_n - matrix_n % SmallTileHeight, C_pitch);
+						VT_USER_END_A("CPU DGEMM Borders");
+					}
+					
+					if (ExecLinpack >= 2 && par->borders_done == false && Config->AlternateLookahead > matrix_n)
+					{
+						Timers.CPUTimer.Stop();
+						RunLinpackFactorization(old_goto_threads, require_threads);
+						Timers.CPUTimer.Start();
+					}
+					
 					if (par->dynamic_run == 0)
 					{
+						VT_USER_START_A("CPU DGEMM Phase 1");
 						if (cblas2)
 						{
 							cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, cblas2, Config->Width, Alpha, A + (matrix_m - par->cblas_size) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (matrix_m - par->cblas_size) * C_pitch, C_pitch);
@@ -1235,17 +1256,14 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 							}
 						}
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, matrix_n - cblas2, Config->Width, Alpha, A + (matrix_m - par->cblas_size) * A_pitch_use, A_pitch, B + cblas2 * B_pitch_use, B_pitch, Beta, C + (matrix_m - par->cblas_size) * C_pitch + cblas2, C_pitch);
-					}
-
-					if (matrix_n % SmallTileHeight && par->borders_done == false)
-					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - par->cblas_size, matrix_n % SmallTileHeight, Config->Width, Alpha, A, A_pitch, B + (matrix_n - matrix_n % SmallTileHeight) * B_pitch_use, B_pitch, Beta, C + matrix_n - matrix_n % SmallTileHeight, C_pitch);
+						VT_USER_END_A("CPU DGEMM Phase 1");
 					}
 				}
 				else
 				{
 					if (par->dynamic_run == 0)
 					{
+						VT_USER_START_A("CPU DGEMM Phase 1");
 						if (cblas2)
 						{
 							cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, cblas2, par->cblas_size, Config->Width, Alpha, A, A_pitch, B + (matrix_n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + matrix_n - par->cblas_size, C_pitch);
@@ -1272,20 +1290,23 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 							}
 						}
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - cblas2, par->cblas_size, Config->Width, Alpha, A + cblas2 * A_pitch_use, A_pitch, B + (matrix_n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + cblas2 * C_pitch + matrix_n - par->cblas_size, C_pitch);
+						VT_USER_END_A("CPU DGEMM Phase 1");
 					}
 
+					if (ExecLinpack >= 2 && par->borders_done == false && Config->AlternateLookahead > matrix_n)
+					{
+						Timers.CPUTimer.Stop();
+						RunLinpackFactorization(old_goto_threads, require_threads);
+						Timers.CPUTimer.Start();
+					}
+					
 					if (matrix_m % SmallTileHeight && par->borders_done == false)
 					{
+						VT_USER_START_A("CPU DGEMM Borders");
 						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m % SmallTileHeight, matrix_n - par->cblas_size, Config->Width, Alpha, A + (matrix_m - matrix_m % SmallTileHeight) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (matrix_m - matrix_m % SmallTileHeight) * C_pitch, C_pitch);
+						VT_USER_END_A("CPU DGEMM Borders");
 					}
 				}
-			}
-			
-			if (ExecLinpack && par->borders_done == false && Config->AlternateLookahead > matrix_n)
-			{
-				Timers.CPUTimer.Stop();
-				RunLinpackFactorization(old_goto_threads, require_threads);
-				Timers.CPUTimer.Start();
 			}
 
 			par->borders_done = true;
@@ -1900,7 +1921,7 @@ endimprovedphase:
 					DGEMMPrepareTaskEventReady[use_device][oldj[use_device]] = false;
 					if (WaitForEvent(oldj[use_device], use_device, must_lock)) return(1);
 					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
-					if (Config->UseDMAFetchQueue == 1 && Config->DstMemory == 'g')
+					if (Config->UseDMAFetchQueue >= matrix_n && Config->DstMemory == 'g')
 					{
 						if (CheckDMAQueue(use_device, oldj[use_device])) return(1);
 					}
@@ -2258,13 +2279,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 		InitConstantData(alpha);
 
-		if (Config->SlowCPU || matrix_n < Config->MinimizeCPUPart)
+		if (Config->SlowCPU || matrix_n < Config->MinimizeCPUPart || (Config->MinimizeCPUDuringFact && ExecLinpack >= 2) || Config->GPURatio >= 1.0)
 		{
 			GPURatio = 1.0;
 		}
 		else
 		{
-			if (Config->GPURatio <= -0.99)
+			if (Config->GPURatio <= -0.999)
 			{
 				//Optimal ratio found using combined runs
 				if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000000) GPURatio = 0.75;
@@ -2292,7 +2313,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			}
 			else
 			{
-				GPURatio = fabs(Config->GPURatio);
+				if (ExecLinpack > 1 && Config->GPURatioDuringFact > 0) GPURatio = Config->GPURatioDuringFact;
+				else GPURatio = fabs(Config->GPURatio);
 			}
 
 			if (ExecLinpack && (Config->GPURatio < 0 || GPURatio < 0.99) && !Config->SlowCPU)
@@ -2314,7 +2336,15 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3f\n", ExecLinpack, 100 * GPURatio);
 				}
 			}
-			if (Config->GPURatio < 0 && Config->GPURatio > -0.99 && GPURatio < -Config->GPURatio) GPURatio = -Config->GPURatio;
+#ifdef CALDGEMM_MAX_GPU_RATIO
+			if (GPURatio > CALDGEMM_MAX_GPU_RATIO) GPURatio = CALDGEMM_MAX_GPU_RATIO;
+#endif
+			if (Config->GPURatio < 0 && Config->GPURatio > -0.99)
+			{
+				double threshold = (ExecLinpack > 1 && Config->GPURatioDuringFact > 0.) ? Config->GPURatioDuringFact : -Config->GPURatio;
+				if (GPURatio < threshold) GPURatio = threshold;
+			}
+			if (Config->AlternateLookahead > matrix_n) GPURatio = 1. - (1. - GPURatio) * 0.88;
 		}
 
 		gpu_ratio_used = GPURatio;
@@ -2331,13 +2361,13 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		cParam.dynamic_run2 = 0;
 		cParam.borders_done = false;
 		SmallTileHeight = (Config->SmallTiles == 1 ? CALDGEMM_MIN_TILE_DIM : Config->Height);
-	recalculate_ratio:
+recalculate_ratio:
 		if (Config->UseCPU == true && Config->UseGPU == true)
 		{
-			if ((DGEMM_split_m = (Config->LinpackSwapN == NULL ? (matrix_m >= matrix_n) : 0)))
+			if ((DGEMM_split_m = ((Config->LinpackSwapN == NULL && (ExecLinpack == 0 || Config->AlternateLookahead <= matrix_n)) ? (matrix_m >= matrix_n) : 1)))
 			{
 				size_t virtualm = matrix_m + (matrix_n % SmallTileHeight) * matrix_m / matrix_n;
-				if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n) virtualm += Config->Width * (0.25 + (float) matrix_m / matrix_n);
+				if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n) virtualm += Config->Width * (CALDGEMM_LOOKAHEAD_RATIO_MODIFIER + (float) matrix_m / matrix_n);
 				gpu_m = GPURatio * (float) virtualm + (SmallTileHeight - 1);
 				if (gpu_m > matrix_m)
 				{
@@ -2358,7 +2388,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			else
 			{
 				size_t virtualn = matrix_n + (matrix_m % SmallTileHeight) * matrix_n / matrix_m;
-				if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n) virtualn += Config->Width * (0.25 + (float) matrix_n / matrix_m);
+				if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n) virtualn += Config->Width * (CALDGEMM_LOOKAHEAD_RATIO_MODIFIER + (float) matrix_n / matrix_m);
 				gpu_n = GPURatio * (float) virtualn + (SmallTileHeight - 1);
 				if (gpu_n > matrix_n)
 				{
@@ -2509,7 +2539,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			{
 				Timers.ATime.Stop();
 				cpu_wait_time = Timers.ATime.GetElapsedTime();
-				if (!Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15 && cParam.cblas_size > 0)
+				if (Config->DynamicSched && !Config->NoPerformanceWarnings && Timers.ATime.GetElapsedTime() >= 0.15 && cParam.cblas_size > 0)
 				{
 					fprintf(STD_OUT, "WARNING: CPU synchronisation took %2.4f sec\n", Timers.ATime.GetElapsedTime());
 				}
@@ -2547,11 +2577,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	{
 		if (Timers.CPUTimer.GetElapsedTime() < 2.0)
 		{
-		    gpu_ratio_used = 1 - 0.6 * (1 - gpu_ratio_used);
+		    gpu_ratio_used = 1 - 0.8 * (1 - gpu_ratio_used);
 		}
 		if (ExecLinpack >= 2 && Timers.GPUTimer.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() < 1.0)
 		{
-		    gpu_ratio_used = 1 - 0.6 * (1 - gpu_ratio_used);
+		    gpu_ratio_used = 1 - 0.8 * (1 - gpu_ratio_used);
 		}
 		const double tmpratio = cpu_wait_time > 0.15 ? 0.0 : 0.5;
 		const double newratio = tmpratio * linpackGPURatios[ExecLinpack] + (1.0 - tmpratio) * gpu_ratio_used;
@@ -2917,7 +2947,7 @@ void caldgemm::displayMatrixTiming(const char* name)
 			fprintf(STD_OUT, "%sThrottling: %s (%2.3f GFlops)\n", Config->PreOut, hostname, flopsg);
 		}
 
-		const double gpu_ratio_used_new = flopsg / (flopsc * (Timers.System.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() - Timers.LinpackTimer2.GetElapsedTime() - Timers.LinpackTimer3.GetElapsedTime()) / Timers.System.GetElapsedTime() + flopsg);
+		const double gpu_ratio_used_new = flopsg / (flopsc * (Timers.System.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() - (ExecLinpack > 1 ? 0.4 : 0.0) - Timers.LinpackTimer3.GetElapsedTime()) / Timers.System.GetElapsedTime() + flopsg);
 		if (!Config->Quiet || (Config->DisplayTiming /*&& matrix_m * matrix_n >= 16 * 24 * 1024 * 1024*/))
 		{
 			char timingoutputbase[1024];
@@ -2982,8 +3012,8 @@ unsigned int caldgemm::AnalyzeResults()
 					if (errors < 5) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le, Relative: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j], (D[i * C_pitch + j] - C[i * C_pitch + j]) / D[i * C_pitch + j]);
 					++errors;
 					errortiles[j / Config->Height * nblocksm + i / Config->Height]++;
-					if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] > 0.05) errorsrel[0]++;
-					else if ((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j] < 0.0001) errorsrel[2]++;
+					if (fabs((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j]) > 0.05) errorsrel[0]++;
+					else if (fabs((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j]) < 0.0001) errorsrel[2]++;
 					else errorsrel[1]++;
 				}
 				++total;
@@ -2998,14 +3028,14 @@ unsigned int caldgemm::AnalyzeResults()
 			}
 			else
 			{
-				fprintf(STD_OUT, "FAILED\n");
+				fprintf(STD_OUT, "FAILED (Host %s)\n", hostname);
 			}
 		}
-		else
+		else if (!Config->Quiet)
 		{
 			fprintf(STD_OUT, "Passed!\n");
 		}
-		if (!Config->Quiet && (errors || Config->Debug))
+		if (!Config->NoPerformanceWarnings && (errors || Config->Debug))
 		{
 			fprintf(STD_OUT, "GPU output matrix\n");
 			print_submatrices(C, matrix_n, matrix_m, C_pitch, 1, 1, Config->Height, Config->Height);
@@ -3013,7 +3043,7 @@ unsigned int caldgemm::AnalyzeResults()
 			print_submatrices(D, matrix_n, matrix_m, C_pitch, 1, 1, Config->Height, Config->Height, C);
 		}
 
-		if (!Config->Quiet && errors)
+		if (!Config->NoPerformanceWarnings && errors)
 		{
 			fprintf(STD_OUT, "Number of errors in tiles\n");
 			for (size_t i = 0;i < matrix_m;i += Config->Height)
@@ -3037,16 +3067,22 @@ bool caldgemm::isDoubleEqual(double a, double b)
 #ifndef _WIN32
 	if (isnan(a) || isnan(b) || isinf(a) || isinf(b)) return(false);
 #endif
-	double epsilon1 = 1e-6;
-	double epsilon2 = 1e-4;
-
-	if(fabs(b) <1e-13)
+	double valmax = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
+	if (valmax < 1e-15)
 	{
-		return (fabs(a-b) < epsilon1);
+		return(fabs(a - b) < 1e16);
+	}
+	else if (valmax < 1e-9)
+	{
+		return(fabs((a - b)/valmax) < 5e-2);
+	}
+	else if(valmax < 1e-8)
+	{
+		return (fabs((a-b)/valmax) < 1e-3);
 	}
 	else
 	{
-		return (fabs((a-b)/b) < epsilon2);
+		return (fabs((a-b)/valmax) < 1e-4);
 	}
 }
 
@@ -3116,7 +3152,7 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DI
 	}
 	else if (Config->Debug) fprintf(STD_OUT, "\tSkipping preprocessing part of B (device = %d, k = %lld, j = %d, m = %lld, n = %lld)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn);
 
-	if (prepareM || prepareN) prepare_pending[num_device][j] = true;
+	if (prepareM || prepareN) dma_pending[num_device][j] = true;
 	if(DGEMM_prepare_backend(k, j, num_device, prepareM, prepareN, buffersSufficiant, buffersSufficiant0 CALDGEMM_DIVBUFB)) return(1);
 
 	if (prepareM) next_buffer_A[num_device]++;
