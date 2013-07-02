@@ -578,7 +578,7 @@ int caldgemm_opencl::FetchResult(int device, int j, int m, int n, int mustlock)
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL FetchResult\n");
 	if (Config->GPU_C == 0 && Config->DstMemory == 'g')
 	{
-		clEnqueueCopyBuffer(ocl_command_queues[device][j], ocl_cbuffers[device][j], ocl_tmp_cbuffers[device][j], 0, 0, Config->Height * Config->Width * sizeof(double), 0, NULL, &ocl_events[device][j]);
+		clEnqueueCopyBuffer(ocl_command_queues[device][j], ocl_cbuffers[device][j], ocl_tmp_cbuffers[device][j], 0, 0, Config->Height * Config->Height * sizeof(double), 0, NULL, &ocl_events[device][j]);
 		clFlush(ocl_command_queues[device][j]);
 		if (Config->VerboseTiming) clFinish(ocl_command_queues[device][j]);
 	}
