@@ -611,13 +611,13 @@ int caldgemm_opencl::divideBuffer(double* src, size_t pitch_src, double* dest, s
 {
 	if (Config->GPU_C) return(0);
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL divideBuffers\n");
-	for (int i = 0;i < nSrcRows;i++)
+	for (size_t i = 0;i < nSrcRows;i++)
 	{
-		for (int j = 0;j < nSrcCols;j++)
+		for (size_t j = 0;j < nSrcCols;j++)
 		{
 			if (transpose)
 			{
-				dest[j * nSrcCols] = src[j];
+				dest[j * nSrcRows] = src[j];
 			}
 			else
 			{
