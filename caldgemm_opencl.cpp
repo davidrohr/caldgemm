@@ -166,6 +166,7 @@ caldgemm_opencl::~caldgemm_opencl()
 int caldgemm_opencl::WaitForEventAndRelease(cl_event* pEvent)
 {
 	cl_int ocl_error;
+	if (Config->Debug) fprintf(STD_OUT, "\t\t\tOpenCL WaitForEventAndRelease: 0x%p\n", pEvent);
 	if ((ocl_error = clWaitForEvents(1, pEvent)) != CL_SUCCESS)
 	{
 		fprintf(STD_OUT, "Error while waiting for event (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
@@ -471,9 +472,15 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	int pitch, offset;
 	int height1 = (int) (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height);
 	int height2 = (int) (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);
-	if (Config->GPU_C == 0 || Config->DstMemory == 'g')
+	if (Config->DstMemory == 'g')
 	{
 		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 0, sizeof(cl_mem), &ocl_cbuffers[Task.device][Task.j]), "Error setting kernel memory C");
+		pitch = height1;
+		offset = 0;
+	}
+	else if (Config->GPU_C == 0)
+	{
+		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 0, sizeof(cl_mem), &ocl_tmp_cbuffers[Task.device][Task.j]), "Error setting kernel memory C");
 		pitch = height1;
 		offset = 0;
 	}
@@ -483,6 +490,15 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		pitch = C_pitch;
 		offset = (C + blockn * Config->Height + blockm * Config->Height * C_pitch) - C_matrix_base;
 	}
+	double beta;
+	if (Config->GPU_C)
+	{
+		beta = Beta;
+	}
+	else
+	{
+		beta = 0;
+	}
 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 3, sizeof(int), &height1), "Error setting kernel arg height1");
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 4, sizeof(int), &height2), "Error setting kernel arg height2");
@@ -491,7 +507,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 5, sizeof(int), &width), "Error setting kernel arg width");
 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 6, sizeof(double), &Alpha), "Error setting kernel arg alpha");
-	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 7, sizeof(double), &Beta), "Error setting kernel arg beta");
+	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 7, sizeof(double), &beta), "Error setting kernel arg beta");
 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 8, sizeof(int), &pitch), "Error setting kernel arg pitch");
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 9, sizeof(int), &offset), "Error setting kernel arg offset");
@@ -505,7 +521,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	}
 	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f\n", height1, height2, width, Alpha, Beta);
 	cl_event* kernel_event;
-	if (Config->DstMemory == 'g') kernel_event = NULL;
+	if (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync)) kernel_event = NULL;
 	else kernel_event = &ocl_events[Task.device][Task.j];
 
 	CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[Task.device][Task.j], ocl_kernel[Task.device][Task.kernel_num], 2, NULL, &global_size[0], &local_size[0], 0, NULL, kernel_event), "Error starting MM Kernel");
@@ -519,12 +535,19 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 	if (Config->DstMemory == 'g')
 	{
-		size_t origin[3] = {0, 0, 0};
-		size_t region[3] = {height1 * sizeof(double), height2, 1};
-		if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) region[0], (int) region[1]);
-		CHKRET(clEnqueueReadBufferRect(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
-		clFlush(ocl_command_queues[Task.device][Task.j]);
+		if (Config->GPU_C)
+		{
+			size_t origin[3] = {0, 0, 0};
+			size_t region[3] = {height1 * sizeof(double), height2, 1};
+			if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) region[0], (int) region[1]);
+			CHKRET(clEnqueueReadBufferRect(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
+		}
+		else if (Config->ImplicitDriverSync)
+		{
+			if (FetchResult(Task.device, Task.j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
+		}
 	}
+	clFlush(ocl_command_queues[Task.device][Task.j]);
 	if (Config->VerboseTiming)
 	{
 		clFinish(ocl_command_queues[Task.device][Task.j]);
@@ -555,7 +578,9 @@ int caldgemm_opencl::FetchResult(int device, int j, int m, int n, int mustlock)
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL FetchResult\n");
 	if (Config->GPU_C == 0 && Config->DstMemory == 'g')
 	{
-
+		clEnqueueCopyBuffer(ocl_command_queues[device][j], ocl_cbuffers[device][j], ocl_tmp_cbuffers[device][j], 0, 0, Config->Height * Config->Width * sizeof(double), 0, NULL, &ocl_events[device][j]);
+		clFlush(ocl_command_queues[device][j]);
+		if (Config->VerboseTiming) clFinish(ocl_command_queues[device][j]);
 	}
 	return(0);
 }
@@ -574,7 +599,7 @@ int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, 
 	{
 		for (int j = 0;j < width;j++)
 		{
-			dst[j] = src[j];
+			dst[j] = dst[j] + Beta * src[j];
 		}
 		src += gpu_width;
 		dst += pitch;
@@ -586,6 +611,29 @@ int caldgemm_opencl::divideBuffer(double* src, size_t pitch_src, double* dest, s
 {
 	if (Config->GPU_C) return(0);
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL divideBuffers\n");
+	for (int i = 0;i < nSrcRows;i++)
+	{
+		for (int j = 0;j < nSrcCols;j++)
+		{
+			if (transpose)
+			{
+				dest[j * nSrcCols] = src[j];
+			}
+			else
+			{
+				dest[j] = src[j];
+			}
+		}
+		if (transpose)
+		{
+			dest++;
+		}
+		else
+		{
+			dest += nSrcCols;
+		}
+		src += pitch_src;
+	}
 	return(0);
 }
 
@@ -636,13 +684,15 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		if (Config->GPU_C == 0)
 		{
 			if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount);
+			if (Config->VerboseTiming) Timers.CounterDivide.Start();
 			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], TransposeA ? Config->Width : Config->Height, TransposeA ? Config->Height : Config->Width, arg_transpose)) return(1);
+			if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, dest_image_id);
-#ifdef CALDGEMM_TRANSPOSED_B
-			region[0] = Config->Width;
+#ifndef CALDGEMM_TRANSPOSED_A
+			region[0] = Config->Width / 2;
 			region[1] = Config->Height;
 #else
-			region[0] = Config->Height;
+			region[0] = Config->Height / 2;
 			region[1] = Config->Width;
 #endif
 			CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
@@ -708,16 +758,18 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		if (Config->GPU_C == 0)
 		{
 			if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount);
-			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], TransposeB ? Config->Height : Config->Width, TransposeB ? Config->Width : Config->Height, arg_transpose)) return(1);
+			if (Config->VerboseTiming) Timers.CounterDivide.Start();
+			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], TransposeB ? Config->Height : Config->Width, TransposeB ? Config->Width : Config->Height, arg_transpose)) return(1);
+			if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount, dest_image_id);
-#ifdef CALDGEMM_TRANSPOSED_B
-			region[0] = Config->Height;
+#ifndef CALDGEMM_TRANSPOSED_B
+			region[0] = Config->Height / 2;
 			region[1] = Config->Width;
 #else
-			region[0] = Config->Width;
+			region[0] = Config->Width / 2;
 			region[1] = Config->Height;
 #endif
-			CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_bbuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
+			CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
 		}
 		else
 		{
@@ -812,7 +864,7 @@ int caldgemm_opencl::UseMutexPerDevice() {return(0);}
 
 int caldgemm_opencl::RunCALDGEMM_Init()
 {
-	if (Config->DstMemory == 'c' && C_matrix_base == NULL)
+	if (Config->GPU_C && Config->DstMemory == 'c' && C_matrix_base == NULL)
 	{
 		fprintf(STD_OUT, "DstMemory = 'c' can only be used if C matrix memory was allocated using OpenCL memory before.\n");
 		return(1);
