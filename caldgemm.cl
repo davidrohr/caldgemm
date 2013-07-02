@@ -38,7 +38,7 @@ OCL_KERNEL_PRE
 
 #elif defined(CALDGEMM_TRANSPOSED_A)
 
-#ifndef OCL_TILES_KERNEL
+#ifndef OCL_TILED_KERNEL
 
 const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
@@ -128,8 +128,10 @@ OCL_KERNEL_PRE
 "					}\n"
 "				}\n"
 "			}\n"
+"#pragma unroll\n"
 "			for (k = 0;k < OCL_TILING_X;k++)\n"
 "			{\n"
+"#pragma unroll\n"
 "				for (l = 0;l < OCL_TILING_Y;l++)\n"
 "				{\n"
 "					C[offset + (i + k) * pitch + j + l] = beta * C[offset + (i + k) * pitch + j + l] + alpha * addval[k][l];\n"
@@ -139,7 +141,6 @@ OCL_KERNEL_PRE
 "	}\n"
 "}\n"
 ;
-*/
 
 #endif
 #endif
