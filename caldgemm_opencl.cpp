@@ -385,46 +385,52 @@ int caldgemm_opencl::InitDevices()
 			bbuffers[i] = j + 1;
 		}
 		if (Config->Debug) fprintf(STD_OUT, "Allocated %d BBuffers on Device %d\n", bbuffers[i], i);
+	}
 
-		for (int j = 0;j < 3 + 1;j++)
+	for (int j = 0;j < 3 + 1;j++)
+	{
+		const char* sourceCode;
+		switch (j)
 		{
-			const char* sourceCode;
-			switch (j)
+		case 0:
+			sourceCode = OCLKernel;
+			break;
+		case 1:
+			sourceCode = OCLKernelALPHA1;
+			break;
+		case 2:
+			sourceCode = OCLKernelLinpack;
+			break;
+		case 3:
+			sourceCode = OCLConvertKernel;
+			break;
+		}
+
+		if (Config->PrintILKernel)
+		{
+			fprintf(STD_OUT, "OpenCL Kernel %d:\n%s\n\n", j, sourceCode);
+		}
+
+		ocl_program[j] = clCreateProgramWithSource(ocl_context, 1, &sourceCode, NULL, &ocl_error);
+		CHKRET(ocl_error, "Error creating program object");
+
+		ocl_error = clBuildProgram(ocl_program[j], nDevices, ocl_devices, Config->Disassemble ? "-save-temps=." : "", NULL, NULL);
+		if (ocl_error != CL_SUCCESS)
+		{
+			fprintf(STD_OUT, "OpenCL Error while building program: %d\n", ocl_error);
+			fprintf(STD_OUT, "OpenCL Kernel:\n\n%s\n\n", sourceCode);
+			char build_log[16384];
+			for (int i = 0;i < nDevices;i++)
 			{
-			case 0:
-				sourceCode = OCLKernel;
-				break;
-			case 1:
-				sourceCode = OCLKernelALPHA1;
-				break;
-			case 2:
-				sourceCode = OCLKernelLinpack;
-				break;
-			case 3:
-				sourceCode = OCLConvertKernel;
-				break;
+				clGetProgramBuildInfo(ocl_program[j], ocl_devices[i], CL_PROGRAM_BUILD_LOG, 16384, build_log, NULL);
+				fprintf(STD_OUT, "Build Log (device %d):\n\n%s\n\n", i, build_log);
 			}
+			return(1);
+		}
 
-			if (Config->PrintILKernel && i == 0)
-			{
-				fprintf(STD_OUT, "OpenCL Kernel %d:\n%s\n\n", j, sourceCode);
-			}
-
-			ocl_program[i][j] = clCreateProgramWithSource(ocl_context, 1, &sourceCode, NULL, &ocl_error);
-			CHKRET(ocl_error, "Error creating program object");
-
-			ocl_error = clBuildProgram(ocl_program[i][j], 1, &ocl_devices[i], Config->Disassemble ? "-save-temps=." : "", NULL, NULL);
-			if (ocl_error != CL_SUCCESS)
-			{
-				fprintf(STD_OUT, "OpenCL Error while building program: %d\n", ocl_error);
-				fprintf(STD_OUT, "OpenCL Kernel:\n\n%s\n\n", sourceCode);
-				char build_log[16384];
-				clGetProgramBuildInfo(ocl_program[i][j], ocl_devices[i], CL_PROGRAM_BUILD_LOG, 16384, build_log, NULL);
-				fprintf(STD_OUT, "Build Log:\n\n%s\n\n", build_log);
-				return(1);
-			}
-
-			ocl_kernel[i][j] = clCreateKernel(ocl_program[i][j], j == 3 ? "oclconkernel" : "oclkernel", &ocl_error);
+		for (int i = 0;i < nDevices;i++)
+		{
+			ocl_kernel[i][j] = clCreateKernel(ocl_program[j], j == 3 ? "oclconkernel" : "oclkernel", &ocl_error);
 			CHKRET(ocl_error, "Error creating kernel");
 		}
 	}
@@ -852,7 +858,7 @@ int caldgemm_opencl::ExitDevices()
 		for (int j = 0;j < 3 + 1;j++)
 		{
 			clReleaseKernel(ocl_kernel[i][j]);
-			clReleaseProgram(ocl_program[i][j]);
+			if (i == 0) clReleaseProgram(ocl_program[j]);
 		}
 	}
 	return(0);
