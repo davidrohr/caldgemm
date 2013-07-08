@@ -104,13 +104,14 @@ private:
 	public:
 		virtual ~caldgemm_config_backend_opencl() {};
 		caldgemm_config_backend_opencl() {kernelLib = NULL;}
-	protected:
 		char* kernelLib;
 	};
-	virtual create_caldgemm_config_backend() {caldgemm_config_backend_opencl* tmp = new caldgemm_config_backend_opencl; memset(tmp, 0, sizeof(*tmp)); tmp->size = sizeof(*tmp); return(tmp);}
+	virtual caldgemm_config_backend* create_caldgemm_config_backend() {caldgemm_config_backend_opencl* tmp = new caldgemm_config_backend_opencl; memset(tmp, 0, sizeof(*tmp)); tmp->size = sizeof(*tmp); return(tmp);}
+	
+	caldgemm_config_backend_opencl* config_backend;
 
 	HINSTANCE kernelLib;
-	cl_kernel* (*kernelLibCreate) (cl_context* context, int nDevices, cl_device* devices, int kernelType, int k);
+	cl_kernel (*kernelLibCreate) (cl_context* context, int nDevices, cl_device_id* devices, int kernelType, int k);
 
 public:
 	struct gpu_mem_struct_opencl

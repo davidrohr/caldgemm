@@ -49,6 +49,10 @@
 #undef CALDGEMM_ALPHA1
 #undef OCLKernelName
 
+#ifndef _WIN32
+#include <dlfcn.h>
+#endif
+
 const char* caldgemm_opencl::OCLConvertKernel =
 OCL_KERNEL_PRE
 "__kernel void oclconkernel(__global const uint4* iBuffer, __write_only image2d_t oBuffer, int width, int height, int transpose)\n"
@@ -157,6 +161,7 @@ static const char* opencl_error_string(int errorcode)
 caldgemm_opencl::caldgemm_opencl() : caldgemm()
 {
 	C_matrix_base = NULL;
+	config_backend = (caldgemm_config_backend_opencl*) Config->config_backend;
 }
 
 caldgemm_opencl::~caldgemm_opencl()
@@ -389,14 +394,14 @@ int caldgemm_opencl::InitDevices()
 
 	for (int j = 0;j < 3 + 1;j++)
 	{
-		if (j < 3 && config->config_backend->kernelLib != NULL)
+		if (j < 3 && config_backend->kernelLib != NULL)
 		{
 			if (j == 0)
 			{
 #ifdef _WIN32
-				kernelLib = LoadLibrary(config->config->backend->kernelLib);
+				kernelLib = LoadLibrary(config->backend->kernelLib);
 #else
-				kernelLib = dlopen(config->config_backend->kernelLib, RTLD_LAZY|RTLD_GLOBAL);
+				kernelLib = dlopen(config_backend->kernelLib, RTLD_LAZY|RTLD_GLOBAL);
 #endif
 				if (kernelLib == NULL)
 				{
@@ -404,12 +409,15 @@ int caldgemm_opencl::InitDevices()
 					return(1);
 				}
 #ifdef _WIN32
-				kernelLibCreate = GetProcAddress(kernelLib, "CreateDGEMMKernel");
+				kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int)) GetProcAddress(kernelLib, "CreateDGEMMKernel");
 #else
-				kernelLibCreate = dlsym(kernelLib, "CreateDGEMMKernel");
+				kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int)) dlsym(kernelLib, "CreateDGEMMKernel");
 #endif
 			}
-			ocl_kernel[i][j] = kernelLibCreate(ocl_context, nDevices, ocl_devices, j, Config->Width);
+			for (int i = 0;i < nDevices;i++)
+			{
+				ocl_kernel[i][j] = kernelLibCreate(&ocl_context, nDevices, ocl_devices, j, Config->Width);
+			}
 		}
 		else
 		{
@@ -883,12 +891,16 @@ int caldgemm_opencl::ExitDevices()
 		for (int j = 0;j < 3 + 1;j++)
 		{
 			clReleaseKernel(ocl_kernel[i][j]);
-			if (config->config_backend->kernelLib == NULL && i == nDevices - 1) clReleaseProgram(ocl_program[j]);
+			if (config_backend->kernelLib == NULL && i == nDevices - 1) clReleaseProgram(ocl_program[j]);
 		}
 	}
-	if (config->config->backend->kernelLib)
+	if (config_backend->kernelLib)
 	{
-
+#ifdef _WIN32
+		FreeLibrary(kernelLib);
+#else
+		dlclose(kernelLib);
+#endif
 	}
 	return(0);
 }
