@@ -787,7 +787,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		{
 			if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount);
 			if (Config->VerboseTiming) Timers.CounterDivide.Start();
-			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], TransposeA ? Config->Width : Config->Height, TransposeA ? Config->Height : Config->Width, arg_transpose)) return(1);
+			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], TransposeA ? Config->Width : (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height), TransposeA ? (blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) : Config->Width, arg_transpose)) return(1);
 			if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, dest_image_id);
 #ifndef CALDGEMM_TRANSPOSED_A
@@ -866,7 +866,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		{
 			if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount);
 			if (Config->VerboseTiming) Timers.CounterDivide.Start();
-			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], TransposeB ? Config->Height : Config->Width, TransposeB ? Config->Width : Config->Height, arg_transpose)) return(1);
+			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], TransposeB ? (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) : Config->Width, TransposeB ? Config->Width : (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height), arg_transpose)) return(1);
 			if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount, dest_image_id);
 #ifndef CALDGEMM_TRANSPOSED_B
