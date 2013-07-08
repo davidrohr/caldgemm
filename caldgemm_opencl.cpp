@@ -53,6 +53,41 @@
 #include <dlfcn.h>
 #endif
 
+#ifdef OCL_USE_SIMPLE_BUFFERS
+const char* caldgemm_opencl::OCLConvertKernel =
+OCL_KERNEL_PRE
+"__kernel void oclconkernel(__global const uint4* __restrict const iBuffer, __global uint4* const oBuffer, int width, int height, int transpose)\n"
+"{\n"
+"	int i, j;\n"
+"	for (i = get_global_id(1);i < height / 2;i+=get_global_size(1))\n"
+"	{\n"
+"		for (j = get_global_id(0);j < width / 2;j+=get_global_size(0))\n"
+"		{\n"
+"			uint4 tmp, tmp2;\n"
+"			tmp = iBuffer[(2 * i) * (width / 2) + j];\n"
+"			tmp2 = iBuffer[(2 * i + 1) * (width / 2) + j];\n"
+"			uint4 val, val2;\n"
+"			if (transpose)\n"
+"			{\n"
+"				uint4 val, val2;\n"
+"				val.x = tmp.x;val.y = tmp.y;\n"
+"				val.z = tmp2.x;val.w = tmp2.y;\n"
+"				val2.x = tmp.z;val2.y = tmp.w;\n"
+"				val2.z = tmp2.z;val2.w = tmp2.w;\n"
+"				oBuffer[(2 * j) * (height / 2) + i] = val;\n"
+"				oBuffer[(2 * j + 1) * (height / 2) + i] = val2;\n"
+"			}\n"
+"			else\n"
+"			{\n"
+"				oBuffer[(2 * i) * (width / 2) + j] = tmp;\n"
+"				oBuffer[(2 * i + 1) * (width / 2) + j] = tmp2;\n"
+"			}\n"
+"		}\n"
+"	}\n"
+"}\n"
+;
+
+#else
 const char* caldgemm_opencl::OCLConvertKernel =
 OCL_KERNEL_PRE
 "__kernel void oclconkernel(__global const uint4* iBuffer, __write_only image2d_t oBuffer, int width, int height, int transpose)\n"
@@ -93,6 +128,7 @@ OCL_KERNEL_PRE
 "	}\n"
 "}\n"
 ;
+#endif
 
 static const char* opencl_error_string(int errorcode)
 {
@@ -298,14 +334,19 @@ int caldgemm_opencl::InitDevices()
 	BufferHeight = Config->Height;
 	BufferWidth = Config->Width;
 
+#ifndef OCL_USE_SIMPLE_BUFFERS
 	cl_image_format ocl_image_format;
 	ocl_image_format.image_channel_order = CL_RGBA;
 	ocl_image_format.image_channel_data_type = CL_UNSIGNED_INT32;
+#endif
 
 	for (int i = 0;i < nDevices;i++)
 	{
 		for (int j = 0;j < ibuffercount;j++)
 		{
+#ifdef OCL_USE_SIMPLE_BUFFERS
+			ocl_abuffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
+#else
 			cl_image_desc image_desc;
 			memset(&image_desc, 0, sizeof(image_desc));
 			image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
@@ -317,6 +358,7 @@ int caldgemm_opencl::InitDevices()
 			image_desc.image_width = BufferHeight / 2;
 			image_desc.image_height = BufferWidth;
 			ocl_abuffers[i][j] = clCreateImage(ocl_context, CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
+#endif
 #endif
 			CHKRET(ocl_error, "Error allocating device memory (A)");
 		}
@@ -366,6 +408,10 @@ int caldgemm_opencl::InitDevices()
 
 		for (int j = 0;j < num_bbuffers;j++)
 		{
+#ifdef OCL_USE_SIMPLE_BUFFERS
+			ocl_bbuffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
+#else
+
 			cl_image_desc image_desc;
 			memset(&image_desc, 0, sizeof(image_desc));
 			image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
@@ -377,6 +423,7 @@ int caldgemm_opencl::InitDevices()
 			image_desc.image_width = BufferHeight / 2;
 			image_desc.image_height = BufferWidth;
 			ocl_bbuffers[i][j] = clCreateImage(ocl_context, CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
+#endif
 #endif
 			if (ocl_error != CL_SUCCESS)
 			{
@@ -735,7 +782,12 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			region[0] = Config->Height / 2;
 			region[1] = Config->Width;
 #endif
+
+#ifdef OCL_USE_SIMPLE_BUFFERS
+			CHKRET(clEnqueueWriteBuffer(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, 0, Config->Width * Config->Height * sizeof(double), ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
+#else
 			CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
+#endif
 		}
 		else
 		{
@@ -809,7 +861,12 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			region[0] = Config->Width / 2;
 			region[1] = Config->Height;
 #endif
+
+#ifdef OCL_USE_SIMPLE_BUFFERS
+			CHKRET(clEnqueueWriteBuffer(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, 0, Config->Width * Config->Height * sizeof(double), ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
+#else
 			CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
+#endif
 		}
 		else
 		{

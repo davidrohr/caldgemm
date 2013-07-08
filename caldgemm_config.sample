@@ -98,3 +98,4 @@
 #define OCL_TILING_X 4
 #define OCL_TILING_Y 4
 //#define OCL_TILED_KERNEL
+#define OCL_USE_SIMPLE_BUFFERS

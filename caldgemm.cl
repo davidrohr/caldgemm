@@ -1,6 +1,66 @@
 #define qon_mstr(a) #a
 #define qon_mxstr(a) qon_mstr(a)
 
+#ifdef OCL_USE_SIMPLE_BUFFERS
+
+#ifdef CALDGEMM_TRANSPOSED_B
+
+const char *caldgemm_opencl::OCLKernelName =
+OCL_KERNEL_PRE
+"__kernel void oclkernel(__global double* C, __global const double* __restrict const A, __global const double* __restrict const B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
+"{\n"
+"	int i, j, k;\n"
+"	for (i = get_global_id(1);i < height2;i += get_global_size(1))\n"
+"	{\n"
+"		for (j = get_global_id(0);j < height1;j += get_global_size(0))\n"
+"		{\n"
+"			double addval = 0.;\n"
+#ifdef CALDGEMM_FORCE_K
+"			for (k = 0;k < " qon_mxstr(CALDGEMM_FORCE_K) ";k++)\n"
+#else
+"			for (k = 0;k < width;k++)\n"
+#endif
+"			{\n"
+"				addval += A[i * width + k] * B[j * width + k];\n"
+"			}\n"
+"			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + alpha * addval;\n"
+"		}\n"
+"	}\n"
+"}\n"
+;
+
+#else
+
+const char *caldgemm_opencl::OCLKernelName =
+OCL_KERNEL_PRE
+"__kernel void oclkernel(__global double* C, __global const double* __restrict const A, __global const double* __restrict const B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
+"{\n"
+"	int i, j, k;\n"
+"	for (i = get_global_id(1);i < height2;i += get_global_size(1))\n"
+"	{\n"
+"		for (j = get_global_id(0);j < height1;j += get_global_size(0))\n"
+"		{\n"
+"			double addval = 0.;\n"
+#ifdef CALDGEMM_FORCE_K
+"			for (k = 0;k < " qon_mxstr(CALDGEMM_FORCE_K) ";k++)\n"
+#else
+"			for (k = 0;k < width;k++)\n"
+#endif
+"			{\n"
+"				addval += A[k * height2 + i] * B[k * height1 + j];\n"
+"			}\n"
+"			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + alpha * addval;\n"
+"		}\n"
+"	}\n"
+"}\n"
+;
+
+#endif
+
+
+#else //OCL_USE_SIMPLE_BUFFERS
+
+
 #ifdef CALDGEMM_TRANSPOSED_B
 
 const char *caldgemm_opencl::OCLKernelName =
@@ -142,5 +202,6 @@ OCL_KERNEL_PRE
 "}\n"
 ;
 
+#endif
 #endif
 #endif
