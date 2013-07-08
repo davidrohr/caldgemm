@@ -457,14 +457,24 @@ int caldgemm_opencl::InitDevices()
 					return(1);
 				}
 #ifdef _WIN32
-				kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int)) GetProcAddress(kernelLib, "CreateDGEMMKernel");
+				kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int)) GetProcAddress(kernelLib, "kernelLibCreate");
 #else
-				kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int)) dlsym(kernelLib, "CreateDGEMMKernel");
+				kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int)) dlsym(kernelLib, "kernelLibCreate");
 #endif
+				if (kernelLibCreate == NULL)
+				{
+					fprintf(STD_OUT, "Error getting function pointer from external library\n");
+					return(1);
+				}
 			}
 			for (int i = 0;i < nDevices;i++)
 			{
 				ocl_kernel[i][j] = kernelLibCreate(&ocl_context, nDevices, ocl_devices, j, Config->Width);
+				if (ocl_kernel[i][j] == 0)
+				{
+					fprintf(STD_OUT, "Error obtaining kernel from external library\n");
+					return(1);
+				}
 			}
 		}
 		else
@@ -599,8 +609,13 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 8, sizeof(int), &pitch), "Error setting kernel arg pitch");
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 9, sizeof(int), &offset), "Error setting kernel arg offset");
 
+#if 0
 	size_t local_size[2] = {GROUP_SIZE_X, GROUP_SIZE_Y};
 	size_t global_size[2] = {GROUP_SIZE_X * GROUP_COUNT_X, GROUP_SIZE_Y * GROUP_COUNT_Y};
+#else
+	size_t local_size[2] = {8, 8};
+	size_t global_size[2] = {height2 / 4, height1 / 4};
+#endif
 	if (Config->VerboseTiming)
 	{
 		clFinish(ocl_command_queues[Task.device][Task.j]);

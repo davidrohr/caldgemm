@@ -2412,7 +2412,7 @@ recalculate_ratio:
 		else
 		{
 			DGEMM_split_m = 0;
-			if (matrix_n % Config->Height || matrix_m % Config->Height)
+			if (Config->SmallTiles ? (matrix_n % CALDGEMM_MIN_TILE_DIM || matrix_m % CALDGEMM_MIN_TILE_DIM) : (matrix_n % Config->Height || matrix_m % Config->Height))
 			{
 				fprintf(STD_OUT, "Invalid matrix size for GPU only (%lld %% %lld = %lld, %lld %% %lld = %lld)\n", (long long int) matrix_n, (long long int) Config->Height, (long long int) matrix_n % Config->Height, (long long int) matrix_m, (long long int) Config->Height, (long long int) matrix_m % Config->Height);
 				return(1);
