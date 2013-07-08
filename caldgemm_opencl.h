@@ -33,6 +33,10 @@
 #error You must either defined CALDGEMM_TRANSPOSED_A or CALDGEMM_TRANSPOSED_B for the OpenCL backend
 #endif
 
+#ifndef _WIN32
+#define HINSTANCE void*
+#endif
+
 class caldgemm_opencl : public caldgemm
 {
 public:
@@ -94,6 +98,19 @@ private:
 	cl_mem* C_matrix_base_obj;
 
 	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16;
+
+	class caldgemm_config_backend_opencl : public caldgemm_config_backend
+	{
+	public:
+		virtual ~caldgemm_config_backend_opencl() {};
+		caldgemm_config_backend_opencl() {kernelLib = NULL;}
+	protected:
+		char* kernelLib;
+	};
+	virtual create_caldgemm_config_backend() {caldgemm_config_backend_opencl* tmp = new caldgemm_config_backend_opencl; memset(tmp, 0, sizeof(*tmp)); tmp->size = sizeof(*tmp); return(tmp);}
+
+	HINSTANCE kernelLib;
+	cl_kernel* (*kernelLibCreate) (cl_context* context, int nDevices, cl_device* devices, int kernelType, int k);
 
 public:
 	struct gpu_mem_struct_opencl

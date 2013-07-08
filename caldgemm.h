@@ -90,10 +90,19 @@ public:
 	caldgemm();
 	virtual ~caldgemm();
 
+	class caldgemm_config_backend
+	{
+	protected:
+		size_t size;
+	public:
+		virtual ~caldgemm_config_backend() {};
+	};
+
 	class caldgemm_config						//Run Parameters
 	{
 	public:
 		caldgemm_config();
+		~caldgemm_config() {delete config_backend;}
 
 		bool AsyncDMA;							//Run DMA transfer and kernel execution in parallel
 		bool DivideToGPU;						//Write preprocessed data difrectly to GPU
@@ -176,7 +185,11 @@ public:
 		
 		int nExcludeCPUCores;					//CPU Cores to exlude
 		int* ExcludeCPUCores;
+
+		caldgemm_config_backend* config_backend;
 	};
+
+	virtual create_caldgemm_config_backend() {caldgemm_config_backend* tmp = new caldgemm_config_backend; memset(tmp, 0, sizeof(*tmp)); tmp->size = sizeof(*tmp); return(tmp);}
 	
 	//CALDGEMM interface functions
 	//Initiate an appropriate sampleinfo struct and call InitCALDGEMM for initialization
