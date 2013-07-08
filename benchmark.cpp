@@ -89,6 +89,8 @@ size_t matrix_m, matrix_n;
 
 int MaxGPUTemperature = -1;
 
+char* OpenCL_kernel_lib;
+
 void PrintUsage()
 {
 	fprintf(STD_OUT,"Command Line Arguments\n");
@@ -157,6 +159,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n" );
 	fprintf(STD_OUT, "\t-O <int>  Backend to use: 0 = CAL, 1 = OpenCL, 2 = CUDA, 3 = CPUOnly\n" );
 	fprintf(STD_OUT, "\t-Oc <int> Set GPU_C parameter\n" );
+	fprintf(STD_OUT, "\t-Ol lib   Set library name used to obtain OpenCL DGEMM kernel\n" );
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n" );
 	fprintf(STD_OUT, "\t-J <int>  Allow small tiles to process the remainder on GPU (0 disable, 1 enable, 2 auto)\n");
 	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
@@ -456,6 +459,11 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			{
 				if (++x >= argc) return(1);
 				sscanf(argv[x], "%d", &Config->GPU_C);
+			}
+			else if (argv[x][2] == 'l')
+			{
+				if (++x >= argc) return(1);
+				OpenCL_kernel_lib = argv[x];
 			}
 			else
 			{
@@ -905,6 +913,15 @@ int main(int argc, char** argv)
 		fprintf(STD_OUT, "Error creating caldgem object\n");
 		return(1);
 	}
+	Config.config_backend = dgemm_obj->create_caldgemm_config_backend();
+
+#ifdef CALDGEMM_OPENCL
+	if (use_opencl_not_cal == 1)
+	{
+		((caldgemm_opencl::caldgemm_config_backend_opencl*) Config.config_backend)->kernelLib = OpenCL_kernel_lib;
+	}
+#endif
+
 
 	if (dgemm_obj->InitCALDGEMM(&Config))
 	{

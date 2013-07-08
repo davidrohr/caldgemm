@@ -43,6 +43,16 @@ public:
 	caldgemm_opencl();
 	virtual ~caldgemm_opencl();
 
+	class caldgemm_config_backend_opencl : public caldgemm_config_backend
+	{
+	public:
+		virtual ~caldgemm_config_backend_opencl() {};
+		caldgemm_config_backend_opencl() {size = sizeof(*this);kernelLib = NULL;}
+		char* kernelLib;
+	};
+	virtual caldgemm_config_backend* create_caldgemm_config_backend() {return(new caldgemm_config_backend_opencl);}
+	
+
 private:
 	virtual int UseOutputPthreads();
 	virtual int UseInputPthreads();
@@ -99,15 +109,6 @@ private:
 
 	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16;
 
-	class caldgemm_config_backend_opencl : public caldgemm_config_backend
-	{
-	public:
-		virtual ~caldgemm_config_backend_opencl() {};
-		caldgemm_config_backend_opencl() {size = sizeof(*this);kernelLib = NULL;}
-		char* kernelLib;
-	};
-	virtual caldgemm_config_backend* create_caldgemm_config_backend() {return(new caldgemm_config_backend_opencl);}
-	
 	caldgemm_config_backend_opencl* config_backend;
 
 	HINSTANCE kernelLib;

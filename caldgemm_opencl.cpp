@@ -400,13 +400,13 @@ int caldgemm_opencl::InitDevices()
 			if (j == 0)
 			{
 #ifdef _WIN32
-				kernelLib = LoadLibrary(config->backend->kernelLib);
+				kernelLib = LoadLibrary(config_backend->kernelLib);
 #else
 				kernelLib = dlopen(config_backend->kernelLib, RTLD_LAZY|RTLD_GLOBAL);
 #endif
 				if (kernelLib == NULL)
 				{
-					fprintf(STD_OUT, "Error opening kernel library\n");
+					fprintf(STD_OUT, "Error opening kernel library: %s\n", config_backend->kernelLib);
 					return(1);
 				}
 #ifdef _WIN32
