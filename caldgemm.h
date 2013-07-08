@@ -94,6 +94,7 @@ public:
 	{
 	public:
 		size_t size;
+		caldgemm_config_backend() {size = sizeof(*this);}
 		virtual ~caldgemm_config_backend() {};
 	};
 
@@ -101,7 +102,7 @@ public:
 	{
 	public:
 		caldgemm_config();
-		~caldgemm_config() {delete config_backend;}
+		~caldgemm_config() {if (config_backend) delete config_backend;}
 
 		bool AsyncDMA;							//Run DMA transfer and kernel execution in parallel
 		bool DivideToGPU;						//Write preprocessed data difrectly to GPU

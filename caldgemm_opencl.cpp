@@ -161,7 +161,6 @@ static const char* opencl_error_string(int errorcode)
 caldgemm_opencl::caldgemm_opencl() : caldgemm()
 {
 	C_matrix_base = NULL;
-	config_backend = (caldgemm_config_backend_opencl*) Config->config_backend;
 }
 
 caldgemm_opencl::~caldgemm_opencl()
@@ -193,6 +192,8 @@ int caldgemm_opencl::WaitForEvent(int a, int b, int)
 
 int caldgemm_opencl::Initialize(bool nocalinit)
 {
+	if (Config->config_backend == NULL) Config->config_backend = new caldgemm_config_backend_opencl;
+	config_backend = (caldgemm_config_backend_opencl*) Config->config_backend;
 	int deviceNum = Config->DeviceNum;
 	if (!Config->Quiet) fprintf(STD_OUT, "Initializing CALDGEMM (OpenCL Runtime)\n");
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL Initialice\n");
@@ -405,7 +406,7 @@ int caldgemm_opencl::InitDevices()
 #endif
 				if (kernelLib == NULL)
 				{
-					fprintf(STD_OUT, "Error opening kernel library");
+					fprintf(STD_OUT, "Error opening kernel library\n");
 					return(1);
 				}
 #ifdef _WIN32

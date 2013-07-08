@@ -103,10 +103,10 @@ private:
 	{
 	public:
 		virtual ~caldgemm_config_backend_opencl() {};
-		caldgemm_config_backend_opencl() {kernelLib = NULL;}
+		caldgemm_config_backend_opencl() {size = sizeof(*this);kernelLib = NULL;}
 		char* kernelLib;
 	};
-	virtual caldgemm_config_backend* create_caldgemm_config_backend() {caldgemm_config_backend_opencl* tmp = new caldgemm_config_backend_opencl; memset(tmp, 0, sizeof(*tmp)); tmp->size = sizeof(*tmp); return(tmp);}
+	virtual caldgemm_config_backend* create_caldgemm_config_backend() {return(new caldgemm_config_backend_opencl);}
 	
 	caldgemm_config_backend_opencl* config_backend;
 

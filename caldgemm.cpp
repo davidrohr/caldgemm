@@ -233,6 +233,8 @@ caldgemm::caldgemm_config::caldgemm_config()
 	linpack_factorize_function = NULL;
 	linpack_broadcast_function = NULL;
 	linpack_swap_function = NULL;
+	
+	config_backend = NULL;
 }
 
 int caldgemm::getcpumask(cpu_set_t* set)
