@@ -99,3 +99,4 @@ config_options.mak:
 
 FILEFLAGScaldgemm.cpp			= -Wno-strict-aliasing
 FILEFLAGScaldgemm_cal.cpp			= -Wno-strict-aliasing
+FILEFLAGScaldgemm_opencl.cpp			= -Wno-strict-aliasing
