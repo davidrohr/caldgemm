@@ -208,16 +208,35 @@ int caldgemm_opencl::WaitForEventAndRelease(cl_event* pEvent, int lock)
 	cl_int ocl_error;
 	if (lock == -1) lock = (Config->ThreadSaveDriver == -1);
 	if (Config->Debug) fprintf(STD_OUT, "\t\t\tOpenCL WaitForEventAndRelease: 0x%p\n", pEvent);
-	if ((ocl_error = clWaitForEvents(1, pEvent)) != CL_SUCCESS)
+	if (lock)
 	{
-		fprintf(STD_OUT, "Error while waiting for event (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
-		return(1);
+		cl_int status;
+		do
+		{
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
+			if (clGetEventInfo(*pEvent, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(status), &status, NULL) != CL_SUCCESS)
+			{
+				fprintf(STD_OUT, "Error querying event info\n");
+				return(1);
+			}
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
+		} while (status != CL_COMPLETE);
 	}
+	else
+	{
+		if ((ocl_error = clWaitForEvents(1, pEvent)) != CL_SUCCESS)
+		{
+			fprintf(STD_OUT, "Error while waiting for event (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
+			return(1);
+		}
+	}
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	if ((ocl_error = clReleaseEvent(*pEvent)) != CL_SUCCESS)
 	{
 		fprintf(STD_OUT, "Error releasing event (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
 		return(1);
 	}
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	return(0);
 }
 
@@ -547,6 +566,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 {
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL ExecuteKernels\n");
 
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 	if (Config->GPU_C) Task.kernel_num = 0;
 #ifdef REUSE_BBUFFERS
@@ -629,7 +649,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	else kernel_event = &ocl_events[Task.device][Task.j];
 
 	CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[Task.device][Task.j], ocl_kernel[Task.device][Task.kernel_num], 2, NULL, &global_size[0], &local_size[0], 0, NULL, kernel_event), "Error starting MM Kernel");
-
+	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	if (Config->VerboseTiming)
 	{
 		clFinish(ocl_command_queues[Task.device][Task.j]);
@@ -644,7 +664,9 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			size_t origin[3] = {0, 0, 0};
 			size_t region[3] = {height1 * sizeof(double), height2, 1};
 			if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) region[0], (int) region[1]);
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			CHKRET(clEnqueueReadBufferRect(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		else if (Config->ImplicitDriverSync)
 		{
@@ -682,8 +704,10 @@ int caldgemm_opencl::FetchResult(int device, int j, int m, int n, int mustlock)
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL FetchResult\n");
 	if (Config->GPU_C == 0 && Config->DstMemory == 'g')
 	{
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 		clEnqueueCopyBuffer(ocl_command_queues[device][j], ocl_cbuffers[device][j], ocl_tmp_cbuffers[device][j], 0, 0, Config->Height * Config->Height * sizeof(double), 0, NULL, &ocl_events[device][j]);
 		clFlush(ocl_command_queues[device][j]);
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		if (Config->VerboseTiming) clFinish(ocl_command_queues[device][j]);
 	}
 	return(0);
@@ -869,12 +893,14 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			region[1] = Config->Width;
 #endif
 
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
 #ifdef OCL_USE_SIMPLE_BUFFERS
 			CHKRET(clEnqueueWriteBuffer(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, 0, Config->Width * Config->Height * sizeof(double), ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
 #else
 			CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
 #endif
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			if (Config->VerboseTiming)
 			{
 				clFinish(ocl_command_queues[num_device][j]);
@@ -883,6 +909,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		}
 		else
 		{
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			region[0] = (TransposeA ? Config->Height : Config->Width) * sizeof(double);
 			region[1] = (TransposeA ? Config->Width : Config->Height);
 			int arg_width = region[0] / sizeof(double), arg_height = region[1];
@@ -901,6 +928,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			size_t global_size[2] = {GROUP_SIZE_X * GROUP_COUNT_X, GROUP_SIZE_Y * GROUP_COUNT_Y};
 			if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", arg_width, arg_height, arg_transpose);
 			CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, &ocl_conversion_events[num_device][0]), "Error starting conversion kernel for A");
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		ocl_conversion_events_use[num_device][0] = 1;
 		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
@@ -953,13 +981,14 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			region[0] = Config->Width / 2;
 			region[1] = Config->Height;
 #endif
-
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
 #ifdef OCL_USE_SIMPLE_BUFFERS
 			CHKRET(clEnqueueWriteBuffer(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, 0, Config->Width * Config->Height * sizeof(double), ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
 #else
 			CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
 #endif
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			if (Config->VerboseTiming)
 			{
 				clFinish(ocl_command_queues[num_device][j]);
@@ -968,6 +997,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		}
 		else
 		{
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			region[0] = (TransposeB ? Config->Width : Config->Height) * sizeof(double);
 			region[1] = (TransposeB ? Config->Height : Config->Width);
 			int arg_width = region[0] / sizeof(double), arg_height = region[1];
@@ -986,6 +1016,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			size_t global_size[2] = {GROUP_SIZE_X * GROUP_COUNT_X, GROUP_SIZE_Y * GROUP_COUNT_Y};
 			if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
 			CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, &ocl_conversion_events[num_device][1]), "Error starting conversion kernel for B");
+			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		ocl_conversion_events_use[num_device][1] = 1;
 		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
@@ -997,8 +1028,10 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		region[0] = (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) * sizeof(double);
 		region[1] = (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);
 		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 		CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], ocl_cbuffers[num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, NULL), "Error copying C");
 		clFlush(ocl_command_queues[num_device][j]);
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}
 	if (Config->VerboseTiming && Config->GPU_C == 1)
 	{
