@@ -203,9 +203,10 @@ caldgemm_opencl::~caldgemm_opencl()
 {
 }
 
-int caldgemm_opencl::WaitForEventAndRelease(cl_event* pEvent)
+int caldgemm_opencl::WaitForEventAndRelease(cl_event* pEvent, int lock)
 {
 	cl_int ocl_error;
+	if (lock == -1) lock = (Config->ThreadSaveDriver == -1);
 	if (Config->Debug) fprintf(STD_OUT, "\t\t\tOpenCL WaitForEventAndRelease: 0x%p\n", pEvent);
 	if ((ocl_error = clWaitForEvents(1, pEvent)) != CL_SUCCESS)
 	{
@@ -220,10 +221,10 @@ int caldgemm_opencl::WaitForEventAndRelease(cl_event* pEvent)
 	return(0);
 }
 
-int caldgemm_opencl::WaitForEvent(int a, int b, int)
+int caldgemm_opencl::WaitForEvent(int a, int b, int mustlock)
 {
 	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", b, a);
-	return(WaitForEventAndRelease(&ocl_events[b][a]));
+	return(WaitForEventAndRelease(&ocl_events[b][a], mustlock || Config->ThreadSaveDriver == -1));
 }
 
 int caldgemm_opencl::Initialize(bool nocalinit)
@@ -712,10 +713,10 @@ int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, 
 			{
 //				_mm_prefetch(daddr + pitch, _MM_HINT_T0);
 				_mm_prefetch(saddr + gpu_width, _MM_HINT_T0);;
-				_mm256_store_pd(daddr, _mm256_sub_pd(_mm256_load_pd(daddr), _mm256_load_pd(saddr)));
-				_mm256_store_pd(daddr + 4, _mm256_sub_pd(_mm256_load_pd(daddr + 4), _mm256_load_pd(saddr + 4)));
-				_mm256_store_pd(daddr + 8, _mm256_sub_pd(_mm256_load_pd(daddr + 8), _mm256_load_pd(saddr + 8)));
-				_mm256_store_pd(daddr + 12, _mm256_sub_pd(_mm256_load_pd(daddr + 12), _mm256_load_pd(saddr + 12)));
+				_mm256_store_pd(daddr, _mm256_add_pd(_mm256_load_pd(daddr), _mm256_load_pd(saddr)));
+				_mm256_store_pd(daddr + 4, _mm256_add_pd(_mm256_load_pd(daddr + 4), _mm256_load_pd(saddr + 4)));
+				_mm256_store_pd(daddr + 8, _mm256_add_pd(_mm256_load_pd(daddr + 8), _mm256_load_pd(saddr + 8)));
+				_mm256_store_pd(daddr + 12, _mm256_add_pd(_mm256_load_pd(daddr + 12), _mm256_load_pd(saddr + 12)));
 				daddr += 16;
 				saddr += 16;
 			}
