@@ -98,10 +98,11 @@ inline void printelapsedtime(bool reset = false)
 caldgemm::caldgemm_config_backend* caldgemm::create_caldgemm_config_backend()
 {
 	caldgemm_config_backend* tmp = new caldgemm_config_backend;
-	memset(tmp, 0, sizeof(*tmp));
 	tmp->size = sizeof(*tmp);
 	return(tmp);
 }
+
+caldgemm::caldgemm_config_backend::~caldgemm_config_backend() {}
 
 caldgemm::caldgemm()
 {

@@ -209,6 +209,8 @@ caldgemm::caldgemm_config_backend* caldgemm_opencl::create_caldgemm_config_backe
 	return(new caldgemm_config_backend_opencl);
 }
 
+caldgemm_opencl::caldgemm_config_backend_opencl::~caldgemm_config_backend_opencl() {}
+
 int caldgemm_opencl::WaitForEventAndRelease(cl_event* pEvent, int lock)
 {
 	cl_int ocl_error;
