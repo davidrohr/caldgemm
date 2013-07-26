@@ -81,7 +81,7 @@
 //#define CALDGEMM_LDC_INC 0					//see above
 
 #define CALDGEMM_LATE_EXIT_CONDITION			//Put exit condition at end of while loop
-//#define CALDGEMM_SHIFT_TEXTURE 1				//Shift even numbered rows in texture by n pixels
+#define CALDGEMM_SHIFT_TEXTURE 1				//Shift even numbered rows in texture by n pixels
 
 //#define CALDGEMM_DIVIDE_STATIC_BUFFER			//Allocate tmpBuffer for divide staticly once and for all
 #define CALDGEMM_DIVIDE_BLOCKING 128			//Blocking size for divideBuffer with SHIFT_TEXTURE = 1 (larger multiple of two)
@@ -98,5 +98,5 @@
 
 #define OCL_TILING_X 4
 #define OCL_TILING_Y 4
-//#define OCL_TILED_KERNEL
+#define OCL_TILED_KERNEL
 #define OCL_USE_SIMPLE_BUFFERS
