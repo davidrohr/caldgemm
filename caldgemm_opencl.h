@@ -50,7 +50,7 @@ public:
 		caldgemm_config_backend_opencl() {size = sizeof(*this);kernelLib = NULL;}
 		char* kernelLib;
 	};
-	virtual caldgemm_config_backend* create_caldgemm_config_backend() {return(new caldgemm_config_backend_opencl);}
+	virtual caldgemm_config_backend* create_caldgemm_config_backend();
 	
 
 private:

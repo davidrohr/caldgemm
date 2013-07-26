@@ -9,7 +9,7 @@ ICC64						= icc
 #Intel Compiler Options
 INTELOPENMP					= -openmp -openmp-link:static -parallel
 #INTELOPENMP				= -openmp-stubs
-INTELFLAGSOPT				= -O3 -fno-alias -fno-fnalias -ax$(INTELARCH) -unroll -unroll-aggressive -openmp -g0
+INTELFLAGSOPT				= -O3 -fno-alias -fno-fnalias -$(INTELARCH) -unroll -unroll-aggressive -openmp -g0
 INTELFLAGSDBG				= -O0 -openmp-stubs -g
 INTELFLAGSCOMMON			= -DINTEL_RUNTIME $(INTELFLAGSUSE) -fasm-blocks
 INTELFLAGS32				= $(INTELFLAGSCOMMON) -m32

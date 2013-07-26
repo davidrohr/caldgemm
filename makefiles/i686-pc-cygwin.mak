@@ -53,7 +53,8 @@ INTELQPROF					=
 #/Qprof_gen, /Qprof_use
 
 #Intel Compiler Options
-INTELFLAGSOPT				= /Oa /Ow /Ob2 /Ot /Oi /GA /G7 /O3 /Qip /Qvec_report0 /Qopt-prefetch /Qax$(INTELARCH) /Gs0 /debug:minimal $(INTELOPENMP)
+INTELFLAGSOPT				= /Oa /Ow /Qansi-alias /Ob2 /Ot /Oi /GA /G7 /O3 /Ox /Qip /Qvec_report0 /Qopt-prefetch /Q$(INTELARCH) /Gs0 /debug:minimal $(INTELOPENMP)
+# /Qguide  /Qopt-report:2 /Qvec-report:5
 INTELFLAGSDBG				= /Od /Zi /Qopenmp-stubs
 INTELFLAGSBASE				= /EHsc /D "INTEL_RUNTIME" /Qvc10 /Qprof_dir$(WORKPATH) $(MULTITHREAD) $(INTELQPROF)
 INTELFLAGSCOMMON			= $(INTELFLAGSBASE) $(INTELFLAGSUSE)
@@ -172,9 +173,9 @@ LIBSUSE						+= aticalcl.lib aticalrt.lib
 endif
 endif
 ifeq ("$(CONFIG_DDRAW)", "1")
-LIBSUSE						+= ddraw.lib dxguid.lib
+LIBSUSE						+= ddraw.lib dxguid.lib dxerr.lib
 endif
-ifeq ("$(CONFIG_VIDE_EDIT)", "1")
+ifeq ("$(CONFIG_VIDEO_EDIT)", "1")
 LIBSUSE						+= amstrmid.lib msacm32.lib vfw32.lib winmm.lib
 endif
 ifeq ("$(CONFIG_OPENGL)", "1")
@@ -191,7 +192,7 @@ LINKTARGETTYPE				=
 EXECUTABLE					= $(TARGET).exe
 endif
 
-INCLUDE						+= "$(DIRECTXPATH)include;" 
+COMMONINCLUDEPATHS			+= "$(DIRECTXPATH)include"
 
 ifeq ("$(CONFIG_OPENCL)", "1")
 ifeq ("$(CONFIG_OPENCL_VERSION)", "AMD")

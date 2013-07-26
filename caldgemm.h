@@ -189,7 +189,7 @@ public:
 		caldgemm_config_backend* config_backend;
 	};
 
-	virtual caldgemm_config_backend* create_caldgemm_config_backend() {caldgemm_config_backend* tmp = new caldgemm_config_backend; memset(tmp, 0, sizeof(*tmp)); tmp->size = sizeof(*tmp); return(tmp);}
+	virtual caldgemm_config_backend* create_caldgemm_config_backend();
 	
 	//CALDGEMM interface functions
 	//Initiate an appropriate sampleinfo struct and call InitCALDGEMM for initialization

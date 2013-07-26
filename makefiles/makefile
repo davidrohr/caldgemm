@@ -37,7 +37,7 @@ MULTITHREAD					= /MT
 MULTITHREADLIBS				= /nodefaultlib:libc.lib
 
 NVCCFLAGSOPT				= --use_fast_math --maxrregcount $(CUDAREGS) -O4 -Xptxas -v -Xptxas -O4 -m$(ARCHBITS) $(NVCCARCHS)
-NVCCFLAGSDBG				= --device-emulation --compiler-options $(DCUDAEMU) --maxrregcount $(CUDAREGS) -Xptxas -v -Xptxas -O0 -O0 -m$(ARCHBITS) $(NVCCARCHS)
+NVCCFLAGSDBG				= --compiler-options $(DCUDAEMU) --maxrregcount $(CUDAREGS) -Xptxas -v -Xptxas -O0 -O0 -m$(ARCHBITS) $(NVCCARCHS)
 
 TARGETTYPE					= EXECUTABLE
 
@@ -45,6 +45,18 @@ include						$(CONFIGFILE)
 WORKPATH					= release/$(ARCH)_$(ARCHBITS)$(WORKPATHSUFFIX)
 ifeq ($(CONFIG_OPENCL_VERSION), )
 CONFIG_OPENCL_VERSION		= All
+endif
+ifeq ($(COMPILER_FLAGS), DBG)
+INTELFLAGSUSE				= $(INTELFLAGSDBG)
+VSNETFLAGSUSE				= $(VSNETFLAGSDBG)
+GCCFLAGSUSE					= $(GCCFLAGSDBG)
+NVCCFLAGSUSE				= $(NVCCFLAGSDBG)
+endif
+ifeq ($(COMPILER_FLAGS), OPT)
+INTELFLAGSUSE				= $(INTELFLAGSOPT)
+VSNETFLAGSUSE				= $(VSNETFLAGSOPT)
+GCCFLAGSUSE					= $(GCCFLAGSOPT)
+NVCCFLAGSUSE				= $(NVCCFLAGSOPT)
 endif
 include						makefiles/$(ARCHFILE)
 
@@ -68,9 +80,13 @@ DEPENDS						= $(CPPFILES:%.cpp=$(WORKPATH)/%.d) $(CXXFILES:%.cxx=$(WORKPATH)/%.
 								$(CPPFILES_MSCC:%.cpp=$(WORKPATH)/%.msccd)
 
 ifeq ($(ARCH), i686-pc-cygwin)
+ifeq ($(INCLUDEPATHS)$(COMMONINCLUDEPATHS), )
+GCCINCLUDEPATHS				=
+else
 GCCINCLUDEPATHSA			:= $(INCLUDEPATHS) $(COMMONINCLUDEPATHS)
 GCCINCLUDEPATHSB			:= $(shell cygpath -u $(GCCINCLUDEPATHSA))
 GCCINCLUDEPATHS				= $(GCCINCLUDEPATHSB:%=-I%)
+endif
 else
 GCCINCLUDEPATHS				= $(INCLUDEPATHS:%=-I%) $(COMMONINCLUDEPATHS:%=-I%)
 endif

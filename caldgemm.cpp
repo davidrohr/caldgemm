@@ -95,6 +95,14 @@ inline void printelapsedtime(bool reset = false)
 #endif
 //#define fprintf(file, ...) {fprintf(STD_OUT, "Thread %d ", gettid());fprintf(stderr, __VA_ARGS__);}
 
+caldgemm::caldgemm_config_backend* caldgemm::create_caldgemm_config_backend()
+{
+	caldgemm_config_backend* tmp = new caldgemm_config_backend;
+	memset(tmp, 0, sizeof(*tmp));
+	tmp->size = sizeof(*tmp);
+	return(tmp);
+}
+
 caldgemm::caldgemm()
 {
 	caldgemm_initialized = false;

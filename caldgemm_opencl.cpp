@@ -23,6 +23,7 @@
  */
 
 #include "caldgemm_opencl.h"
+#include "caldgemm_common.h"
 #include <CL/cl_ext.h>
 
 #define OCL_KERNEL_PRE \
@@ -201,6 +202,11 @@ caldgemm_opencl::caldgemm_opencl() : caldgemm()
 
 caldgemm_opencl::~caldgemm_opencl()
 {
+}
+
+caldgemm::caldgemm_config_backend* caldgemm_opencl::create_caldgemm_config_backend()
+{
+	return(new caldgemm_config_backend_opencl);
 }
 
 int caldgemm_opencl::WaitForEventAndRelease(cl_event* pEvent, int lock)
@@ -735,8 +741,8 @@ int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, 
 			const int count = width / 16; //(4 unroll, 4 avx)
 			for (int j = 0;j < count;j++)
 			{
-//				_mm_prefetch(daddr + pitch, _MM_HINT_T0);
-				_mm_prefetch(saddr + gpu_width, _MM_HINT_T0);;
+//				_mm_prefetch(CAST_FOR_MMPREFETCH (daddr + pitch), _MM_HINT_T0);
+				_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + gpu_width), _MM_HINT_T0);;
 				_mm256_store_pd(daddr, _mm256_add_pd(_mm256_load_pd(daddr), _mm256_load_pd(saddr)));
 				_mm256_store_pd(daddr + 4, _mm256_add_pd(_mm256_load_pd(daddr + 4), _mm256_load_pd(saddr + 4)));
 				_mm256_store_pd(daddr + 8, _mm256_add_pd(_mm256_load_pd(daddr + 8), _mm256_load_pd(saddr + 8)));
