@@ -752,9 +752,15 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		}
 		else
 		{
-			pitch_a = pitch_b = pitch_c = matrix_m + Config.Width + (matrix_m + Config.Width) % 8;
+			pitch_c = matrix_m + Config.Width;
+			if (pitch_c % 8)
+			{
+				pitch_c += 8;
+				pitch_c -= pitch_c % 8;
+			}
+			pitch_a = pitch_b = pitch_c;
 		}
-		linpackmem = dgemm_obj->AllocMemory(pitch_c * (matrix_n + Config.Width + 1) + 8, mem_page_lock, mem_huge_table, mem_gpu_access, true);
+		linpackmem = dgemm_obj->AllocMemory(pitch_c * (matrix_n + Config.Width + 1) + 16, mem_page_lock, mem_huge_table, mem_gpu_access, true);
 		if (linpackmem == NULL) {fprintf(STD_OUT, "Memory Allocation Error\n"); return(1);}
 
 		char* linpackmem2 = (char*) linpackmem;

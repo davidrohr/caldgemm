@@ -341,6 +341,8 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 	DGEMM_getblocks(k, blockm, blockn);
 
 	size_t width, height;
+	const size_t HeightM = ((blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);
+	const size_t HeightN = ((blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height);
 
 	CHKRET(cudaSetDevice(cuda_devices[num_device]), "Setting CUDA Device");
 	if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
@@ -357,8 +359,8 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 
 		void* dest_image;
 		void* dest_buffer_tmp = cuda_tmp_abuffers[num_device][j];
-		width = (TransposeA ? Config->Height : Config->Width) * sizeof(double);
-		height = (TransposeA ? Config->Width : Config->Height);
+		width = (TransposeA ? HeightM : Config->Width) * sizeof(double);
+		height = (TransposeA ? Config->Width : HeightM);
 		size_t pitch = A_pitch;
 		void* src_ptr = A + blockm * Config->Height * (TransposeA ? 1 : A_pitch);
 		
@@ -399,8 +401,8 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 
 		void* dest_image;
 		void* dest_buffer_tmp = cuda_tmp_bbuffers[num_device][j];
-		width = (TransposeB ? Config->Width : Config->Height) * sizeof(double);
-		height = (TransposeB ? Config->Height : Config->Width);
+		width = (TransposeB ? Config->Width : HeightN) * sizeof(double);
+		height = (TransposeB ? HeightN : Config->Width);
 		size_t pitch = B_pitch;
 		void* src_ptr = B + blockn * Config->Height * (TransposeB ? B_pitch : 1);
 
@@ -431,8 +433,8 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 
 	if (Config->DstMemory == 'g')
 	{
-		width = (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) * sizeof(double);
-		height = (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);
+		width = HeightN * sizeof(double);
+		height = HeightM;
 		Timers.divideC++;
 		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) width, (int) height);
 		CHKRET(cudaMemcpy2DAsync(cuda_cbuffers[num_device][j], width, C + blockn * Config->Height + blockm * Config->Height * C_pitch, C_pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying C to device");
