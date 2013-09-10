@@ -3197,10 +3197,14 @@ void caldgemm::printConfig()
 	fprintf(STD_OUT, "ImprovedScheduler %d\n", (int) Config->ImprovedScheduler);
 	fprintf(STD_OUT, "ParallelDMA %d\n", (int) Config->ParallelDMA);
 	fprintf(STD_OUT, "GroupParallelDMA %d\n", (int) Config->GroupParallelDMA);
-	fprintf(STD_OUT, "MinimizeCPUPart %d\n", (int) Config->MinimizeCPUPart);
-	fprintf(STD_OUT, "GPURatio %d\n", (int) Config->GPURatio);
+	fprintf(STD_OUT, "GPURatio %f\n", (int) Config->GPURatio);
+	fprintf(STD_OUT, "GPURatioDuringFact %f\n", (double) Config->GPURatioDuringFact);
+	fprintf(STD_OUT, "MinimizeCPUPart %d\n", (double) Config->MinimizeCPUPart);
+	fprintf(STD_OUT, "MinimizeCPUDuringFact %d\n", (double) Config->MinimizeCPUDuringFact);
 	fprintf(STD_OUT, "UseCPU %d\n", (int) Config->UseCPU);
 	fprintf(STD_OUT, "UseGPU %d\n", (int) Config->UseGPU);
+	fprintf(STD_OUT, "GPU_C %d\n", (int) Config->GPU_C);
+
 	fprintf(STD_OUT, "OpenCLPlatform %d\n", (int) Config->OpenCLPlatform);
 	fprintf(STD_OUT, "DeviceNum %d\n", (int) Config->DeviceNum);
 	fprintf(STD_OUT, "NumDevices %d\n", (int) Config->NumDevices);
@@ -3208,11 +3212,13 @@ void caldgemm::printConfig()
 	{
 		fprintf(STD_OUT, "DeviceNums[%d] %d\n", i, (int) Config->DeviceNums[i]);
 	}
+
 	fprintf(STD_OUT, "Debug %d\n", (int) Config->Debug);
 	fprintf(STD_OUT, "DumpMatrix %d\n", (int) Config->DumpMatrix);
 	fprintf(STD_OUT, "Iterations %d\n", (int) Config->Iterations);
 	fprintf(STD_OUT, "Verify %d\n", (int) Config->Verify);
 	fprintf(STD_OUT, "SkipCPUProcessing %d\n", (int) Config->SkipCPUProcessing);
+
 	for (int i = 0;i < nDevices;i++)
 	{
 		fprintf(STD_OUT, "GPUMapping[%d] %d\n", i, (int) Config->GPUMapping[i]);
@@ -3221,6 +3227,7 @@ void caldgemm::printConfig()
 		fprintf(STD_OUT, "DMAMapping[%d] %d\n", i, (int) Config->DMAMapping[i]);
 	}
 	fprintf(STD_OUT, "PinMainThread %d\n", (int) Config->PinMainThread);
+	fprintf(STD_OUT, "PinBroadcastThread %d\n", (int) Config->PinBroadcastThread);
 	fprintf(STD_OUT, "RepinDuringActiveWaitForEvent %d\n", (int) Config->RepinDuringActiveWaitForEvent);
 	fprintf(STD_OUT, "RepinMainThreadAlways %d\n", (int) Config->RepinMainThreadAlways);
 	fprintf(STD_OUT, "SleepDuringActiveWait %d\n", (int) Config->SleepDuringActiveWait);
@@ -3230,12 +3237,15 @@ void caldgemm::printConfig()
 	fprintf(STD_OUT, "OutputThreads %d\n", (int) Config->OutputThreads);
 	fprintf(STD_OUT, "NumaPinning %d\n", (int) Config->NumaPinning);
 	fprintf(STD_OUT, "AlternateLookahead %d\n", (int) Config->AlternateLookahead);
+
 	fprintf(STD_OUT, "Height %d\n", (int) Config->Height);
 	fprintf(STD_OUT, "Width %d\n", (int) Config->Width);
 	fprintf(STD_OUT, "AutoHeight %d\n", (int) Config->AutoHeight);
 	fprintf(STD_OUT, "SmallTiles %d\n", (int) Config->SmallTiles);
+
 	fprintf(STD_OUT, "Disassemble %d\n", (int) Config->Disassemble);
 	fprintf(STD_OUT, "PrintILKernel %d\n", (int) Config->PrintILKernel);
+
 	fprintf(STD_OUT, "AsyncTiming %d\n", (int) Config->AsyncTiming);
 	fprintf(STD_OUT, "DisplayTiming %d\n", (int) Config->DisplayTiming);
 	fprintf(STD_OUT, "NoPerformanceWarnings %d\n", (int) Config->NoPerformanceWarnings);
@@ -3243,10 +3253,13 @@ void caldgemm::printConfig()
 	fprintf(STD_OUT, "Quiet %d\n", (int) Config->Quiet);
 	fprintf(STD_OUT, "TabularTiming %d\n", (int) Config->TabularTiming);
 	fprintf(STD_OUT, "VerboseTiming %d\n", (int) Config->VerboseTiming);
+
 	fprintf(STD_OUT, "LinpackNodes %d\n", (int) Config->LinpackNodes);
 	fprintf(STD_OUT, "MPIRank %d\n", (int) Config->MPIRank);
 	fprintf(STD_OUT, "GPUClock %d\n", (int) Config->GPUClock);
+
 	fprintf(STD_OUT, "HPLFactorizeRestrictCPUs %d\n", (int) Config->HPLFactorizeRestrictCPUs);
+	fprintf(STD_OUT, "LASWPSleep %d\n", (int) Config->LASWPSleep);
 	for (int i = 0;i < Config->nExcludeCPUCores;i++)
 	{
 		fprintf(STD_OUT, "ExcludeCPUCores[%d] %d\n", i, (int) Config->ExcludeCPUCores[i]);
