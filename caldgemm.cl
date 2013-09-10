@@ -23,7 +23,11 @@ OCL_KERNEL_PRE
 "			{\n"
 "				addval += A[i * width + k] * B[j * width + k];\n"
 "			}\n"
+#ifdef CALDGEMM_ALPHA1
+"			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + addval;\n"
+#else
 "			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + alpha * addval;\n"
+#endif
 "		}\n"
 "	}\n"
 "}\n"
@@ -49,7 +53,11 @@ OCL_KERNEL_PRE
 "			{\n"
 "				addval += A[k * height2 + i] * B[k * height1 + j];\n"
 "			}\n"
+#ifdef CALDGEMM_ALPHA1
+"			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + addval;\n"
+#else
 "			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + alpha * addval;\n"
+#endif
 "		}\n"
 "	}\n"
 "}\n"
@@ -90,7 +98,11 @@ OCL_KERNEL_PRE
 "				tmp2.f = read_imageui(B, sampler, coord);\n"
 "				addval += tmp.d.x * tmp2.d.x + tmp.d.y * tmp2.d.y;\n"
 "			}\n"
+#ifdef CALDGEMM_ALPHA1
+"			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + addval;\n"
+#else
 "			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + alpha * addval;\n"
+#endif
 "		}\n"
 "	}\n"
 "}\n"
@@ -128,7 +140,11 @@ OCL_KERNEL_PRE
 "				double v1 = (i & 1) ? tmp.d.y : tmp.d.x, v2 = (j & 1) ? tmp2.d.y : tmp2.d.x;\n"
 "				addval += v1 * v2;\n"
 "			}\n"
+#ifdef CALDGEMM_ALPHA1
+"			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + addval;\n"
+#else
 "			C[offset + i * pitch + j] = beta * C[offset + i * pitch + j] + alpha * addval;\n"
+#endif
 "		}\n"
 "	}\n"
 "}\n"
@@ -194,7 +210,11 @@ OCL_KERNEL_PRE
 "#pragma unroll\n"
 "				for (l = 0;l < OCL_TILING_Y;l++)\n"
 "				{\n"
+#ifdef CALDGEMM_ALPHA1
+"					C[offset + (i + k) * pitch + j + l] = beta * C[offset + (i + k) * pitch + j + l] + addval[k][l];\n"
+#else
 "					C[offset + (i + k) * pitch + j + l] = beta * C[offset + (i + k) * pitch + j + l] + alpha * addval[k][l];\n"
+#endif
 "				}\n"
 "			}\n"
 "		}\n"

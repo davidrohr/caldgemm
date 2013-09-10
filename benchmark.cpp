@@ -99,6 +99,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-q        Supress Display Output\n" );
 	fprintf(STD_OUT, "\t-a        Print the disassembled kernel image\n" );
 	fprintf(STD_OUT, "\t-i        Print IL Kernel used\n" );
+	fprintf(STD_OUT, "\t-if <int> Force DGEMM Kernel Variant\n" );
 	fprintf(STD_OUT, "\t-o  <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n" );
 	fprintf(STD_OUT, "\t-I  <int> Set implicit driver sync\n" );
 	fprintf(STD_OUT, "\t-^  <int> Set DMA queue parameter\n" );
@@ -416,7 +417,15 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			betazero = true;
 			break;
 		case 'i':
-			Config->PrintILKernel = true;
+			if (argv[x][2] == 'f')
+			{
+				if (++x >= argc) return(1);
+				sscanf(argv[x], "%d", &Config->ForceKernelVariant);
+			}
+			else
+			{
+				Config->PrintILKernel = true;
+			}
 			break;
 		case 'c':
 			Config->UseCPU = true;

@@ -229,6 +229,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	PinBroadcastThread = -1;
 	UseDMAFetchQueue = 0;
 	GPU_C = -1;
+	ForceKernelVariant = -1;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -1588,9 +1589,9 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 
 #if defined(CALDGEMM_44) && !defined(CALDGEMM_USE_MEMEXPORT)
 	const unsigned long long int double_minus_one = 0xBFF0000000000000;
-	const int kernel_num = ((Config->Width == BufferWidth && reinterpret_cast<unsigned long long int &>(reinterpret_cast<char &>(Beta)) == double_one && reinterpret_cast<unsigned long long int &>(reinterpret_cast<char &>(Alpha)) == double_minus_one) ? 2 : (reinterpret_cast<unsigned long long int &>(reinterpret_cast<char &>(Alpha)) == double_one));
+	const int kernel_num = Config->ForceKernelVariant != -1 ? Config->ForceKernelVariant : (((Config->Width == BufferWidth && reinterpret_cast<unsigned long long int &>(reinterpret_cast<char &>(Beta)) == double_one && reinterpret_cast<unsigned long long int &>(reinterpret_cast<char &>(Alpha)) == double_minus_one) ? 2 : (reinterpret_cast<unsigned long long int &>(reinterpret_cast<char &>(Alpha)) == double_one)));
 #else
-	const int kernel_num = (reinterpret_cast<unsigned long long int &>(Alpha) == double_one);
+	const int kernel_num = Config->ForceKernelVariant != -1 ? Config->ForceKernelVariant : ((reinterpret_cast<unsigned long long int &>(Alpha) == double_one));
 #endif
 	if (Config->Debug && Config->UseGPU) fprintf(STD_OUT, "Using Kernel %d (alpha=0x%llX (%2.3f), width = %lld)\n", kernel_num, (reinterpret_cast<long long int &>(Alpha)), Alpha, (long long int) Config->Width);
 
@@ -1641,8 +1642,6 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 		buffer_pointers_B[l] = new int[nb];
 		for (size_t ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
 	}
-
-	printConfig();
 
 	bool cpu_k_barrier_hit = false;
 	if (gpu_n && gpu_m)

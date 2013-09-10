@@ -421,6 +421,12 @@ int caldgemm_opencl::InitDevices()
 
 				ocl_tmp_cbuffers_ptr[i][j] = (double*) clEnqueueMapBuffer(ocl_command_queues[i][0], ocl_tmp_cbuffers[i][j], CL_TRUE, CL_MAP_READ, 0, BufferHeight * BufferHeight * sizeof(double), 0, NULL, NULL, &ocl_error);
 				CHKRET(ocl_error, "Error mapping host memory (C tmp)");
+				memset(ocl_tmp_cbuffers_ptr[i][j], 0, BufferHeight * BufferHeight * sizeof(double));
+				
+				if (Config->DstMemory == 'g')
+				{
+					CHKRET(clEnqueueWriteBuffer(ocl_command_queues[i][0], ocl_cbuffers[i][j], CL_TRUE, 0, BufferHeight * BufferHeight * sizeof(double), ocl_tmp_cbuffers_ptr[i][j], 0, NULL, NULL), "Error initializing GPU buffer with zero");
+				}
 			}
 		}
 
@@ -746,10 +752,10 @@ int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, 
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL RunMergeBuffers (%d x %d) (%d x %d) (%d)\n", height, width, gpu_height, gpu_width, pitch);
 	if (Config->SkipCPUProcessing) return(0);
 	double* src = ocl_tmp_cbuffers_ptr[device][j];
-#ifndef _NO_AVX
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
 	const unsigned long long int double_minus_one = 0xBFF0000000000000;
-	if (reinterpret_cast<unsigned long long int &>(Beta) == double_one && reinterpret_cast<unsigned long long int &>(Alpha) == double_minus_one)
+#ifndef _NO_AVX
+	if (reinterpret_cast<unsigned long long int &>(Beta) == double_one && reinterpret_cast<unsigned long long int &>(Alpha) == double_minus_one && (Config->ForceKernelVariant == -1 || Config->ForceKernelVariant == 2))
 	{
 		for (int i = 0;i < height;i++)
 		{
@@ -760,10 +766,10 @@ int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, 
 			{
 //				_mm_prefetch(CAST_FOR_MMPREFETCH (daddr + pitch), _MM_HINT_T0);
 				_mm_prefetch(CAST_FOR_MMPREFETCH (saddr + width), _MM_HINT_T0);;
-				_mm256_store_pd(daddr, _mm256_add_pd(_mm256_load_pd(daddr), _mm256_load_pd(saddr)));
-				_mm256_store_pd(daddr + 4, _mm256_add_pd(_mm256_load_pd(daddr + 4), _mm256_load_pd(saddr + 4)));
-				_mm256_store_pd(daddr + 8, _mm256_add_pd(_mm256_load_pd(daddr + 8), _mm256_load_pd(saddr + 8)));
-				_mm256_store_pd(daddr + 12, _mm256_add_pd(_mm256_load_pd(daddr + 12), _mm256_load_pd(saddr + 12)));
+				_mm256_store_pd(daddr, _mm256_sub_pd(_mm256_load_pd(daddr), _mm256_load_pd(saddr)));
+				_mm256_store_pd(daddr + 4, _mm256_sub_pd(_mm256_load_pd(daddr + 4), _mm256_load_pd(saddr + 4)));
+				_mm256_store_pd(daddr + 8, _mm256_sub_pd(_mm256_load_pd(daddr + 8), _mm256_load_pd(saddr + 8)));
+				_mm256_store_pd(daddr + 12, _mm256_sub_pd(_mm256_load_pd(daddr + 12), _mm256_load_pd(saddr + 12)));
 				daddr += 16;
 				saddr += 16;
 			}
@@ -772,11 +778,12 @@ int caldgemm_opencl::RunMergeBuffers(double* dst, int device, int j, int width, 
 	else
 #endif
 	{
+		double my_alpha = (reinterpret_cast<unsigned long long int &>(Beta) == double_one && reinterpret_cast<unsigned long long int &>(Alpha) == double_minus_one && (Config->ForceKernelVariant == -1 || Config->ForceKernelVariant == 2)) ? -1. : 1.;
 		for (int i = 0;i < height;i++)
 		{
 			for (int j = 0;j < width;j++)
 			{
-				dst[j] = dst[j] + Beta * src[j];
+				dst[j] = Beta * dst[j] + my_alpha * src[j];
 			}
 			src += width;
 			dst += pitch;

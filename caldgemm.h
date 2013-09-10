@@ -141,6 +141,7 @@ public:
 		unsigned int Iterations;				//Run multiple iterations (for benchmark and debugging purpose only)
 		bool Verify;							//Verify the result
 		bool SkipCPUProcessing;					//Skip divide and merge buffer
+		int ForceKernelVariant;					//Force a specific DGEMM kernel, default set to -1 for autoselect
 
 		int GPUMapping[max_devices];			//Mapping of GPU devices to CPU cores. Affects DivideBuffer Threads, merge threads take the succeeding cores.
 		int PostprocessMapping[max_devices];	//Mapping for postprocessing threads, default -1 = same mapping as GPU

@@ -858,7 +858,7 @@ int caldgemm_cal::mergeBuffers(double* dst, BufferProperties* src, int width, in
 	const unsigned long long int double_one = 0x3FF0000000000000;	//1.0 in double
 	const unsigned long long int double_minus_one = 0xBFF0000000000000;
 
-	if (Config->Width == BufferWidth && reinterpret_cast<unsigned long long int &>(Beta) == double_one && reinterpret_cast<unsigned long long int &>(Alpha) == double_minus_one)
+	if (Config->Width == BufferWidth && reinterpret_cast<unsigned long long int &>(Beta) == double_one && reinterpret_cast<unsigned long long int &>(Alpha) == double_minus_one && (Config->ForceKernelVariant == -1 || Config->ForceKernelVariant == 2))
 	{
 		//Special Linpack Function
 		for (int y = 0;y < height;y++)
