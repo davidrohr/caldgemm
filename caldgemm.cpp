@@ -1643,6 +1643,8 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 	}
 
 	if (RunCALDGEMM_Init()) return(0);
+	
+	printConfig();
 
 	bool cpu_k_barrier_hit = false;
 	if (gpu_n && gpu_m)
@@ -3197,10 +3199,10 @@ void caldgemm::printConfig()
 	fprintf(STD_OUT, "ImprovedScheduler %d\n", (int) Config->ImprovedScheduler);
 	fprintf(STD_OUT, "ParallelDMA %d\n", (int) Config->ParallelDMA);
 	fprintf(STD_OUT, "GroupParallelDMA %d\n", (int) Config->GroupParallelDMA);
-	fprintf(STD_OUT, "GPURatio %f\n", (int) Config->GPURatio);
+	fprintf(STD_OUT, "GPURatio %f\n", (double) Config->GPURatio);
 	fprintf(STD_OUT, "GPURatioDuringFact %f\n", (double) Config->GPURatioDuringFact);
-	fprintf(STD_OUT, "MinimizeCPUPart %d\n", (double) Config->MinimizeCPUPart);
-	fprintf(STD_OUT, "MinimizeCPUDuringFact %d\n", (double) Config->MinimizeCPUDuringFact);
+	fprintf(STD_OUT, "MinimizeCPUPart %d\n", (int) Config->MinimizeCPUPart);
+	fprintf(STD_OUT, "MinimizeCPUDuringFact %d\n", (int) Config->MinimizeCPUDuringFact);
 	fprintf(STD_OUT, "UseCPU %d\n", (int) Config->UseCPU);
 	fprintf(STD_OUT, "UseGPU %d\n", (int) Config->UseGPU);
 	fprintf(STD_OUT, "GPU_C %d\n", (int) Config->GPU_C);
@@ -3264,6 +3266,9 @@ void caldgemm::printConfig()
 	{
 		fprintf(STD_OUT, "ExcludeCPUCores[%d] %d\n", i, (int) Config->ExcludeCPUCores[i]);
 	}
+
+	fprintf(STD_OUT, "BufferWidth %d\n", (int) BufferWidth);
+	fprintf(STD_OUT, "BufferHeight %d\n", (int) BufferHeight);
 }
 
 double caldgemm::getMaxGPUTemperature()
