@@ -1642,8 +1642,6 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 		for (size_t ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
 	}
 
-	if (RunCALDGEMM_Init()) return(1);
-	
 	printConfig();
 
 	bool cpu_k_barrier_hit = false;
@@ -2517,6 +2515,8 @@ recalculate_ratio:
 				next_buffer_A[ii] = 0;
 				next_buffer_B[ii] = 0;
 			}
+
+			if (RunCALDGEMM_Init()) return(1);
 
 			if (Config->ParallelDMA != 0 && matrix_n >= Config->ParallelDMA)
 			{
