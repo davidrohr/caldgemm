@@ -1642,7 +1642,7 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 		for (size_t ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
 	}
 
-	if (RunCALDGEMM_Init()) return(0);
+	if (RunCALDGEMM_Init()) return(1);
 	
 	printConfig();
 
