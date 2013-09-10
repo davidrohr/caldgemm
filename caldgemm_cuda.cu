@@ -108,6 +108,12 @@ int caldgemm_cuda::Initialize(bool nocalinit)
 	if (deviceNum >= nDevices) ERRRET("CUDA Device %d not available\n", deviceNum);
 	if (deviceNum >= 0) nDevices = 1;
 	gpu_available = (nDevices > 0);
+	
+	if (nDevices > 1 && !Config->MultiThread)
+	{
+		fprintf(STD_OUT, "Cannot use multiple devices without multithreading\n");
+		nDevices = 1;
+	}
 
 	for (int i = 0;i < nDevices;i++)
 	{

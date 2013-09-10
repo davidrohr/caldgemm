@@ -282,6 +282,12 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 	if (deviceNum >= 0) nDevices = 1;
 	gpu_available = (nDevices > 0);
 
+	if (nDevices > 1 && !Config->MultiThread)
+	{
+		fprintf(STD_OUT, "Cannot use multiple devices without multithreading\n");
+		nDevices = 1;
+	}
+
 	for (int i = 0;i < nDevices;i++)
 	{
 		if (deviceNum >= 0) ocl_devices[i] = devices[deviceNum];

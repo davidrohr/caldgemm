@@ -26,6 +26,7 @@
 #include "caldgemm_common.h"
 #include "cmodules/qmalloc.h"
 #include "cmodules/affinity.h"
+#include "cmodules/qmath.h"
 
 #ifndef _WIN32
 #include <syscall.h>
@@ -2997,7 +2998,7 @@ unsigned int caldgemm::AnalyzeResults()
 {
 	size_t errors = 0;
 	size_t total = 0;
-
+	
 	if (Config->Verify)
 	{
 		if (!Config->Quiet) fprintf(STD_OUT, "Verifying results can take a long time on large matrices.\n");
@@ -3008,9 +3009,14 @@ unsigned int caldgemm::AnalyzeResults()
 		Timer.Stop();
 		if (!Config->Quiet) fprintf(STD_OUT, "CPU Time: %f Gflops: %f\n", Timer.GetElapsedTime(), (double)1e-09 * 2 * matrix_m * matrix_n * Config->Width / Timer.GetElapsedTime());
 
-		int nblocksm = matrix_m / Config->Height + 1;
-		int* errortiles = (int*) malloc((matrix_n / Config->Height + 1) * nblocksm * sizeof(int));
-		memset(errortiles, 0, (matrix_n / Config->Height + 1) * nblocksm * sizeof(int));
+		int nblocksm = 0;
+		int* errortiles = NULL;
+		if (Config->Height)
+		{
+			nblocksm = matrix_m / Config->Height + 1;
+			errortiles = (int*) malloc((matrix_n / Config->Height + 1) * nblocksm * sizeof(int));
+			memset(errortiles, 0, (matrix_n / Config->Height + 1) * nblocksm * sizeof(int));
+		}
 		size_t errorsrel[3];
 		memset(errorsrel, 0, 3 * sizeof(size_t));
 
@@ -3022,7 +3028,7 @@ unsigned int caldgemm::AnalyzeResults()
 				{
 					if (errors < 5) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le, Relative: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j], (D[i * C_pitch + j] - C[i * C_pitch + j]) / D[i * C_pitch + j]);
 					++errors;
-					errortiles[j / Config->Height * nblocksm + i / Config->Height]++;
+					if (Config->Height) errortiles[j / Config->Height * nblocksm + i / Config->Height]++;
 					if (fabs((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j]) > 0.05) errorsrel[0]++;
 					else if (fabs((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j]) < 0.0001) errorsrel[2]++;
 					else errorsrel[1]++;
@@ -3046,7 +3052,7 @@ unsigned int caldgemm::AnalyzeResults()
 		{
 			fprintf(STD_OUT, "Passed!\n");
 		}
-		if (!Config->NoPerformanceWarnings && (errors || Config->Debug))
+		if (!Config->NoPerformanceWarnings && (errors || Config->Debug) && Config->Height)
 		{
 			fprintf(STD_OUT, "GPU output matrix\n");
 			print_submatrices(C, matrix_n, matrix_m, C_pitch, 1, 1, Config->Height, Config->Height);
@@ -3054,7 +3060,7 @@ unsigned int caldgemm::AnalyzeResults()
 			print_submatrices(D, matrix_n, matrix_m, C_pitch, 1, 1, Config->Height, Config->Height, C);
 		}
 
-		if (!Config->NoPerformanceWarnings && errors)
+		if (!Config->NoPerformanceWarnings && errors && Config->Height)
 		{
 			fprintf(STD_OUT, "Number of errors in tiles\n");
 			for (size_t i = 0;i < matrix_m;i += Config->Height)
@@ -3067,7 +3073,10 @@ unsigned int caldgemm::AnalyzeResults()
 			}
 		}
 
-		free(errortiles);
+		if (Config->Height) free(errortiles);
+		
+		//memcpy(C, D, matrix_m * C_pitch * sizeof(double));
+		//cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, gpu_m, gpu_n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
 	}
 
 	return(errors == 0);
@@ -3075,9 +3084,7 @@ unsigned int caldgemm::AnalyzeResults()
 
 bool caldgemm::isDoubleEqual(double a, double b)
 {
-#ifndef _WIN32
-	if (isnan(a) || isnan(b) || isinf(a) || isinf(b)) return(false);
-#endif
+	if (!qIsFinite(a) || !qIsFinite(b)) return(false);
 	double valmax = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
 	if (valmax < 1e-15)
 	{
