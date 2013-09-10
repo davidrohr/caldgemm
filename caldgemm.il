@@ -732,7 +732,11 @@ MMUL_N(r3, r4, r5, r6, r7, r8, r9, r10, r13, r14, r15, r16, r17, r18, r19, r20, 
 #endif
 
 #ifdef CALDGEMM_LATE_EXIT_CONDITION
-"ge r13.z, r0.w, l1.x\n"
+#if defined(CALDGEMM_LINPACK_KERNEL) | defined(CALDGEMM_BENCHMARK_KERNEL) | defined(CALDGEMM_FORCE_K)
+"ge r13.z, r0.w, l1.x\n"				//cmp with width
+#else
+"ge r13.z, r0.w, cb0[1].x\n"				//cmp with width
+#endif
 "break_logicalnz r13.z\n"
 #endif
 
