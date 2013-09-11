@@ -11,6 +11,8 @@
 /// Demonstrates some basic ADL functions - create, destroy, obtaining adapter and display information.
 /// If the display capabilities allow, increases, decreases and restores the brightness of each display
 
+#ifndef _NO_ADL
+
 #ifdef _WIN32
 #define WINDOWS
 #else
@@ -228,4 +230,6 @@ int main (int argc, char** argv)
 		return(1);
 	}
 }
+#endif
+
 #endif

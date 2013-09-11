@@ -167,22 +167,28 @@ caldgemm_cal::caldgemm_cal() : caldgemm()
 
 caldgemm_cal::~caldgemm_cal()
 {
-    if (adl_util_initialized)
-    {
+	if (adl_util_initialized)
+	{
+#ifndef _NO_ADL
 		adl_temperature_check_exit();
-    }
+#endif
+	}
 }
 
 double caldgemm_cal::getMaxGPUTemperature()
 {
-    if (adl_util_initialized == 0)
-    {
+#ifndef _NO_ADL
+	if (adl_util_initialized == 0)
+	{
 		if (adl_temperature_check_init()) return(-1.);
 		adl_util_initialized = 1;
-    }
-    double retVal;
-    if (adl_temperature_check_run(&retVal, !Config->Quiet)) return(-1.);
-    return(retVal);
+	}
+	double retVal;
+	if (adl_temperature_check_run(&retVal, !Config->Quiet)) return(-1.);
+	return(retVal);
+#else
+	return(0.);
+#endif
 }
 
 int caldgemm_cal::divideBuffer(BufferProperties* dst, double* src, int width, int height, int gpu_width, int gpu_height, int pitch, int numBuffers, bool transpose CALDGEMM_DIVBUFA)
