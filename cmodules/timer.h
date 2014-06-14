@@ -9,7 +9,9 @@ public:
 	void Start();
 	void Stop();
 	void Reset();
+	void ResetStart();
 	double GetElapsedTime();
+	double GetCurrentElapsedTime();
 
 private:
 	static double Frequency;
@@ -17,6 +19,7 @@ private:
 
 	double ElapsedTime;
 	double StartTime;
+	int running;
 }; 
 
 #endif

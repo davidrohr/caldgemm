@@ -1,15 +1,16 @@
 #Set these Compiler Paths and Variables to your needs! 
-VSPATH						:= ${VS100COMNTOOLS}../..
+VSPATH						:= ${VS120COMNTOOLS}../..
+VSPATH10					:= ${VS100COMNTOOLS}../..
 VSPATH9						:= ${VS90COMNTOOLS}../..
-VSPATH8						:= ${VS80COMNTOOLS}../..
 VSPATH6						:= c:/Utility/Speeches/Visual Studio 6
-ICCPATH						:= ${ICPP_COMPILER13}
+ICCPATH						:= ${ICPP_COMPILER14}
 VECTORCPATH					:= c:/Utility/speeches/Codeplay
 WINPATH						:= /cygdrive/c/Windows
 CUDAPATH					:= $(CUDA_PATH)
 AMDPATH						:= $(AMDAPPSDKROOT)
-CUDASDKPATH					:= $(CUDAPATH)sdk
+CUDASDKPATH					:= $(CUDAPATH)
 DIRECTXPATH					:= $(DXSDK_DIR)
+QTPATH						:= C:/Utility/Speeches/Qt/5.2.1/msvc2012_64_opengl
 
 ifeq ($(GCC32), )
 GCC32						= i686-pc-mingw32-c++.exe
@@ -25,8 +26,8 @@ ICC32						= $(HIDEECHOA) $(CALLVC) "$(ICCPATH)bin/iclvars_ia32.bat" $(HIDEVARS)
 ICC64						= $(HIDEECHOA) $(CALLVC) "$(ICCPATH)bin/iclvars_intel64.bat" $(HIDEVARS) "$(ICCPATH64)/icl.exe"
 MSCC32						= $(HIDEECHOA) $(CALLVC) "$(VSPATH)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(VSPATH)/vc/bin/cl.exe"
 MSCC64						= $(HIDEECHOA) $(CALLVC) "$(VSPATH)/vc/bin/amd64/vcvars64.bat" $(HIDEVARS) "$(VSPATH)/vc/bin/amd64/cl.exe"
-MSCC932						= $(HIDEECHOA) $(CALLVC) "$(VSPATH9)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(VSPATH9)/vc/bin/cl.exe"
-MSCC964						= $(HIDEECHOA) $(CALLVC) "$(VSPATH9)/vc/bin/amd64/vcvarsamd64.bat" $(HIDEVARS) "$(VSPATH9)/vc/bin/amd64/cl.exe"
+MSCC1032					= $(HIDEECHOA) $(CALLVC) "$(VSPATH10)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(VSPATH10)/vc/bin/cl.exe"
+MSCC1064					= $(HIDEECHOA) $(CALLVC) "$(VSPATH10)/vc/bin/amd64/vcvars64.bat" $(HIDEVARS) "$(VSPATH10)/vc/bin/amd64/cl.exe"
 MASM32						= $(HIDEECHOA) $(CALLVC) "$(VSPATH)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(VSPATH)/vc/bin/ml.exe"
 MASM64						= $(HIDEECHOA) $(CALLVC) "$(VSPATH)/vc/bin/amd64/vcvars64.bat" $(HIDEVARS) "$(VSPATH)/vc/bin/amd64/ml64.exe"
 VCC32						= $(HIDEECHOA) "$(VECTORCPATH)/vectorc86.exe"
@@ -53,10 +54,16 @@ INTELQPROF					=
 #/Qprof_gen, /Qprof_use
 
 #Intel Compiler Options
-INTELFLAGSOPT				= /Oa /Ow /Qansi-alias /Ob2 /Ot /Oi /GA /G7 /O3 /Ox /Qip /Qvec_report0 /Qopt-prefetch /Q$(INTELARCH) /Gs0 /debug:minimal $(INTELOPENMP)
+INTELFLAGSOPT				= /Oa /Ow /Qansi-alias /Ob2 /Ot /Oi /GA /G7 /O3 /Ox /Qvec_report0 /Qopt-prefetch /Q$(INTELARCH) /Gs0 /debug:minimal $(INTELOPENMP)
 # /Qguide  /Qopt-report:2 /Qvec-report:5
+ifeq ($(CONFIG_LTO), 1)
+INTELFLAGSOPT				+= /Qipo
+INTELLINKIPO				= /Qipo-c /Qipo-fo
+else
+INTELFLAGSOPT				+= /Qip
+endif
 INTELFLAGSDBG				= /Od /Zi /Qopenmp-stubs
-INTELFLAGSBASE				= /EHsc /D "INTEL_RUNTIME" /Qvc10 /Qprof_dir$(WORKPATH) $(MULTITHREAD) $(INTELQPROF)
+INTELFLAGSBASE				= /EHsc /D "INTEL_RUNTIME" /Qvc13 /Qprof_dir$(WORKPATH) $(MULTITHREAD) $(INTELQPROF)
 INTELFLAGSCOMMON			= $(INTELFLAGSBASE) $(INTELFLAGSUSE)
 INTELFLAGS32				= $(INTELFLAGSCOMMON) /Oy /Gr
 INTELFLAGS64				= $(INTELFLAGSCOMMON)
@@ -72,7 +79,7 @@ VSNETFLAGSOPT				= /EHs /O2 /Ox /Oi /Ot /Oy /GA /Ob2 /Zi /Qfast_transcendentals 
 VSNETFLAGSDBG				= /Od /Zi
 VSNETFLAGSCOMMON			=  /D "VSNET_RUNTIME" $(VSNETFLAGSUSE) $(EXTRAFLAGSMSCC) /EHsc
 VSNETFLAGS32				= $(VSNETFLAGSCOMMON)
-VSNETFLAGS64				= $(VSNETFLAGSCOMMON) /favor:INTEL64
+VSNETFLAGS64				= $(VSNETFLAGSCOMMON) /favor:$(MSVCFAVOR)
 
 ifeq ("$(CONFIG_OPENMP)", "1")
 INTELFLAGSOPT				+= /Qopenmp
@@ -83,7 +90,9 @@ GCCFLAGSARCH				+= -fopenmp
 endif
 
 ifeq ($(GCCARCH), )
-GCCARCH						= -march=native -msse4.2
+GCCARCHA						= -march=native -msse4.2
+else
+GCCARCHA						= -march=$(GCCARCH) -msse4.2
 endif
 
 #Compilation Output Control
@@ -108,8 +117,12 @@ MSCC						= $(MSCC64) $(VSNETFLAGS64) $(CFLAGS64)
 MSLINK						= $(MSLINK64) $(LINKFLAGS64)
 GCC							= $(GCC64) $(GCCFLAGS64) $(GCCFLAGSCOMMON) $(GCCFLAGSUSE)
 MASM						= $(MASM64)
-CCCUDA						= $(MSCC964) /TP $(VSNETFLAGS64) $(CFLAGS64)
-LIBPATHSUSE					= /LIBPATH:"$(AMDPATH)lib" /LIBPATH:"$(AMDPATH)lib/x86_64" /LIBPATH:"$(CUDAPATH)lib/x64" /LIBPATH:"$(CUDAPATH)sdk/C/common/lib" /LIBPATH:"$(DIRECTXPATH)lib/x64" /LIBPATH:"$(ICCPATH)compiler/lib/intel64"
+CCCUDA						= $(MSCC64) /TP $(VSNETFLAGS64) $(CFLAGS64)
+LIBPATHAMD					= /LIBPATH:"$(AMDPATH)lib" /LIBPATH:"$(AMDPATH)lib/x86_64"
+LIBPATHCUDA					= /LIBPATH:"$(CUDAPATH)lib/x64" /LIBPATH:"$(CUDASDKPATH)common/lib/x64"
+LIBPATHDIRECTX				= /LIBPATH:"$(DIRECTXPATH)lib/x64"
+LIBPATHSUSE					= /LIBPATH:"$(ICCPATH)compiler/lib/intel64"
+LINKFLAGSARCH				= /machine:X64
 else
 ICC							= $(ICC32) $(INTELFLAGS32) $(CFLAGS32)
 CCDBG						= $(MSCC32) $(CFLAGS32) $(DEBUGFLAGS)
@@ -120,9 +133,15 @@ MSLINKGCC					= $(MSLINK32GCC) $(LINKFLAGS32)
 VCC							= $(VCC32) /outfile $@ $(VECTORCFLAGS) $(CFLAGS32)
 GCC							= $(GCC32) $(GCCFLAGS32) $(GCCFLAGSCOMMON) $(GCCFLAGSUSE)
 MASM						= $(MASM32)
-CCCUDA						= $(MSCC932) $(VSNETFLAGS32) $(CFLAGS32) /TP /Gd
-LIBPATHSUSE					= /LIBPATH:"$(AMDPATH)lib" /LIBPATH:"$(AMDPATH)lib/x86" /LIBPATH:"$(CUDAPATH)lib/win32" /LIBPATH:"$(DIRECTXPATH)lib/x86" /LIBPATH:"$(ICCPATH)compiler/lib/ia32"
+CCCUDA						= $(MSCC1032) $(VSNETFLAGS32) $(CFLAGS32) /TP /Gd
+LIBPATHAMD					= /LIBPATH:"$(AMDPATH)lib" /LIBPATH:"$(AMDPATH)lib/x86"
+LIBPATHCUDA					= /LIBPATH:"$(CUDAPATH)lib/win32" /LIBPATH:"$(CUDASDKPATH)common/lib/Win32"
+LIBPATHDIRECTX				= /LIBPATH:"$(DIRECTXPATH)lib/x86"
+LIBPATHSUSE					= /LIBPATH:"$(ICCPATH)compiler/lib/ia32"
+LINKFLAGSARCH				= /machine:I386
 endif
+QTUIC						= $(QTPATH)/bin/uic.exe
+QTMOC						= $(QTPATH)/bin/moc.exe
 
 LIBPATHSUSE					+= $(LIBPATHS:%=/LIBPATH:%)
 
@@ -141,10 +160,11 @@ CC							= $(MSCC)
 LINK						= $(MSLINK)
 endif
 GCC3264						= $(GCC)
+CC_SELECTED					= $(CC_i686-pc-cygwin)
 
 ASM							= $(MASM)
 ASMPRE						= $(MSCC32)
-NVCC						= $(HIDEECHOA) $(CALLVC) "$(VSPATH9)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(CUDAPATH)bin/nvcc"
+NVCC						= $(HIDEECHOA) $(CALLVC) "$(VSPATH10)/vc/bin/vcvars32.bat" $(HIDEVARS) "$(CUDAPATH)bin/nvcc"
 
 MULTITHREADGCC				= -mthreads -D_MT
 
@@ -158,13 +178,11 @@ LIBSUSE						+= $(GCCLIBPATH:%=/LIBPATH:"%") libgcc.a libstdc++.a libmingw32.a l
 #libgcov.a libmingwex.a
 endif
 
-ifneq ($(CUFILES), )
-LIBSUSE						+= cudart.lib cuda.lib
+OPENCLLIB					= OpenCL.lib
+ifeq ("$(CONFIG_OPENCL)", "1")
+LIBSUSE						+= $(OPENCLLIB)
 endif
 
-ifeq ("$(CONFIG_OPENCL)", "1")
-LIBSUSE						+= OpenCL.lib
-endif
 ifeq ("$(CONFIG_CAL)", "1")
 ifeq ($(ARCHBITS), 64)
 LIBSUSE						+= aticalcl64.lib aticalrt64.lib
@@ -172,14 +190,25 @@ else
 LIBSUSE						+= aticalcl.lib aticalrt.lib
 endif
 endif
-ifeq ("$(CONFIG_DDRAW)", "1")
+
+ifeq ("$(CONFIG_DIRECTX)", "1")
 LIBSUSE						+= ddraw.lib dxguid.lib dxerr.lib
+COMMONINCLUDEPATHS			+= "$(DIRECTXPATH)include"
+LIBPATHSUSE					+= $(LIBPATHDIRECTX)
 endif
+
 ifeq ("$(CONFIG_VIDEO_EDIT)", "1")
 LIBSUSE						+= amstrmid.lib msacm32.lib vfw32.lib winmm.lib
 endif
+
 ifeq ("$(CONFIG_OPENGL)", "1")
 LIBSUSE						+= opengl32.lib glu32.lib
+endif
+
+ifeq ("$(CONFIG_QT)", "1")
+LIBSUSE						+= Qt5Gui.lib Qt5Core.lib Qt5Widgets.lib
+COMMONINCLUDEPATHS			+= $(QTPATH)/include $(WORKPATH)/qt
+LIBPATHSUSE					+= /LIBPATH:$(QTPATH)/lib
 endif
 
 LIBSUSE						+= $(LIBS:%=%.lib)
@@ -192,17 +221,17 @@ LINKTARGETTYPE				=
 EXECUTABLE					= $(TARGET).exe
 endif
 
-COMMONINCLUDEPATHS			+= "$(DIRECTXPATH)include"
-
 ifeq ("$(CONFIG_OPENCL)", "1")
 ifeq ("$(CONFIG_OPENCL_VERSION)", "AMD")
 COMMONINCLUDEPATHS			+= "$(AMDPATH)include"
+LIBPATHSUSE					+= $(LIBPATHAMD)
 endif
 ifeq ("$(CONFIG_OPENCL_VERSION)", "NVIDIA")
 COMMONINCLUDEPATHS			+= "$(CUDAPATH)include"
+LIBPATHSUSE					+= $(LIBPATHCUDA)
 endif
 ifeq ("$(CONFIG_OPENCL_VERSION)", "Intel")
-#COMMONINCLUDEPATHS			+= ""
+COMMONINCLUDEPATHS			+= ""
 endif
 ifeq ("$(CONFIG_OPENCL_VERSION)", "All")
 COMMONINCLUDEPATHS			+= "$(AMDPATH)include"
@@ -212,11 +241,26 @@ endif
 endif
 
 ifeq ("$(CONFIG_CUDA)", "1")
-COMMONINCLUDEPATHS			+= "$(CUDAPATH)include" "$(CUDASDKPATH)/C/common/inc"
+COMMONINCLUDEPATHS			+= "$(CUDAPATH)include" "$(CUDASDKPATH)common/inc"
+LIBPATHSUSE					+= $(LIBPATHCUDA)
+ifneq ($(CUFILES), )
+LIBSUSE						+= cudart.lib cuda.lib
+ifeq ($(CONFIG_CUDA_DC), 1)
+LIBSUSE						+= cudadevrt.lib
+endif
+ifeq ("$(CONFIG_OPENGL)", "1")
+ifeq ($(ARCHBITS), 64)
+LIBSUSE						+= freeglut.lib glew64.lib
+else
+LIBSUSE						+= freeglut.lib glew32.lib
+endif
+endif
+endif
 endif
 
 ifeq ("$(CONFIG_CAL)", "1")
 COMMONINCLUDEPATHS			+= "$(AMDPATH)/include/CAL"
+LIBPATHSUSE					+= $(LIBPATHAMD)
 endif
 
 ifeq ($(CC_i686-pc-cygwin), GCC)
@@ -230,17 +274,16 @@ DEFINESUSE					= $(GCCDEFINES)
 else
 INCLUDEPATHSUSE				= $(VSINCLUDEPATHS)
 DEFINESUSE					= $(VSDEFINES)
-COMPILEOUTPUT				= /Fo"$@"
+COMPILEOUTPUTBASE			= /Fo
+COMPILEOUTPUT				= $(COMPILEOUTPUTBASE)"$@"
 LINKOUTPUT					= /Out:"$@"
 COMPILEONLY					= /c
 ASMONLY						= /c
 PRECOMPILEONLY				= /EP 
 endif
+OBJ							= obj
 
 DEFINESARCH					= "WIN32"
 
 NVCCARCHS					:= `for i in $(CUDAVERSION); do echo -n -gencode arch BAT_SPECIAL_EQ compute_$$i BAT_SPECIAL_KOMMA code BAT_SPECIAL_EQ sm_$$i\ ;done`
 NVCC_GREP					= "^#line\|^$$"
-DCUDAEMU					= /DCUDA_DEVICE_EMULATION
-
-WORKPATHSUFFIX				=

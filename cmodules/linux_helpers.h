@@ -1,6 +1,9 @@
 #ifndef LINUX_HELPERS_H
 #define LINUX_HELPERS_H
 
+#include <termios.h>
+#include <unistd.h>
+
 static inline int getch()
 {
 	static struct termios oldt, newt;
@@ -30,4 +33,10 @@ static inline int kbhit()
    ungetc(c, stdin);
    return ((c != -1) ? 1 : 0);
 }
+
+static void inline Sleep(int msecs)
+{
+	usleep(msecs * 1000);
+}
+
 #endif

@@ -1,5 +1,7 @@
-INTELARCH					= SSE4.2
-CUDAVERSION					= 20
+INTELARCH					= Host
+GCCARCH						= native
+MSVCFAVOR					= INTEL64
+CUDAVERSION					= 10 13 20 30 35
 CUDAREGS					= 64
 ARCHBITS					= 64
 
@@ -19,15 +21,18 @@ LIBS						= sample
 
 #CONFIG_STATIC				= 1
 
+CONFIG_DIRECTX				= 1
 CONFIG_OPENCL				= 1
 CONFIG_OPENGL				= 0
 CONFIG_OPENMP				= 0
 CONFIG_CAL					= 0
-CONFIG_CUDA					=
-#CONFIG_DDRAW				=
+#CONFIG_X11					=
+CONFIG_CUDA					= 0
 #CONFIG_VIDEO_EDIT			=
 CONFIG_OPENCL_VERSION		= All
 #Options are: AMD, NVIDIA, Intel, All, empty defaults to all
+CONFIG_QT					= 0
+CONFIG_CPP11				= 0
 
 include						config_common.mak
 
@@ -35,15 +40,26 @@ TARGET						= ca
 SUBTARGETS					= libAliHLTTPCCAGPUSA
 
 TARGETTYPE					= LIB
-WORKPATHSUFFIX				= $(TARGETTYPE)
+WORKPATHSUFFIX				= $(TARGETTYPE)_$TARGET
 
 CPPFILES					= sample.cpp
 CXXFILES					= subdir/sample.cxx \
 								subdir/sample2.cxx
 ASMFILES					= sample.asm
 CUFILES						= sample.cu
+RESOURCEFILES				= myresource.dat
+CLFILES						= opencl_file.cl
+CFILES						= sample.c
+QTFILES						= 
 
-INTELFLAGSUSE				= $(INTELFLAGSOPT)
-VSNETFLAGSUSE				= $(VSNETFLAGSOPT)
-GCCFLAGSUSE					= $(GCCFLAGSOPT)
-NVCCFLAGSUSE				= $(NVCCFLAGSOPT)
+OPENCL_OPTIONS				= -x clc++
+
+#Set all compiler flags to optimized/debug or set compiler flags individually
+COMPILER_FLAGS				= OPT
+#INTELFLAGSUSE				= $(INTELFLAGSOPT)
+#VSNETFLAGSUSE				= $(VSNETFLAGSOPT)
+#GCCFLAGSUSE				= $(GCCFLAGSOPT)
+#NVCCFLAGSUSE				= $(NVCCFLAGSOPT)
+
+CONFIG_LTO					= 1
+CONFIG_CUDA_DC				= 1
