@@ -753,7 +753,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 8, sizeof(int), &pitch), "Error setting kernel arg pitch");
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 9, sizeof(int), &offset), "Error setting kernel arg offset");
 
-	size_t local_size[2] = {KernelSettings.group_size_x, KernelSettings.group_size_y};
+	size_t local_size[2] = {(size_t) KernelSettings.group_size_x, (size_t) KernelSettings.group_size_y};
 	size_t global_size[2] = {(size_t) height1 / KernelSettings.tiling_x, (size_t) height2 / KernelSettings.tiling_y};
 
 	if (Config->VerboseTiming)
