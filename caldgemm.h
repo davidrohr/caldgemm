@@ -396,7 +396,7 @@ protected:
 	
 	void CheckAlternateTilesRemaining(size_t m);
 
-	bool buffersSwitchable = true;
+	bool buffersSwitchable;
 
 	unsigned int AnalyzeResults();
 	void displayMatrixTiming(const char* name);
