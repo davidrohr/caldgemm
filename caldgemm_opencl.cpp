@@ -263,18 +263,51 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL Initialice\n");
 	cl_int ocl_error;
 
+	cl_uint num_devices;
+	clGetDeviceIDs(ocl_platform, CL_DEVICE_TYPE_ALL, 0, NULL, &num_devices);
+	nDevices = num_devices;
+	if (nDevices == 0) ERRRET("No OpenCL device for this platform found\n");
+	if (Config->Debug) fprintf(STD_OUT, "%d OpenCL devices found for this platform\n", nDevices);
+
 	cl_device_id* devices = new cl_device_id[nDevices];
 	if (devices == NULL) ERRRET("Memory allocation error\n");
 	CHKRET(clGetDeviceIDs(ocl_platform, CL_DEVICE_TYPE_ALL, nDevices, devices, NULL), "Error getting OpenCL devices\n");
 
+	int gooddevices = 0;
+	int cpu_found = 0;
+	cl_device_id cpu_device;
 	for (int i = 0;i < nDevices;i++)
 	{
 		char device_vendor[64], device_name[64];
+		cl_device_type device_type;
+		cl_uint nbits;
 		clGetDeviceInfo(devices[i], CL_DEVICE_NAME, 64, device_name, NULL);
 		clGetDeviceInfo(devices[i], CL_DEVICE_VENDOR, 64, device_vendor, NULL);
-		if (Config->Debug) fprintf(STD_OUT, "Device %d: %s %s\n", i, device_vendor, device_name);
+		clGetDeviceInfo(devices[i], CL_DEVICE_TYPE, sizeof(cl_device_type), &device_type, NULL);
+		clGetDeviceInfo(devices[i], CL_DEVICE_ADDRESS_BITS, sizeof(nbits), &nbits, NULL);
+		int device_ok = (device_type & CL_DEVICE_TYPE_GPU) && !(device_type & CL_DEVICE_TYPE_CPU);
+		if (Config->Debug) fprintf(STD_OUT, "Device %d -> %d: %s %s (%d bits)\n", i, device_ok ? gooddevices : -1, device_vendor, device_name, nbits);
+		if (device_ok)
+		{
+			devices[gooddevices++] = devices[i];
+		}
+		if (device_type & CL_DEVICE_TYPE_CPU)
+		{
+			cpu_found = 1;
+			cpu_device = devices[i];
+		}
 	}
 
+	if (cpu_found == 0)
+	{
+		ERRRET("No CPU OpenCL device found for mapping buffers\n");
+	}
+	if (gooddevices == 0)
+	{
+		ERRRET("No OpenCL GPU device found\n");
+	}
+
+	nDevices = gooddevices;
 	if (nDevices > (signed) max_devices) nDevices = max_devices;
 	if (nDevices > Config->NumDevices) nDevices = Config->NumDevices;
 
@@ -292,19 +325,11 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 	{
 		if (deviceNum >= 0) ocl_devices[i] = devices[deviceNum];
 		else ocl_devices[i] = devices[Config->DeviceNums[i]];
-		cl_device_type type;
-		clGetDeviceInfo(ocl_devices[i], CL_DEVICE_TYPE, sizeof(type), &type, NULL);
-		if (!(type & CL_DEVICE_TYPE_GPU))
-		{
-			delete[] devices;
-			fprintf(STD_OUT, "OpenCL device used as %d-th device is not a GPU\n", i);
-			return(1);
-		}
 	}
-	
+	ocl_devices[nDevices] = cpu_device;
 	delete[] devices;
 
-	ocl_context = clCreateContext(NULL, nDevices, ocl_devices, NULL, NULL, &ocl_error);
+	ocl_context = clCreateContext(NULL, nDevices + 1, ocl_devices, NULL, NULL, &ocl_error);
 	CHKRET(ocl_error, "Error creating OpenCL context");
 
 	for (int i = 0;i < nDevices;i++)
@@ -315,6 +340,9 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 			CHKRET(ocl_error, "Error creating OpenCL command queue");
 		}
 	}
+
+	ocl_command_queue_cpu = clCreateCommandQueue(ocl_context, ocl_devices[nDevices], 0, &ocl_error);
+	CHKRET(ocl_error, "Error creating OpenCL CPU command queue");
 
 	return(0);
 }
@@ -347,12 +375,6 @@ int caldgemm_opencl::ValidateRuntime()
 	if (Config->OpenCLPlatform >= (signed) num_platforms) ERRRET("OpenCL Platform %d not available\n", Config->OpenCLPlatform);
 	ocl_platform = platforms[Config->OpenCLPlatform];
 	delete[] platforms;
-
-	cl_uint num_devices;
-	clGetDeviceIDs(ocl_platform, CL_DEVICE_TYPE_ALL, 0, NULL, &num_devices);
-	nDevices = num_devices;
-	if (nDevices == 0) ERRRET("No OpenCL device for this platform found\n");
-	if (Config->Debug) fprintf(STD_OUT, "%d OpenCL devices found for this platform\n", nDevices);
 
 	return(0);
 }
@@ -722,6 +744,7 @@ int caldgemm_opencl::ExitRuntime()
 			clReleaseCommandQueue(ocl_command_queues[i][j]);
 		}
 	}
+	clReleaseCommandQueue(ocl_command_queue_cpu);
 	clReleaseContext(ocl_context);
 
 	return(0);

@@ -79,9 +79,10 @@ private:
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
 
 	cl_platform_id ocl_platform;
-	cl_device_id ocl_devices[max_devices];
+	cl_device_id ocl_devices[max_devices + 1]; //+1 for cpu
 	cl_context ocl_context;
 	cl_command_queue ocl_command_queues[max_devices][obuffercount];
+	cl_command_queue ocl_command_queue_cpu;
 	cl_mem ocl_abuffers[max_devices][ibuffercount];
 	cl_mem ocl_bbuffers[max_devices][max_bbuffers];
 	cl_mem ocl_cbuffers[max_devices][obuffercount];

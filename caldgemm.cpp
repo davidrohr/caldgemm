@@ -503,8 +503,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 #endif
 
 	if (ValidateRuntime()) return(1);
-
-	if (Config->Debug) fprintf(STD_OUT, "Initializing CAL\n");
+	if (Config->Debug) fprintf(STD_OUT, "Initializing Backend\n");
 	if (Config->UseGPU == 0 || Initialize(nocalinit))
 	{
 		gpu_available = false;
