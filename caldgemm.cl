@@ -7,6 +7,7 @@
 
 const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
+"//KERNEL TRANSPOSED B SIMPLE BUFFERS\n"
 "__kernel void oclkernel(__global double* C, __global const double* __restrict const A, __global const double* __restrict const B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
 "{\n"
 "	int i, j, k;\n"
@@ -37,6 +38,7 @@ OCL_KERNEL_PRE
 
 const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
+"//KERNEL TRANSPOSED A SIMPLE BUFFERS\n"
 "__kernel void oclkernel(__global double* C, __global const double* __restrict const A, __global const double* __restrict const B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
 "{\n"
 "	int i, j, k;\n"
@@ -73,6 +75,7 @@ OCL_KERNEL_PRE
 
 const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
+"//KERNEL TRANSPOSED B TEXTURE BUFFERS\n"
 "union double_read {uint4 f; double2 d;};\n"
 "__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
 "{\n"
@@ -114,6 +117,7 @@ OCL_KERNEL_PRE
 
 const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
+"//KERNEL TRANSPOSED A TEXTURE BUFFERS\n"
 "union double_read {uint4 f; double2 d;};\n"
 "__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
 "{\n"
@@ -154,6 +158,7 @@ OCL_KERNEL_PRE
 
 const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
+"//KERNEL TRANSPOSED A TEXTURE BUFFERS TILED\n"
 "//#pragma OPENCL EXTENSION CP_FP_FMA\n"
 "union double_read {uint4 f; double2 d;};\n"
 "#define OCL_TILING_X " qon_mxstr(OCL_TILING_X) "\n"
