@@ -236,6 +236,17 @@ protected:
 
 	size_t matrix_m, matrix_n;
 
+	struct DGEMMKernelSettingsStruct
+	{
+		int tiling_x;
+		int tiling_y;
+		bool transposeA;
+		bool transposeB;
+		bool texture_buffers;
+	};
+	DGEMMKernelSettingsStruct KernelSettings;
+	void SetDefaultKernelSettings();
+
 	int RunCALDGEMMMain(int parallelDevice = -1);
 	int* tileDistribution;
 	int first_device_k[max_devices];
@@ -256,6 +267,7 @@ protected:
 		volatile int* next_device;
 		volatile int skip_device_to;
 	} DGEMMTasks[max_devices];
+
 	int DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task CALDGEMM_DIVBUFA);
 
 	volatile bool DGEMMPrepareTaskEventReady[max_devices][obuffercount];
@@ -384,11 +396,7 @@ protected:
 	
 	void CheckAlternateTilesRemaining(size_t m);
 
-#if (defined(CALDGEMM_TRANSPOSED_A) | defined(CALDGEMM_TRANSPOSED_B)) & !(defined(CALDGEMM_TRANSPOSED_A) & defined(CALDGEMM_TRANSPOSED_B))
-	static const bool buffersSwitchable = true;
-#else
-	static const bool buffersSwitchable = false;
-#endif
+	bool buffersSwitchable = true;
 
 	unsigned int AnalyzeResults();
 	void displayMatrixTiming(const char* name);

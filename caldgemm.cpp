@@ -503,6 +503,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 #endif
 
 	if (ValidateRuntime()) return(1);
+	buffersSwitchable = (KernelSettings.transposeA ^ KernelSettings.transposeB);
 	if (Config->Debug) fprintf(STD_OUT, "Initializing Backend\n");
 	if (Config->UseGPU == 0 || Initialize(nocalinit))
 	{
@@ -3287,6 +3288,23 @@ int caldgemm::RunCALDGEMM_Init()
 int caldgemm::RunCALDGEMM_Exit()
 {
 	return(0);
+}
+
+void caldgemm::SetDefaultKernelSettings()
+{
+#ifdef CALDGEMM_TRANSPOSED_A
+	KernelSettings.transposeA = true;
+#else
+	KernelSettings.transposeA = false;
+#endif
+#ifdef CALDGEMM_TRANSPOSED_B
+	KernelSettings.transposeB = true;
+#else
+	KernelSettings.transposeB = false;
+#endif
+	KernelSettings.texture_buffers = true;
+	KernelSettings.tiling_x = TILING_X;
+	KernelSettings.tiling_y = TILING_Y;
 }
 
 #ifndef USE_GOTO_BLAS

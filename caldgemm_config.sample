@@ -97,7 +97,10 @@
 #define CALDGEMM_LOOKAHEAD_RATIO_MODIFIER 0.2	//Decrease CPU Part of matrix when using lookahead to compensate for performance fluctuations
 //#define VTRACE
 
+//Settings for integrated OpenCL kernels, 3rd party kernels from -Ol library must override this
 #define OCL_TILING_X 4
 #define OCL_TILING_Y 4
 #define OCL_TILED_KERNEL
 #define OCL_USE_SIMPLE_BUFFERS
+#define OCL_GROUP_SIZE_X 8
+#define OCL_GROUP_SIZE_Y 8

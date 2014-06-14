@@ -148,6 +148,8 @@ int caldgemm_cuda::ValidateRuntime()
 	if (nDevices == 0) ERRRET("No CUDA device for this platform found\n");
 	if (Config->Debug) fprintf(STD_OUT, "%d CUDA devices found for this platform\n", nDevices);
 
+	SetDefaultKernelSettings();
+
 	return(0);
 }
 

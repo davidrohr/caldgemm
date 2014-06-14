@@ -1637,6 +1637,7 @@ int caldgemm_cal::ValidateRuntime()
 	}
 #endif
 
+	SetDefaultKernelSettings();
 
 	return(0);
 }

@@ -53,6 +53,7 @@ int caldgemm_cpu::ValidateRuntime()
 {
 	if (Config->Debug) fprintf(STD_OUT, "CALDGEMM_CPU ValidateRuntime\n");
 	Config->GPU_C = false;
+	SetDefaultKernelSettings();
 	return(0);
 }
 

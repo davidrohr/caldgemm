@@ -256,8 +256,6 @@ int caldgemm_opencl::WaitForEvent(int a, int b, int mustlock)
 
 int caldgemm_opencl::Initialize(bool nocalinit)
 {
-	if (Config->config_backend == NULL) Config->config_backend = new caldgemm_config_backend_opencl;
-	config_backend = (caldgemm_config_backend_opencl*) Config->config_backend;
 	int deviceNum = Config->DeviceNum;
 	if (!Config->Quiet) fprintf(STD_OUT, "Initializing CALDGEMM (OpenCL Runtime)\n");
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL Initialice\n");
@@ -372,9 +370,62 @@ int caldgemm_opencl::ValidateRuntime()
 		if (Config->Debug) fprintf(STD_OUT, "Platform %d: (%s %s) %s %s\n", i, platform_profile, platform_version, platform_vendor, platform_name);
 	}
 
-	if (Config->OpenCLPlatform >= (signed) num_platforms) ERRRET("OpenCL Platform %d not available\n", Config->OpenCLPlatform);
+	if (Config->OpenCLPlatform >= (signed)num_platforms) ERRRET("OpenCL Platform %d not available\n", Config->OpenCLPlatform);
 	ocl_platform = platforms[Config->OpenCLPlatform];
 	delete[] platforms;
+
+	if (Config->config_backend == NULL) Config->config_backend = new caldgemm_config_backend_opencl;
+	config_backend = (caldgemm_config_backend_opencl*) Config->config_backend;
+
+	if (config_backend->kernelLib != NULL)
+	{
+		if (Config->PrintILKernel)
+		{
+			fprintf(STD_OUT, "Cannot print kernel from 3ed party library\n");
+		}
+
+#ifdef _WIN32
+		kernelLib = LoadLibrary(config_backend->kernelLib);
+#else
+		kernelLib = dlopen(config_backend->kernelLib, RTLD_LAZY|RTLD_GLOBAL);
+#endif
+		if (kernelLib == NULL)
+		{
+			fprintf(STD_OUT, "Error opening kernel library: %s\n", config_backend->kernelLib);
+			return(1);
+		}
+#ifdef _WIN32
+		kernelLibCreate = (cl_kernel (*) (cl_context*, int, cl_device_id*, int, int)) GetProcAddress(kernelLib, "kernelLibCreate");
+		kernelLibQuerySettings = (void (*) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers)) GetProcAddress(kernelLib, "kernelLibQuerySettings");
+#else
+		kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int)) dlsym(kernelLib, "kernelLibCreate");
+		kernelLibQuerySettings = (void (*) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers)) dlsym(kernelLib, "kernelLibQuerySettings");
+#endif
+		if (kernelLibCreate == NULL || kernelLibQuerySettings == NULL)
+		{
+			fprintf(STD_OUT, "Error getting function pointer from external library\n");
+			return(1);
+		}
+
+		kernelLibQuerySettings(&KernelSettings.tiling_x, &KernelSettings.tiling_y, &KernelSettings.transposeA, &KernelSettings.transposeB, &KernelSettings.texture_buffers);
+	}
+	else
+	{
+		//Do not set default kernel settings
+#ifdef CALDGEMM_TRANSPOSED_A
+		KernelSettings.transposeA = true;
+#else
+		KernelSettings.transposeA = false;
+#endif
+#ifdef CALDGEMM_TRANSPOSED_B
+		KernelSettings.transposeB = true;
+#else
+		KernelSettings.transposeB = false;
+#endif
+		KernelSettings.texture_buffers = true;
+		KernelSettings.tiling_x = OCL_TILING_X;
+		KernelSettings.tiling_y = OCL_TILING_Y;
+	}
 
 	return(0);
 }

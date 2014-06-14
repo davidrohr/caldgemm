@@ -114,6 +114,7 @@ private:
 
 	HINSTANCE kernelLib;
 	cl_kernel (*kernelLibCreate) (cl_context* context, int nDevices, cl_device_id* devices, int kernelType, int k);
+	void (*kernelLibQuerySettings) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers);
 
 public:
 	struct gpu_mem_struct_opencl
