@@ -118,7 +118,7 @@ private:
 public:
 	struct gpu_mem_struct_opencl
 	{
-		void* ptr[caldgemm_opencl::max_devices];
+		void* ptr;
 		cl_mem mem_obj;
 	};
 };

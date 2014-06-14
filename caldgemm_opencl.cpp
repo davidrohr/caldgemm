@@ -1216,21 +1216,28 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 			fprintf(STD_OUT, "Error allocating memory (clCreateBuffer) (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
 			return(0);
 		}
-		for (int i = 0;i < nDevices;i++)
-		{
-			gpu_mem[nGPUMEM].ptr[i] = clEnqueueMapBuffer(ocl_command_queues[i][0], gpu_mem[nGPUMEM].mem_obj, CL_TRUE, 0, 0, nDoubles * sizeof(double), 0, NULL, NULL, &ocl_error);
-		}
+
+		gpu_mem[nGPUMEM].ptr = clEnqueueMapBuffer(ocl_command_queue_cpu, gpu_mem[nGPUMEM].mem_obj, CL_TRUE, 0, 0, nDoubles * sizeof(double), 0, NULL, NULL, &ocl_error);
 		if (ocl_error != CL_SUCCESS)
 		{
 			fprintf(STD_OUT, "Error allocating memory (clEnqueueMapBuffer) (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
 			return(0);
 		}
+		for (int i = 0;i < nDevices;i++)
+		{
+			void* tmp_ptr = clEnqueueMapBuffer(ocl_command_queues[i][0], gpu_mem[nGPUMEM].mem_obj, CL_TRUE, 0, 0, nDoubles * sizeof(double), 0, NULL, NULL, &ocl_error);
+			if (ocl_error != CL_SUCCESS || tmp_ptr != gpu_mem[nGPUMEM].ptr)
+			{
+				fprintf(STD_OUT, "Error allocating memory (clEnqueueMapBuffer) (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
+				return(0);
+			}
+		}
 		if (Cmatrix)
 		{
-			C_matrix_base = (double*) gpu_mem[nGPUMEM].ptr[0];
+			C_matrix_base = (double*) gpu_mem[nGPUMEM].ptr;
 			C_matrix_base_obj = &gpu_mem[nGPUMEM].mem_obj;
 		}
-		return((double*) gpu_mem[nGPUMEM++].ptr[0]);
+		return((double*) gpu_mem[nGPUMEM++].ptr);
 	}
 	else
 	{
@@ -1245,12 +1252,13 @@ void caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
 	{
 		for (int i = 0;i < nGPUMEM;i++)
 		{
-			if (gpu_mem[i].ptr[0] == (void*) ptr)
+			if (gpu_mem[i].ptr == (void*) ptr)
 			{
 				for (int j = 0;j < nDevices;j++)
 				{
-					clEnqueueUnmapMemObject(ocl_command_queues[j][0], gpu_mem[i].mem_obj, gpu_mem[i].ptr[j], 0, NULL, NULL);
+					clEnqueueUnmapMemObject(ocl_command_queues[j][0], gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL);
 				}
+				clEnqueueUnmapMemObject(ocl_command_queue_cpu, gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL);
 				clReleaseMemObject(gpu_mem[i].mem_obj);
 				if (C_matrix_base_obj == &gpu_mem[nGPUMEM - 1].mem_obj) C_matrix_base_obj = &gpu_mem[i].mem_obj;
 				gpu_mem[i] = gpu_mem[--nGPUMEM];
