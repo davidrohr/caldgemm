@@ -100,7 +100,7 @@ private:
 	cl_event ocl_conversion_events[max_devices][2];
 	int ocl_conversion_events_use[max_devices][2];
 
-	static const char *OCLKernel, *OCLKernelALPHA1, *OCLKernelLinpack, *OCLConvertKernel;
+	static const char *OCLKernel, *OCLKernelALPHA1, *OCLKernelLinpack, *OCLConvertKernel, *OCLConvertKernelTex;
 
 	int WaitForEventAndRelease(cl_event* pEvent, int lock = -1);
 	int divideBuffer(double* src, size_t pitch_src, double* dest, size_t nSrcRows, size_t nSrcCols, bool transpose);

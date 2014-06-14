@@ -54,7 +54,6 @@
 #include <dlfcn.h>
 #endif
 
-#ifdef OCL_USE_SIMPLE_BUFFERS
 const char* caldgemm_opencl::OCLConvertKernel =
 OCL_KERNEL_PRE
 "__kernel void oclconkernel(__global const uint4* __restrict const iBuffer, __global uint4* const oBuffer, int width, int height, int transpose)\n"
@@ -88,8 +87,7 @@ OCL_KERNEL_PRE
 "}\n"
 ;
 
-#else
-const char* caldgemm_opencl::OCLConvertKernel =
+const char* caldgemm_opencl::OCLConvertKernelTex =
 OCL_KERNEL_PRE
 "__kernel void oclconkernel(__global const uint4* iBuffer, __write_only image2d_t oBuffer, int width, int height, int transpose)\n"
 "{\n"
@@ -129,7 +127,6 @@ OCL_KERNEL_PRE
 "	}\n"
 "}\n"
 ;
-#endif
 
 static const char* opencl_error_string(int errorcode)
 {
@@ -638,7 +635,7 @@ int caldgemm_opencl::InitDevices()
 					sourceCode = OCLKernelLinpack;
 					break;
 				case 3:
-					sourceCode = OCLConvertKernel;
+					sourceCode = KernelSettings.texture_buffers ? OCLConvertKernelTex : OCLConvertKernel;
 					break;
 			}
 
