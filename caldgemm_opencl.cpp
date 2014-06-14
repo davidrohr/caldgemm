@@ -396,10 +396,10 @@ int caldgemm_opencl::ValidateRuntime()
 		}
 #ifdef _WIN32
 		kernelLibCreate = (cl_kernel (*) (cl_context*, int, cl_device_id*, int, int)) GetProcAddress(kernelLib, "kernelLibCreate");
-		kernelLibQuerySettings = (void (*) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers)) GetProcAddress(kernelLib, "kernelLibQuerySettings");
+		kernelLibQuerySettings = (void (*) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y)) GetProcAddress(kernelLib, "kernelLibQuerySettings");
 #else
 		kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int)) dlsym(kernelLib, "kernelLibCreate");
-		kernelLibQuerySettings = (void (*) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers)) dlsym(kernelLib, "kernelLibQuerySettings");
+		kernelLibQuerySettings = (void (*) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y)) dlsym(kernelLib, "kernelLibQuerySettings");
 #endif
 		if (kernelLibCreate == NULL || kernelLibQuerySettings == NULL)
 		{
@@ -407,7 +407,7 @@ int caldgemm_opencl::ValidateRuntime()
 			return(1);
 		}
 
-		kernelLibQuerySettings(&KernelSettings.tiling_x, &KernelSettings.tiling_y, &KernelSettings.transposeA, &KernelSettings.transposeB, &KernelSettings.texture_buffers);
+		kernelLibQuerySettings(&KernelSettings.tiling_x, &KernelSettings.tiling_y, &KernelSettings.transposeA, &KernelSettings.transposeB, &KernelSettings.texture_buffers, &KernelSettings.group_size_x, &KernelSettings.group_size_y);
 	}
 	else
 	{
@@ -425,6 +425,13 @@ int caldgemm_opencl::ValidateRuntime()
 		KernelSettings.texture_buffers = true;
 		KernelSettings.tiling_x = OCL_TILING_X;
 		KernelSettings.tiling_y = OCL_TILING_Y;
+		KernelSettings.group_size_x = OCL_GROUP_SIZE_X;
+		KernelSettings.group_size_y = OCL_GROUP_SIZE_Y;
+		if (!(KernelSettings.transposeA ^ KernelSettings.transposeB))
+		{
+			fprintf(STD_OUT, "Must set either transposed A or transposed B\n");
+			return(1);
+		}
 	}
 
 	return(0);

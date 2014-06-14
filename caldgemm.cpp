@@ -3305,6 +3305,8 @@ void caldgemm::SetDefaultKernelSettings()
 	KernelSettings.texture_buffers = true;
 	KernelSettings.tiling_x = TILING_X;
 	KernelSettings.tiling_y = TILING_Y;
+	KernelSettings.group_size_x = 16;
+	KernelSettings.group_size_y = 16;
 }
 
 #ifndef USE_GOTO_BLAS

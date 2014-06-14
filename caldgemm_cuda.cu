@@ -149,6 +149,8 @@ int caldgemm_cuda::ValidateRuntime()
 	if (Config->Debug) fprintf(STD_OUT, "%d CUDA devices found for this platform\n", nDevices);
 
 	SetDefaultKernelSettings();
+	KernelSettings.group_size_x = GROUP_SIZE_X;
+	KernelSettings.group_size_y = GROUP_SIZE_Y;
 
 	return(0);
 }

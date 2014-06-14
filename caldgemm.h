@@ -240,6 +240,8 @@ protected:
 	{
 		int tiling_x;
 		int tiling_y;
+		int group_size_x;
+		int group_size_y;
 		bool transposeA;
 		bool transposeB;
 		bool texture_buffers;
