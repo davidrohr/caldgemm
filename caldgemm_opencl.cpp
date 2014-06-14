@@ -422,7 +422,11 @@ int caldgemm_opencl::ValidateRuntime()
 #else
 		KernelSettings.transposeB = false;
 #endif
+#ifdef OCL_USE_SIMPLE_BUFFERS
+		KernelSettings.texture_buffers = false;
+#else
 		KernelSettings.texture_buffers = true;
+#endif
 		KernelSettings.tiling_x = OCL_TILING_X;
 		KernelSettings.tiling_y = OCL_TILING_Y;
 		KernelSettings.group_size_x = OCL_GROUP_SIZE_X;
