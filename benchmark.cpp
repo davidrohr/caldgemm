@@ -853,7 +853,7 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 	{
 		for (unsigned int j = 0;j < width_a;j++)
 		{
-			AA[i * pitch_a + j] = 1;
+			AA[i * pitch_a + j] = j;
 		}
 	}
 	for (unsigned int i = 0;i < height_b;i++)

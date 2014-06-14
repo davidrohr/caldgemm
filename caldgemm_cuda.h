@@ -75,7 +75,7 @@ private:
 
 	int WaitForEventAndRelease(cudaEvent_t* pEvent);
 
-	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16;
+	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16;	//Group and block size for conversion kernels and for DGEMM kernel
 
 	double *C_host, *C_device;
 };

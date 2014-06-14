@@ -108,7 +108,7 @@ private:
 	double* C_matrix_base;
 	cl_mem* C_matrix_base_obj;
 
-	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16;
+	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16; //Group size and count for conversion kernels.
 
 	caldgemm_config_backend_opencl* config_backend;
 

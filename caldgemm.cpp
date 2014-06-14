@@ -3008,6 +3008,11 @@ unsigned int caldgemm::AnalyzeResults()
 		cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, matrix_m, matrix_n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
 		Timer.Stop();
 		if (!Config->Quiet) fprintf(STD_OUT, "CPU Time: %f Gflops: %f\n", Timer.GetElapsedTime(), (double)1e-09 * 2 * matrix_m * matrix_n * Config->Width / Timer.GetElapsedTime());
+		
+#ifdef TESTMODE
+		fprintf(STD_OUT, "Reference Matrix:\n");
+		print_submatrices(D, 12, 24, C_pitch, 1, 1, 1, 1);
+#endif
 
 		int nblocksm = 0;
 		int* errortiles = NULL;
