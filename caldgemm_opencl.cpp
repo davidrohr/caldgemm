@@ -578,9 +578,9 @@ int caldgemm_opencl::InitDevices()
 		if (Config->Debug) fprintf(STD_OUT, "Allocated %d BBuffers on Device %d\n", bbuffers[i], i);
 	}
 
-	for (int j = 0;j < 3 + 1;j++)
+	for (int j = 0;j < 3 + 1 + (Config->GPU_C ? 1 : 0);j++)
 	{
-		if (j < 3 && config_backend->kernelLib != NULL)
+		if (j != 3 && config_backend->kernelLib != NULL)
 		{
 			if (Config->PrintILKernel)
 			{
@@ -613,6 +613,9 @@ int caldgemm_opencl::InitDevices()
 					break;
 				case 3:
 					sourceCode = KernelSettings.texture_buffers ? OCLConvertKernelTex : OCLConvertKernel;
+					break;
+				case 4:
+					sourceCode = OCLKernel;
 					break;
 			}
 
@@ -668,7 +671,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
-	if (Config->GPU_C) Task.kernel_num = 0;
+	if (Config->GPU_C && Task.kernel_num == 2) Task.kernel_num = 3;
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable)
 	{
@@ -1186,7 +1189,7 @@ int caldgemm_opencl::ExitDevices()
 		{
 			clReleaseMemObject(ocl_bbuffers[i][j]);
 		}
-		for (int j = 0;j < 3 + 1;j++)
+		for (int j = 0;j < 3 + 1 + (Config->GPU_C ? 1 : 0);j++)
 		{
 			clReleaseKernel(ocl_kernel[i][j]);
 			if (config_backend->kernelLib == NULL && i == nDevices - 1) clReleaseProgram(ocl_program[j]);

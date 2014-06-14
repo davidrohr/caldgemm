@@ -91,7 +91,7 @@ private:
 	cl_mem ocl_tmp_cbuffers[max_devices][obuffercount];
 	cl_event ocl_events[max_devices][obuffercount];
 	cl_program ocl_program[4];
-	cl_kernel ocl_kernel[max_devices][4];
+	cl_kernel ocl_kernel[max_devices][5];
 
 	double* ocl_tmp_abuffers_ptr[max_devices][ibuffercount];
 	double* ocl_tmp_bbuffers_ptr[max_devices][ibuffercount];
