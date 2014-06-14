@@ -1163,10 +1163,10 @@ void caldgemm_cal::checkCalPatch()
 void caldgemm_cal::cal_init_constant_data(BufferProperties* &data, double alpha)
 {
 #ifdef CALDGEMM_COMPUTE_SHADER
-	data[dwBuffersA + dwBuffersB].ptr_int[0] = Config->Height / TILING_X;
+	data[dwBuffersA + dwBuffersB].ptr_int[0] = Config->Height / KernelSettings.tiling_x;
 #else
-	data[dwBuffersA + dwBuffersB].ptr_float[0] = (float) TILING_Y / Config->Height;			//Scale factor for normalized y pos
-	data[dwBuffersA + dwBuffersB].ptr_float[2] = (float) TILING_X / Config->Height;			//Scale factor for normalized x pos
+	data[dwBuffersA + dwBuffersB].ptr_float[0] = (float) KernelSettings.tiling_y / Config->Height;			//Scale factor for normalized y pos
+	data[dwBuffersA + dwBuffersB].ptr_float[2] = (float) KernelSettings.tiling_x / Config->Height;			//Scale factor for normalized x pos
 #endif
 #ifdef CALDGEMM_44
 	data[dwBuffersA + dwBuffersB].ptr_float[1] = 1.f / Config->Width;							//Step in K direction
@@ -1181,11 +1181,11 @@ void caldgemm_cal::cal_init_constant_data(BufferProperties* &data, double alpha)
 #endif //CALDGEMM_44
 	data[dwBuffersA + dwBuffersB].ptr_float[3] = 0.f;
 	data[dwBuffersA + dwBuffersB].ptr_float[5] = (float) dwBuffersA / Config->Height;			//For transposed matrix finer y resolution is needed
-	data[dwBuffersA + dwBuffersB].ptr_float[8] = 0.5f - 0.5f / (float) (TILING_Y / dwBuffersA);
+	data[dwBuffersA + dwBuffersB].ptr_float[8] = 0.5f - 0.5f / (float) (KernelSettings.tiling_y / dwBuffersA);
 
 	//Constants for Memexport
-	data[dwBuffersA + dwBuffersB].ptr_int[9] = TILING_Y * Config->Height / 2;				//2 for double2
-	data[dwBuffersA + dwBuffersB].ptr_int[10] = TILING_X / 2;						//x tiling in double2
+	data[dwBuffersA + dwBuffersB].ptr_int[9] = KernelSettings.tiling_y * Config->Height / 2;				//2 for double2
+	data[dwBuffersA + dwBuffersB].ptr_int[10] = KernelSettings.tiling_x / 2;						//x tiling in double2
 #if defined(CALDGEMM_84)
 	data[dwBuffersA + dwBuffersB].ptr_int[12] = 0 + 0 * Config->Height / 2;					//8 consecutive entries in x
 	data[dwBuffersA + dwBuffersB].ptr_int[13] = 1 + 0 * Config->Height / 2;
@@ -1859,7 +1859,7 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 		if (CheckDMAQueue(Task.device)) return(1);
 	}
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
-	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) / TILING_X, (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) / TILING_Y, events[Task.device][Task.j].GetNextEvent())) {fprintf(STD_OUT, "Error running program\n"); return 1;}
+	if (RunProgram(&ctxs[Task.device], &modules[Task.device][Task.kernel_num], (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height) / KernelSettings.tiling_x, (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height) / KernelSettings.tiling_y, events[Task.device][Task.j].GetNextEvent())) {fprintf(STD_OUT, "Error running program\n"); return 1;}
 	if (Config->DstMemory == 'g')
 	{
 		if (Config->UseDMAFetchQueue >= matrix_n)

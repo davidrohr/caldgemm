@@ -456,32 +456,36 @@ int caldgemm_opencl::InitDevices()
 	BufferHeight = Config->Height;
 	BufferWidth = Config->Width;
 
-#ifndef OCL_USE_SIMPLE_BUFFERS
 	cl_image_format ocl_image_format;
 	ocl_image_format.image_channel_order = CL_RGBA;
 	ocl_image_format.image_channel_data_type = CL_UNSIGNED_INT32;
-#endif
 
 	for (int i = 0;i < nDevices;i++)
 	{
 		for (int j = 0;j < ibuffercount;j++)
 		{
-#ifdef OCL_USE_SIMPLE_BUFFERS
-			ocl_abuffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
-#else
-			cl_image_desc image_desc;
-			memset(&image_desc, 0, sizeof(image_desc));
-			image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
-#ifdef CALDGEMM_TRANSPOSED_B
-			image_desc.image_width = BufferWidth / 2;
-			image_desc.image_height = BufferHeight;
-			ocl_abuffers[i][j] = clCreateImage(ocl_context, CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
-#elif defined(CALDGEMM_TRANSPOSED_A)
-			image_desc.image_width = BufferHeight / 2;
-			image_desc.image_height = BufferWidth;
-			ocl_abuffers[i][j] = clCreateImage(ocl_context, CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
-#endif
-#endif
+			if (!KernelSettings.texture_buffers)
+			{
+				ocl_abuffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
+			}
+			else
+			{
+				cl_image_desc image_desc;
+				memset(&image_desc, 0, sizeof(image_desc));
+				image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
+				if (KernelSettings.transposeB)
+				{
+					image_desc.image_width = BufferWidth / 2;
+					image_desc.image_height = BufferHeight;
+					ocl_abuffers[i][j] = clCreateImage(ocl_context, CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
+				}
+				else //must be transposeA
+				{
+					image_desc.image_width = BufferHeight / 2;
+					image_desc.image_height = BufferWidth;
+					ocl_abuffers[i][j] = clCreateImage(ocl_context, CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
+				}
+			}
 			CHKRET(ocl_error, "Error allocating device memory (A)");
 		}
 		CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], ibuffercount, &ocl_abuffers[i][0], 0, 0, NULL, NULL), "Error migrating mem object");
@@ -536,23 +540,28 @@ int caldgemm_opencl::InitDevices()
 
 		for (int j = 0;j < num_bbuffers;j++)
 		{
-#ifdef OCL_USE_SIMPLE_BUFFERS
-			ocl_bbuffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
-#else
-
-			cl_image_desc image_desc;
-			memset(&image_desc, 0, sizeof(image_desc));
-			image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
-#ifdef CALDGEMM_TRANSPOSED_B
-			image_desc.image_width = BufferWidth / 2;
-			image_desc.image_height = BufferHeight;
-			ocl_bbuffers[i][j] = clCreateImage(ocl_context, CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
-#elif defined(CALDGEMM_TRANSPOSED_A)
-			image_desc.image_width = BufferHeight / 2;
-			image_desc.image_height = BufferWidth;
-			ocl_bbuffers[i][j] = clCreateImage(ocl_context, CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
-#endif
-#endif
+			if (!KernelSettings.texture_buffers)
+			{
+				ocl_bbuffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
+			}
+			else
+			{
+				cl_image_desc image_desc;
+				memset(&image_desc, 0, sizeof(image_desc));
+				image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
+				if (KernelSettings.transposeB)
+				{
+					image_desc.image_width = BufferWidth / 2;
+					image_desc.image_height = BufferHeight;
+					ocl_bbuffers[i][j] = clCreateImage(ocl_context, CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
+				}
+				else //must be transposeA
+				{
+					image_desc.image_width = BufferHeight / 2;
+					image_desc.image_height = BufferWidth;
+					ocl_bbuffers[i][j] = clCreateImage(ocl_context, CL_MEM_READ_WRITE, &ocl_image_format, &image_desc, NULL, &ocl_error);
+				}
+			}
 			if (ocl_error != CL_SUCCESS)
 			{
 				if (j < obuffercount)
@@ -744,8 +753,8 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 8, sizeof(int), &pitch), "Error setting kernel arg pitch");
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 9, sizeof(int), &offset), "Error setting kernel arg offset");
 
-	size_t local_size[2] = {OCL_GROUP_SIZE_X, OCL_GROUP_SIZE_Y};
-	size_t global_size[2] = {(size_t) height1 / 4, (size_t) height2 / 4};
+	size_t local_size[2] = {KernelSettings.group_size_x, KernelSettings.group_size_y};
+	size_t global_size[2] = {(size_t) height1 / KernelSettings.tiling_x, (size_t) height2 / KernelSettings.tiling_y};
 
 	if (Config->VerboseTiming)
 	{
@@ -988,11 +997,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			dest_image = &ocl_abuffers[num_device][dest_image_id];
 		}
 
-#ifdef CALDGEMM_TRANSPOSED_B
-		const int arg_transpose = TransposeA;
-#elif defined(CALDGEMM_TRANSPOSED_A)
-		const int arg_transpose = !TransposeA;
-#endif
+		const int arg_transpose = TransposeA ^ KernelSettings.transposeA;
+
 		if (Config->GPU_C == 0)
 		{
 			if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d, transpose = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, arg_transpose);
@@ -1000,21 +1006,27 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], TransposeA ? Config->Width : HeightM, TransposeA ? HeightM : Config->Width, arg_transpose)) return(1);
 			if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, dest_image_id);
-#ifndef CALDGEMM_TRANSPOSED_A
-			region[0] = Config->Width / 2;
-			region[1] = HeightM;
-#else
-			region[0] = HeightM / 2;
-			region[1] = Config->Width;
-#endif
+			if (KernelSettings.transposeA)
+			{
+				region[0] = Config->Width / 2;
+				region[1] = HeightM;
+			}
+			else //must be transposeB
+			{
+				region[0] = HeightM / 2;
+				region[1] = Config->Width;
+			}
 
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
-#ifdef OCL_USE_SIMPLE_BUFFERS
-			CHKRET(clEnqueueWriteBuffer(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, 0, Config->Width * HeightM * sizeof(double), ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
-#else
-			CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
-#endif
+			if (!KernelSettings.texture_buffers)
+			{
+				CHKRET(clEnqueueWriteBuffer(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, 0, Config->Width * HeightM * sizeof(double), ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
+			}
+			else
+			{
+				CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
+			}
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			if (Config->VerboseTiming)
 			{
@@ -1076,11 +1088,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			dest_image = &ocl_bbuffers[num_device][dest_image_id];
 		}
 
-#ifdef CALDGEMM_TRANSPOSED_B
-		const int arg_transpose = !TransposeB;
-#elif defined(CALDGEMM_TRANSPOSED_A)
-		const int arg_transpose = TransposeB;
-#endif
+		const int arg_transpose = !TransposeB ^ KernelSettings.transposeB;
 
 		if (Config->GPU_C == 0)
 		{
@@ -1090,20 +1098,27 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], TransposeB ? HeightN : Config->Width, TransposeB ? Config->Width : HeightN, arg_transpose)) return(1);
 			if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount, dest_image_id);
-#ifndef CALDGEMM_TRANSPOSED_B
-			region[0] = HeightN / 2;
-			region[1] = Config->Width;
-#else
-			region[0] = Config->Width / 2;
-			region[1] = HeightN;
-#endif
+
+			if (KernelSettings.transposeB)
+			{
+				region[0] = HeightN / 2;
+				region[1] = Config->Width;
+			}
+			else //must be transposeA
+			{
+				region[0] = Config->Width / 2;
+				region[1] = HeightN;
+			}
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
-#ifdef OCL_USE_SIMPLE_BUFFERS
-			CHKRET(clEnqueueWriteBuffer(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, 0, Config->Width * HeightN * sizeof(double), ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
-#else
-			CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
-#endif
+			if (!KernelSettings.texture_buffers)
+			{
+				CHKRET(clEnqueueWriteBuffer(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, 0, Config->Width * HeightN * sizeof(double), ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
+			}
+			else
+			{
+				CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
+			}
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			if (Config->VerboseTiming)
 			{
