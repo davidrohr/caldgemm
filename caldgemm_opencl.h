@@ -113,7 +113,7 @@ private:
 	caldgemm_config_backend_opencl* config_backend;
 
 	HINSTANCE kernelLib;
-	cl_kernel (*kernelLibCreate) (cl_context* context, int nDevices, cl_device_id* devices, int kernelType, int k);
+	cl_kernel (*kernelLibCreate) (cl_context* context, int nDevices, cl_device_id* devices, int kernelType, int k, int betazero);
 	void (*kernelLibQuerySettings) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y);
 
 public:

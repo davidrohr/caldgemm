@@ -392,11 +392,11 @@ int caldgemm_opencl::ValidateRuntime()
 			return(1);
 		}
 #ifdef _WIN32
-		kernelLibCreate = (cl_kernel (*) (cl_context*, int, cl_device_id*, int, int)) GetProcAddress(kernelLib, "kernelLibCreate");
-		kernelLibQuerySettings = (void (*) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y)) GetProcAddress(kernelLib, "kernelLibQuerySettings");
+		kernelLibCreate = (cl_kernel (*) (cl_context*, int, cl_device_id*, int, int, int)) GetProcAddress(kernelLib, "kernelLibCreate");
+		kernelLibQuerySettings = (void (*) (int*, int*, bool*, bool*, bool*, int*, int*)) GetProcAddress(kernelLib, "kernelLibQuerySettings");
 #else
-		kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int)) dlsym(kernelLib, "kernelLibCreate");
-		kernelLibQuerySettings = (void (*) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y)) dlsym(kernelLib, "kernelLibQuerySettings");
+		kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int, int)) dlsym(kernelLib, "kernelLibCreate");
+		kernelLibQuerySettings = (void (*) (int*, int*, bool*, bool*, bool*, int*, int*)) dlsym(kernelLib, "kernelLibQuerySettings");
 #endif
 		if (kernelLibCreate == NULL || kernelLibQuerySettings == NULL)
 		{
@@ -587,32 +587,9 @@ int caldgemm_opencl::InitDevices()
 				fprintf(STD_OUT, "Cannot print kernel from 3ed party library\n");
 			}
 
-			if (j == 0)
-			{
-#ifdef _WIN32
-				kernelLib = LoadLibrary(config_backend->kernelLib);
-#else
-				kernelLib = dlopen(config_backend->kernelLib, RTLD_LAZY|RTLD_GLOBAL);
-#endif
-				if (kernelLib == NULL)
-				{
-					fprintf(STD_OUT, "Error opening kernel library: %s\n", config_backend->kernelLib);
-					return(1);
-				}
-#ifdef _WIN32
-				kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int)) GetProcAddress(kernelLib, "kernelLibCreate");
-#else
-				kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int)) dlsym(kernelLib, "kernelLibCreate");
-#endif
-				if (kernelLibCreate == NULL)
-				{
-					fprintf(STD_OUT, "Error getting function pointer from external library\n");
-					return(1);
-				}
-			}
 			for (int i = 0;i < nDevices;i++)
 			{
-				ocl_kernel[i][j] = kernelLibCreate(&ocl_context, nDevices, ocl_devices, j, Config->Width);
+				ocl_kernel[i][j] = kernelLibCreate(&ocl_context, nDevices, ocl_devices, j, Config->Width, Config->GPU_C == 0);
 				if (ocl_kernel[i][j] == 0)
 				{
 					fprintf(STD_OUT, "Error obtaining kernel from external library\n");
