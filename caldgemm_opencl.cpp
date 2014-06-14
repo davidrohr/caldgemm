@@ -1092,7 +1092,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			dest_image = &ocl_bbuffers[num_device][dest_image_id];
 		}
 
-		const int arg_transpose = !TransposeB ^ KernelSettings.transposeB;
+		const int arg_transpose = TransposeB ^ KernelSettings.transposeB;
 
 		if (Config->GPU_C == 0)
 		{
