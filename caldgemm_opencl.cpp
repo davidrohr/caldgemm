@@ -671,7 +671,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
-	if (Config->GPU_C && Task.kernel_num == 2) Task.kernel_num = 3;
+	if (Config->GPU_C && Task.kernel_num == 2) Task.kernel_num = 4;
 #ifdef REUSE_BBUFFERS
 	if (!DGEMM_favor_m && buffersSwitchable)
 	{
