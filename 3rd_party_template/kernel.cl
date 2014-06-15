@@ -1,4 +1,8 @@
 "__kernel void oclkernel(__global double* C, __global const double* __restrict const A, __global const double* __restrict const B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
+"//input parameters are standard DGEMM parameters (however in modified order, width = k, height1 = m, height2 = n, pitch = LDC)\n"
+"//matrices area assumed in row-major (you can get col-major by swapping A and B (and m,n)\n"
+"//there is no transposition parameters, the kernel can assume the best settings for optimal performance, the library must export the required options, caldgemm will tread the rest\n"
+"//LDA and LDB parameters are not present, they are as small as possible\n"
 "{\n"
 "	int i, j, k;\n"
 "	for (i = get_global_id(1);i < height2;i += get_global_size(1))\n"
