@@ -1080,7 +1080,9 @@ int main(int argc, char** argv)
 #else
 				size_t tmpn = matrix_m > matrix_n ? matrix_m : matrix_n;
 				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
-				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : -1.0, betazero ? 0.0 : 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks))
+				double use_alpha = alphaone ? 1.0 : -1.0;
+				double use_beta = betazero ? 0.0 : 1.0;
+				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, use_alpha, use_beta, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks))
 #endif
 				{
 					fprintf(STD_OUT, "Error running CALDGEMM\n");

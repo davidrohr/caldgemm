@@ -712,15 +712,8 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		pitch = C_pitch;
 		offset = (C + blockn * Config->Height + blockm * Config->Height * C_pitch) - C_matrix_base;
 	}
-	double beta;
-	if (Config->GPU_C)
-	{
-		beta = Beta;
-	}
-	else
-	{
-		beta = 0;
-	}
+	double beta = Config->GPU_C ? Beta : 0.;
+	double alpha = Task.kernel_num == 2 ? 1. : Alpha;
 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 3, sizeof(int), &height1), "Error setting kernel arg height1");
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 4, sizeof(int), &height2), "Error setting kernel arg height2");
@@ -728,7 +721,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	int width = Config->Width;
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 5, sizeof(int), &width), "Error setting kernel arg width");
 
-	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 6, sizeof(double), &Alpha), "Error setting kernel arg alpha");
+	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 6, sizeof(double), &alpha), "Error setting kernel arg alpha");
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 7, sizeof(double), &beta), "Error setting kernel arg beta");
 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 8, sizeof(int), &pitch), "Error setting kernel arg pitch");
@@ -742,7 +735,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		clFinish(ocl_command_queues[Task.device][Task.j]);
 		Timers.Kernel.Start();
 	}
-	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f\n", height1, height2, width, Alpha, Beta);
+	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d offset %d\n", height1, height2, width, Alpha, Beta, pitch, offset);
 	cl_event* kernel_event;
 	if (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync)) kernel_event = NULL;
 	else kernel_event = &ocl_events[Task.device][Task.j];
