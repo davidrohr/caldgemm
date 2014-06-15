@@ -130,7 +130,7 @@ cl_kernel kernelLibCreate(cl_context* context, int nDevices, cl_device_id* devic
 
 void kernelLibQuerySettings(int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y)
 {
-	*group_size_x = *group_size_y = 8;
+	*group_size_x = *group_size_y = 8; //We start a grid with work-group-size 8x8 and in total m/tilingx x n/tiling_y work items
 	*tiling_x = *tiling_y = 4;
 	*texture_buffers = false;
 	*transposeA = true;

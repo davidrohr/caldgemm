@@ -691,7 +691,8 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 2, sizeof(cl_mem), &ocl_bbuffers[Task.device][!buffersSufficiant ? (buffer_pointers_B[Task.device][blockn] % ibuffercount) : (buffer_pointers_B[Task.device][blockn] % bbuffers[Task.device])]), "Error setting kernel memory B");
 	}
 
-	int pitch, offset;
+	int pitch;
+	cl_ulong offset; //uling should always be 64-bit in OpenCL
 	int height1 = (int) (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height);
 	int height2 = (int) (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);
 	if (Config->DstMemory == 'g')
@@ -725,7 +726,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 7, sizeof(double), &beta), "Error setting kernel arg beta");
 
 	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 8, sizeof(int), &pitch), "Error setting kernel arg pitch");
-	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 9, sizeof(int), &offset), "Error setting kernel arg offset");
+	CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 9, sizeof(cl_ulong), &offset), "Error setting kernel arg offset");
 
 	size_t local_size[2] = {(size_t) KernelSettings.group_size_x, (size_t) KernelSettings.group_size_y};
 	size_t global_size[2] = {(size_t) height1 / KernelSettings.tiling_x, (size_t) height2 / KernelSettings.tiling_y};
@@ -735,7 +736,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		clFinish(ocl_command_queues[Task.device][Task.j]);
 		Timers.Kernel.Start();
 	}
-	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d offset %d\n", height1, height2, width, Alpha, Beta, pitch, offset);
+	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d offset %lld\n", height1, height2, width, Alpha, Beta, pitch, (long long int) offset);
 	cl_event* kernel_event;
 	if (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync)) kernel_event = NULL;
 	else kernel_event = &ocl_events[Task.device][Task.j];

@@ -8,7 +8,7 @@
 const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
 "//KERNEL TRANSPOSED B SIMPLE BUFFERS\n"
-"__kernel void oclkernel(__global double* C, __global const double* __restrict const A, __global const double* __restrict const B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
+"__kernel void oclkernel(__global double* C, __global const double* __restrict const A, __global const double* __restrict const B, int height1, int height2, int width, double alpha, double beta, int pitch, ulong offset)\n"
 "{\n"
 "	int i, j, k;\n"
 "	for (i = get_global_id(1);i < height2;i += get_global_size(1))\n"
@@ -39,7 +39,7 @@ OCL_KERNEL_PRE
 const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
 "//KERNEL TRANSPOSED A SIMPLE BUFFERS\n"
-"__kernel void oclkernel(__global double* C, __global const double* __restrict const A, __global const double* __restrict const B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
+"__kernel void oclkernel(__global double* C, __global const double* __restrict const A, __global const double* __restrict const B, int height1, int height2, int width, double alpha, double beta, int pitch, ulong offset)\n"
 "{\n"
 "	int i, j, k;\n"
 "	for (i = get_global_id(1);i < height2;i += get_global_size(1))\n"
@@ -77,7 +77,7 @@ const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
 "//KERNEL TRANSPOSED B TEXTURE BUFFERS\n"
 "union double_read {uint4 f; double2 d;};\n"
-"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
+"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta, int pitch, ulong offset)\n"
 "{\n"
 "	const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;\n"
 "	int i, j, k;\n"
@@ -119,7 +119,7 @@ const char *caldgemm_opencl::OCLKernelName =
 OCL_KERNEL_PRE
 "//KERNEL TRANSPOSED A TEXTURE BUFFERS\n"
 "union double_read {uint4 f; double2 d;};\n"
-"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
+"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta, int pitch, ulong offset)\n"
 "{\n"
 "	const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;\n"
 "	int i, j, k;\n"
@@ -163,7 +163,7 @@ OCL_KERNEL_PRE
 "union double_read {uint4 f; double2 d;};\n"
 "#define OCL_TILING_X " qon_mxstr(OCL_TILING_X) "\n"
 "#define OCL_TILING_Y " qon_mxstr(OCL_TILING_Y) "\n"
-"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta, int pitch, int offset)\n"
+"__kernel void oclkernel(__global double* C, image2d_t A, image2d_t B, int height1, int height2, int width, double alpha, double beta, int pitch, ulong offset)\n"
 "{\n"
 "	const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;\n"
 "	int i, j, k, l, m;\n"
