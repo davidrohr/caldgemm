@@ -497,7 +497,6 @@ int caldgemm_opencl::InitDevices()
 			{
 				ocl_cbuffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, BufferHeight * BufferHeight * sizeof(double), NULL, &ocl_error);
 				CHKRET(ocl_error, "Error allocating device memory (C)");
-				CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], 1, &ocl_cbuffers[i][j], 0, 0, NULL, NULL), "Error migrating mem object");
 			}
 			if (Config->GPU_C == 0)
 			{
@@ -514,6 +513,7 @@ int caldgemm_opencl::InitDevices()
 				}
 			}
 		}
+		if (Config->DstMemory == 'g') CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], obuffercount, &ocl_cbuffers[i][0], 0, 0, NULL, NULL), "Error migrating mem object");
 
 		for (int j = 0;j < (Config->GPU_C ? obuffercount : ibuffercount);j++)
 		{
@@ -532,11 +532,11 @@ int caldgemm_opencl::InitDevices()
 				ocl_tmp_bbuffers_ptr[i][j] = (double*) clEnqueueMapBuffer(ocl_command_queues[i][0], ocl_tmp_bbuffers[i][j], CL_TRUE, CL_MAP_WRITE, 0, BufferWidth * BufferHeight * sizeof(double), 0, NULL, NULL, &ocl_error);
 				CHKRET(ocl_error, "Error mapping buffer (B)");
 			}
-			else
-			{
-				CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], 1, &ocl_tmp_abuffers[i][j], 0, 0, NULL, NULL), "Error migrating mem object");
-				CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], 1, &ocl_tmp_bbuffers[i][j], 0, 0, NULL, NULL), "Error migrating mem object");
-			}
+		}
+		if (Config->GPU_C)
+		{
+			CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], obuffercount, &ocl_tmp_abuffers[i][0], 0, 0, NULL, NULL), "Error migrating mem object");
+			CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], obuffercount, &ocl_tmp_bbuffers[i][0], 0, 0, NULL, NULL), "Error migrating mem object");
 		}
 
 		for (int j = 0;j < num_bbuffers;j++)
@@ -571,10 +571,10 @@ int caldgemm_opencl::InitDevices()
 				}
 				else break;
 			}
-			CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], 1, &ocl_bbuffers[i][j], 0, 0, NULL, NULL), "Error migrating mem object");
 			
 			bbuffers[i] = j + 1;
 		}
+		CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], bbuffers[i], &ocl_bbuffers[i][0], 0, 0, NULL, NULL), "Error migrating mem object");
 		if (Config->Debug) fprintf(STD_OUT, "Allocated %d BBuffers on Device %d\n", bbuffers[i], i);
 	}
 
