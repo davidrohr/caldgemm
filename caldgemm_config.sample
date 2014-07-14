@@ -65,7 +65,7 @@
 
 //#define CALDGEMM_FORCE_K 16					//Force K Parameter to simulate different kernel perfoemance
 
-//#define _NO_AMD_CPU								//Set to run on Intel CPU without prefetchw avaiable
+#define _NO_AMD_CPU								//Set to run on CPU without 3dnow (which nowadays also include AMD CPUs)
 //#define _NO_AVX									//Do not use AVX instructions (Only relevant for OpenCL code atm)
 //#define _NO_ADL									//Do not use ADL library to read GPU temps
 //#define USE_OLD_HUGE_MALLOC					//Use old method to allocate huge tables
