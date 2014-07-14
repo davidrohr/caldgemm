@@ -597,7 +597,7 @@ int caldgemm_opencl::InitDevices()
 				}
 				else break;
 			}
-			ocl_error = clEnqueueMigrateMemObjects(ocl_command_queues[i][j], 1, &ocl_bbuffers[i][0], 0, 0, NULL, NULL);
+			ocl_error = clEnqueueMigrateMemObjects(ocl_command_queues[i][0], 1, &ocl_bbuffers[i][j], 0, 0, NULL, NULL);
 			if (ocl_error != CL_SUCCESS)
 			{
 				if (j < obuffercount)

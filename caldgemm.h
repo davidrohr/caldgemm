@@ -227,8 +227,8 @@ protected:
 	static const int vcpysize = 16;
 	static const int kernel_count = 3;
 #ifdef REUSE_BBUFFERS
-	static const int max_bbuffers = 21;
-	static const int max_bbuffers_g = 20;
+	static const int max_bbuffers = 30;
+	static const int max_bbuffers_g = 30;
 #else
 	static const int max_bbuffers = 3;
 	static const int max_bbuffers_g = 3;
