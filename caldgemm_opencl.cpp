@@ -35,6 +35,32 @@
 "//const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;\n" \
 "\n"
 
+#ifdef CALDGEMM_OPENCL_EMULATE_STRIDED
+inline cl_int clEnqueueReadBufferRectUse (cl_command_queue command_queue, cl_mem buffer, cl_bool blocking_read, const size_t buffer_origin[3], const size_t host_origin[3], const size_t region[3], size_t buffer_row_pitch, size_t buffer_slice_pitch,
+	size_t host_row_pitch, size_t host_slice_pitch, void *ptr, cl_uint num_events_in_wait_list, const cl_event *event_wait_list, cl_event *event)
+{
+	for (int i = 0;i < region[1];i++)
+	{
+		cl_int retVal = clEnqueueReadBuffer(command_queue, buffer, blocking_read, i * region[0], region[0], (char*) ptr + i * buffer_row_pitch, i == 0 ? num_events_in_wait_list : 0, i == 0 ? event_wait_list : NULL, i == region[1] - 1 ? event : NULL);
+		if (retVal != CL_SUCCESS) return(retVal);
+	}
+	return(0);
+}
+
+inline cl_int clEnqueueWriteBufferRectUse (cl_command_queue command_queue, cl_mem buffer, cl_bool blocking_read, const size_t buffer_origin[3], const size_t host_origin[3], const size_t region[3], size_t buffer_row_pitch, size_t buffer_slice_pitch,
+	size_t host_row_pitch, size_t host_slice_pitch, const void *ptr, cl_uint num_events_in_wait_list, const cl_event *event_wait_list, cl_event *event)
+{
+	for (int i = 0;i < region[1];i++)
+	{
+		cl_int retVal = clEnqueueWriteBuffer(command_queue, buffer, blocking_read, i * region[0], region[0], (const char*) ptr + i * buffer_row_pitch, i == 0 ? num_events_in_wait_list : 0, i == 0 ? event_wait_list : NULL, i == region[1] - 1 ? event : NULL);
+		if (retVal != CL_SUCCESS) return(retVal);
+	}
+	return(0);
+}
+#else
+#define clEnqueueWriteBufferRectUse clEnqueueWriteBufferRect
+#define clEnqueueReadBufferRectUse clEnqueueReadBufferRect
+#endif
 
 #define OCLKernelName OCLKernel
 #include "caldgemm.cl"
@@ -758,7 +784,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			size_t region[3] = {(size_t) height1 * sizeof(double), (size_t) height2, 1};
 			if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-			CHKRET(clEnqueueReadBufferRect(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
+			CHKRET(clEnqueueReadBufferRectUse(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		else if (Config->ImplicitDriverSync)
@@ -1017,7 +1043,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			int arg_width = region[0] / sizeof(double), arg_height = region[1];
 			cl_mem dest_buffer_tmp = ocl_tmp_abuffers[num_device][j];
 			if (Config->Debug) fprintf(STD_OUT, "Transfer A to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
-			CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, 0, NULL, NULL), "Error copying A");
+			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, 0, NULL, NULL), "Error copying A");
 			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, A, 0");
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, A, 1");
@@ -1109,7 +1135,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			int arg_width = region[0] / sizeof(double), arg_height = region[1];
 			cl_mem dest_buffer_tmp = ocl_tmp_bbuffers[num_device][j];
 			if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
-			CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, 0, NULL, NULL), "Error copying B");
+			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, 0, NULL, NULL), "Error copying B");
 			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, B, 0");
 			CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, B, 1");
@@ -1135,7 +1161,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		region[1] = HeightM;
 		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-		CHKRET(clEnqueueWriteBufferRect(ocl_command_queues[num_device][j], ocl_cbuffers[num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, NULL), "Error copying C");
+		CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], ocl_cbuffers[num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, NULL), "Error copying C");
 		clFlush(ocl_command_queues[num_device][j]);
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}

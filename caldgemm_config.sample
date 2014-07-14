@@ -104,3 +104,5 @@
 #define OCL_USE_SIMPLE_BUFFERS
 #define OCL_GROUP_SIZE_X 8
 #define OCL_GROUP_SIZE_Y 8
+
+//#define CALDGEMM_OPENCL_EMULATE_STRIDED		//Emulate strided transfers in OpenCL via linear transfers
