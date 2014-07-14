@@ -39,23 +39,23 @@
 inline cl_int clEnqueueReadBufferRectUse (cl_command_queue command_queue, cl_mem buffer, cl_bool blocking_read, const size_t buffer_origin[3], const size_t host_origin[3], const size_t region[3], size_t buffer_row_pitch, size_t buffer_slice_pitch,
 	size_t host_row_pitch, size_t host_slice_pitch, void *ptr, cl_uint num_events_in_wait_list, const cl_event *event_wait_list, cl_event *event)
 {
-	for (int i = 0;i < region[1];i++)
+	for (unsigned int i = 0;i < region[1];i++)
 	{
-		cl_int retVal = clEnqueueReadBuffer(command_queue, buffer, blocking_read, i * region[0], region[0], (char*) ptr + i * buffer_row_pitch, i == 0 ? num_events_in_wait_list : 0, i == 0 ? event_wait_list : NULL, i == region[1] - 1 ? event : NULL);
+		cl_int retVal = clEnqueueReadBuffer(command_queue, buffer, blocking_read, i * region[0], region[0], (char*) ptr + i * host_row_pitch, i == 0 ? num_events_in_wait_list : 0, i == 0 ? event_wait_list : NULL, i == region[1] - 1 ? event : NULL);
 		if (retVal != CL_SUCCESS) return(retVal);
 	}
-	return(0);
+	return(CL_SUCCESS);
 }
 
 inline cl_int clEnqueueWriteBufferRectUse (cl_command_queue command_queue, cl_mem buffer, cl_bool blocking_read, const size_t buffer_origin[3], const size_t host_origin[3], const size_t region[3], size_t buffer_row_pitch, size_t buffer_slice_pitch,
 	size_t host_row_pitch, size_t host_slice_pitch, const void *ptr, cl_uint num_events_in_wait_list, const cl_event *event_wait_list, cl_event *event)
 {
-	for (int i = 0;i < region[1];i++)
+	for (unsigned int i = 0;i < region[1];i++)
 	{
-		cl_int retVal = clEnqueueWriteBuffer(command_queue, buffer, blocking_read, i * region[0], region[0], (const char*) ptr + i * buffer_row_pitch, i == 0 ? num_events_in_wait_list : 0, i == 0 ? event_wait_list : NULL, i == region[1] - 1 ? event : NULL);
+		cl_int retVal = clEnqueueWriteBuffer(command_queue, buffer, blocking_read, i * region[0], region[0], (const char*) ptr + i * host_row_pitch, i == 0 ? num_events_in_wait_list : 0, i == 0 ? event_wait_list : NULL, i == region[1] - 1 ? event : NULL);
 		if (retVal != CL_SUCCESS) return(retVal);
 	}
-	return(0);
+	return(CL_SUCCESS);
 }
 #else
 #define clEnqueueWriteBufferRectUse clEnqueueWriteBufferRect
@@ -597,10 +597,18 @@ int caldgemm_opencl::InitDevices()
 				}
 				else break;
 			}
+			ocl_error = clEnqueueMigrateMemObjects(ocl_command_queues[i][j], 1, &ocl_bbuffers[i][0], 0, 0, NULL, NULL);
+			if (ocl_error != CL_SUCCESS)
+			{
+				if (j < obuffercount)
+				{
+					CHKRET(ocl_error, "Error migrating device memory (B)");
+				}
+				else break;
+			}
 			
 			bbuffers[i] = j + 1;
 		}
-		CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], bbuffers[i], &ocl_bbuffers[i][0], 0, 0, NULL, NULL), "Error migrating mem object");
 		if (Config->Debug) fprintf(STD_OUT, "Allocated %d BBuffers on Device %d\n", bbuffers[i], i);
 	}
 
