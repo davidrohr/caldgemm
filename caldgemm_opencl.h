@@ -112,6 +112,8 @@ private:
 	cl_kernel (*kernelLibCreate) (cl_context* context, int nDevices, cl_device_id* devices, int kernelType, int k, int betazero);
 	void (*kernelLibQuerySettings) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y);
 
+	cl_event last_device_kernel[max_devices];
+
 public:
 	static int GetMemoryInfo(cl_mem* mem, void** ptr, size_t* offset, const void* addr);
 

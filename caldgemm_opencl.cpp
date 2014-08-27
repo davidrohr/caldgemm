@@ -794,10 +794,39 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	}
 	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d offset %lld\n", height1, height2, width, Alpha, Beta, pitch, (long long int) offset);
 	cl_event* kernel_event;
-	if (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync)) kernel_event = NULL;
-	else kernel_event = &ocl_events[Task.device][Task.j];
+	cl_event tmp_event;
+	if (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync))
+	{
+		if (Config->NoConcurrentKernels) kernel_event = &tmp_event;
+		else kernel_event = NULL;
+	}
+	else
+	{
+		kernel_event = &ocl_events[Task.device][Task.j];
+	}
 
-	CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[Task.device][Task.j], ocl_kernel[Task.device][Task.kernel_num], 2, NULL, &global_size[0], &local_size[0], 0, NULL, kernel_event), "Error starting MM Kernel");
+	int wait_num_events;
+	cl_event* wait_event;
+	if (Config->NoConcurrentKernels && last_device_kernel[Task.device] != 0)
+	{
+		wait_num_events = 1;
+		wait_event = &last_device_kernel[Task.device];
+	}
+	else
+	{
+		wait_num_events = 0;
+		wait_event = NULL;
+	}
+
+	CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[Task.device][Task.j], ocl_kernel[Task.device][Task.kernel_num], 2, NULL, &global_size[0], &local_size[0], wait_num_events, wait_event, kernel_event), "Error starting MM Kernel");
+	if (Config->NoConcurrentKernels)
+	{
+		if (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync))
+		{
+			if (last_device_kernel[Task.device] != 0) clReleaseEvent(last_device_kernel[Task.device]);
+		}
+		last_device_kernel[Task.device] = *kernel_event;
+	}
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	if (Config->VerboseTiming)
 	{
@@ -1267,6 +1296,10 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		for (int j = 0;j < 2;j++)
 		{
 			ocl_conversion_events_use[i][j] = 0;
+		}
+		if (Config->NoConcurrentKernels)
+		{
+			last_device_kernel[i] = 0;
 		}
 	}
 	return(0);

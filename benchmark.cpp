@@ -161,6 +161,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-O <int>  Backend to use: 0 = CAL, 1 = OpenCL, 2 = CUDA, 3 = CPUOnly\n" );
 	fprintf(STD_OUT, "\t-Oc <int> Set GPU_C parameter\n" );
 	fprintf(STD_OUT, "\t-Ol lib   Set library name used to obtain OpenCL DGEMM kernel\n" );
+	fprintf(STD_OUT, "\t-Oe       Do not allow multiple concurrent OpenCL kernels\n");
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n" );
 	fprintf(STD_OUT, "\t-J <int>  Allow small tiles to process the remainder on GPU (0 disable, 1 enable, 2 auto)\n");
 	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
@@ -473,6 +474,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			{
 				if (++x >= argc) return(1);
 				OpenCL_kernel_lib = argv[x];
+			}
+			else if (argv[x][2] == 'e')
+			{
+				Config->NoConcurrentKernels = 1;
 			}
 			else
 			{

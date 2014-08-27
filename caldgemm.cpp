@@ -229,6 +229,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	PinBroadcastThread = -1;
 	UseDMAFetchQueue = 0;
 	GPU_C = -1;
+	NoConcurrentKernels = 0;
 	ForceKernelVariant = -1;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
