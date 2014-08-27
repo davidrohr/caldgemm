@@ -52,7 +52,6 @@ public:
 	};
 	virtual caldgemm_config_backend* create_caldgemm_config_backend();
 	
-
 private:
 	virtual int UseOutputPthreads();
 	virtual int UseInputPthreads();
@@ -75,7 +74,7 @@ private:
 	virtual int RunCALDGEMM_Init();
 	virtual int RunCALDGEMM_Exit();
 
-	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool Cmatrix = false, bool interleave = false);
+	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
 
 	cl_platform_id ocl_platform;
@@ -105,9 +104,6 @@ private:
 	int WaitForEventAndRelease(cl_event* pEvent, int lock = -1);
 	int divideBuffer(double* src, size_t pitch_src, double* dest, size_t nSrcRows, size_t nSrcCols, bool transpose);
 
-	double* C_matrix_base;
-	cl_mem* C_matrix_base_obj;
-
 	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16; //Group size and count for conversion kernels.
 
 	caldgemm_config_backend_opencl* config_backend;
@@ -117,9 +113,12 @@ private:
 	void (*kernelLibQuerySettings) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y);
 
 public:
+	static int caldgemm_opencl::GetMemoryInfo(cl_mem* mem, void** ptr, size_t* offset, const void* addr);
+
 	struct gpu_mem_struct_opencl
 	{
 		void* ptr;
+		size_t size;
 		cl_mem mem_obj;
 	};
 };

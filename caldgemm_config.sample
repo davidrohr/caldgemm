@@ -106,3 +106,4 @@
 #define OCL_GROUP_SIZE_Y 8
 
 //#define CALDGEMM_OPENCL_EMULATE_STRIDED		//Emulate strided transfers in OpenCL via linear transfers
+#define CALDGEMM_OPENCL_USE_ORIGINAL_POINTERS	//Use the original pointers returned by clEnqueueMapBuffer for the DMA transfers and supply an origin parameter for the correct offset

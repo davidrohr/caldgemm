@@ -57,6 +57,25 @@ inline cl_int clEnqueueWriteBufferRectUse (cl_command_queue command_queue, cl_me
 	}
 	return(CL_SUCCESS);
 }
+#elif defined(CALDGEMM_OPENCL_USE_ORIGINAL_POINTERS)
+inline cl_int clEnqueueReadBufferRectUse (cl_command_queue command_queue, cl_mem buffer, cl_bool blocking_read, const size_t buffer_origin[3], const size_t host_origin[3], const size_t region[3], size_t buffer_row_pitch, size_t buffer_slice_pitch,
+	size_t host_row_pitch, size_t host_slice_pitch, void *ptr, cl_uint num_events_in_wait_list, const cl_event *event_wait_list, cl_event *event)
+{
+	void* orig_ptr;
+	size_t offset;
+	caldgemm_opencl::GetMemoryInfo(NULL, &orig_ptr, &offset, ptr);
+	size_t offset_origin[3] = {offset % host_row_pitch, offset / host_row_pitch, 0};
+	return clEnqueueReadBufferRect(command_queue, buffer, blocking_read, buffer_origin, offset_origin, region, buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch, orig_ptr, num_events_in_wait_list, event_wait_list, event);
+}
+inline cl_int clEnqueueWriteBufferRectUse (cl_command_queue command_queue, cl_mem buffer, cl_bool blocking_read, const size_t buffer_origin[3], const size_t host_origin[3], const size_t region[3], size_t buffer_row_pitch, size_t buffer_slice_pitch,
+	size_t host_row_pitch, size_t host_slice_pitch, const void *ptr, cl_uint num_events_in_wait_list, const cl_event *event_wait_list, cl_event *event)
+{
+	void* orig_ptr;
+	size_t offset;
+	caldgemm_opencl::GetMemoryInfo(NULL, &orig_ptr, &offset, ptr);
+	size_t offset_origin[3] = {offset % host_row_pitch, offset / host_row_pitch, 0};
+	return clEnqueueWriteBufferRect(command_queue, buffer, blocking_read, buffer_origin, offset_origin, region, buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch, orig_ptr, num_events_in_wait_list, event_wait_list, event);
+}
 #else
 #define clEnqueueWriteBufferRectUse clEnqueueWriteBufferRect
 #define clEnqueueReadBufferRectUse clEnqueueReadBufferRect
@@ -220,7 +239,6 @@ static const char* opencl_error_string(int errorcode)
 
 caldgemm_opencl::caldgemm_opencl() : caldgemm()
 {
-	C_matrix_base = NULL;
 }
 
 caldgemm_opencl::~caldgemm_opencl()
@@ -743,9 +761,12 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	}
 	else
 	{
-		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 0, sizeof(cl_mem), C_matrix_base_obj), "Error setting kernel memory C");
+		cl_mem mem_c_matrix;
+		size_t matrix_offset;
+		GetMemoryInfo(&mem_c_matrix, NULL, &matrix_offset, C + blockn * Config->Height + blockm * Config->Height * C_pitch);
+		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 0, sizeof(cl_mem), mem_c_matrix), "Error setting kernel memory C");
 		pitch = C_pitch;
-		offset = (C + blockn * Config->Height + blockm * Config->Height * C_pitch) - C_matrix_base;
+		offset = matrix_offset;
 	}
 	double beta = Config->GPU_C ? Beta : 0.;
 	double alpha = Task.kernel_num == 2 ? 1. : Alpha;
@@ -1240,11 +1261,6 @@ int caldgemm_opencl::UseMutexPerDevice() {return(0);}
 
 int caldgemm_opencl::RunCALDGEMM_Init()
 {
-	if (Config->GPU_C && Config->DstMemory == 'c' && C_matrix_base == NULL)
-	{
-		fprintf(STD_OUT, "DstMemory = 'c' can only be used if C matrix memory was allocated using OpenCL memory before.\n");
-		return(1);
-	}
 	for (int i = 0;i < nDevices;i++)
 	{
 		for (int j = 0;j < 2;j++)
@@ -1274,7 +1290,22 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 static caldgemm_opencl::gpu_mem_struct_opencl gpu_mem[MAX_GPU_MEM_COUNT];
 static int nGPUMEM = 0;
 
-double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix, bool interleave)
+int caldgemm_opencl::GetMemoryInfo(cl_mem* mem, void** ptr, size_t* offset, const void* addr)
+{
+	for (int i = 0;i < nGPUMEM;i++)
+	{
+		if (((size_t) addr > (size_t) gpu_mem[i].ptr) && (((char*) addr - (char*) gpu_mem[i].ptr) < gpu_mem[i].size))
+		{
+			if (mem != NULL) *mem = gpu_mem[i].mem_obj;
+			if (ptr != NULL) *ptr = gpu_mem[i].ptr;
+			if (offset != NULL) *offset = ((char*) addr - (char*) gpu_mem[i].ptr);
+			return(0);
+		}
+	}
+	return(1);
+}
+
+double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool interleave)
 {
 	if (gpuaccessible && Config->GPU_C)
 	{
@@ -1294,6 +1325,7 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 			fprintf(STD_OUT, "WARNING: CL_MEM_USE_PERSISTENT_MEM_AMD flag not defined\n");
 #endif
 		}
+		gpu_mem[nGPUMEM].size = nDoubles * sizeof(double);
 		gpu_mem[nGPUMEM].mem_obj = clCreateBuffer(ocl_context, mem_flags, nDoubles * sizeof(double), NULL, &ocl_error);
 		if (ocl_error != CL_SUCCESS)
 		{
@@ -1316,22 +1348,16 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 				return(0);
 			}
 		}
-		if (Cmatrix)
-		{
-			C_matrix_base = (double*) gpu_mem[nGPUMEM].ptr;
-			C_matrix_base_obj = &gpu_mem[nGPUMEM].mem_obj;
-		}
 		return((double*) gpu_mem[nGPUMEM++].ptr);
 	}
 	else
 	{
-		return (caldgemm::AllocMemory(nDoubles, page_locked, huge_pages, gpuaccessible, Cmatrix, interleave));
+		return (caldgemm::AllocMemory(nDoubles, page_locked, huge_pages, gpuaccessible, interleave));
 	}
 }
 
 void caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
 {
-	if (ptr == C_matrix_base) C_matrix_base = NULL;
 	if (gpuaccessible && Config->GPU_C)
 	{
 		for (int i = 0;i < nGPUMEM;i++)
@@ -1344,7 +1370,6 @@ void caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
 				}
 				clEnqueueUnmapMemObject(ocl_command_queue_cpu, gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL);
 				clReleaseMemObject(gpu_mem[i].mem_obj);
-				if (C_matrix_base_obj == &gpu_mem[nGPUMEM - 1].mem_obj) C_matrix_base_obj = &gpu_mem[i].mem_obj;
 				gpu_mem[i] = gpu_mem[--nGPUMEM];
 				return;
 			}

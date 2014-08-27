@@ -2810,7 +2810,7 @@ int nHugeAddresses = 0;
 #define HUGE_PAGESIZE (1024 * 2048)
 #endif
 
-double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix, bool interleave)
+double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool interleave)
 {
 #ifndef USE_OLD_HUGE_MALLOC
 	return((double*) qmalloc::qMalloc(nDoubles * sizeof(double), huge_pages, false, page_locked, NULL, interleave));

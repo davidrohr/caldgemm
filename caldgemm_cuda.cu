@@ -273,7 +273,7 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 	}
 	else
 	{
-		cbuffer = C + (C_device - C_host) + blockn * Config->Height + blockm * Config->Height * C_pitch;
+		cbuffer = C + blockn * Config->Height + blockm * Config->Height * C_pitch;
 		pitch = C_pitch;
 	}
 
@@ -525,13 +525,13 @@ struct gpu_mem_struct_cuda
 static gpu_mem_struct_cuda gpu_mem[MAX_GPU_MEM_COUNT];
 static int nGPUMEM = 0;
 
-double* caldgemm_cuda::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool Cmatrix, bool interleave)
+double* caldgemm_cuda::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible, bool interleave)
 {
 	if (gpuaccessible)
 	{
 		void* ptr;
 		unsigned int flags = cudaHostAllocPortable;
-		if (Config->DstMemory == 'c' && Cmatrix) flags |= cudaHostAllocMapped;
+		if (Config->DstMemory == 'c') flags |= cudaHostAllocMapped;
 		cudaError_t cuda_error = cudaHostAlloc(&ptr, nDoubles * sizeof(double), flags);
 		if (cuda_error != cudaSuccess)
 		{
@@ -539,20 +539,21 @@ double* caldgemm_cuda::AllocMemory(size_t nDoubles, bool page_locked, bool huge_
 			return(NULL);
 		}
 		gpu_mem[nGPUMEM++].ptr = ptr;
-		if (Cmatrix && Config->DstMemory == 'c')
+		if (Config->DstMemory == 'c')
 		{
-			C_host = (double*) ptr;
-			cuda_error = cudaHostGetDevicePointer(&C_device, C_host, 0);
-			if (cuda_error != cudaSuccess)
+			void* C_device;
+			cuda_error = cudaHostGetDevicePointer(&C_device, ptr, 0);
+			if (cuda_error != cudaSuccess || ptr != C_device)
 			{
-				fprintf(STD_OUT, "cudaHostGetDevicePtr: CUDA Error %d: %s\n", cuda_error, cudaGetErrorString(cuda_error));
+				if (cuda_error != cudaSuccess) fprintf(STD_OUT, "cudaHostGetDevicePtr: CUDA Error %d: %s\n", cuda_error, cudaGetErrorString(cuda_error));
+				else fprintf(STD_OUT, "Host pointer does not match device pointer\n");
 				cudaFreeHost(ptr);
 				return(NULL);
 			}
 		}
 		return((double*) ptr);
 	}
-	double* ptr = caldgemm::AllocMemory(nDoubles, page_locked, huge_pages, gpuaccessible, Cmatrix, interleave);
+	double* ptr = caldgemm::AllocMemory(nDoubles, page_locked, huge_pages, gpuaccessible, interleave);
 	return(ptr);
 }
 

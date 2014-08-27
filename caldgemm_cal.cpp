@@ -30,7 +30,9 @@
 #include "cmodules/util_adl.h"
 #include "cmodules/affinity.h"
 
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #define ILKernelName ILKernel
 #include "caldgemm.il"

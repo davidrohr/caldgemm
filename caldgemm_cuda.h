@@ -58,7 +58,7 @@ private:
 	virtual int RunCALDGEMM_Init();
 	virtual int RunCALDGEMM_Exit();
 
-	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool Cmatrix = false, bool interleave = false);
+	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
 
 	int cuda_devices[max_devices];
@@ -76,8 +76,6 @@ private:
 	int WaitForEventAndRelease(cudaEvent_t* pEvent);
 
 	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16;	//Group and block size for conversion kernels and for DGEMM kernel
-
-	double *C_host, *C_device;
 };
 
 #endif

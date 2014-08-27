@@ -769,7 +769,7 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 			}
 			pitch_a = pitch_b = pitch_c;
 		}
-		linpackmem = dgemm_obj->AllocMemory(pitch_c * (matrix_n + Config.Width + 1) + 16, mem_page_lock, mem_huge_table, mem_gpu_access, true);
+		linpackmem = dgemm_obj->AllocMemory(pitch_c * (matrix_n + Config.Width + 1) + 16, mem_page_lock, mem_huge_table, mem_gpu_access);
 		if (linpackmem == NULL) {fprintf(STD_OUT, "Memory Allocation Error\n"); return(1);}
 
 		char* linpackmem2 = (char*) linpackmem;
@@ -839,7 +839,7 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		if (!quietbench) fprintf(stderr, "...alloc B (%lld KB)", (long long int) (height_b * pitch_b * sizeof(double)  / 1024));
 		BB = dgemm_obj->AllocMemory(height_b * pitch_b, mem_page_lock, mem_huge_table, mem_gpu_access);
 		if (!quietbench) fprintf(stderr, "...alloc C (%lld KB)", (long long int) (matrix_m * pitch_c * sizeof(double)  / 1024));
-		CC = dgemm_obj->AllocMemory(matrix_m * pitch_c, mem_page_lock, mem_huge_table, mem_gpu_access, true);
+		CC = dgemm_obj->AllocMemory(matrix_m * pitch_c, mem_page_lock, mem_huge_table, mem_gpu_access);
 
 		if (AA == NULL || BB == NULL || CC == NULL)
 		{

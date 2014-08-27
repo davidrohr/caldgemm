@@ -204,7 +204,7 @@ public:
 	int ExitCALDGEMM();
 	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = (size_t) -1, size_t k = (size_t) -1, size_t n = (size_t) -1, size_t Apitch = (size_t) -1, size_t Bpitch = (size_t) -1, size_t Cpitch = (size_t) -1, bool orderColMajor = false, bool TransA = false, bool TransB = false, int ExecuteLinpackCallbacks = 0);
 	
-	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool Cmatrix = false, bool interleave = false);
+	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
 
 	void ResetTimers();
