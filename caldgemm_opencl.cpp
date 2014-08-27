@@ -1316,7 +1316,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 				clReleaseEvent(ocl_conversion_events[i][j]);
 			}
 		}
-		if (Config->NoConcurrentKernels && last_device_kernel[i] != 0)
+		if (Config->NoConcurrentKernels && last_device_kernel[i] != 0 && (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync)))
 		{
 			clReleaseEvent(last_device_kernel[i]);
 		}
