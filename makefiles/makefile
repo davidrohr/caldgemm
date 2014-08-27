@@ -65,6 +65,8 @@ ifeq ($(CONFIG_CPP11), 1)
 GCCFLAGSUSE				+= -std=c++11
 endif
 
+MKDIR						= @mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'`
+
 ALLDEP						= makefiles/makefile $(CONFIGFILE) makefiles/$(ARCHFILE) config.mak
 include						makefiles/$(ARCHFILE)
 GCCFLAGSARCH				+= $(GCCARCHA)
@@ -143,7 +145,6 @@ $(EXECUTABLE):				$(EXTRADEPS) $(OBJFILES) $(EXTRAOBJFILES) $(ALLDEP)
 							$(HIDEECHOA)if [ -e "$(BUILDSCRIPT)" ]; then ./$(BUILDSCRIPT); fi
 
 $(WORKPATH)/cpp/%.o:			%.cpp $(ALLDEP)
-							@mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'`
 							$(CC) $(INCLUDEPATHSUSE) $(DEFINESUSE) $(FILEFLAGS$<) $(COMPILEONLY) $< $(COMPILEOUTPUT)
 							
 $(WORKPATH)/cxx/%.o:			%.cxx $(ALLDEP)
@@ -184,7 +185,7 @@ $(WORKPATH)/clang/%.o:			%.cpp $(ALLDEP)
 
 
 $(WORKPATH)/qt/%_ui.h:		%.ui
-							mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'`
+							@mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'`
 							$(QTUIC) -o $@ $<
 
 $(WORKPATH)/qt/%_moc.cpp:	%.h $(WORKPATH)/qt/%_ui.h
@@ -205,10 +206,11 @@ $(WORKPATH)/cl/%.objcl:		%.cl $(ALLDEP) $(WORKPATH)/_makefiles_support_opencl.ex
 							$(HIDEECHOA)$(OPENCL_ENVIRONMENT) ./$(WORKPATH)/_makefiles_support_opencl.exe -output-file $@ $< -- -I. $(GCCINCLUDEPATHS) $(GCCDEFINES) $(OPENCL_OPTIONS) > /dev/null
 
 $(WORKPATH)/cl/%.o:		$(WORKPATH)/cl/%.objcl $(ALLDEP)
-							$(HIDEECHOA) echo $<
+							@echo $<
 							$(HIDEECHOA) sed -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_makefile_opencl_program_`echo $< | sed -e "s&$(WORKPATH)/cl/&&g" -e "s&\.objcl&\.cl&g" -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
 $(WORKPATH)/res/%.o:	% $(ALLDEP)
-							$(HIDEECHOA) echo $<
+							@echo $<
+							@mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'`
 							$(HIDEECHOA) sed -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_resource_`echo $< | sed -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
 
 
@@ -229,12 +231,12 @@ subclean/%.mak:
 
 SAVEDIR						= releases/`date +%F`-BUILD-`cat buildnr`							
 backup:						
-							$(HIDEECHOA) mkdir $(SAVEDIR)
+							mkdir $(SAVEDIR)
 							cp *.cpp *.h makefile buildnr *.sh *.bat *.conf *.cu $(SAVEDIR)
 
 #Dependencies
 
-DEPMKDIR					= mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` &&
+DEPMKDIR					= $(MKDIR) &&
 DEPGCC						= $(GCC3264) $(GCCFLAGSARCH) $(GCCINCLUDEPATHS) $(GCCDEFINES) -x c++ -MM $<
 DEPSED1						= sed -e ':a;N;$$!ba' -e
 DEPSED2						= -e 's,\\,/,g' \
@@ -244,42 +246,42 @@ DEPSED2						= -e 's,\\,/,g' \
 
 
 $(WORKPATH)/qt/%.qtd:			%.cpp %.ui $(ALLDEP) $(WORKPATH)/qt/%_ui.h
-							@$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
 							
 $(WORKPATH)/cl/%.d:			%.cl $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) -I$(GCCPATH)/include -D__OPENCL__ | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.objcl $(WORKPATH)/$*.cl $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) -I$(GCCPATH)/include -D__OPENCL__ | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.objcl $(WORKPATH)/$*.cl $@ : ,g' $(DEPSED2)
 							
 $(WORKPATH)/cu/%.d:			%.cu $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) -I$(GCCPATH)/include -D_MSC_VER=1700 -D__CUDACC__ | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $(WORKPATH)/$*.cucpp $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) -I$(GCCPATH)/include -D_MSC_VER=1700 -D__CUDACC__ | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $(WORKPATH)/$*.cucpp $@ : ,g' $(DEPSED2)
 							
 $(WORKPATH)/asm/%.d:			%.asm $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $(WORKPATH)/$*.asmcpp $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $(WORKPATH)/$*.asmcpp $@ : ,g' $(DEPSED2)
 
 $(WORKPATH)/cpp/%.d:			%.cpp $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
 							
 $(WORKPATH)/cxx/%.d:			%.cxx $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
 
 $(WORKPATH)/c/%.d:			%.c $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.cobj $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.cobj $@ : ,g' $(DEPSED2)
 							
 $(WORKPATH)/dbg/%.d:			%.cpp $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) -DDEBUG_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) -DDEBUG_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
 
 $(WORKPATH)/icc/%.d:			%.cpp $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) -DINTEL_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) -DINTEL_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
 							
 $(WORKPATH)/vcc/%.d:			%.cpp $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) -DVECTORC_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) -DVECTORC_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
 							
 $(WORKPATH)/gcc/%.d:			%.cpp $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) -DGCC_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) -DGCC_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
 							
 $(WORKPATH)/mscc/%.d:			%.cpp $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) -DVSNET_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) -DVSNET_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
 
 $(WORKPATH)/clang/%.d:			%.cpp $(ALLDEP)
-							@$(DEPMKDIR) $(DEPGCC) -DCLANG_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
+							$(DEPMKDIR) $(DEPGCC) -DCLANG_RUNTIME | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.o $@ : ,g' $(DEPSED2)
 
 include $(DEPENDS)							
