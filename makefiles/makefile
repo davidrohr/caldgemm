@@ -206,7 +206,7 @@ $(WORKPATH)/cl/%.objcl:		%.cl $(ALLDEP) $(WORKPATH)/_makefiles_support_opencl.ex
 
 $(WORKPATH)/cl/%.o:		$(WORKPATH)/cl/%.objcl $(ALLDEP)
 							$(HIDEECHOA) echo $<
-							$(HIDEECHOA) sed -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_makefile_opencl_program_`echo $< | sed -e "s&$(WORKPATH)/&&g" -e "s&\.objcl&\.cl&g" -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
+							$(HIDEECHOA) sed -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_makefile_opencl_program_`echo $< | sed -e "s&$(WORKPATH)/cl/&&g" -e "s&\.objcl&\.cl&g" -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
 $(WORKPATH)/res/%.o:	% $(ALLDEP)
 							$(HIDEECHOA) echo $<
 							$(HIDEECHOA) sed -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_resource_`echo $< | sed -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
