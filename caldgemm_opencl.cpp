@@ -1316,6 +1316,10 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 				clReleaseEvent(ocl_conversion_events[i][j]);
 			}
 		}
+		if (Config->NoConcurrentKernels && last_device_kernel[i] != 0)
+		{
+			clReleaseEvent(last_device_kernel[i]);
+		}
 	}
 	return(0);
 }
