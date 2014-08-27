@@ -769,7 +769,9 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 			}
 			pitch_a = pitch_b = pitch_c;
 		}
-		linpackmem = dgemm_obj->AllocMemory(pitch_c * (matrix_n + Config.Width + 1) + 16, mem_page_lock, mem_huge_table, mem_gpu_access);
+		size_t memsize = pitch_c * (matrix_n + Config.Width + 1) + 16;
+		fprintf(stderr, "Allocating %lld KB...", (long long int) (memsize * 8 / 1024));
+		linpackmem = dgemm_obj->AllocMemory(memsize, mem_page_lock, mem_huge_table, mem_gpu_access);
 		if (linpackmem == NULL) {fprintf(STD_OUT, "Memory Allocation Error\n"); return(1);}
 
 		char* linpackmem2 = (char*) linpackmem;

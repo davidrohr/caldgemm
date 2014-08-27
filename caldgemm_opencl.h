@@ -113,7 +113,7 @@ private:
 	void (*kernelLibQuerySettings) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y);
 
 public:
-	static int caldgemm_opencl::GetMemoryInfo(cl_mem* mem, void** ptr, size_t* offset, const void* addr);
+	static int GetMemoryInfo(cl_mem* mem, void** ptr, size_t* offset, const void* addr);
 
 	struct gpu_mem_struct_opencl
 	{

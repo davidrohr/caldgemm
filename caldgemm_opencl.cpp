@@ -61,18 +61,18 @@ inline cl_int clEnqueueWriteBufferRectUse (cl_command_queue command_queue, cl_me
 inline cl_int clEnqueueReadBufferRectUse (cl_command_queue command_queue, cl_mem buffer, cl_bool blocking_read, const size_t buffer_origin[3], const size_t host_origin[3], const size_t region[3], size_t buffer_row_pitch, size_t buffer_slice_pitch,
 	size_t host_row_pitch, size_t host_slice_pitch, void *ptr, cl_uint num_events_in_wait_list, const cl_event *event_wait_list, cl_event *event)
 {
-	void* orig_ptr;
-	size_t offset;
-	caldgemm_opencl::GetMemoryInfo(NULL, &orig_ptr, &offset, ptr);
+	void* orig_ptr = NULL;
+	size_t offset = 0;
+	if (caldgemm_opencl::GetMemoryInfo(NULL, &orig_ptr, &offset, ptr)) return(CL_INVALID_MIP_LEVEL);
 	size_t offset_origin[3] = {offset % host_row_pitch, offset / host_row_pitch, 0};
 	return clEnqueueReadBufferRect(command_queue, buffer, blocking_read, buffer_origin, offset_origin, region, buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch, orig_ptr, num_events_in_wait_list, event_wait_list, event);
 }
 inline cl_int clEnqueueWriteBufferRectUse (cl_command_queue command_queue, cl_mem buffer, cl_bool blocking_read, const size_t buffer_origin[3], const size_t host_origin[3], const size_t region[3], size_t buffer_row_pitch, size_t buffer_slice_pitch,
 	size_t host_row_pitch, size_t host_slice_pitch, const void *ptr, cl_uint num_events_in_wait_list, const cl_event *event_wait_list, cl_event *event)
 {
-	void* orig_ptr;
-	size_t offset;
-	caldgemm_opencl::GetMemoryInfo(NULL, &orig_ptr, &offset, ptr);
+	void* orig_ptr = NULL;
+	size_t offset = 0;
+	if (caldgemm_opencl::GetMemoryInfo(NULL, &orig_ptr, &offset, ptr)) return(CL_INVALID_MIP_LEVEL);
 	size_t offset_origin[3] = {offset % host_row_pitch, offset / host_row_pitch, 0};
 	return clEnqueueWriteBufferRect(command_queue, buffer, blocking_read, buffer_origin, offset_origin, region, buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch, orig_ptr, num_events_in_wait_list, event_wait_list, event);
 }
@@ -97,6 +97,7 @@ inline cl_int clEnqueueWriteBufferRectUse (cl_command_queue command_queue, cl_me
 
 #ifndef _WIN32
 #include <dlfcn.h>
+#include <sys/mman.h>
 #endif
 
 const char* caldgemm_opencl::OCLConvertKernel =
@@ -761,12 +762,12 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	}
 	else
 	{
-		cl_mem mem_c_matrix;
-		size_t matrix_offset;
-		GetMemoryInfo(&mem_c_matrix, NULL, &matrix_offset, C + blockn * Config->Height + blockm * Config->Height * C_pitch);
-		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 0, sizeof(cl_mem), mem_c_matrix), "Error setting kernel memory C");
+		cl_mem mem_c_matrix = 0;
+		size_t matrix_offset = 0;
+		if (GetMemoryInfo(&mem_c_matrix, NULL, &matrix_offset, C + blockn * Config->Height + blockm * Config->Height * C_pitch)) CHKRET(CL_INVALID_MIP_LEVEL, "Error obtaining memory info");
+		CHKRET(clSetKernelArg(ocl_kernel[Task.device][Task.kernel_num], 0, sizeof(cl_mem), &mem_c_matrix), "Error setting kernel memory C");
 		pitch = C_pitch;
-		offset = matrix_offset;
+		offset = matrix_offset / sizeof(C[0]);
 	}
 	double beta = Config->GPU_C ? Beta : 0.;
 	double alpha = Task.kernel_num == 2 ? 1. : Alpha;
@@ -1294,7 +1295,7 @@ int caldgemm_opencl::GetMemoryInfo(cl_mem* mem, void** ptr, size_t* offset, cons
 {
 	for (int i = 0;i < nGPUMEM;i++)
 	{
-		if (((size_t) addr > (size_t) gpu_mem[i].ptr) && (((char*) addr - (char*) gpu_mem[i].ptr) < gpu_mem[i].size))
+		if (((size_t) addr >= (size_t) gpu_mem[i].ptr) && ((size_t) ((char*) addr - (char*) gpu_mem[i].ptr) < gpu_mem[i].size))
 		{
 			if (mem != NULL) *mem = gpu_mem[i].mem_obj;
 			if (ptr != NULL) *ptr = gpu_mem[i].ptr;
@@ -1333,15 +1334,23 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 			return(0);
 		}
 
+		/*
+		NOT NECESSARY, can get pointer from GPU mapping
 		gpu_mem[nGPUMEM].ptr = clEnqueueMapBuffer(ocl_command_queue_cpu, gpu_mem[nGPUMEM].mem_obj, CL_TRUE, 0, 0, nDoubles * sizeof(double), 0, NULL, NULL, &ocl_error);
 		if (ocl_error != CL_SUCCESS)
 		{
 			fprintf(STD_OUT, "Error allocating memory (clEnqueueMapBuffer) (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
 			return(0);
+		}*/
+		if (page_locked)
+		{
+			//mlock(gpu_mem[nGPUMEM].ptr, nDoubles * sizeof(double));
 		}
 		for (int i = 0;i < nDevices;i++)
 		{
+			fprintf(stderr, "%d", i);
 			void* tmp_ptr = clEnqueueMapBuffer(ocl_command_queues[i][0], gpu_mem[nGPUMEM].mem_obj, CL_TRUE, 0, 0, nDoubles * sizeof(double), 0, NULL, NULL, &ocl_error);
+			if (i == 0) gpu_mem[nGPUMEM].ptr = tmp_ptr;
 			if (ocl_error != CL_SUCCESS || tmp_ptr != gpu_mem[nGPUMEM].ptr)
 			{
 				fprintf(STD_OUT, "Error allocating memory (clEnqueueMapBuffer) (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
