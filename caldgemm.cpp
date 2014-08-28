@@ -384,9 +384,10 @@ void caldgemm::ensure_omp_thread_pinning()
 	
 	cpu_set_t noaffinity;
 	CPU_ZERO(&noaffinity);
-	for (int i = 0;i < conf_numprocs;i++) if (i != Config->PinMainThread) CPU_SET(i, &noaffinity);
+	for (int i = 0;i < conf_numprocs;i++) CPU_SET(i, &noaffinity);
 	sched_setaffinity(0, sizeof(noaffinity), &noaffinity);
 
+	setUnknownNames("Unknown - Before OMP Thread Creation");
 #pragma omp parallel num_threads(conf_numprocs)
 	{
 		int thread_id = omp_get_thread_num();
@@ -415,7 +416,7 @@ void caldgemm::ensure_omp_thread_pinning()
 			}
 			if (thread_id == nFreeCores) localcore = broadcast_cpu_core;
 			nFreeCores++;
-		
+
 			for (int j = 0;j < 2;j++)
 			{
 				for (int i = 0;i < conf_numprocs;i++)
@@ -445,6 +446,7 @@ void caldgemm::ensure_omp_thread_pinning()
 		sched_setaffinity(0, sizeof(localset), &localset);
 		if (Config->Debug) fprintf(STD_OUT, "OpenMP BLAS thread %d pinned to core %d\n", thread_id, localcore);
 	}
+	setUnknownNames("Unknown OMP Thread");
 	
 	sched_setaffinity(0, sizeof(oldaffinity), &oldaffinity);
 	delete[] cpu_order;
@@ -506,10 +508,12 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (ValidateRuntime()) return(1);
 	buffersSwitchable = (KernelSettings.transposeA ^ KernelSettings.transposeB);
 	if (Config->Debug) fprintf(STD_OUT, "Initializing Backend\n");
+	setUnknownNames("Unknown - Before Runtime Initialization");
 	if (Config->UseGPU == 0 || Initialize(nocalinit))
 	{
 		gpu_available = false;
 	}
+	setUnknownNames("Device Runtime");
 	if (!gpu_available)
 	{
 		if (!Config->Quiet && Config->UseGPU) fprintf(STD_OUT, "No GPU available, falling back to CPU\n");
@@ -805,7 +809,7 @@ bool caldgemm::cpuUsed(int cpu)
 
 int caldgemm::reserve_cpu_cores()
 {
-	if (!(UseInputPthreads() || UseOutputPthreads())) return(0);
+	if (!(UseInputPthreads() || UseOutputPthreads())) return(1);
 	int nthreads = 0;
 	int mainfound = 0;
 	for (int i = 0;i < nDevices;i++)
@@ -2154,7 +2158,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	//Check if the GPU can/shall process the required dgemm task
 	if (Config->Iterations > 1 || !Config->UseCPU);
 	else if (Config->Width % 8 || Config->Width < 256) forceCPU = true;
-	else if (MaxGpuM < 512 || MaxGpuN < 512) forceCPU = true;
+	else if (MaxGpuM < Config->Height / 2 || MaxGpuN < Config->Height / 2) forceCPU = true;
 #ifdef _WIN32
 	else if (Alpha == 0.) forceCPU = true;
 #else
@@ -2223,10 +2227,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	HPL_CALDGEMM_gpu_height = Config->Height;
 
 	if (Config->UseGPU && (Config->Width > BufferWidth || Config->Height > BufferHeight)) forceReinit = true;
-
 	if (Config->UseCPU)
 	{
-		if (Config->UseGPU == false || matrix_m < Config->Height || matrix_n < Config->Height || (forceReinit && (long long int) MaxGpuM * (long long int) MaxGpuN * (long long int) Config->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Config->Width < 1024 && Config->Height < 1024) || (ExecLinpack && matrix_m < Config->Width)) forceCPU = true;
+		if (Config->UseGPU == false || (forceReinit && (long long int) MaxGpuM * (long long int) MaxGpuN * (long long int) Config->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Config->Width < 1024 && Config->Height < 1024) || (ExecLinpack && matrix_m < Config->Width)) forceCPU = true;
 	}
 
 	if (forceCPU)

@@ -39,6 +39,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <pthread.h>
+#include "cmodules/affinity.h"
 #else
 #include "cmodules/pthread_mutex_win32_wrapper.h"
 #endif
@@ -901,6 +902,7 @@ bool isDoubleEqual(double a, double b)
 
 int main(int argc, char** argv)
 {
+	setUnknownNames("Unknown - Before Main");
 	caldgemm::caldgemm_config Config;
 
 	if (ParseCommandLine(argc, argv, &Config))
@@ -943,13 +945,12 @@ int main(int argc, char** argv)
 		((caldgemm_opencl::caldgemm_config_backend_opencl*) Config.config_backend)->kernelLib = OpenCL_kernel_lib;
 	}
 #endif
-
-
 	if (dgemm_obj->InitCALDGEMM(&Config))
 	{
 		fprintf(STD_OUT, "Error initializing CALDGEMM\n");
 		return(1);
 	}
+
 	if (reduced_height != -1)
 	{
 		fprintf(STD_OUT, "Using partial buffers %d / %lld\n", reduced_height, (long long int) Config.Height);

@@ -12,6 +12,7 @@
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "os_low_level_helper.h"
 
 #ifndef STD_OUT
@@ -187,6 +188,29 @@ void printThreadPinning()
 					{
 						if (CPU_ISSET(i, &threadmask)) fprintf(STD_OUT, " - Pinned to core %d", i);
 					}
+				}
+				char filename[1024];
+				sprintf(filename, "/proc/%d/task/%d/stat", (int) pid, (int) tid);
+				FILE* fp = fopen(filename, "r");
+				if (fp != NULL)
+				{
+					char buffer[1024];
+					fgets(buffer, 1023, fp);
+					int count = 0;
+					for (unsigned int i = 0;i < strlen(buffer);i++)
+					{
+						if (buffer[i] == ' ')
+						{
+							if (++count == 13)
+							{
+								int time;
+								sscanf(&buffer[i + 1], "%d ", &time);
+								fprintf(STD_OUT, " - Time: %d", time);
+								break;
+							}
+						}
+					}
+					fclose(fp);
 				}
 				fprintf(STD_OUT, "\n");
 			}
