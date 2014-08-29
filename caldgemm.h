@@ -136,6 +136,7 @@ public:
 		int DeviceNum;							//CAL Device to use (-1 for all devices)
 		int NumDevices;							//Number of devices to use in parallel at max
 		int DeviceNums[max_devices];			//Array of CAL devices to use (replaces DeviceNum for multiple devices). This translation is applied first, all other setting like GPU mappings are applied on top of this.
+		int max_bbuffers;						//Limit the number of bbuffers
 
 		bool Debug;								//Activate debig output
 		bool DumpMatrix;						//Dump input matrix to file
@@ -411,6 +412,7 @@ protected:
 	{
 		HighResTimer System, Kernel, CounterDivide, CounterMerge, CounterCopyTo, CounterCopyFrom, CPUTimer, GPUTimer, TotalCPUTimer, ATime, LinpackTimer1, LinpackTimer2, LinpackTimer3, BcastTimer;
 		int divideA, divideB, divideC;
+		size_t device_kernel;
 	} Timers;
 
 	int DumpMatrix(double* A, double* B, double* C, double alpha, double beta, int m, int k, int n, int Apitch, int Bpitch, int Cpitch);

@@ -63,6 +63,11 @@ extern "C"
 #include <math.h>
 
 #include "cmodules/os_low_level_helper.h"
+
+#ifdef _NO_AFFINITY
+#define sched_setaffinity(a, b, c) 0
+#endif
+
 #if !defined(USE_GOTO_BLAS) | defined(_WIN32)
 extern "C" {
 extern int get_num_procs();
@@ -175,6 +180,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	DeviceNum = -1;
 	ImprovedScheduler = false;
 	NumDevices = max_devices;
+	max_bbuffers = 0;
 	OpenCLPlatform = 0;
 	Width = 1024;
 	Height = 4096;
@@ -840,7 +846,6 @@ bool caldgemm::cpuUsed(int cpu)
 
 int caldgemm::reserve_cpu_cores()
 {
-	if (!(UseInputPthreads() || UseOutputPthreads())) return(1);
 	int nthreads = 0;
 	int mainfound = 0;
 	for (int i = 0;i < nDevices;i++)
@@ -1639,7 +1644,7 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 #else
 	const int kernel_num = Config->ForceKernelVariant != -1 ? Config->ForceKernelVariant : ((reinterpret_cast<unsigned long long int &>(Alpha) == double_one));
 #endif
-	if (Config->Debug && Config->UseGPU) fprintf(STD_OUT, "Using Kernel %d (alpha=0x%llX (%2.3f), width = %lld)\n", kernel_num, (reinterpret_cast<long long int &>(Alpha)), Alpha, (long long int) Config->Width);
+	if ((Config->Debug) && Config->UseGPU) fprintf(STD_OUT, "Using Kernel %d (alpha=0x%llX (%2.3f), width = %lld)\n", kernel_num, (reinterpret_cast<long long int &>(Alpha)), Alpha, (long long int) Config->Width);
 
 	int oldj[max_devices];
 	int j[max_devices];
@@ -2847,6 +2852,7 @@ void caldgemm::ResetTimers()
 	Timers.LinpackTimer2.Reset();
 	Timers.LinpackTimer3.Reset();
 	Timers.BcastTimer.Reset();
+	Timers.device_kernel = 0;
 }
 
 #define MAX_HUGE_ADDRESSES 256
@@ -3034,6 +3040,11 @@ void caldgemm::displayMatrixTiming(const char* name)
 		double copyDivide = UseInputPthreads() ? (double) 1e-09 * (Config->Height * Timers.divideA + Config->Height * Timers.divideB) * Config->Width * sizeof(double) * (double)Config->Iterations / Timers.CounterDivide.GetElapsedTime() : 0;
 		fprintf(STD_OUT, "Times:  Kernel                    Divide (%d,%d)            Merge                   Copy To                 Copy From\n", Timers.divideA, Timers.divideB);
 		fprintf(STD_OUT, "        %2.4f (%2.4f Gflops)  %2.4f (%2.4f GB/s)    %2.4f (%2.4f GB/s)    %2.4f (%2.4f GB/s)    %2.4f (%2.4f Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
+		if (Timers.device_kernel)
+		{
+			double gflops_device = (double) matrix_m * matrix_n * (2 * Config->Width - 1) * (double)Config->Iterations / (double) Timers.device_kernel;
+			fprintf(STD_OUT, "        %2.4f (%2.4f Gflops)\n", (double) Timers.device_kernel * 1e-09, gflops_device);
+		}
 		if (Config->TabularTiming)
 		{
 			fprintf(STD_OUT, "TIMES:\tw\t%lld\th\t%lld\tkernel\t%2.4f\tdivide\t%2.4f\tmerge\t%2.4f\tcopyto\t%2.4f\tcopyfr\t%2.4f\n", (long long int) Config->Width, (long long int) Config->Height, gflops, copyDivide, copyMerge, copyto, copyfrom);

@@ -117,6 +117,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-R  <int> Number of iterations to run the program (seperate caldgemm calls)\n" );
 	fprintf(STD_OUT, "\t-y  <int> Force Device ID (-1 = all devices)\n" );
 	fprintf(STD_OUT, "\t-Y  <int> Use n devices\n" );
+	fprintf(STD_OUT, "\t-bb <int> Maxumum number of allowed bbuffers\n");
 	fprintf(STD_OUT, "\t-d        Enable Debug Mode\n" );
 	fprintf(STD_OUT, "\t-z        Enable Multithreading\n" );
 	fprintf(STD_OUT, "\t-Z        Enable Multithreading for DivideBuffer\n" );
@@ -246,7 +247,15 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			Config->MemPolicy = true;
 			break;
 		case 'b':
-			benchmark = true;
+			if (argv[x][2] == 'b')
+			{
+				if (++x >= argc) return(1);
+				sscanf(argv[x], "%d", (int*) &Config->max_bbuffers);
+			}
+			else
+			{
+				benchmark = true;
+			}
 			break;
 		case 'u':
 			Config->DumpMatrix = true;
@@ -1057,6 +1066,8 @@ int main(int argc, char** argv)
 			bool tmpquiet = Config.Quiet, tmpverify = Config.Verify;
 			unsigned int tmpiter = Config.Iterations;
 			unsigned int tmpm = matrix_m, tmpn = matrix_n, tmpdebug = Config.Debug;
+			unsigned int tmpshowpin = Config.ShowThreadPinning;
+			Config.ShowThreadPinning = 0;
 			Config.Quiet = true;
 			Config.Verify = false;
 			Config.Iterations = 1;
@@ -1074,6 +1085,7 @@ int main(int argc, char** argv)
 			Config.Verify = tmpverify;
 			Config.Iterations = tmpiter;
 			Config.Debug = tmpdebug;
+			Config.ShowThreadPinning = tmpshowpin;
 			if (!quietbench)
 			{
 				fprintf(STD_OUT, "Done\n");

@@ -34,6 +34,10 @@
 #include <unistd.h>
 #endif
 
+#ifdef _NO_AFFINITY
+#define sched_setaffinity(a, b, c)
+#endif
+
 #define ILKernelName ILKernel
 #include "caldgemm.il"
 #undef ILKernelName
@@ -1719,6 +1723,7 @@ int caldgemm_cal::InitDevices()
 		int num_bbuffers;
 		if (Config->DstMemory == 'g') num_bbuffers =  max_bbuffers_g;
 		else num_bbuffers = max_bbuffers;
+		if (Config->max_bbuffers && Config->max_bbuffers < num_bbuffers) num_bbuffers = Config->max_bbuffers;
 		for (int i = 0;i < num_bbuffers;i++)
 		{
 			if (i < 1)

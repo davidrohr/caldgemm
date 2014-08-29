@@ -142,6 +142,7 @@ int caldgemm_cuda::Initialize(bool nocalinit)
 int caldgemm_cuda::ValidateRuntime()
 {
 	if (Config->Debug) fprintf(STD_OUT, "CUDA ValidateRuntime\n");
+	Config->MultiThreadDivide = false;
 
 	Config->GPU_C = true;
 	CHKRET(cudaGetDeviceCount(&nDevices), "Getting Device Count");
@@ -170,6 +171,7 @@ int caldgemm_cuda::InitDevices()
 	int num_bbuffers;
 	if (Config->DstMemory == 'g') num_bbuffers =  max_bbuffers_g;
 	else num_bbuffers = max_bbuffers;
+	if (Config->max_bbuffers && Config->max_bbuffers < num_bbuffers) num_bbuffers = Config->max_bbuffers;
 
 	BufferHeight = Config->Height;
 	BufferWidth = Config->Width;

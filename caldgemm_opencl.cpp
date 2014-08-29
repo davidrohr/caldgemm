@@ -376,7 +376,9 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 	{
 		for (int j = 0;j < obuffercount;j++)
 		{
-			ocl_command_queues[i][j] = clCreateCommandQueue(ocl_context, ocl_devices[i], 0, &ocl_error);
+			cl_command_queue_properties flags = 0;
+			if (Config->VerboseTiming) flags |= CL_QUEUE_PROFILING_ENABLE;
+			ocl_command_queues[i][j] = clCreateCommandQueue(ocl_context, ocl_devices[i], flags, &ocl_error);
 			CHKRET(ocl_error, "Error creating OpenCL command queue");
 		}
 	}
@@ -390,6 +392,7 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 int caldgemm_opencl::ValidateRuntime()
 {
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL ValidateRuntime\n");
+	Config->MultiThreadDivide = false;
 
 	if (Config->GPU_C == -1) Config->GPU_C = 1;
 
@@ -498,6 +501,7 @@ int caldgemm_opencl::InitDevices()
 	int num_bbuffers;
 	if (Config->DstMemory == 'g') num_bbuffers =  max_bbuffers_g;
 	else num_bbuffers = max_bbuffers;
+	if (Config->max_bbuffers && Config->max_bbuffers < num_bbuffers) num_bbuffers = Config->max_bbuffers;
 
 	BufferHeight = Config->Height;
 	BufferWidth = Config->Width;
@@ -787,11 +791,6 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	size_t local_size[2] = {(size_t) KernelSettings.group_size_x, (size_t) KernelSettings.group_size_y};
 	size_t global_size[2] = {(size_t) height1 / KernelSettings.tiling_x, (size_t) height2 / KernelSettings.tiling_y};
 
-	if (Config->VerboseTiming)
-	{
-		clFinish(ocl_command_queues[Task.device][Task.j]);
-		Timers.Kernel.Start();
-	}
 	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d offset %lld\n", height1, height2, width, Alpha, Beta, pitch, (long long int) offset);
 	cl_event* kernel_event;
 	cl_event tmp_event;
@@ -818,7 +817,25 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		wait_event = NULL;
 	}
 
+	if (Config->VerboseTiming)
+	{
+		printf("Kernel Num: %d\n", Task.kernel_num);
+		clFinish(ocl_command_queues[Task.device][Task.j]);
+		Timers.Kernel.Start();
+		if (kernel_event == NULL) kernel_event = &tmp_event;
+	}
 	CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[Task.device][Task.j], ocl_kernel[Task.device][Task.kernel_num], 2, NULL, &global_size[0], &local_size[0], wait_num_events, wait_event, kernel_event), "Error starting MM Kernel");
+	if (Config->VerboseTiming)
+	{
+		clFinish(ocl_command_queues[Task.device][Task.j]);
+		Timers.Kernel.Stop();
+		cl_ulong start, end;
+		CHKRET(clGetEventProfilingInfo(*kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start, NULL), "Error getting kernel profiling info");
+		CHKRET(clGetEventProfilingInfo(*kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, NULL), "Error getting kernel profiling info");
+		Timers.device_kernel += end - start;
+		Timers.CounterCopyFrom.Start();
+	}
+	
 	if (Config->NoConcurrentKernels)
 	{
 		if (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync))
@@ -828,12 +845,6 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		last_device_kernel[Task.device] = *kernel_event;
 	}
 	if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
-	if (Config->VerboseTiming)
-	{
-		clFinish(ocl_command_queues[Task.device][Task.j]);
-		Timers.Kernel.Stop();
-		Timers.CounterCopyFrom.Start();
-	}
 
 	if (Config->DstMemory == 'g')
 	{
