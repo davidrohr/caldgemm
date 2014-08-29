@@ -203,6 +203,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	NoPerformanceWarnings = false;
 	PinCPU = -1;
 	PinMainThread = -1;
+	PinDeviceRuntimeThreads = -2;
 	SlowCPU = false;
 	LinpackNodes = 0;
 	LinpackSwapN = NULL;
@@ -241,6 +242,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	}
 	nExcludeCPUCores = 0;
 	ExcludeCPUCores = NULL;
+	ShowThreadPinning = 0;
 
 	linpack_factorize_function = NULL;
 	linpack_broadcast_function = NULL;
@@ -509,11 +511,32 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	buffersSwitchable = (KernelSettings.transposeA ^ KernelSettings.transposeB);
 	if (Config->Debug) fprintf(STD_OUT, "Initializing Backend\n");
 	setUnknownNames("Unknown - Before Runtime Initialization");
+	
+	if (Config->PinDeviceRuntimeThreads != -2)
+	{
+		cpu_set_t affinity;
+		CPU_ZERO(&affinity);
+		if (Config->PinDeviceRuntimeThreads == -1) for (int i = 0;i < conf_numprocs;i++) CPU_SET(i, &affinity);
+		else CPU_SET(Config->PinDeviceRuntimeThreads, &affinity);
+		sched_setaffinity(0, sizeof(affinity), &affinity);
+		if (0 != sched_setaffinity(0, sizeof(affinity), &affinity))
+		{
+			fprintf(STD_OUT, "Error setting CPU affinity\n");
+			return(1);
+		}
+	}
+	
 	if (Config->UseGPU == 0 || Initialize(nocalinit))
 	{
 		gpu_available = false;
 	}
 	setUnknownNames("Device Runtime");
+	if (Config->PinDeviceRuntimeThreads != -2 && 0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
+	{
+		fprintf(STD_OUT, "Error setting CPU affinity\n");
+		return(1);
+	}
+	
 	if (!gpu_available)
 	{
 		if (!Config->Quiet && Config->UseGPU) fprintf(STD_OUT, "No GPU available, falling back to CPU\n");
@@ -2039,7 +2062,6 @@ endimprovedphase:
 		delete[] buffer_pointers_A[l];
 		delete[] buffer_pointers_B[l];
 	}
-	if (RunCALDGEMM_Exit()) return(0);
 	return(0);
 }
 
@@ -2442,7 +2464,7 @@ recalculate_ratio:
 	
 		if (!Config->Quiet) fprintf(STD_OUT, "Ratio %f - gpu_m %lld gpu_n %lld - Split %c Favor %c - Tiling %lld\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) SmallTileHeight);
 	
-		//printThreadPinning();
+		if (Config->ShowThreadPinning) printThreadPinning();
 	
 		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
@@ -2531,6 +2553,8 @@ recalculate_ratio:
 			{
 				if (RunCALDGEMMMain()) return(1);
 			}
+			if (RunCALDGEMM_Exit()) return(0);
+
 			if (Config->ImprovedScheduler)
 			{
 				delete[] tileDistribution;

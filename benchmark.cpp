@@ -150,8 +150,10 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-x <file> Load Matrix\n" );
 	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n" );
 	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n" );
+	fprintf(STD_OUT, "\t-ts       Show thread pinning\n");
+	fprintf(STD_OUT, "\t-tr <int> Pin device runtime threads to code <int>, set -1 for all cores");
 	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread for DMA handling to core n\n" );
-	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n" );
+	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n");
 	fprintf(STD_OUT, "\t-Ux <int> Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping\n" );
 	fprintf(STD_OUT, "\t-UAx <int>Allocate memory for GPU x for die <int>, -1 = default mapping\n" );
 	fprintf(STD_OUT, "\t-UBx <int>Set DMA Mapping\n" );
@@ -508,8 +510,20 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			sscanf(argv[x], "%d", &reduced_width);
 			break;
 		case 't':
-			if (++x >= argc) return(1);
-			sscanf(argv[x], "%d", &Config->PinCPU);
+			if (argv[x][2] == 's')
+			{
+				Config->ShowThreadPinning = 1;
+			}
+			else if (argv[x][2] == 'r')
+			{
+				if (++x >= argc) return(1);
+				sscanf(argv[x], "%d", &Config->PinDeviceRuntimeThreads);
+			}
+			else
+			{
+				if (++x >= argc) return(1);
+				sscanf(argv[x], "%d", &Config->PinCPU);
+			}
 			break;
 		case 'K':
 			if (++x >= argc) return(1);
