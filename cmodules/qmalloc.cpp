@@ -6,16 +6,16 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <winbase.h>
-#else
+#else //_WIN32
 #include <unistd.h>
 #include <sys/mman.h>
-#ifndef MAP_HUGETLB
-#define MAP_HUGETLB 0x40000 /* arch specific */
-#endif
-
 #include <syscall.h>
 #ifdef _NUMAIF_H
 #include <numaif.h>
+#endif
+
+#ifndef MAP_HUGETLB
+#define MAP_HUGETLB 0x40000 /* arch specific */
 #endif
 #ifndef MPOL_DEFAULT
 #define MPOL_DEFAULT 0
@@ -29,7 +29,7 @@
 #ifndef MPOL_INTERLEAVE
 #define MPOL_INTERLEAVE 3
 #endif
-#endif
+#endif //!_WIN32
 
 #ifndef STD_OUT
 #define STD_OUT stdout
@@ -99,7 +99,7 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 	{
 #ifdef _WIN32
 		SYSTEM_INFO si;
-        GetSystemInfo(&si);
+		GetSystemInfo(&si);
 		pagesize = si.dwPageSize;
 #else
 		pagesize = sysconf(_SC_PAGESIZE);
@@ -120,7 +120,7 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 	if (interleave)
 	{
 		fprintf(stderr, "Interleaved allocation not supported on Windows\n");
-		exit(1);
+		return(NULL);
 	}
 	addr = VirtualAlloc(alloc_addr, size, flags, protect);
 #else
@@ -171,6 +171,7 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 
 	if (alloc_addr != NULL && addr != alloc_addr)
 	{
+		fprintf(stderr, "Could not allocate memory at desired address\n");
 #ifdef _WIN32
 		VirtualFree(addr, 0, MEM_RELEASE);
 #else
@@ -179,35 +180,35 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 		return(NULL);
 	}
 
-	if (addr)
-	{
-		if (qMallocCount == qMallocUsed)
-		{
-			if (qMallocCount == 0) qMallocCount = 8;
-			else if (qMallocCount < 1024) qMallocCount *= 2;
-			else qMallocCount += 1024;
-			if (qMallocUsed == 0)
-			{
-				qMallocs = (qMallocData*) malloc(qMallocCount * sizeof(qMallocData));
-			}
-			else
-			{
-				qMallocs = (qMallocData*) realloc(qMallocs, qMallocCount * sizeof(qMallocData));
-			}
-		}
-		qMallocs[qMallocUsed].addr = addr;
-		qMallocs[qMallocUsed].size = size;
-		qMallocUsed++;
-	}
-	else
+	if (addr == NULL)
 	{
 #ifdef _WIN32
 		DWORD error = GetLastError();
 #endif
+		fprintf(stderr, "Failed to allocate memory\n");
+		return(NULL);
 	}
+	
+	if (qMallocCount == qMallocUsed)
+	{
+		if (qMallocCount == 0) qMallocCount = 8;
+		else if (qMallocCount < 1024) qMallocCount *= 2;
+		else qMallocCount += 1024;
+		if (qMallocUsed == 0)
+		{
+			qMallocs = (qMallocData*) malloc(qMallocCount * sizeof(qMallocData));
+		}
+		else
+		{
+			qMallocs = (qMallocData*) realloc(qMallocs, qMallocCount * sizeof(qMallocData));
+		}
+	}
+	qMallocs[qMallocUsed].addr = addr;
+	qMallocs[qMallocUsed].size = size;
+	qMallocUsed++;
 
 #ifdef _WIN32
-	if (addr && locked)
+	if (locked)
 	{
 		size_t minp, maxp;
 		HANDLE pid = GetCurrentProcess();

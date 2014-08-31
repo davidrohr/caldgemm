@@ -618,7 +618,17 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	{
 		if (bbuffers[i] < min_bbuffers) min_bbuffers = bbuffers[i];
 	}
-	if (!Config->Quiet) fprintf(STD_OUT, "Running on %d devices with %d bbuffers\n", nDevices, min_bbuffers);
+	if (!Config->Quiet)
+	{
+		if (nDevices)
+		{
+			fprintf(STD_OUT, "Running on %d devices with %d bbuffers\n", nDevices, min_bbuffers);
+		}
+		else
+		{
+			fprintf(STD_OUT, "Running on CPU only\n");
+		}
+	}
 
 	if (Config->MultiThread && UseOutputPthreads())
 	{
@@ -2487,7 +2497,7 @@ recalculate_ratio:
 	
 		if (!Config->Quiet) fprintf(STD_OUT, "Ratio %f - gpu_m %lld gpu_n %lld - Split %c Favor %c - Tiling %lld\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) SmallTileHeight);
 	
-		if (Config->ShowThreadPinning) printThreadPinning();
+		if (Config->ShowThreadPinning || 1) printThreadPinning();
 	
 		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
