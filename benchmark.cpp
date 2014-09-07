@@ -39,10 +39,10 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <pthread.h>
-#include "cmodules/affinity.h"
 #else
 #include "cmodules/pthread_mutex_win32_wrapper.h"
 #endif
+#include "cmodules/affinity.h"
 
 #define FASTRAND_THREADS_MAX 24
 
