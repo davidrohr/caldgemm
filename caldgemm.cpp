@@ -532,7 +532,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		}
 	}
 	
-	if (Config->UseGPU == 0 || Initialize(nocalinit))
+	if (Initialize(nocalinit) || !Config->UseGPU)
 	{
 		gpu_available = false;
 	}
@@ -611,7 +611,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 #endif
 
-	if (InitDevices()) return(1);
+	if (Config->UseGPU && InitDevices()) return(1);
 	
 	int min_bbuffers = max_bbuffers;
 	for (int i = 0;i < nDevices;i++)
@@ -2277,6 +2277,10 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			while (Config->SlowCPU && !Config->SmallTiles && Config->Height > 1024 && (MaxGpuM % Config->Height > 1024 || MaxGpuN % Config->Height > 1024)) Config->Height -= 1024;
 		}
 		if (Config->Height > BufferHeight) Config->Height = BufferHeight;
+		if (Config->Height % KernelSettings.min_tile_size)
+		{
+			Config->Height = Config->Height > (size_t) KernelSettings.min_tile_size ? (Config->Height - Config->Height % KernelSettings.min_tile_size) : KernelSettings.min_tile_size;
+		}
 		if ((Config->Height != BufferHeight && !Config->Quiet) || Config->Debug)  fprintf(STD_OUT, "Using Height %lld of max %lld\n", (long long int) Config->Height, (long long int) BufferHeight);
 	}
 	HPL_CALDGEMM_gpu_height = Config->Height;
@@ -2430,7 +2434,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		cParam.dynamic_run = 0;
 		cParam.dynamic_run2 = 0;
 		cParam.borders_done = false;
-		SmallTileHeight = (Config->SmallTiles == 1 ? CALDGEMM_MIN_TILE_DIM : Config->Height);
+		SmallTileHeight = (Config->SmallTiles == 1 ? KernelSettings.min_tile_size : Config->Height);
 recalculate_ratio:
 		if (Config->UseCPU == true && Config->UseGPU == true)
 		{
@@ -2441,10 +2445,10 @@ recalculate_ratio:
 				gpu_m = GPURatio * (float) virtualm + (SmallTileHeight - 1);
 				if (gpu_m > matrix_m)
 				{
-					if (Config->SmallTiles == 2 && SmallTileHeight > CALDGEMM_MIN_TILE_DIM)
+					if (Config->SmallTiles == 2 && SmallTileHeight > (size_t) KernelSettings.min_tile_size)
 					{
 						if (SmallTileHeight > 1024) SmallTileHeight = 1024;
-						else SmallTileHeight = CALDGEMM_MIN_TILE_DIM;
+						else SmallTileHeight = KernelSettings.min_tile_size;
 						goto recalculate_ratio;
 					}
 					gpu_m = matrix_m;
@@ -2462,10 +2466,10 @@ recalculate_ratio:
 				gpu_n = GPURatio * (float) virtualn + (SmallTileHeight - 1);
 				if (gpu_n > matrix_n)
 				{
-					if (Config->SmallTiles == 2 && SmallTileHeight > CALDGEMM_MIN_TILE_DIM)
+					if (Config->SmallTiles == 2 && SmallTileHeight > (size_t) KernelSettings.min_tile_size)
 					{
 						if (SmallTileHeight > 1024) SmallTileHeight = 1024;
-						else SmallTileHeight = CALDGEMM_MIN_TILE_DIM;
+						else SmallTileHeight = KernelSettings.min_tile_size;
 						goto recalculate_ratio;
 					}
 					gpu_n = matrix_n;
@@ -2480,7 +2484,7 @@ recalculate_ratio:
 		else
 		{
 			DGEMM_split_m = 0;
-			if (Config->SmallTiles ? (matrix_n % CALDGEMM_MIN_TILE_DIM || matrix_m % CALDGEMM_MIN_TILE_DIM) : (matrix_n % Config->Height || matrix_m % Config->Height))
+			if (Config->SmallTiles ? (matrix_n % KernelSettings.min_tile_size || matrix_m % KernelSettings.min_tile_size) : (matrix_n % Config->Height || matrix_m % Config->Height))
 			{
 				fprintf(STD_OUT, "Invalid matrix size for GPU only (%lld %% %lld = %lld, %lld %% %lld = %lld)\n", (long long int) matrix_n, (long long int) Config->Height, (long long int) matrix_n % Config->Height, (long long int) matrix_m, (long long int) Config->Height, (long long int) matrix_m % Config->Height);
 				return(1);
@@ -2497,7 +2501,7 @@ recalculate_ratio:
 	
 		if (!Config->Quiet) fprintf(STD_OUT, "Ratio %f - gpu_m %lld gpu_n %lld - Split %c Favor %c - Tiling %lld\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) SmallTileHeight);
 	
-		if (Config->ShowThreadPinning || 1) printThreadPinning();
+		if (Config->ShowThreadPinning) printThreadPinning();
 	
 		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
@@ -2713,6 +2717,24 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task 
 	return(0);
 }
 
+void caldgemm::SetupBufferSizes()
+{
+	if (Config->Height % KernelSettings.min_tile_size)
+	{
+		int new_tile_size = Config->Height > (size_t) KernelSettings.min_tile_size ? (Config->Height - Config->Height % KernelSettings.min_tile_size) : KernelSettings.min_tile_size;
+		if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "Default buffer height %d does not fit tile size of %d, adjusting height to %d\n", (int) Config->Height, KernelSettings.min_tile_size, new_tile_size);
+		Config->Height = new_tile_size;
+	}
+	if (Config->Width % KernelSettings.min_k)
+	{
+		int new_k = Config->Width > (size_t) KernelSettings.min_k ? (Config->Width - Config->Width % KernelSettings.min_k) : KernelSettings.min_k;
+		if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "Default buffer width %d does not fit minimum k value of %d, adjusting width to %d\n", (int) Config->Width, KernelSettings.min_k, new_k);
+		Config->Width = new_k;
+	}
+	BufferHeight = Config->Height;
+	BufferWidth = Config->Width;
+}
+
 int caldgemm::ExitCALDGEMM()
 {
 	if (!caldgemm_initialized)
@@ -2721,7 +2743,7 @@ int caldgemm::ExitCALDGEMM()
 		return(1);
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Uninitializing CALDGEMM\n");
-	if (ExitDevices()) return(1);
+	if (Config->UseGPU && ExitDevices()) return(1);
 	if (Config->MultiThread && UseOutputPthreads())
 	{
 		for (int num_device = 0;num_device < nDevices;num_device++)
@@ -3050,14 +3072,15 @@ void caldgemm::displayMatrixTiming(const char* name)
 		double copyDivide = UseInputPthreads() ? (double) 1e-09 * (Config->Height * Timers.divideA + Config->Height * Timers.divideB) * Config->Width * sizeof(double) * (double)Config->Iterations / Timers.CounterDivide.GetElapsedTime() : 0;
 		fprintf(STD_OUT, "Times:  Kernel                    Divide (%d,%d)            Merge                   Copy To                 Copy From\n", Timers.divideA, Timers.divideB);
 		fprintf(STD_OUT, "        %2.4f (%2.4f Gflops)  %2.4f (%2.4f GB/s)    %2.4f (%2.4f GB/s)    %2.4f (%2.4f GB/s)    %2.4f (%2.4f Gb/s)\n", Timers.Kernel.GetElapsedTime(), gflops, Timers.CounterDivide.GetElapsedTime(), copyDivide, Timers.CounterMerge.GetElapsedTime(), copyMerge, Timers.CounterCopyTo.GetElapsedTime(), copyto, Timers.CounterCopyFrom.GetElapsedTime(), copyfrom);
+		double gflops_device = 0;
 		if (Timers.device_kernel)
 		{
-			double gflops_device = (double) matrix_m * matrix_n * (2 * Config->Width - 1) * (double)Config->Iterations / (double) Timers.device_kernel;
+			gflops_device = (double) matrix_m * matrix_n * (2 * Config->Width - 1) * (double)Config->Iterations / (double) Timers.device_kernel;
 			fprintf(STD_OUT, "        %2.4f (%2.4f Gflops)\n", (double) Timers.device_kernel * 1e-09, gflops_device);
 		}
 		if (Config->TabularTiming)
 		{
-			fprintf(STD_OUT, "TIMES:\tw\t%lld\th\t%lld\tkernel\t%2.4f\tdivide\t%2.4f\tmerge\t%2.4f\tcopyto\t%2.4f\tcopyfr\t%2.4f\n", (long long int) Config->Width, (long long int) Config->Height, gflops, copyDivide, copyMerge, copyto, copyfrom);
+			fprintf(STD_OUT, "TIMES:\tw\t%lld\th\t%lld\tkernel\t%2.4f / %2.4f\tdivide\t%2.4f\tmerge\t%2.4f\tcopyto\t%2.4f\tcopyfr\t%2.4f\n", (long long int) Config->Width, (long long int) Config->Height, gflops, gflops_device, copyDivide, copyMerge, copyto, copyfrom);
 		}
 	}
 }
@@ -3374,6 +3397,8 @@ void caldgemm::SetDefaultKernelSettings()
 	KernelSettings.tiling_y = TILING_Y;
 	KernelSettings.group_size_x = 16;
 	KernelSettings.group_size_y = 16;
+	KernelSettings.min_tile_size = CALDGEMM_MIN_TILE_DIM;
+	KernelSettings.min_k = 4;
 }
 
 #ifndef USE_GOTO_BLAS

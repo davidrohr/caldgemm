@@ -173,8 +173,7 @@ int caldgemm_cuda::InitDevices()
 	else num_bbuffers = max_bbuffers;
 	if (Config->max_bbuffers && Config->max_bbuffers < num_bbuffers) num_bbuffers = Config->max_bbuffers;
 
-	BufferHeight = Config->Height;
-	BufferWidth = Config->Width;
+	SetupBufferSizes();
 
 	for (int i = 0;i < nDevices;i++)
 	{

@@ -21,7 +21,8 @@
 
 //We must export two functions, kernelLibCreate to return the kernel object, kernelLibQuerySettings to return some parameters
 extern "C" DLL_EXPORT cl_kernel kernelLibCreate(cl_context* context, int nDevices, cl_device_id* devices, int kernelType, int k, int betazero); 
-extern "C" DLL_EXPORT void kernelLibQuerySettings(int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y);
+extern "C" DLL_EXPORT void kernelLibQuerySettings(int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y, int* min_tile_size, int* min_k);
+extern "C" DLL_EXPORT void kernelLibTerminate();
 
 //The kernels can be subject to some optimizations, depending on the parameters:
 //betazero indicates that beta can be assumed zero, regardless of other parameters
@@ -128,11 +129,22 @@ cl_kernel kernelLibCreate(cl_context* context, int nDevices, cl_device_id* devic
 	return(tmp);
 }
 
-void kernelLibQuerySettings(int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y)
+void kernelLibTerminate()
+{
+	if (program_initialized)
+	{
+		clReleaseProgram(ocl_program);
+		program_initialized = 0;
+	}
+}
+
+void kernelLibQuerySettings(int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y, int* min_tile_size, int* min_k)
 {
 	*group_size_x = *group_size_y = 8; //We start a grid with work-group-size 8x8 and in total m/tilingx x n/tiling_y work items
 	*tiling_x = *tiling_y = 4;
 	*texture_buffers = false;
 	*transposeA = true;
 	*transposeB = false;
+	*min_tile_size = 32;
+	*min_k = 4;
 }

@@ -249,6 +249,8 @@ protected:
 		bool transposeA;
 		bool transposeB;
 		bool texture_buffers;
+		int min_tile_size;
+		int min_k;
 	};
 	DGEMMKernelSettingsStruct KernelSettings;
 	void SetDefaultKernelSettings();
@@ -302,6 +304,8 @@ protected:
 	virtual int RunCALDGEMM_Exit();
 
 	virtual int reserve_cpu_cores();
+	
+	void SetupBufferSizes();
 
 	int next_buffer_A[max_devices];
 	int next_buffer_B[max_devices];

@@ -1067,13 +1067,17 @@ int main(int argc, char** argv)
 			unsigned int tmpiter = Config.Iterations;
 			unsigned int tmpm = matrix_m, tmpn = matrix_n, tmpdebug = Config.Debug;
 			unsigned int tmpshowpin = Config.ShowThreadPinning;
+			unsigned int tmpautoheight = Config.AutoHeight;
 			Config.ShowThreadPinning = 0;
 			Config.Quiet = true;
 			Config.Verify = false;
 			Config.Iterations = 1;
 			Config.Debug = false;
+			Config.AutoHeight = 0;
 			if (matrix_m > 2 * Config.Height) matrix_m = 2 * Config.Height;
+			else if (matrix_m % Config.Height) matrix_m -= matrix_m % Config.Height;
 			if (matrix_n > 2 * Config.Height) matrix_n = 2 * Config.Height;
+			else if (matrix_n % Config.Height) matrix_n -= matrix_n % Config.Height;
 			if (dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
 			{
 				fprintf(STD_OUT, "Error running CALDGEMM\nexiting\n");
@@ -1081,6 +1085,7 @@ int main(int argc, char** argv)
 			}
 			matrix_m = tmpm;
 			matrix_n = tmpn;
+			Config.AutoHeight = tmpautoheight;
 			Config.Quiet = tmpquiet;
 			Config.Verify = tmpverify;
 			Config.Iterations = tmpiter;

@@ -1891,8 +1891,7 @@ int caldgemm_cal::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int
 
 int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferProperties* &data, CALdevice *device, CALcontext *ctx, unsigned int numInputs, unsigned int numOutputs, unsigned int numConstantBuffers, CALname** ctxProgNames, int nContext, unsigned int num_device)
 {
-	BufferHeight = Config->Height;
-	BufferWidth = Config->Width;
+	SetupBufferSizes();
 	const unsigned int bStop = dwBuffersA + dwBuffersB;
 	const unsigned int fStop = bStop + numConstantBuffers;
 	const unsigned int cStop = fStop + dwBuffersC;

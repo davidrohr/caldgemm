@@ -353,6 +353,7 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 
 	if (deviceNum >= nDevices) ERRRET("OpenCL Device %d not available\n", deviceNum);
 	if (deviceNum >= 0) nDevices = 1;
+	if (!Config->UseGPU) nDevices = 0;
 	gpu_available = (nDevices > 0);
 
 	if (nDevices > 1 && !Config->MultiThread)
@@ -368,7 +369,6 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 	}
 	ocl_devices[nDevices] = cpu_device;
 	delete[] devices;
-
 	ocl_context = clCreateContext(NULL, nDevices + 1, ocl_devices, NULL, NULL, &ocl_error);
 	CHKRET(ocl_error, "Error creating OpenCL context");
 
@@ -441,18 +441,19 @@ int caldgemm_opencl::ValidateRuntime()
 		}
 #ifdef _WIN32
 		kernelLibCreate = (cl_kernel (*) (cl_context*, int, cl_device_id*, int, int, int)) GetProcAddress(kernelLib, "kernelLibCreate");
-		kernelLibQuerySettings = (void (*) (int*, int*, bool*, bool*, bool*, int*, int*)) GetProcAddress(kernelLib, "kernelLibQuerySettings");
+		kernelLibQuerySettings = (void (*) (int*, int*, bool*, bool*, bool*, int*, int*, int*, int*)) GetProcAddress(kernelLib, "kernelLibQuerySettings");
+		kernelLibTerminate = (void (*) ()) GetProcAddress(kernelLib, "kernelLibTerminate");
 #else
 		kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int, int)) dlsym(kernelLib, "kernelLibCreate");
-		kernelLibQuerySettings = (void (*) (int*, int*, bool*, bool*, bool*, int*, int*)) dlsym(kernelLib, "kernelLibQuerySettings");
+		kernelLibQuerySettings = (void (*) (int*, int*, bool*, bool*, bool*, int*, int*, int*, int*)) dlsym(kernelLib, "kernelLibQuerySettings");
+		kernelLibTerminate = (void (*) ()) dlsym(kernelLib, "kernelLibTerminate");
 #endif
-		if (kernelLibCreate == NULL || kernelLibQuerySettings == NULL)
+		if (kernelLibCreate == NULL || kernelLibQuerySettings == NULL || kernelLibTerminate == NULL)
 		{
-			fprintf(STD_OUT, "Error getting function pointer from external library\n");
+			fprintf(STD_OUT, "Error getting function pointer from external library (%p %p %p)\n", kernelLibCreate, kernelLibQuerySettings, kernelLibTerminate);
 			return(1);
 		}
-
-		kernelLibQuerySettings(&KernelSettings.tiling_x, &KernelSettings.tiling_y, &KernelSettings.transposeA, &KernelSettings.transposeB, &KernelSettings.texture_buffers, &KernelSettings.group_size_x, &KernelSettings.group_size_y);
+		kernelLibQuerySettings(&KernelSettings.tiling_x, &KernelSettings.tiling_y, &KernelSettings.transposeA, &KernelSettings.transposeB, &KernelSettings.texture_buffers, &KernelSettings.group_size_x, &KernelSettings.group_size_y, &KernelSettings.min_tile_size, &KernelSettings.min_k);
 	}
 	else
 	{
@@ -476,6 +477,8 @@ int caldgemm_opencl::ValidateRuntime()
 		KernelSettings.tiling_y = OCL_TILING_Y;
 		KernelSettings.group_size_x = OCL_GROUP_SIZE_X;
 		KernelSettings.group_size_y = OCL_GROUP_SIZE_Y;
+		KernelSettings.min_tile_size = 32;
+		KernelSettings.min_k = 4;
 		if (!(KernelSettings.transposeA ^ KernelSettings.transposeB))
 		{
 			fprintf(STD_OUT, "Must set either transposed A or transposed B\n");
@@ -503,8 +506,7 @@ int caldgemm_opencl::InitDevices()
 	else num_bbuffers = max_bbuffers;
 	if (Config->max_bbuffers && Config->max_bbuffers < num_bbuffers) num_bbuffers = Config->max_bbuffers;
 
-	BufferHeight = Config->Height;
-	BufferWidth = Config->Width;
+	SetupBufferSizes();
 
 	cl_image_format ocl_image_format;
 	ocl_image_format.image_channel_order = CL_RGBA;
@@ -819,7 +821,6 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 	if (Config->VerboseTiming)
 	{
-		printf("Kernel Num: %d\n", Task.kernel_num);
 		clFinish(ocl_command_queues[Task.device][Task.j]);
 		Timers.Kernel.Start();
 		if (kernel_event == NULL) kernel_event = &tmp_event;
@@ -884,6 +885,17 @@ int caldgemm_opencl::ExitRuntime()
 		}
 	}
 	clReleaseCommandQueue(ocl_command_queue_cpu);
+
+	if (config_backend->kernelLib)
+	{
+		kernelLibTerminate();
+#ifdef _WIN32
+		FreeLibrary(kernelLib);
+#else
+		dlclose(kernelLib);
+#endif
+	}
+
 	clReleaseContext(ocl_context);
 
 	return(0);
@@ -1284,14 +1296,6 @@ int caldgemm_opencl::ExitDevices()
 			clReleaseKernel(ocl_kernel[i][j]);
 			if (config_backend->kernelLib == NULL && i == nDevices - 1) clReleaseProgram(ocl_program[j]);
 		}
-	}
-	if (config_backend->kernelLib)
-	{
-#ifdef _WIN32
-		FreeLibrary(kernelLib);
-#else
-		dlclose(kernelLib);
-#endif
 	}
 	return(0);
 }
