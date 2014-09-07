@@ -1,3 +1,7 @@
+#make command line options:
+#VERBOSE=1 //Do not hide command lines
+#CHECK_DEPENDENCIES=0 //Do not perform dependency file creation
+
 INTELARCH					= Host
 GCCARCH						= native
 MSVCFAVOR					= INTEL64
