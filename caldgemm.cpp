@@ -514,6 +514,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 #endif
 
 	if (ValidateRuntime()) return(1);
+	if (Config->ImplicitDriverSync == -1) Config->ImplicitDriverSync = 1;
 	buffersSwitchable = (KernelSettings.transposeA ^ KernelSettings.transposeB);
 	if (Config->Debug) fprintf(STD_OUT, "Initializing Backend\n");
 	setUnknownNames("Unknown - Before Runtime Initialization");
@@ -2484,9 +2485,10 @@ recalculate_ratio:
 		else
 		{
 			DGEMM_split_m = 0;
-			if (Config->SmallTiles ? (matrix_n % KernelSettings.min_tile_size || matrix_m % KernelSettings.min_tile_size) : (matrix_n % Config->Height || matrix_m % Config->Height))
+			size_t tmp = Config->SmallTiles ? KernelSettings.min_tile_size : Config->Height;
+			if (matrix_n % tmp || matrix_m % tmp)
 			{
-				fprintf(STD_OUT, "Invalid matrix size for GPU only (%lld %% %lld = %lld, %lld %% %lld = %lld)\n", (long long int) matrix_n, (long long int) Config->Height, (long long int) matrix_n % Config->Height, (long long int) matrix_m, (long long int) Config->Height, (long long int) matrix_m % Config->Height);
+				fprintf(STD_OUT, "Invalid matrix size for GPU only (%lld %% %lld = %lld, %lld %% %lld = %lld)\n", (long long int) matrix_n, (long long int) tmp, (long long int) matrix_n % tmp, (long long int) matrix_m, (long long int) tmp, (long long int) matrix_m % tmp);
 				return(1);
 			}
 			if (ExecLinpack)
@@ -2498,11 +2500,11 @@ recalculate_ratio:
 			gpu_m = matrix_m;
 		}
 		DGEMM_favor_m = (Config->LinpackSwapN == NULL && (ExecLinpack == 0 || Config->AlternateLookahead <= matrix_n)) ? (gpu_m >= gpu_n) : 1;
-	
-		if (!Config->Quiet) fprintf(STD_OUT, "Ratio %f - gpu_m %lld gpu_n %lld - Split %c Favor %c - Tiling %lld\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) SmallTileHeight);
-	
+
+		if (!Config->Quiet) fprintf(STD_OUT, "Ratio %f - gpu_m %lld gpu_n %lld - Split %c Favor %c - Height %lld, Min Tiling %lld (%lld, %lld)\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) Config->Height, (long long int) SmallTileHeight, (long long int) (gpu_m % Config->Height), (long long int) (gpu_n % Config->Height));
+
 		if (Config->ShowThreadPinning) printThreadPinning();
-	
+
 		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
 		const size_t nBlocks = mb * nb;
