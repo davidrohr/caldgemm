@@ -2485,10 +2485,9 @@ recalculate_ratio:
 		else
 		{
 			DGEMM_split_m = 0;
-			size_t tmp = Config->SmallTiles ? KernelSettings.min_tile_size : Config->Height;
-			if (matrix_n % tmp || matrix_m % tmp)
+			if (matrix_n % SmallTileHeight || matrix_m % SmallTileHeight)
 			{
-				fprintf(STD_OUT, "Invalid matrix size for GPU only (%lld %% %lld = %lld, %lld %% %lld = %lld)\n", (long long int) matrix_n, (long long int) tmp, (long long int) matrix_n % tmp, (long long int) matrix_m, (long long int) tmp, (long long int) matrix_m % tmp);
+				fprintf(STD_OUT, "Invalid matrix size for GPU only (%lld %% %lld = %lld, %lld %% %lld = %lld)\n", (long long int) matrix_n, (long long int) SmallTileHeight, (long long int) matrix_n % SmallTileHeight, (long long int) matrix_m, (long long int) SmallTileHeight, (long long int) matrix_m % SmallTileHeight);
 				return(1);
 			}
 			if (ExecLinpack)
@@ -2498,6 +2497,12 @@ recalculate_ratio:
 			}
 			gpu_n = matrix_n;
 			gpu_m = matrix_m;
+		}
+		if (Config->UseCPU)
+		{
+			const size_t over_m = gpu_m % Config->Height, over_n = gpu_n % Config->Height;
+			if (over_m < CALDGEMM_MIN_TILE_DIM2) gpu_m -= over_m;
+			if (over_n < CALDGEMM_MIN_TILE_DIM2) gpu_n -= over_n;
 		}
 		DGEMM_favor_m = (Config->LinpackSwapN == NULL && (ExecLinpack == 0 || Config->AlternateLookahead <= matrix_n)) ? (gpu_m >= gpu_n) : 1;
 
@@ -2547,8 +2552,32 @@ recalculate_ratio:
 
 			if (Config->ImprovedScheduler)
 			{
+				//size_t numt[4] = {0,0,0,0}, sizet[4] = {0,0,0,0};
 				tileDistribution = new int[nBlocks];
 				for (int l = 0;l < nDevices;l++) first_device_k[l] = -1;
+				
+				size_t block_correction_factor = 0;
+				if (Config->SmallTiles)
+				{
+					size_t undersize;
+					size_t scaler;
+					if (DGEMM_favor_m)
+					{
+						undersize = gpu_n % Config->Height;
+						scaler = mb;
+					}
+					else
+					{
+						undersize = gpu_m % Config->Height;
+						scaler = nb;
+					}
+					if (undersize)
+					{
+						if (undersize < CALDGEMM_MIN_CORRECTION_SIZE) undersize = CALDGEMM_MIN_CORRECTION_SIZE;
+						block_correction_factor = (Config->Height - undersize) * scaler / Config->Height;
+					}
+				}
+
 				for (size_t l = 0;l < nBlocks;l++)
 				{
 					size_t blockn, blockm;
@@ -2565,11 +2594,17 @@ recalculate_ratio:
 						blockn = l / mb;
 						k = blockn + blockm * nb;
 					}
-					tileDistribution[l] = nDevices * k / nBlocks;
+					tileDistribution[l] = std::min<int>(nDevices * k / (nBlocks - block_correction_factor), nDevices - 1);
+					/*numt[tileDistribution[l]]++;
+					size_t height1 = (int) (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height);
+					size_t height2 = (int) (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);					
+					sizet[tileDistribution[l]] += height1 * height2;*/
 					if (first_device_k[tileDistribution[l]] == -1) first_device_k[tileDistribution[l]] = l;
 
-					if (Config->Debug) fprintf(STD_OUT, "Tile %lld processed by device %d\n", (long long int) l, tileDistribution[l]);
+					if (Config->Debug) fprintf(STD_OUT, "Tile %lld (%lld / %lld) processed by device %d\n", (long long int) l, (long long int) blockm, (long long int) blockn, tileDistribution[l]);
 				}
+				//for (int l = 0;l < 4;l++) fprintf(STD_OUT, "TILESTAT %d: %3lld - %lld\n", l, (long long int) numt[l], (long long int) sizet[l]);
+				//fprintf(STD_OUT, "TILESIZE %lld (factor %lld - miss %lld)\n", (long long int) (Config->Height * Config->Height), (long long int) block_correction_factor, (long long int) ((sizet[2] - sizet[3]) / (Config->Height * Config->Height)));
 			}
 
 			for (int ii = 0;ii < nDevices;ii++)

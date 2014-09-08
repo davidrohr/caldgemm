@@ -873,14 +873,12 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 		}
 
 		if (AA) dgemm_obj->FreeMemory(AA, mem_gpu_access);
-		if (BB) dgemm_obj->FreeMemory(BB, mem_gpu_access);
-		if (CC) dgemm_obj->FreeMemory(CC, mem_gpu_access);
-		if (!quietbench) fprintf(stderr, "...alloc A (%lld KB)", (long long int) (height_a * pitch_a * sizeof(double) / 1024));
-		AA = dgemm_obj->AllocMemory(height_a * pitch_a, mem_page_lock, mem_huge_table, mem_gpu_access);
-		if (!quietbench) fprintf(stderr, "...alloc B (%lld KB)", (long long int) (height_b * pitch_b * sizeof(double)  / 1024));
-		BB = dgemm_obj->AllocMemory(height_b * pitch_b, mem_page_lock, mem_huge_table, mem_gpu_access);
-		if (!quietbench) fprintf(stderr, "...alloc C (%lld KB)", (long long int) (matrix_m * pitch_c * sizeof(double)  / 1024));
-		CC = dgemm_obj->AllocMemory(matrix_m * pitch_c, mem_page_lock, mem_huge_table, mem_gpu_access);
+		//if (BB) dgemm_obj->FreeMemory(BB, mem_gpu_access);
+		//if (CC) dgemm_obj->FreeMemory(CC, mem_gpu_access);
+		if (!quietbench) fprintf(stderr, "...alloc A (%lld KB) B (%lld KB) C (%lld KB)...", (long long int) (height_a * pitch_a * sizeof(double) / 1024), (long long int) (height_b * pitch_b * sizeof(double)  / 1024), (long long int) (matrix_m * pitch_c * sizeof(double)  / 1024));
+		AA = dgemm_obj->AllocMemory(height_a * pitch_a + height_b * pitch_b + matrix_m * pitch_c, mem_page_lock, mem_huge_table, mem_gpu_access);
+		BB = AA + height_a * pitch_a;
+		CC = BB + height_b * pitch_b;
 
 		if (AA == NULL || BB == NULL || CC == NULL)
 		{
@@ -1262,8 +1260,8 @@ int main(int argc, char** argv)
 	else
 	{
 		dgemm_obj->FreeMemory(AA, mem_gpu_access);
-		dgemm_obj->FreeMemory(BB, mem_gpu_access);
-		dgemm_obj->FreeMemory(CC, mem_gpu_access);
+		//dgemm_obj->FreeMemory(BB, mem_gpu_access);
+		//dgemm_obj->FreeMemory(CC, mem_gpu_access);
 	}
 #endif
 
