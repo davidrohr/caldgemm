@@ -1378,6 +1378,11 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 			fprintf(STD_OUT, "WARNING: CL_MEM_USE_PERSISTENT_MEM_AMD flag not defined\n");
 #endif
 		}
+		if (huge_pages)
+		{
+			size_t psize = 2048 * 1024 / 8;
+			if (nDoubles % psize) nDoubles += psize - nDoubles % psize;
+		}
 		gpu_mem[nGPUMEM].size = nDoubles * sizeof(double);
 		gpu_mem[nGPUMEM].mem_obj = clCreateBuffer(ocl_context, mem_flags, nDoubles * sizeof(double), NULL, &ocl_error);
 		if (ocl_error != CL_SUCCESS)
