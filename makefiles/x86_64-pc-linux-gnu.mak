@@ -1,7 +1,10 @@
 CUDAPATH						= $(CUDA_PATH)
 CUDASDKPATH						= $(CUDAPATH)/sdk
 AMDPATH							= $(AMDAPPSDKROOT)
-INTELPATH						= /opt/intel/composerxe-2013.2.144
+INTELPATH						:= $(shell which icc 2> /dev/null | sed "s,/bin/.*/icc$$,,")
+ifeq ($(INTELPATH), )
+INTELPATH						= /opt/intel/composerxe-2015.0.090
+endif
 
 GCC3264							= c++
 CLANG3264						= clang
@@ -9,16 +12,14 @@ ICC32							= $(INTELPATH)/bin/ia32/icc
 ICC64							= $(INTELPATH)/bin/intel64/icc
 
 #Intel Compiler Options
-INTELOPENMP						= -openmp -openmp-link:static -parallel
-#INTELOPENMP					= -openmp-stubs
-INTELFLAGSOPT					= -O3 -fno-alias -fno-fnalias -x$(INTELARCH) -unroll -unroll-aggressive -openmp -g0
+INTELFLAGSOPT					= -O3 -fno-alias -fno-fnalias -x$(INTELARCH) -unroll -unroll-aggressive -g0
 ifeq ($(CONFIG_LTO), 1)
 INTELFLAGSOPT					+= -ipo
 INTELLINKIPO					= -ipo-c -ipo-fo
 else
 INTELFLAGSOPT					+= -ip
 endif
-INTELFLAGSDBG					= -O0 -openmp-stubs -g
+INTELFLAGSDBG					= -O0 -g
 INTELFLAGSCOMMON				= -DINTEL_RUNTIME $(INTELFLAGSUSE) -fasm-blocks
 INTELFLAGS32					= $(INTELFLAGSCOMMON) -m32
 INTELFLAGS64					= $(INTELFLAGSCOMMON) -m64 -D_AMD64_
@@ -30,9 +31,8 @@ GCCARCHA							= -march=$(GCCARCH) -msse4.2 -m$(ARCHBITS)
 endif
 
 ifeq ("$(CONFIG_OPENMP)", "1")
-INTELFLAGSOPT					+= -openmp
-INTELFLAGSDBG					+= -openmp-stubs
-GCCFLAGSARCH					+= -fopenmp
+INTELFLAGSCOMMON					+= -openmp
+LIBSUSE							+= -liomp5
 endif
 
 #GCC link flags
@@ -49,6 +49,7 @@ HIDEECHOB						= @
 endif
 
 ifeq ($(ARCHBITS), 64)
+ASM								= yasm -f elf64
 ICC								= $(ICC64) $(INTELFLAGS64) $(CFLAGS64) $(COMPILETARGETTYPE)
 GCC								= $(GCC3264) $(GCCFLAGS64) $(GCCFLAGSCOMMON) $(GCCFLAGSUSE) $(COMPILETARGETTYPE)
 CCDBG							= $(GCC3264) $(GCCFLAGS64) $(GCCFLAGSCOMMON) $(GCCFLAGSDBG) $(COMPILETARGETTYPE) -DDEBUG_RUNTIME
@@ -57,8 +58,9 @@ ICCLINK							= $(ICC64) $(LINKFLAGS64) -openmp
 CUDALIBPATH						= $(CUDAPATH)/lib64
 AMDLIBPATH						= $(AMDPATH)/lib/x86_64
 INTELLIBPATH					= $(INTELPATH)/compiler/lib/intel64
-CLANG							= $(CLANG3264) $(GCCFLAGS64) $(GCCFLAGSCOMMON) $(CLANGFLAGSUSE) $(COMPILETARGETTYPE)
+CLANG							= $(CLANG3264) $(GCCFLAGS64) $(CLANGFLAGSCOMMON) $(CLANGFLAGSUSE) $(COMPILETARGETTYPE)
 else
+ASM								= yasm -f elf32
 ICC								= $(ICC32) $(INTELFLAGS32) $(CFLAGS32) $(COMPILETARGETTYPE)
 GCC								= $(GCC3264) $(GCCFLAGS32) $(GCCFLAGSCOMMON) $(GCCFLAGSUSE) $(COMPILETARGETTYPE)
 CCDBG							= $(GCC3264) $(GCCFLAGS32) $(GCCFLAGSCOMMON) $(GCCFLAGSDBG) $(COMPILETARGETTYPE) -DDEBUG_RUNTIME
@@ -67,7 +69,7 @@ ICCLINK							= $(GCC3264) $(LINKFLAGS32) -openmp
 CUDALIBPATH						= $(CUDAPATH)/lib
 AMDLIBPATH						= $(AMDPATH)/lib/x86
 INTELLIBPATH					= $(INTELPATH)/compiler/lib/ia32
-CLANG							= $(CLANG3264) $(GCCFLAGS32) $(GCCFLAGSCOMMON) $(CLANGFLAGSUSE) $(COMPILETARGETTYPE)
+CLANG							= $(CLANG3264) $(GCCFLAGS32) $(CLANGFLAGSCOMMON) $(CLANGFLAGSUSE) $(COMPILETARGETTYPE)
 endif
 QTUIC							= uic
 QTMOC							= moc
@@ -83,7 +85,7 @@ EXECUTABLE						= $(TARGET)
 endif
 LIBGLIBC						=
 
-LIBSUSE							= $(LIBGLIBC) -lrt -ldl
+LIBSUSE							+= $(LIBGLIBC) -lrt -ldl
 
 ifeq ($(CC_x86_64-pc-linux-gnu), ICC)
 CC								= $(ICC)
@@ -98,7 +100,6 @@ endif
 CC_SELECTED						= $(CC_x86_64-pc-linux-gnu)
 
 CCCUDA							= $(GCC) -x c++ -Wno-effc++
-ASM								= yasm
 ASMPRE							= $(GCC3264)
 NVCC							= $(CUDAPATH)/bin/nvcc
 
@@ -131,8 +132,12 @@ endif
 
 ifeq ("$(CONFIG_QT)", "1")
 LIBSUSE							+= -lQtGui -lQtCore
-COMMONINCLUDEPATHS				+= /usr/include/qt4 $(WORKPATH)/qt
+COMMONINCLUDEPATHS				+= /usr/include/qt4 /usr/include/qt4/QtGui /usr/include/qt4/QtCore /usr/include/qt4/QtWidgets $(WORKPATH)/qt
+ifeq ($(ARCHBITS), 64)
 LIBPATHSUSE						+= -L/usr/lib/qt4
+else
+LIBPATHSUSE						+= -L/usr/lib32/qt4
+endif
 endif
 
 LIBSUSE							+= $(LIBS:%=-l%)

@@ -1,6 +1,7 @@
-#include "qsem.h"
 #include <errno.h>
 #include <stdio.h>
+
+#include "qsem.h"
 
 #ifndef STD_OUT
 #define STD_OUT stdout
@@ -41,3 +42,12 @@ int qSem::Trylock()
 	}
 	return(0);
 }
+
+#ifndef _WIN32
+int qSem::Query()
+{
+	int value;
+	if (sem_getvalue(&sem, &value) != 0) value = -1;
+	return(value);
+}
+#endif

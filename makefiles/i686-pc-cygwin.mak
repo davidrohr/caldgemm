@@ -50,11 +50,13 @@ CFLAGS32						= $(CFLAGSCOMMON)
 CFLAGS64						= $(CFLAGSCOMMON) /D "_WIN64" /D "_AMD64_" /D "_X64_" 
 DEBUGFLAGS						= /EHs /Zi /Od /D "DEBUG_RUNTIME"
 
+GCCFLAGS32						+= -mrtd
+
 INTELQPROF						= 
 #/Qprof_gen, /Qprof_use
 
 #Intel Compiler Options
-INTELFLAGSOPT					= /Oa /Ow /Qansi-alias /Ob2 /Ot /Oi /GA /G7 /O3 /Ox /Qvec_report0 /Qopt-prefetch /Q$(INTELARCH) /Gs0 /debug:minimal $(INTELOPENMP)
+INTELFLAGSOPT					= /Oa /Ow /Qansi-alias /Ob2 /Ot /Oi /GA /G7 /O3 /Ox /Qvec_report0 /Qopt-prefetch /Q$(INTELARCH) /Gs0 /debug:minimal
 # /Qguide  /Qopt-report:2 /Qvec-report:5
 ifeq ($(CONFIG_LTO), 1)
 INTELFLAGSOPT					+= /Qipo
@@ -62,7 +64,7 @@ INTELLINKIPO					= /Qipo-c /Qipo-fo
 else
 INTELFLAGSOPT					+= /Qip
 endif
-INTELFLAGSDBG					= /Od /Zi /Qopenmp-stubs
+INTELFLAGSDBG					= /Od /Zi
 INTELFLAGSBASE					= /EHsc /D "INTEL_RUNTIME" /Qprof_dir$(WORKPATH) $(MULTITHREAD) $(INTELQPROF)
 INTELFLAGSCOMMON				= $(INTELFLAGSBASE) $(INTELFLAGSUSE)
 INTELFLAGS32					= $(INTELFLAGSCOMMON) /Oy /Gr
@@ -77,16 +79,13 @@ VECTORCFLAGS					= /nologo /noprogress /vserror /cpp /mslibs $(VECTORCSTANDARD) 
 #Visual Studio Compiler Options
 VSNETFLAGSOPT					= /EHs /O2 /Ox /Oi /Ot /Oy /GA /Ob2 /Zi /Qfast_transcendentals $(MSOPENMP)
 VSNETFLAGSDBG					= /Od /Zi
-VSNETFLAGSCOMMON				=  /D "VSNET_RUNTIME" $(VSNETFLAGSUSE) $(EXTRAFLAGSMSCC) /EHsc
+VSNETFLAGSCOMMON				= /D "VSNET_RUNTIME" $(VSNETFLAGSUSE) $(EXTRAFLAGSMSCC) /EHsc
 VSNETFLAGS32					= $(VSNETFLAGSCOMMON)
 VSNETFLAGS64					= $(VSNETFLAGSCOMMON) /favor:$(MSVCFAVOR)
 
 ifeq ("$(CONFIG_OPENMP)", "1")
-INTELFLAGSOPT					+= /Qopenmp
-INTELFLAGSDBG					+= /Qopenmp-stubs
-VSNETFLAGSOPT					+= /openmp
-VSNETFLAGSDBG					+= /openmp
-GCCFLAGSARCH					+= -fopenmp
+INTELFLAGSCOMMON				+= /Qopenmp
+VSNETFLAGSCOMMON				+= /openmp
 endif
 
 ifeq ($(GCCARCH), )
@@ -210,7 +209,7 @@ endif
 
 ifeq ("$(CONFIG_QT)", "1")
 LIBSUSE							+= Qt5Gui.lib Qt5Core.lib Qt5Widgets.lib
-COMMONINCLUDEPATHS				+= $(QTPATH)/include $(WORKPATH)/qt
+COMMONINCLUDEPATHS				+= $(QTPATH)/include $(QTPATH)/include/QtGui $(QTPATH)/include/QtCore $(QTPATH)/include/QtWidgets $(WORKPATH)/qt
 LIBPATHSUSE						+= /LIBPATH:$(QTPATH)/lib
 endif
 

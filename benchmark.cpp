@@ -501,6 +501,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			{
 				Config->NoConcurrentKernels = 1;
 			}
+			else if (argv[x][2] == 'q')
+			{
+				Config->SimpleGPUQueuing = true;
+			}
 			else
 			{
 				if (++x >= argc) return(1);

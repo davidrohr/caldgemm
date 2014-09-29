@@ -92,6 +92,15 @@ private:
 	cl_program ocl_program[5];
 	cl_kernel ocl_kernel[max_devices][5];
 
+	struct caldgemm_opencl_simple_queue_event
+	{
+		cl_event event;
+		int num_queue;
+	};
+
+	caldgemm_opencl_simple_queue_event* simple_queue_events[max_devices][2]; //2 for m and n direction
+	int* simple_queue_event_requested[max_devices][obuffercount][2];
+
 	double* ocl_tmp_abuffers_ptr[max_devices][ibuffercount];
 	double* ocl_tmp_bbuffers_ptr[max_devices][ibuffercount];
 	double* ocl_tmp_cbuffers_ptr[max_devices][obuffercount];

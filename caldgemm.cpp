@@ -27,6 +27,7 @@
 #include "cmodules/qmalloc.h"
 #include "cmodules/affinity.h"
 #include "cmodules/qmath.h"
+#include <algorithm>
 
 #ifndef _WIN32
 #include <syscall.h>
@@ -179,6 +180,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	DisplayTiming = false;
 	DeviceNum = -1;
 	ImprovedScheduler = false;
+	SimpleGPUQueuing = false;
 	NumDevices = max_devices;
 	max_bbuffers = 0;
 	OpenCLPlatform = 0;
@@ -614,7 +616,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	if (Config->UseGPU && InitDevices()) return(1);
 	
-	int min_bbuffers = max_bbuffers;
+	min_bbuffers = max_bbuffers;
 	for (int i = 0;i < nDevices;i++)
 	{
 		if (bbuffers[i] < min_bbuffers) min_bbuffers = bbuffers[i];

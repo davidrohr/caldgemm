@@ -1,8 +1,5 @@
 all								: all_tmp
 
-run								: all
-								./$(EXECUTABLE)
-
 ARCH							:= $(shell sort <<< $$MACHTYPE)
 ARCHCHK							:= $(shell if [ -a makefiles/$(ARCH).mak ]; then echo -n 1; else echo -n 0; fi)
 ifeq ($(ARCHCHK), 1)
@@ -30,16 +27,14 @@ endif
 
 #GCC Compiler Options
 GCCFLAGSOPT						= -O3 $(GCCFLAGSARCH) -fweb -frename-registers -minline-all-stringops -mfpmath=sse -ftracer -funroll-loops -fpeel-loops -fprefetch-loop-arrays -ffast-math -ggdb
-CLANGFLAGSOPT					= -O3 $(GCCFLAGSARCH) -minline-all-stringops -mfpmath=sse -ftracer -funroll-loops -fprefetch-loop-arrays -ffast-math -ggdb
+CLANGFLAGSOPT					= -O3 $(GCCFLAGSARCH) -minline-all-stringops -mfpmath=sse -funroll-loops -ffast-math -ggdb $(EXTRAFLAGSCLANG)
+CLANGFLAGSDBG					= $(GCCFLAGSDBG) $(EXTRAFLAGSCLANG)
 #-fgcse-sm -fgcse-las -fmodulo-sched -fipa-pta -floop-interchange -floop-block 
 GCCFLAGSDBG						= -O0 $(GCCFLAGSARCH) -ggdb
 GCCFLAGSCOMMON					= $(MULTITHREADGCC) -pipe -DGCC_RUNTIME $(GCCPROF) $(EXTRAFLAGSGCC) -Wall -Wno-write-strings
-GCCFLAGS32						= -m32 -mrtd
+CLANGFLAGSCOMMON				= $(MULTITHREADGCC) -pipe -DGCC_RUNTIME -DCLANG_RUNTIME $(GCCPROF) $(EXTRAFLAGSGCC) -Wall -Wno-write-strings
+GCCFLAGS32						= -m32
 GCCFLAGS64						= -m64 -D"_AMD64_" -D"_X64_"
-
-ifeq ($(CONFIG_CPP11), 1)
-GCCFLAGSCOMMON						+= -std=c++11
-endif
 
 GCCPROF							= 
 #-fprofile-arcs, -fbranch-probabilities
@@ -63,7 +58,7 @@ ifeq ($(COMPILER_FLAGS), DBG)
 INTELFLAGSUSE					= $(INTELFLAGSDBG)
 VSNETFLAGSUSE					= $(VSNETFLAGSDBG)
 GCCFLAGSUSE						= $(GCCFLAGSDBG)
-CLANGFLAGSUSE					= $(GCCFLAGSDBG)
+CLANGFLAGSUSE					= $(CLANGFLAGSDBG)
 NVCCFLAGSUSE					= $(NVCCFLAGSDBG)
 CONFIG_LTO						= 0
 endif
@@ -75,14 +70,36 @@ CLANGFLAGSUSE					= $(CLANGFLAGSOPT)
 NVCCFLAGSUSE					= $(NVCCFLAGSOPT)
 endif
 
+ifeq ($(CONFIG_CPP11), 1)
+GCCFLAGSCOMMON						+= -std=c++11
+endif
+ifeq ($(CONFIG_OPENMP), 1)
+GCCFLAGSCOMMON						+= -fopenmp
+CLANGFLAGSCOMMON					+= -openmp
+endif
+
 MKDIR							= $(HIDEECHOB) mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'`
 
-ALLDEP							= makefiles/makefile $(CONFIGFILE) makefiles/$(ARCHFILE) config.mak
+ALLDEP							+= makefiles/makefile $(CONFIGFILE) makefiles/$(ARCHFILE) config.mak
 include							makefiles/$(ARCHFILE)
 GCCFLAGSARCH					+= $(GCCARCHA)
 
-all_tmp:						$(SUBTARGETS:%=subbuild/%.mak) $(EXECUTABLE)
-main:							$(EXECUTABLE)
+ifeq ($(TARGETPATH), )
+COPIED_EXECUTABLE				= $(EXECUTABLE)
+TARGETPATH					= .
+else
+COPIED_EXECUTABLE				= $(TARGETPATH)$(EXECUTABLE)
+$(COPIED_EXECUTABLE)				: $(EXECUTABLE)
+						cp $(EXECUTABLE) $(COPIED_EXECUTABLE)
+endif
+
+all_tmp:						$(SUBTARGETS:%=subbuild/%.mak) $(COPIED_EXECUTABLE)
+
+main:							$(COPIED_EXECUTABLE)
+
+run								: all
+								cd $(TARGETPATH) && ./$(EXECUTABLE)
+
 
 subbuild/%.mak:
 								+$(MAKE) CONFIGFILE=config_`echo $@ | sed s,subbuild/,,` BUILDSCRIPT=config_`echo $@ | sed s,subbuild/,, | sed s,mak,sh,` -f makefile
@@ -93,9 +110,9 @@ CUDADEFINES						= $(DEFINESUSE:%=--compiler-options %)
 DEPENDS							:= $(CUFILES:%.cu=$(WORKPATH)/cu/%.d) $(CLFILES:%.cl=$(WORKPATH)/cl/%.d) $(ASMFILES:%.asm=$(WORKPATH)/asm/%.d) $(CPPFILES_DBG:%.cpp=$(WORKPATH)/dbg/%.d) $(CPPFILES_VCC:%.cpp=$(WORKPATH)/vcc/%.d) \
 									$(CPPFILES:%.cpp=$(WORKPATH)/cpp/%.d) $(CXXFILES:%.cxx=$(WORKPATH)/cxx/%.d) $(CFILES:%.c=$(WORKPATH)/c/%.d) \
 									$(CPPFILES_MSCC:%.cpp=$(WORKPATH)/mscc/%.d) $(CPPFILES_CLANG:%.cpp=$(WORKPATH)/clang/%.d) $(CPPFILES_ICC:%.cpp=$(WORKPATH)/icc/%.d) $(CPPFILES_GCC:%.cpp=$(WORKPATH)/gcc/%.d) $(QTFILES:%.ui=$(WORKPATH)/qt/%.qtd)
-CPPFILES						+= $(QTFILES:%.ui=$(WORKPATH)/cpp/%.$(OBJ))
+CPPFILES						+= $(QTFILES:%.ui=$(WORKPATH)/cpp/%.$(OBJ)) $(QTCPPFILES)
 
-OBJFILES						:= $(CUFILES:%.cu=$(WORKPATH)/cu/%.$(OBJ)) $(ASMFILES:%.asm=$(WORKPATH)/asm/%.$(OBJ)) $(CPPFILES_DBG:%.cpp=$(WORKPATH)/dbg/%.$(OBJ)) $(CPPFILES_VCC:%.cpp=$(WORKPATH)/vcc/%.$(OBJ)) $(RESOURCEFILES:%=$(WORKPATH)/res/%.$(OBJ)) $(CLFILES:%.cl=$(WORKPATH)/cl/%.$(OBJ)) $(QTFILES:%.ui=$(WORKPATH)/qt/%_moc.$(OBJ))
+OBJFILES						:= $(CUFILES:%.cu=$(WORKPATH)/cu/%.$(OBJ)) $(ASMFILES:%.asm=$(WORKPATH)/asm/%.$(OBJ)) $(CPPFILES_DBG:%.cpp=$(WORKPATH)/dbg/%.$(OBJ)) $(CPPFILES_VCC:%.cpp=$(WORKPATH)/vcc/%.$(OBJ)) $(RESOURCEFILES:%=$(WORKPATH)/res/%.$(OBJ)) $(CLFILES:%.cl=$(WORKPATH)/cl/%.$(OBJ)) $(QTFILES:%.ui=$(WORKPATH)/qt/%_moc.$(OBJ)) $(QTCPPFILES:%.cpp=$(WORKPATH)/qt/%_moccpp.$(OBJ))
 
 CPPFILES_ICC					:= $(CPPFILES_ICC:%.cpp=$(WORKPATH)/icc/%.$(OBJ))
 CPPFILES_GCC					:= $(CPPFILES_GCC:%.cpp=$(WORKPATH)/gcc/%.$(OBJ))
@@ -133,18 +150,19 @@ GCCINCLUDEPATHS					=
 else
 GCCINCLUDEPATHSA				:= $(INCLUDEPATHS) $(COMMONINCLUDEPATHS)
 GCCINCLUDEPATHSB				:= $(shell cygpath -u $(GCCINCLUDEPATHSA))
-GCCINCLUDEPATHS					= $(GCCINCLUDEPATHSB:%=-I%)
+GCCINCLUDEPATHS					:= $(GCCINCLUDEPATHSB:%=-I%)
 endif
 else
-GCCINCLUDEPATHS					= $(INCLUDEPATHS:%=-I%) $(COMMONINCLUDEPATHS:%=-I%)
+GCCINCLUDEPATHS					:= $(INCLUDEPATHS:%=-I%) $(COMMONINCLUDEPATHS:%=-I%)
 endif
-VSINCLUDEPATHS					= $(INCLUDEPATHS:%=/I%) $(COMMONINCLUDEPATHS:%=/I%)
+VSINCLUDEPATHS					:= $(INCLUDEPATHS:%=/I%) $(COMMONINCLUDEPATHS:%=/I%)
 
 ifeq ($(ARCHBITS), 64)
 DEFINES							+= _64BIT
 endif
-GCCDEFINES						= $(DEFINES:%=-D%) $(DEFINESARCH:%=-D%)
-VSDEFINES						= $(DEFINES:%=/D%) $(DEFINESARCH:%=/D%)
+GCCDEFINES						:= $(DEFINES:%=-D%) $(DEFINESARCH:%=-D%)
+VSDEFINESTMP					:= $(DEFINES:%=/D%) $(DEFINESARCH:%=/D%)
+VSDEFINES						:= $(subst =, BAT_SPECIAL_EQ ,$(VSDEFINESTMP))
 
 LIBFILES						= $(LIBSUSE)
 
@@ -200,9 +218,11 @@ $(WORKPATH)/qt/%_ui.h:			%.ui $(ALLDEP)
 $(WORKPATH)/qt/%_moc.cpp:		%.h $(WORKPATH)/qt/%_ui.h $(ALLDEP)
 								$(QTMOC) -DQT_NO_DEBUG -DQT_GUI_LIB -DQT_CORE_LIB -DQT_SHARED -o $@ $<
 
-$(WORKPATH)/qt/%_moc.$(OBJ):	$(WORKPATH)/qt/%_moc.cpp $(ALLDEP)
+$(WORKPATH)/qt/%_moccpp.cpp:		%.h $(ALLDEP)
+								$(QTMOC) -DQT_NO_DEBUG -DQT_GUI_LIB -DQT_CORE_LIB -DQT_SHARED -o $@ $<
+								
+$(WORKPATH)/qt/%.$(OBJ):	$(WORKPATH)/qt/%.cpp $(ALLDEP)
 								$(CC) $(INCLUDEPATHSUSE) $(DEFINESUSE) $(FILEFLAGS$<) $(COMPILEONLY) $< $(COMPILEOUTPUT)
-
 
 $(WORKPATH)/_makefiles_support_opencl.$(OBJ):	makefiles/makefile_opencl_compiler.cpp $(ALLDEP)
 								$(HIDEECHOB) mkdir -p $(WORKPATH)
@@ -232,7 +252,7 @@ $(WORKPATH)/make_cuda_device_link/dl_$(TARGET).$(OBJ):	$(CUFILES:%.cu=$(WORKPATH
 								$(NVCC) $(NVCCFLAGSUSE) -dlink $(CUFILES:%.cu=$(WORKPATH)/cu/%.$(OBJ)) -o $@ -lcudadevrt
 							
 clean:							$(SUBTARGETS:%=subclean/%.mak)
-								rm -Rf *.plg *.dpi *.exp *.lib $(EXECUTABLE) x64/release/* *.cubin *.gpu *.ptx *.linkinfo *.ii cuda.compute_* $(DEPENDS) $(OBJFILES) $(CUFILES:%.cu=$(WORKPATH)/cu/%.cpp) $(ASMFILES:%.asm=$(WORKPATH)/asm/%.asm) $(CLEANRELEASEDIR)
+								rm -Rf *.plg *.dpi *.exp *.lib $(EXECUTABLE) $(COPIED_EXECUTABLE) x64/release/* *.cubin *.gpu *.ptx *.linkinfo *.ii cuda.compute_* $(DEPENDS) $(OBJFILES) $(CUFILES:%.cu=$(WORKPATH)/cu/%.cpp) $(ASMFILES:%.asm=$(WORKPATH)/asm/%.asm) $(CLEANRELEASEDIR)
 							
 subclean/%.mak:
 								+export CONFIGFILE=config_`echo $@ | sed s,subclean/,,` && $(MAKE) -f makefile clean
@@ -253,7 +273,7 @@ DEPSED2							= -e 's,\\,/,g' \
 
 
 $(WORKPATH)/qt/%.qtd:			%.cpp %.ui $(WORKPATH)/qt/%_ui.h $(ALLDEP)
-								$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/$*.$(OBJ) $@ : ,g' $(DEPSED2)
+								$(DEPMKDIR) $(DEPGCC) | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/cpp/$*.$(OBJ) $@ : ,g' $(DEPSED2)
 							
 $(WORKPATH)/cl/%.d:				%.cl $(ALLDEP)
 								$(DEPMKDIR) $(DEPGCC) -I$(GCCPATH)/include -D__OPENCL__ | $(DEPSED1) 's,^[a-zA-Z0-9._-]*[ ]*:,$(WORKPATH)/cl/$*.clbin $(WORKPATH)/cl/$*.cl $@ : ,g' $(DEPSED2)

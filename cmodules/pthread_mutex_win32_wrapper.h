@@ -68,7 +68,7 @@ static inline int pthread_join(pthread_t thread, void** retval)
 
 static inline int sem_init(sem_t *sem, int pshared, unsigned int value)
 {
-	*sem = CreateSemaphore(NULL, value, value, NULL);
+	*sem = CreateSemaphore(NULL, value, 1024, NULL);
 	return((*sem) == NULL);
 }
 

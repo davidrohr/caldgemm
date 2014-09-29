@@ -121,6 +121,7 @@ public:
 		bool MultiThread;						//Use multiple threads
 		bool MultiThreadDivide;					//Use multiple threads for DivideBuffer as well
 		bool ImprovedScheduler;					//Tries to save bbuffers, replaces the round-robin scheduler
+		bool SimpleGPUQueuing;					//Use a simpler scheduler that performs all command queueing based on device events.
 		unsigned int ParallelDMA;				//Use multiple threads to handle GPU DMA, this is incompatible with DynamicSched, acivated if n >= setting and setting != 0, DMA cores defined by DMAMapping
 		unsigned int GroupParallelDMA;			//Use in combination with ParallelDMA. Group devices with identical AllocMapping setting to one thread, at least one paralleDMA thread with that DMAMapping must exist. Activated if n < setting., make sure to have a preprocessing thread set to each CPU core used for this feature, the thread won't be used but it will ensure correct core pinning. -1 for always Grouped parallel DMA.
 		double GPURatio;						//Fraction of the matrix processed by GPU
@@ -435,6 +436,7 @@ protected:
 	bool TransposeB;
 
 	int bbuffers[max_devices];
+	int min_bbuffers;
 	int outputthreads;
 
 	size_t BufferHeight;						//Height to which the buffers were originally initialized

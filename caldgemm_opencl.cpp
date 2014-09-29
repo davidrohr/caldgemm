@@ -292,6 +292,7 @@ int caldgemm_opencl::WaitForEventAndRelease(cl_event* pEvent, int lock)
 
 int caldgemm_opencl::WaitForEvent(int a, int b, int mustlock)
 {
+	if (Config->SimpleGPUQueuing) return(0);
 	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", b, a);
 	return(WaitForEventAndRelease(&ocl_events[b][a], mustlock || Config->ThreadSaveDriver == -1));
 }
@@ -395,6 +396,19 @@ int caldgemm_opencl::ValidateRuntime()
 	Config->MultiThreadDivide = false;
 
 	if (Config->GPU_C == -1) Config->GPU_C = 1;
+	if (Config->SimpleGPUQueuing)
+	{
+		if (Config->GPU_C == 0)
+		{
+			fprintf(STD_OUT, "SimpleGPUQueuing works only in combination with GPU_C\n");
+			return(1);
+		}
+		if (Config->NoConcurrentKernels)
+		{
+			fprintf(STD_OUT, "Automatically disabling NoConcurrentKernels when SimpleGPUQueuing is active...\n");
+			Config->NoConcurrentKernels = 0;
+		}
+	}
 
 	cl_uint num_platforms;
 	CHKRET(clGetPlatformIDs(0, NULL, &num_platforms), "Error getting OpenCL Platform Count");
@@ -796,27 +810,45 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d offset %lld\n", height1, height2, width, Alpha, Beta, pitch, (long long int) offset);
 	cl_event* kernel_event;
 	cl_event tmp_event;
-	if (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync))
-	{
-		if (Config->NoConcurrentKernels) kernel_event = &tmp_event;
-		else kernel_event = NULL;
-	}
-	else
-	{
-		kernel_event = &ocl_events[Task.device][Task.j];
-	}
-
 	int wait_num_events;
 	cl_event* wait_event;
-	if (Config->NoConcurrentKernels && last_device_kernel[Task.device] != 0)
+	cl_event simple_queue_event[2];
+
+	if (Config->SimpleGPUQueuing)
 	{
-		wait_num_events = 1;
-		wait_event = &last_device_kernel[Task.device];
+		kernel_event = NULL;
+		wait_num_events = 0;
+		if (Task.j != simple_queue_events[Task.device][0][blockm].num_queue && simple_queue_event_requested[Task.device][Task.j][0][blockm] == 0)
+		{
+			simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][0][blockm].event;
+		}
+		if (Task.j != simple_queue_events[Task.device][1][blockn].num_queue && simple_queue_event_requested[Task.device][Task.j][1][blockn] == 0)
+		{
+			simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][1][blockn].event;
+		}
 	}
 	else
 	{
-		wait_num_events = 0;
-		wait_event = NULL;
+		if (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync))
+		{
+			if (Config->NoConcurrentKernels) kernel_event = &tmp_event;
+			else kernel_event = NULL;
+		}
+		else
+		{
+			kernel_event = &ocl_events[Task.device][Task.j];
+		}
+
+		if (Config->NoConcurrentKernels && last_device_kernel[Task.device] != 0)
+		{
+			wait_num_events = 1;
+			wait_event = &last_device_kernel[Task.device];
+		}
+		else
+		{
+			wait_num_events = 0;
+			wait_event = NULL;
+		}
 	}
 
 	if (Config->VerboseTiming)
@@ -855,7 +887,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			size_t region[3] = {(size_t) height1 * sizeof(double), (size_t) height2, 1};
 			if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-			CHKRET(clEnqueueReadBufferRectUse(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
+			CHKRET(clEnqueueReadBufferRectUse(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, Config->SimpleGPUQueuing ? NULL : &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		else if (Config->ImplicitDriverSync)
@@ -1054,7 +1086,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 	if (Config->VerboseTiming && Config->GPU_C == 1) Timers.CounterCopyTo.Start();
 
-	if (ocl_conversion_events_use[num_device][0])
+	if (!Config->SimpleGPUQueuing && ocl_conversion_events_use[num_device][0])
 	{
 		WaitForEventAndRelease(&ocl_conversion_events[num_device][0]);
 		ocl_conversion_events_use[num_device][0] = 0;
@@ -1137,14 +1169,24 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			size_t local_size[2] = {GROUP_SIZE_X, GROUP_SIZE_Y};
 			size_t global_size[2] = {GROUP_SIZE_X * GROUP_COUNT_X, GROUP_SIZE_Y * GROUP_COUNT_Y};
 			if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", arg_width, arg_height, arg_transpose);
-			CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, &ocl_conversion_events[num_device][0]), "Error starting conversion kernel for A");
+			cl_event* ev;
+			if (Config->SimpleGPUQueuing)
+			{
+				ev = &simple_queue_events[num_device][0][blockm].event;
+				simple_queue_events[num_device][0][blockm].num_queue = j;
+			}
+			else
+			{
+				ev = &ocl_conversion_events[num_device][0];
+			}
+			CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, ev), "Error starting conversion kernel for A");
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		ocl_conversion_events_use[num_device][0] = 1;
 		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 	}
 
-	if (ocl_conversion_events_use[num_device][1])
+	if (!Config->SimpleGPUQueuing && ocl_conversion_events_use[num_device][1])
 	{
 		WaitForEventAndRelease(&ocl_conversion_events[num_device][1]);
 		ocl_conversion_events_use[num_device][1] = 0;
@@ -1229,7 +1271,19 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			size_t local_size[2] = {GROUP_SIZE_X, GROUP_SIZE_Y};
 			size_t global_size[2] = {GROUP_SIZE_X * GROUP_COUNT_X, GROUP_SIZE_Y * GROUP_COUNT_Y};
 			if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
-			CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, &ocl_conversion_events[num_device][1]), "Error starting conversion kernel for B");
+
+			cl_event* ev;
+			if (Config->SimpleGPUQueuing)
+			{
+				ev = &simple_queue_events[num_device][1][blockn].event;
+				simple_queue_events[num_device][1][blockn].num_queue = j;
+			}
+			else
+			{
+				ev = &ocl_conversion_events[num_device][1];
+			}
+
+			CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, ev), "Error starting conversion kernel for B");
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		ocl_conversion_events_use[num_device][1] = 1;
@@ -1317,24 +1371,89 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 			last_device_kernel[i] = 0;
 		}
 	}
+	if (Config->SimpleGPUQueuing)
+	{
+		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
+		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
+
+		if (((DGEMM_favor_m ? nb : mb) + nDevices - 1) / nDevices > min_bbuffers)
+		{
+			fprintf(STD_OUT, "SimpleGPUQueuing can only work if [Number of BBuffers] * [Number of GPUs] > [Number of Blocks in one dimension]\n");
+			return(1);
+		}
+
+		simple_queue_events[0][0] = new caldgemm_opencl_simple_queue_event[nDevices * (mb + nb)];
+		simple_queue_event_requested[0][0][0] = new int[nDevices * obuffercount * (mb + nb)];
+		memset(simple_queue_events[0][0], 0, nDevices * (mb + nb) * sizeof(caldgemm_opencl_simple_queue_event));
+		memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(int));
+		for (int i = 0;i < nDevices;i++)
+		{
+			for (int j = 0;j < obuffercount;j++)
+			{
+				for (int k = 0;k < 2;k++)
+				{
+					if (i || j || k)
+					{
+						simple_queue_event_requested[i][j][k] = &simple_queue_event_requested[0][0][0][(k ? mb : 0) + j * (mb + nb) + i * obuffercount * (mb + nb)];
+						if (j == 0)
+						{
+							simple_queue_events[i][k] = &simple_queue_events[0][0][(k ? mb : 0) + i * (mb + nb)];
+						}
+					}
+				}
+			}
+		}
+	}
 	return(0);
 }
 
 int caldgemm_opencl::RunCALDGEMM_Exit()
 {
-	for (int i = 0;i < nDevices;i++)
+	if (Config->SimpleGPUQueuing)
 	{
-		for (int j = 0;j < 2;j++)
+		for (int i = 0;i < nDevices;i++)
 		{
-			if (ocl_conversion_events_use[i][j])
+			for (int j = 0;j < 2;j++)
 			{
-				clReleaseEvent(ocl_conversion_events[i][j]);
+				const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
+				const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
+
+				for (int k = 0;k < (j ? nb : mb);k++)
+				{
+					if (simple_queue_events[i][j][k].event != NULL) clReleaseEvent(simple_queue_events[i][j][k].event);
+				}
 			}
 		}
-		if (Config->NoConcurrentKernels && last_device_kernel[i] != 0 && (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync)))
+		for (int i = 0;i < nDevices;i++)
 		{
-			clReleaseEvent(last_device_kernel[i]);
+			for (int j = 0;j < obuffercount;j++)
+			{
+				clFinish(ocl_command_queues[i][j]);
+			}
 		}
+	}
+	else
+	{
+		for (int i = 0;i < nDevices;i++)
+		{
+			for (int j = 0;j < 2;j++)
+			{
+				if (ocl_conversion_events_use[i][j])
+				{
+					clReleaseEvent(ocl_conversion_events[i][j]);
+				}
+			}
+			if (Config->NoConcurrentKernels && last_device_kernel[i] != 0 && (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync)))
+			{
+				clReleaseEvent(last_device_kernel[i]);
+			}
+		}
+	}
+
+	if (Config->SimpleGPUQueuing)
+	{
+		delete[] simple_queue_events[0][0];
+		delete[] simple_queue_event_requested[0][0][0];
 	}
 	return(0);
 }

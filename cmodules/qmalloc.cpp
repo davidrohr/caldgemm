@@ -122,6 +122,13 @@ void* qmalloc::qMalloc(size_t size, bool huge, bool executable, bool locked, voi
 		fprintf(stderr, "Interleaved allocation not supported on Windows\n");
 		return(NULL);
 	}
+	if (alloc_addr != NULL)
+	{
+		if (VirtualAlloc(alloc_addr, size, (flags & ~MEM_COMMIT) | MEM_RESERVE, protect) != alloc_addr)
+		{
+			return(NULL);
+		}
+	}
 	addr = VirtualAlloc(alloc_addr, size, flags, protect);
 #else
 	int flags = MAP_ANONYMOUS | MAP_PRIVATE;
