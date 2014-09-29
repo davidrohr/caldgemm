@@ -810,14 +810,13 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d offset %lld\n", height1, height2, width, Alpha, Beta, pitch, (long long int) offset);
 	cl_event* kernel_event;
 	cl_event tmp_event;
-	int wait_num_events;
-	cl_event* wait_event;
+	int wait_num_events = 0;
+	cl_event* wait_event = NULL;
 	cl_event simple_queue_event[2];
 
 	if (Config->SimpleGPUQueuing)
 	{
 		kernel_event = NULL;
-		wait_num_events = 0;
 		if (Task.j != simple_queue_events[Task.device][0][blockm].num_queue && simple_queue_event_requested[Task.device][Task.j][0][blockm] == 0)
 		{
 			simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][0][blockm].event;
@@ -826,6 +825,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		{
 			simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][1][blockn].event;
 		}
+		if (wait_num_events) wait_event = simple_queue_event;
 	}
 	else
 	{
@@ -846,7 +846,6 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		}
 		else
 		{
-			wait_num_events = 0;
 			wait_event = NULL;
 		}
 	}
@@ -1376,7 +1375,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
 
-		if (((DGEMM_favor_m ? nb : mb) + nDevices - 1) / nDevices > min_bbuffers)
+		if (((int) (DGEMM_favor_m ? nb : mb) + nDevices - 1) / nDevices > min_bbuffers)
 		{
 			fprintf(STD_OUT, "SimpleGPUQueuing can only work if [Number of BBuffers] * [Number of GPUs] > [Number of Blocks in one dimension]\n");
 			return(1);
@@ -1418,7 +1417,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 				const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
 				const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
 
-				for (int k = 0;k < (j ? nb : mb);k++)
+				for (int k = 0;k < (int) (j ? nb : mb);k++)
 				{
 					if (simple_queue_events[i][j][k].event != NULL) clReleaseEvent(simple_queue_events[i][j][k].event);
 				}
