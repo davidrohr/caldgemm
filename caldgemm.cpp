@@ -687,9 +687,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	if (Config->AlternateLookahead)
 	{
-		pthread_mutex_init(&alternateLinpackMutex, NULL);
 		pthread_mutex_init(&tilesRemainingMutex, NULL);
-		pthread_mutex_lock(&alternateLinpackMutex);
+		alternateLinpackMutex.Lock();
 	}
 
 	if (Config->MultiThread)
@@ -1110,7 +1109,7 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int& require_thread
 		if (Config->AlternateLookahead > matrix_n)
 		{
 			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tWaiting for GPUs to finish initial DGEMM part to start Linpack factorization\n");
-			pthread_mutex_lock(&alternateLinpackMutex);
+			alternateLinpackMutex.Lock();
 			_mm_mfence();
 		}
 		else
@@ -1553,7 +1552,10 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		    mergeTimer.Stop();
 		    fprintf(STD_OUT, "\t\tMerge time: %2.3f\n", mergeTimer.GetElapsedTime());
 		}*/
-		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n) CheckAlternateTilesRemaining(blockm);
+		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n)
+		{
+			CheckAlternateTilesRemaining(blockm);
+		}
 		
 		if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex device %d obuffer %d (Slavethread %d)\n", par->num_device, par->nContext, par->nMergeThread);
 		obufferMutex[par->num_device][par->nContext].Unlock();
@@ -1637,7 +1639,11 @@ void caldgemm::CheckAlternateTilesRemaining(size_t m)
 	if (m <= (Config->Width - 1) / Config->Height)
 	{
 		pthread_mutex_lock(&tilesRemainingMutex);
-		if (AlternateLookaheadTilesRemaining && --AlternateLookaheadTilesRemaining == 0) pthread_mutex_unlock(&alternateLinpackMutex);
+		if (AlternateLookaheadTilesRemaining && --AlternateLookaheadTilesRemaining == 0)
+		{
+			if (Config->Debug) fprintf(STD_OUT, "GPU done with initial part, factorization may start\n");
+			alternateLinpackMutex.Unlock();
+		}
 		pthread_mutex_unlock(&tilesRemainingMutex);
 	}
 }
@@ -2559,7 +2565,7 @@ recalculate_ratio:
 				for (int l = 0;l < nDevices;l++) first_device_k[l] = -1;
 				
 				size_t block_correction_factor = 0;
-				if (Config->SmallTiles)
+				if (Config->Height > CALDGEMM_MIN_CORRECTION_SIZE && Config->SmallTiles)
 				{
 					size_t undersize;
 					size_t scaler;
@@ -2579,7 +2585,7 @@ recalculate_ratio:
 						block_correction_factor = (Config->Height - undersize) * scaler / Config->Height;
 					}
 				}
-
+				
 				for (size_t l = 0;l < nBlocks;l++)
 				{
 					size_t blockn, blockm;
@@ -2814,8 +2820,6 @@ int caldgemm::ExitCALDGEMM()
 
 	if (Config->AlternateLookahead)
 	{
-		pthread_mutex_unlock(&alternateLinpackMutex);
-		if (pthread_mutex_destroy(&alternateLinpackMutex)) fprintf(STD_OUT, "ERROR destroying alternateLinpackMutex: %s - %d\n", __FILE__, __LINE__);
 		if (pthread_mutex_destroy(&tilesRemainingMutex)) fprintf(STD_OUT, "ERROR destroying tilesRemainingMutex: %s - %d\n", __FILE__, __LINE__);
 	}
 
