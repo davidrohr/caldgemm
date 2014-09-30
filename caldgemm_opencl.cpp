@@ -1383,6 +1383,48 @@ void caldgemm_opencl::CheckAlternateTilesRemainingSimpleQuieing()
 	}
 }
 
+void caldgemm_opencl::Preallocate()
+{
+	caldgemm::Preallocate();
+	simple_queue_events[0][0] = new caldgemm_opencl_simple_queue_event[nDevices * (Config->PreallocData + Config->PreallocData)];
+	simple_queue_event_requested[0][0][0] = new int[nDevices * obuffercount * (Config->PreallocData + Config->PreallocData)];
+	AlternateLookaheadTilesRemaining_events = new cl_event[Config->PreallocData * Config->PreallocData];
+	memset(simple_queue_events[0][0], 0, nDevices * (Config->PreallocData + Config->PreallocData) * sizeof(caldgemm_opencl_simple_queue_event));
+	memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (Config->PreallocData + Config->PreallocData) * sizeof(int));
+	memset(AlternateLookaheadTilesRemaining_events, 0, Config->PreallocData * Config->PreallocData * sizeof(cl_event));
+
+	SetupSimpleQueue(Config->PreallocData, Config->PreallocData);
+}
+
+void caldgemm_opencl::PreallocateFree()
+{
+	caldgemm::PreallocateFree();
+	delete[] simple_queue_events[0][0];
+	delete[] simple_queue_event_requested[0][0][0];
+	delete[] AlternateLookaheadTilesRemaining_events;
+}
+
+void caldgemm_opencl::SetupSimpleQueue(size_t mb, size_t nb)
+{
+	for (int i = 0;i < nDevices;i++)
+	{
+		for (int j = 0;j < obuffercount;j++)
+		{
+			for (int k = 0;k < 2;k++)
+			{
+				if (i || j || k)
+				{
+					simple_queue_event_requested[i][j][k] = &simple_queue_event_requested[0][0][0][(k ? mb : 0) + j * (mb + nb) + i * obuffercount * (mb + nb)];
+					if (j == 0)
+					{
+						simple_queue_events[i][k] = &simple_queue_events[0][0][(k ? mb : 0) + i * (mb + nb)];
+					}
+				}
+			}
+		}
+	}
+}
+
 int caldgemm_opencl::RunCALDGEMM_Init()
 {
 	for (int i = 0;i < nDevices;i++)
@@ -1407,32 +1449,19 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 			return(1);
 		}
 
-		simple_queue_events[0][0] = new caldgemm_opencl_simple_queue_event[nDevices * (mb + nb)];
-		simple_queue_event_requested[0][0][0] = new int[nDevices * obuffercount * (mb + nb)];
-		memset(simple_queue_events[0][0], 0, nDevices * (mb + nb) * sizeof(caldgemm_opencl_simple_queue_event));
-		memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(int));
-		for (int i = 0;i < nDevices;i++)
+		if (!Config->PreallocData)
 		{
-			for (int j = 0;j < obuffercount;j++)
+			simple_queue_events[0][0] = new caldgemm_opencl_simple_queue_event[nDevices * (mb + nb)];
+			simple_queue_event_requested[0][0][0] = new int[nDevices * obuffercount * (mb + nb)];
+			SetupSimpleQueue(mb, nb);
+			if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesFull)
 			{
-				for (int k = 0;k < 2;k++)
-				{
-					if (i || j || k)
-					{
-						simple_queue_event_requested[i][j][k] = &simple_queue_event_requested[0][0][0][(k ? mb : 0) + j * (mb + nb) + i * obuffercount * (mb + nb)];
-						if (j == 0)
-						{
-							simple_queue_events[i][k] = &simple_queue_events[0][0][(k ? mb : 0) + i * (mb + nb)];
-						}
-					}
-				}
+				AlternateLookaheadTilesRemaining_events = new cl_event[AlternateLookaheadTilesFull];
 			}
 		}
 
-		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesFull)
-		{
-			AlternateLookaheadTilesRemaining_events = new cl_event[AlternateLookaheadTilesFull];
-		}
+		memset(simple_queue_events[0][0], 0, nDevices * (mb + nb) * sizeof(caldgemm_opencl_simple_queue_event));
+		memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(int));
 	}
 	return(0);
 }
@@ -1480,7 +1509,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 		}
 	}
 
-	if (Config->SimpleGPUQueuing)
+	if (Config->SimpleGPUQueuing && !Config->PreallocData)
 	{
 		delete[] simple_queue_events[0][0];
 		delete[] simple_queue_event_requested[0][0][0];

@@ -138,6 +138,7 @@ public:
 		int NumDevices;							//Number of devices to use in parallel at max
 		int DeviceNums[max_devices];			//Array of CAL devices to use (replaces DeviceNum for multiple devices). This translation is applied first, all other setting like GPU mappings are applied on top of this.
 		int max_bbuffers;						//Limit the number of bbuffers
+		int PreallocData;						//Preallocate buffers, set Prealloc to the maximum number of (mb/nb) blocks expected!
 
 		bool Debug;								//Activate debig output
 		bool DumpMatrix;						//Dump input matrix to file
@@ -303,6 +304,8 @@ protected:
 	virtual int ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn) = 0;
 	virtual int RunCALDGEMM_Init();
 	virtual int RunCALDGEMM_Exit();
+	virtual void Preallocate();
+	virtual void PreallocateFree();
 
 	virtual int reserve_cpu_cores();
 	

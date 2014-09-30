@@ -240,6 +240,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	GPU_C = -1;
 	NoConcurrentKernels = 0;
 	ForceKernelVariant = -1;
+	PreallocData = 0;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -794,6 +795,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 #endif
 	}
 
+	if (Config->PreallocData)
+	{
+		Preallocate();
+	}
+	
 	/*fprintf(STD_OUT, "Setting FIFO scheduler\n");
 	sched_param param;
 	sched_getparam(0, &param);
@@ -1656,6 +1662,29 @@ void caldgemm::CheckAlternateTilesRemaining(size_t m)
 	}
 }
 
+void caldgemm::Preallocate()
+{
+	for (int l = 0;l < nDevices;l++)
+	{
+		buffer_pointers_A[l] = new int[Config->PreallocData];
+		buffer_pointers_B[l] = new int[Config->PreallocData];
+		memset(buffer_pointers_A[l], 0, Config->PreallocData * sizeof(int));
+		memset(buffer_pointers_B[l], 0, Config->PreallocData * sizeof(int));
+	}
+	tileDistribution = new int[Config->PreallocData * Config->PreallocData];
+	memset(tileDistribution, 0, Config->PreallocData * Config->PreallocData * sizeof(int));
+}
+
+void caldgemm::PreallocateFree()
+{
+	for (int l = 0;l < nDevices;l++)
+	{
+		delete[] buffer_pointers_A;
+		delete[] buffer_pointers_B;
+	}
+	delete[] tileDistribution;
+}
+
 int caldgemm::RunCALDGEMMMain(int parallelDevice)
 {
 	const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
@@ -1715,9 +1744,13 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 		iMergeThread[l] = 0;
 		lastk[l] = -1;
 		forcePreparation[l] = 0;
-		buffer_pointers_A[l] = new int[mb];
+		if (!Config->PreallocData)
+		{
+			buffer_pointers_A[l] = new int[mb];
+			buffer_pointers_B[l] = new int[nb];
+		}
+		
 		for (size_t ll = 0;ll < mb;ll++) buffer_pointers_A[l][ll] = -1;
-		buffer_pointers_B[l] = new int[nb];
 		for (size_t ll = 0;ll < nb;ll++) buffer_pointers_B[l][ll] = -1;
 	}
 
@@ -2103,11 +2136,14 @@ endimprovedphase:
 		}
 	}
 
-	for (int tl = 0;tl < myNDevices;tl++)
+	if (Config->PreallocData == 0)
 	{
-		int l = myDevices[tl];
-		delete[] buffer_pointers_A[l];
-		delete[] buffer_pointers_B[l];
+		for (int tl = 0;tl < myNDevices;tl++)
+		{
+			int l = myDevices[tl];
+			delete[] buffer_pointers_A[l];
+			delete[] buffer_pointers_B[l];
+		}
 	}
 	return(0);
 }
@@ -2568,7 +2604,7 @@ recalculate_ratio:
 			if (Config->ImprovedScheduler)
 			{
 				//size_t numt[4] = {0,0,0,0}, sizet[4] = {0,0,0,0};
-				tileDistribution = new int[nBlocks];
+				if (!Config->PreallocData) tileDistribution = new int[nBlocks];
 				for (int l = 0;l < nDevices;l++) first_device_k[l] = -1;
 				
 				size_t block_correction_factor = 0;
@@ -2630,6 +2666,12 @@ recalculate_ratio:
 				next_buffer_B[ii] = 0;
 			}
 
+			if (Config->PreallocData && (mb > Config->PreallocData || nb > Config->PreallocData))
+			{
+				fprintf(STD_OUT, "Value of PreallocData too small for current block count!");
+				return(1);
+			}
+
 			if (RunCALDGEMM_Init()) return(1);
 
 			if (Config->ParallelDMA != 0 && matrix_n >= Config->ParallelDMA)
@@ -2646,7 +2688,7 @@ recalculate_ratio:
 
 			if (Config->ImprovedScheduler)
 			{
-				delete[] tileDistribution;
+				if (!Config->PreallocData) delete[] tileDistribution;
 			}
 
 			if(Config->Verify && i < Config->Iterations - 1) AnalyzeResults();
@@ -2796,6 +2838,8 @@ int caldgemm::ExitCALDGEMM()
 		return(1);
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Uninitializing CALDGEMM\n");
+	if (Config->PreallocData) PreallocateFree();
+
 	if (Config->UseGPU && ExitDevices()) return(1);
 	if (Config->MultiThread && UseOutputPthreads())
 	{

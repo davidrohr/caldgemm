@@ -73,9 +73,13 @@ private:
 	virtual int RunMergeBuffers(double* dst, int device, int j, int width, int height, int gpu_width, int gpu_height, int pitch);
 	virtual int RunCALDGEMM_Init();
 	virtual int RunCALDGEMM_Exit();
+	virtual void Preallocate();
+	virtual void PreallocateFree();
 
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
+
+	void SetupSimpleQueue(size_t mb, size_t nb);
 
 	cl_platform_id ocl_platform;
 	cl_device_id ocl_devices[max_devices + 1]; //+1 for cpu
