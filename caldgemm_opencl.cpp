@@ -669,6 +669,16 @@ int caldgemm_opencl::InitDevices()
 					fprintf(STD_OUT, "Error obtaining kernel from external library\n");
 					return(1);
 				}
+
+				if (Config->AsyncSideQueue && j == 0)
+				{
+					ocl_async_kernel[i][0] = kernelLibCreate(&ocl_context, nDevices, ocl_devices, j, Config->Width, Config->GPU_C == 0);
+					if (ocl_kernel[i][0] == 0)
+					{
+						fprintf(STD_OUT, "Error obtaining async kernel from external library\n");
+						return(1);
+					}
+				}
 			}
 		}
 		else
