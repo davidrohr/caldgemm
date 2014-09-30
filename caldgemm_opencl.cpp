@@ -851,7 +851,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 	if (Config->SimpleGPUQueuing)
 	{
-		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesRemaining && blockm <= (int) ((Config->Width - 1) / Config->Height))
+		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesRemaining && blockm < AlternateLookaheadBlocksM)
 		{
 			simple_queue_lookahead_event = &AlternateLookaheadTilesRemaining_events[AlternateLookaheadTilesRemaining - 1];
 		}
@@ -1122,9 +1122,11 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 	if (m == 0 || n == 0 || k == 0) return(0);
 	if (m % KernelSettings.min_tile_size || n % KernelSettings.min_tile_size || k % KernelSettings.min_k)
 	{
-		fprintf(STD_OUT, "Invalid matrix size for GPU\n");
-		return(1);
+		fprintf(STD_OUT, "Invalid matrix size for GPU (m = %lld, n = %lld, k = %lld)\n", (long long int) m, (long long int) n, (long long int) k);
+		cblas_dgemm(orderColMajor ? CblasColMajor : CblasRowMajor, TransA ? CblasTrans : CblasNoTrans, TransB ? CblasTrans : CblasNoTrans, m, n, k, alpha, A, Apitch, B, Bpitch, beta, C, Cpitch);
+		return(0);
 	}
+	fprintf(STD_OUT, "ASYNC CALDGEMM (m = %lld, n = %lld, k = %lld)\n", (long long int) m, (long long int) n, (long long int) k);
 
 	if (orderColMajor)
 	{

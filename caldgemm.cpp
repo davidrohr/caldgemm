@@ -1302,10 +1302,10 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 
 				if (DGEMM_split_m)	//favor splitting m because of consecutive memory
 				{
-					if (matrix_n % SmallTileHeight && par->borders_done == false)
+					if (matrix_n != gpu_n && par->borders_done == false)
 					{
 						VT_USER_START_A("CPU DGEMM Borders");
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - par->cblas_size, matrix_n % SmallTileHeight, Config->Width, Alpha, A, A_pitch, B + (matrix_n - matrix_n % SmallTileHeight) * B_pitch_use, B_pitch, Beta, C + matrix_n - matrix_n % SmallTileHeight, C_pitch);
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - par->cblas_size, matrix_n - gpu_n, Config->Width, Alpha, A, A_pitch, B + gpu_n * B_pitch_use, B_pitch, Beta, C + gpu_n, C_pitch);
 						VT_USER_END_A("CPU DGEMM Borders");
 					}
 					
@@ -1392,10 +1392,10 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 						Timers.CPUTimer.Start();
 					}
 					
-					if (matrix_m % SmallTileHeight && par->borders_done == false)
+					if (matrix_m != gpu_m && par->borders_done == false)
 					{
 						VT_USER_START_A("CPU DGEMM Borders");
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m % SmallTileHeight, matrix_n - par->cblas_size, Config->Width, Alpha, A + (matrix_m - matrix_m % SmallTileHeight) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (matrix_m - matrix_m % SmallTileHeight) * C_pitch, C_pitch);
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - gpu_m, matrix_n - par->cblas_size, Config->Width, Alpha, A + gpu_m * A_pitch_use, A_pitch, B, B_pitch, Beta, C + gpu_m * C_pitch, C_pitch);
 						VT_USER_END_A("CPU DGEMM Borders");
 					}
 				}
@@ -1655,7 +1655,7 @@ void caldgemm::CheckAlternateTilesRemaining(size_t m)
 	if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesRemaining)
 	{
 		//if (Config->Debug) fprintf(STD_OUT, "Checking Alternate Tiles: m = %lld - Remaining = %d\n", (long long int) m, (int) AlternateLookaheadTilesRemaining);
-		if (m <= (Config->Width - 1) / Config->Height)
+		if ((int) m < AlternateLookaheadBlocksM)
 		{
 			pthread_mutex_lock(&tilesRemainingMutex);
 			if (--AlternateLookaheadTilesRemaining == 0)
@@ -2544,6 +2544,12 @@ recalculate_ratio:
 				gpu_m -= gpu_m % SmallTileHeight;
 				if (Config->Debug) fprintf(STD_OUT, "Splitting: GPU: %lld x %lld, CPU: %lld x %lld, Tilesize %lld\n", (long long int) gpu_m, (long long int) gpu_n, (long long int) matrix_m, (long long int) matrix_n - gpu_n, (long long int) SmallTileHeight);
 			}
+
+			const size_t over_m = gpu_m % Config->Height, over_n = gpu_n % Config->Height;
+			if (over_m < CALDGEMM_MIN_TILE_DIM2) gpu_m -= over_m;
+			if (over_n < CALDGEMM_MIN_TILE_DIM2) gpu_n -= over_n;
+
+			cParam.cblas_size = DGEMM_split_m ? (matrix_m - gpu_m) : (matrix_n - gpu_n);
 		}
 		else
 		{
@@ -2561,12 +2567,7 @@ recalculate_ratio:
 			gpu_n = matrix_n;
 			gpu_m = matrix_m;
 		}
-		if (Config->UseCPU)
-		{
-			const size_t over_m = gpu_m % Config->Height, over_n = gpu_n % Config->Height;
-			if (over_m < CALDGEMM_MIN_TILE_DIM2) gpu_m -= over_m;
-			if (over_n < CALDGEMM_MIN_TILE_DIM2) gpu_n -= over_n;
-		}
+
 		DGEMM_favor_m = (Config->LinpackSwapN == NULL && (ExecLinpack == 0 || Config->AlternateLookahead <= matrix_n)) ? (gpu_m >= gpu_n) : 1;
 
 		if (!Config->Quiet) fprintf(STD_OUT, "Ratio %f - gpu_m %lld gpu_n %lld - Split %c Favor %c - Height %lld, Min Tiling %lld (%lld, %lld)\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) Config->Height, (long long int) SmallTileHeight, (long long int) (gpu_m % Config->Height), (long long int) (gpu_n % Config->Height));
@@ -2611,7 +2612,8 @@ recalculate_ratio:
 
 		for (unsigned int i = 0; i < Config->Iterations; ++i)
 		{
-			AlternateLookaheadTilesRemaining = AlternateLookaheadTilesFull = nb * ((Config->Width - 1) / Config->Height + 1);
+			AlternateLookaheadBlocksM = (std::min(Config->Width, gpu_m) - 1) / Config->Height + 1;
+			AlternateLookaheadTilesRemaining = AlternateLookaheadTilesFull = nb * AlternateLookaheadBlocksM;
 
 			if (Config->ImprovedScheduler)
 			{

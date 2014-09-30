@@ -409,6 +409,7 @@ protected:
 	qSem alternateLinpackMutex;
 	int AlternateLookaheadTilesFull;
 	volatile unsigned int AlternateLookaheadTilesRemaining;
+	int AlternateLookaheadBlocksM;
 	pthread_mutex_t tilesRemainingMutex;
 	
 	void CheckAlternateTilesRemaining(size_t m);
