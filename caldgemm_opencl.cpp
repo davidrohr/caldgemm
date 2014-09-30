@@ -1392,8 +1392,6 @@ void caldgemm_opencl::Preallocate()
 	memset(simple_queue_events[0][0], 0, nDevices * (Config->PreallocData + Config->PreallocData) * sizeof(caldgemm_opencl_simple_queue_event));
 	memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (Config->PreallocData + Config->PreallocData) * sizeof(int));
 	memset(AlternateLookaheadTilesRemaining_events, 0, Config->PreallocData * Config->PreallocData * sizeof(cl_event));
-
-	SetupSimpleQueue(Config->PreallocData, Config->PreallocData);
 }
 
 void caldgemm_opencl::PreallocateFree()
@@ -1453,13 +1451,13 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		{
 			simple_queue_events[0][0] = new caldgemm_opencl_simple_queue_event[nDevices * (mb + nb)];
 			simple_queue_event_requested[0][0][0] = new int[nDevices * obuffercount * (mb + nb)];
-			SetupSimpleQueue(mb, nb);
 			if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesFull)
 			{
 				AlternateLookaheadTilesRemaining_events = new cl_event[AlternateLookaheadTilesFull];
 			}
 		}
 
+		SetupSimpleQueue(mb, nb);
 		memset(simple_queue_events[0][0], 0, nDevices * (mb + nb) * sizeof(caldgemm_opencl_simple_queue_event));
 		memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(int));
 	}
