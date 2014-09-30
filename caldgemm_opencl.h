@@ -100,6 +100,8 @@ private:
 
 	caldgemm_opencl_simple_queue_event* simple_queue_events[max_devices][2]; //2 for m and n direction
 	int* simple_queue_event_requested[max_devices][obuffercount][2];
+	cl_event* AlternateLookaheadTilesRemaining_events;
+	virtual void CheckAlternateTilesRemainingSimpleQuieing();
 
 	double* ocl_tmp_abuffers_ptr[max_devices][ibuffercount];
 	double* ocl_tmp_bbuffers_ptr[max_devices][ibuffercount];

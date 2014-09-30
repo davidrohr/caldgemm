@@ -814,9 +814,23 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	cl_event* wait_event = NULL;
 	cl_event simple_queue_event[2];
 
+	cl_event* simple_queue_lookahead_event = NULL;
+
 	if (Config->SimpleGPUQueuing)
 	{
-		kernel_event = NULL;
+		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesRemaining)
+		{
+			simple_queue_lookahead_event = &AlternateLookaheadTilesRemaining_events[AlternateLookaheadTilesRemaining - 1];
+		}
+
+		if (Config->DstMemory == 'g')
+		{
+			kernel_event = NULL;
+		}
+		else
+		{
+			kernel_event = simple_queue_lookahead_event;
+		}
 		if (Task.j != simple_queue_events[Task.device][0][blockm].num_queue && simple_queue_event_requested[Task.device][Task.j][0][blockm] == 0)
 		{
 			simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][0][blockm].event;
@@ -886,7 +900,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			size_t region[3] = {(size_t) height1 * sizeof(double), (size_t) height2, 1};
 			if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-			CHKRET(clEnqueueReadBufferRectUse(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, Config->SimpleGPUQueuing ? NULL : &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
+			CHKRET(clEnqueueReadBufferRectUse(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, Config->SimpleGPUQueuing ? simple_queue_lookahead_event : &ocl_events[Task.device][Task.j]), "Error retrieving C\n");
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		else if (Config->ImplicitDriverSync)
@@ -1357,6 +1371,17 @@ int caldgemm_opencl::UseOutputPthreads() {return(!Config->GPU_C);}
 int caldgemm_opencl::UseInputPthreads() {return(!Config->GPU_C);}
 int caldgemm_opencl::UseMutexPerDevice() {return(0);}
 
+void caldgemm_opencl::CheckAlternateTilesRemainingSimpleQuieing()
+{
+	const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
+	size_t num_tiles = nb * ((Config->Width - 1) / Config->Height + 1);
+	clWaitForEvents((cl_uint) num_tiles, AlternateLookaheadTilesRemaining_events);
+	for (int i = 0;i < (int) num_tiles;i++)
+	{
+		clReleaseEvent(AlternateLookaheadTilesRemaining_events[i]);
+	}
+}
+
 int caldgemm_opencl::RunCALDGEMM_Init()
 {
 	for (int i = 0;i < nDevices;i++)
@@ -1401,6 +1426,11 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 					}
 				}
 			}
+		}
+
+		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n)
+		{
+			AlternateLookaheadTilesRemaining_events = new cl_event[AlternateLookaheadTilesRemaining];
 		}
 	}
 	return(0);
@@ -1453,6 +1483,10 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 	{
 		delete[] simple_queue_events[0][0];
 		delete[] simple_queue_event_requested[0][0][0];
+		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n)
+		{
+			delete[] AlternateLookaheadTilesRemaining_events;
+		}
 	}
 	return(0);
 }

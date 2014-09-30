@@ -406,6 +406,7 @@ protected:
 	pthread_mutex_t tilesRemainingMutex;
 	
 	void CheckAlternateTilesRemaining(size_t m);
+	virtual void CheckAlternateTilesRemainingSimpleQuieing();
 
 	bool buffersSwitchable;
 

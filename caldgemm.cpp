@@ -1110,6 +1110,10 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int& require_thread
 		{
 			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tWaiting for GPUs to finish initial DGEMM part to start Linpack factorization\n");
 			alternateLinpackMutex.Lock();
+			if (Config->SimpleGPUQueuing)
+			{
+				CheckAlternateTilesRemainingSimpleQuieing();
+			}
 			_mm_mfence();
 		}
 		else
@@ -1552,10 +1556,7 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		    mergeTimer.Stop();
 		    fprintf(STD_OUT, "\t\tMerge time: %2.3f\n", mergeTimer.GetElapsedTime());
 		}*/
-		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n)
-		{
-			CheckAlternateTilesRemaining(blockm);
-		}
+		CheckAlternateTilesRemaining(blockm);
 		
 		if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex device %d obuffer %d (Slavethread %d)\n", par->num_device, par->nContext, par->nMergeThread);
 		obufferMutex[par->num_device][par->nContext].Unlock();
@@ -1633,18 +1634,25 @@ void caldgemm::WaitForLASWP(size_t blockm)
 	}
 }
 
+void caldgemm::CheckAlternateTilesRemainingSimpleQuieing()
+{
+}
+
 void caldgemm::CheckAlternateTilesRemaining(size_t m)
 {
-	//if (Config->Debug) fprintf(STD_OUT, "Checking Alternate Tiles: m = %lld - Remaining = %d\n", (long long int) m, (int) AlternateLookaheadTilesRemaining);
-	if (m <= (Config->Width - 1) / Config->Height)
+	if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesRemaining)
 	{
-		pthread_mutex_lock(&tilesRemainingMutex);
-		if (AlternateLookaheadTilesRemaining && --AlternateLookaheadTilesRemaining == 0)
+		//if (Config->Debug) fprintf(STD_OUT, "Checking Alternate Tiles: m = %lld - Remaining = %d\n", (long long int) m, (int) AlternateLookaheadTilesRemaining);
+		if (m <= (Config->Width - 1) / Config->Height)
 		{
-			if (Config->Debug) fprintf(STD_OUT, "GPU done with initial part, factorization may start\n");
-			alternateLinpackMutex.Unlock();
+			pthread_mutex_lock(&tilesRemainingMutex);
+			if (--AlternateLookaheadTilesRemaining == 0)
+			{
+				if (Config->Debug) fprintf(STD_OUT, "GPU done with initial part, factorization may start\n");
+				alternateLinpackMutex.Unlock();
+			}
+			pthread_mutex_unlock(&tilesRemainingMutex);
 		}
-		pthread_mutex_unlock(&tilesRemainingMutex);
 	}
 }
 
@@ -2020,10 +2028,7 @@ endimprovedphase:
 					{
 						if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
 						if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], (lastn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, (lastm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferHeight, BufferHeight, C_pitch)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
-						if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n)
-						{
-							CheckAlternateTilesRemaining(lastm);
-						}
+						CheckAlternateTilesRemaining(lastm);
 						if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex device %d obuffer %d\n", use_device, oldj[use_device]);
 						if (Config->MultiThread && UseOutputPthreads()) obufferMutex[use_device][oldj[use_device]].Unlock();
 					}
