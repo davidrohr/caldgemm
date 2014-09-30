@@ -169,6 +169,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Oe       Do not allow multiple concurrent OpenCL kernels\n");
 	fprintf(STD_OUT, "\t-Oq       Use simple GPU Queuing\n");
 	fprintf(STD_OUT, "\t-Op <int> Preallocate buffers for at max <int> blocks (nb/mb)\n");
+	fprintf(STD_OUT, "\t-Oa       Create async side queues and use such a queue to test a single-tile dgemm\n");
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n");
 	fprintf(STD_OUT, "\t-J <int>  Allow small tiles to process the remainder on GPU (0 disable, 1 enable, 2 auto)\n");
 	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
@@ -502,6 +503,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			else if (argv[x][2] == 'e')
 			{
 				Config->NoConcurrentKernels = 1;
+			}
+			else if (argv[x][2] == 'a')
+			{
+				Config->AsyncSideQueue = true;
 			}
 			else if (argv[x][2] == 'q')
 			{
@@ -1134,17 +1139,29 @@ int main(int argc, char** argv)
 			{
 				if (iterations > 1 && !quietbench) fprintf(STD_OUT, "\nDGEMM Call Iteration %d\n\n", iter);
 #ifdef TESTMODE
-				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 0.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
+				double use_alpha = 1.0;
+				double use_beta = 0.0;
 #else
-				size_t tmpn = matrix_m > matrix_n ? matrix_m : matrix_n;
-				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
 				double use_alpha = alphaone ? 1.0 : -1.0;
 				double use_beta = betazero ? 0.0 : 1.0;
-				if (dgemm_obj->RunCALDGEMM(AA, BB, CC, use_alpha, use_beta, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks))
 #endif
+				size_t tmpn = matrix_m > matrix_n ? matrix_m : matrix_n;
+				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
+				if (Config.AsyncSideQueue)
 				{
-					fprintf(STD_OUT, "Error running CALDGEMM\n");
-					return(1);
+					if (dgemm_obj->RunAsyncSingleTileDGEMM(AA, BB, CC, use_alpha, use_beta, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
+					{
+						fprintf(STD_OUT, "Error running async CALDGEMM");
+						return(1);
+					}
+				}
+				else
+				{
+					if (dgemm_obj->RunCALDGEMM(AA, BB, CC, use_alpha, use_beta, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks))
+					{
+						fprintf(STD_OUT, "Error running CALDGEMM\n");
+						return(1);
+					}
 				}
 				if (MaxGPUTemperature > 0)
 				{

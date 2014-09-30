@@ -241,6 +241,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	NoConcurrentKernels = 0;
 	ForceKernelVariant = -1;
 	PreallocData = 0;
+	AsyncSideQueue = false;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -508,6 +509,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
 	if (Config->ParallelDMA) Config->ImprovedScheduler = true;
+	if (Config->AsyncSideQueue && (Config->GPU_C == 0 || UseInputPthreads() || UseOutputPthreads()))
+	{
+		fprintf(STD_OUT, "ASYNC Side queue can only work with GPU_C\n");
+		Config->AsyncSideQueue = false;
+	}
 
 #ifndef USE_GOTO_BLAS
 	if (Config->ParallelDMA && Config->linpack_broadcast_function && (Config->ParallelDMA > Config->AlternateLookahead || Config->DynamicSched))
@@ -1683,6 +1689,12 @@ void caldgemm::PreallocateFree()
 		delete[] buffer_pointers_B[l];
 	}
 	delete[] tileDistribution;
+}
+
+int caldgemm::RunAsyncSingleTileDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB)
+{
+	fprintf(STD_OUT, "Async Queue not supported by backend\n");
+	return(1);
 }
 
 int caldgemm::RunCALDGEMMMain(int parallelDevice)

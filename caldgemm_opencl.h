@@ -75,6 +75,7 @@ private:
 	virtual int RunCALDGEMM_Exit();
 	virtual void Preallocate();
 	virtual void PreallocateFree();
+	virtual int RunAsyncSingleTileDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB);
 
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
@@ -95,6 +96,10 @@ private:
 	cl_event ocl_events[max_devices][obuffercount];
 	cl_program ocl_program[5];
 	cl_kernel ocl_kernel[max_devices][5];
+
+	cl_command_queue ocl_async_queue[max_devices];
+	cl_kernel ocl_async_kernel[max_devices][2];
+	cl_mem ocl_async_buffers[max_devices][5];
 
 	struct caldgemm_opencl_simple_queue_event
 	{
