@@ -2305,6 +2305,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		if (Config->UseGPU == false || (forceReinit && (long long int) MaxGpuM * (long long int) MaxGpuN * (long long int) Config->Width < (long long int) 24 * 1024 * 1024 * 1024) || (Config->Width < 1024 && Config->Height < 1024) || (ExecLinpack && matrix_m < Config->Width)) forceCPU = true;
 	}
 
+	AlternateLookaheadTilesFull = 0;
+
 	if (forceCPU)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "Running CPU only DGEMM\n");
@@ -2561,7 +2563,7 @@ recalculate_ratio:
 
 		for (unsigned int i = 0; i < Config->Iterations; ++i)
 		{
-			AlternateLookaheadTilesRemaining = nb * ((Config->Width - 1) / Config->Height + 1);
+			AlternateLookaheadTilesRemaining = AlternateLookaheadTilesFull = nb * ((Config->Width - 1) / Config->Height + 1);
 
 			if (Config->ImprovedScheduler)
 			{

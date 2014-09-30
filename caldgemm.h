@@ -402,6 +402,7 @@ protected:
 	double linpackCPUDGEMMTime[max_linpack_callback_types];
 
 	qSem alternateLinpackMutex;
+	int AlternateLookaheadTilesFull;
 	volatile unsigned int AlternateLookaheadTilesRemaining;
 	pthread_mutex_t tilesRemainingMutex;
 	

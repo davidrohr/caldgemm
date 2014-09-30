@@ -1373,12 +1373,13 @@ int caldgemm_opencl::UseMutexPerDevice() {return(0);}
 
 void caldgemm_opencl::CheckAlternateTilesRemainingSimpleQuieing()
 {
-	const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
-	size_t num_tiles = nb * ((Config->Width - 1) / Config->Height + 1);
-	clWaitForEvents((cl_uint) num_tiles, AlternateLookaheadTilesRemaining_events);
-	for (int i = 0;i < (int) num_tiles;i++)
+	if (AlternateLookaheadTilesFull)
 	{
-		clReleaseEvent(AlternateLookaheadTilesRemaining_events[i]);
+		clWaitForEvents(AlternateLookaheadTilesFull, AlternateLookaheadTilesRemaining_events);
+		for (int i = 0;i < AlternateLookaheadTilesFull;i++)
+		{
+			clReleaseEvent(AlternateLookaheadTilesRemaining_events[i]);
+		}
 	}
 }
 
@@ -1428,9 +1429,9 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 			}
 		}
 
-		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n)
+		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesFull)
 		{
-			AlternateLookaheadTilesRemaining_events = new cl_event[AlternateLookaheadTilesRemaining];
+			AlternateLookaheadTilesRemaining_events = new cl_event[AlternateLookaheadTilesFull];
 		}
 	}
 	return(0);
@@ -1483,7 +1484,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 	{
 		delete[] simple_queue_events[0][0];
 		delete[] simple_queue_event_requested[0][0][0];
-		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n)
+		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesFull)
 		{
 			delete[] AlternateLookaheadTilesRemaining_events;
 		}
