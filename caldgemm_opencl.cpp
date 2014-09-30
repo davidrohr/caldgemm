@@ -818,7 +818,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 	if (Config->SimpleGPUQueuing)
 	{
-		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesRemaining)
+		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesRemaining && blockm <= (int) ((Config->Width - 1) / Config->Height))
 		{
 			simple_queue_lookahead_event = &AlternateLookaheadTilesRemaining_events[AlternateLookaheadTilesRemaining - 1];
 		}

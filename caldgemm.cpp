@@ -1556,7 +1556,7 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		    mergeTimer.Stop();
 		    fprintf(STD_OUT, "\t\tMerge time: %2.3f\n", mergeTimer.GetElapsedTime());
 		}*/
-		CheckAlternateTilesRemaining(blockm);
+		if (!Config->SimpleGPUQueuing) CheckAlternateTilesRemaining(blockm);
 		
 		if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking mutex device %d obuffer %d (Slavethread %d)\n", par->num_device, par->nContext, par->nMergeThread);
 		obufferMutex[par->num_device][par->nContext].Unlock();
@@ -2028,7 +2028,7 @@ endimprovedphase:
 					{
 						if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
 						if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], (lastn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, (lastm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferHeight, BufferHeight, C_pitch)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
-						CheckAlternateTilesRemaining(lastm);
+						if (!Config->SimpleGPUQueuing) CheckAlternateTilesRemaining(lastm);
 						if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex device %d obuffer %d\n", use_device, oldj[use_device]);
 						if (Config->MultiThread && UseOutputPthreads()) obufferMutex[use_device][oldj[use_device]].Unlock();
 					}
@@ -2764,6 +2764,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task 
 		DGEMM_prepare(Task.k, Task.j, Task.device CALDGEMM_DIVBUFB);
 	}
 	if (ExecuteKernels(Task, blockm, blockn)) return(1);
+	if (Config->SimpleGPUQueuing) CheckAlternateTilesRemaining(blockm);
 	DGEMMPrepareTaskEventReady[Task.device][Task.j] = true;
 	if (Config->MultiThread && UseMutexPerDevice()) pthread_mutex_unlock(&device_mutex[Task.device]);
 	return(0);
