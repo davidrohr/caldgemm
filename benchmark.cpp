@@ -1207,6 +1207,10 @@ int main(int argc, char** argv)
 								fprintf(STD_OUT, "FAILED\n");
 							}
 						}
+						else
+						{
+							fprintf(STD_OUT, "PASSED\n");
+						}
 
 						delete[] tmp_D;
 					}
