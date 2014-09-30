@@ -1679,8 +1679,8 @@ void caldgemm::PreallocateFree()
 {
 	for (int l = 0;l < nDevices;l++)
 	{
-		delete[] buffer_pointers_A;
-		delete[] buffer_pointers_B;
+		delete[] buffer_pointers_A[l];
+		delete[] buffer_pointers_B[l];
 	}
 	delete[] tileDistribution;
 }
@@ -2666,7 +2666,7 @@ recalculate_ratio:
 				next_buffer_B[ii] = 0;
 			}
 
-			if (Config->PreallocData && (mb > Config->PreallocData || nb > Config->PreallocData))
+			if (Config->PreallocData && ((int) mb > Config->PreallocData || (int) nb > Config->PreallocData))
 			{
 				fprintf(STD_OUT, "Value of PreallocData too small for current block count!");
 				return(1);
