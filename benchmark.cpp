@@ -1162,7 +1162,7 @@ int main(int argc, char** argv)
 				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
 				if (Config.AsyncSideQueue)
 				{
-					double* tmp_D;
+					double* tmp_D = NULL;
 					if (Config.Verify)
 					{
 						tmp_D = new double[matrix_m * pitch_c];

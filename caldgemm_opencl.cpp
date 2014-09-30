@@ -1117,7 +1117,7 @@ int caldgemm_opencl::divideBuffer(double* src, size_t pitch_src, double* dest, s
 	return(0);
 }
 
-int caldgemm_opencl::RunAsyncSingleTileDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB)
+int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB)
 {
 	if (m == 0 || n == 0 || k == 0) return(0);
 	if (m % KernelSettings.min_tile_size || n % KernelSettings.min_tile_size || k % KernelSettings.min_k)
@@ -1128,7 +1128,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(double* A, double* B, double* C, do
 
 	if (orderColMajor)
 	{
-		double* tmpD = A;
+		const double* tmpD = A;
 		A = B;
 		B = tmpD;
 		size_t tmpS = m;

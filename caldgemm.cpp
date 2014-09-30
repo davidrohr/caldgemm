@@ -1691,7 +1691,7 @@ void caldgemm::PreallocateFree()
 	delete[] tileDistribution;
 }
 
-int caldgemm::RunAsyncSingleTileDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB)
+int caldgemm::RunAsyncSingleTileDGEMM(const double* A, const double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB)
 {
 	fprintf(STD_OUT, "Async Queue not supported by backend\n");
 	return(1);
