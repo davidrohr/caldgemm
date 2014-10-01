@@ -2612,7 +2612,7 @@ recalculate_ratio:
 
 		for (unsigned int i = 0; i < Config->Iterations; ++i)
 		{
-			AlternateLookaheadBlocksM = (std::min(Config->Width, gpu_m) - 1) / Config->Height + 1;
+			AlternateLookaheadBlocksM = (std::min<size_t>(Config->Width, gpu_m) - 1) / Config->Height + 1;
 			AlternateLookaheadTilesRemaining = AlternateLookaheadTilesFull = nb * AlternateLookaheadBlocksM;
 
 			if (Config->ImprovedScheduler)

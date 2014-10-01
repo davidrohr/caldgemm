@@ -1162,57 +1162,10 @@ int main(int argc, char** argv)
 				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
 				if (Config.AsyncSideQueue)
 				{
-					double* tmp_D = NULL;
-					if (Config.Verify)
-					{
-						tmp_D = new double[matrix_m * pitch_c];
-						memcpy(tmp_D, CC, matrix_m * pitch_c * sizeof(double));
-					}
 					if (dgemm_obj->RunAsyncSingleTileDGEMM(AA, BB, CC, use_alpha, use_beta, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
 					{
 						fprintf(STD_OUT, "Error running async CALDGEMM");
 						return(1);
-					}
-					if (Config.Verify)
-					{
-						cblas_dgemm(CblasRowMajor, transa ? CblasTrans : CblasNoTrans, transb ? CblasTrans : CblasNoTrans, matrix_m, matrix_n, Config.Width, use_alpha, AA, pitch_a, BB, pitch_b, use_beta, tmp_D, pitch_c);
-
-						size_t errors = 0;
-						size_t errorsrel[3];
-						memset(errorsrel, 0, 3 * sizeof(size_t));
-
-						for (size_t i=0; i < matrix_m; i++)
-						{
-							for (size_t j=0; j < matrix_n; j++)
-							{
-								if (!isDoubleEqual(CC[i * pitch_c + j],tmp_D[i * pitch_c + j]))
-								{
-									if (errors < 5) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le, Relative: %3.5le\n", (long long int) i, (long long int) j, tmp_D[i * pitch_c + j], CC[i * pitch_c + j], tmp_D[i * pitch_c + j] - CC[i * pitch_c + j], (tmp_D[i * pitch_c + j] - CC[i * pitch_c + j]) / tmp_D[i * pitch_c + j]);
-									++errors;
-									if (fabs((CC[i * pitch_c + j] - tmp_D[i * pitch_c + j]) / tmp_D[i * pitch_c + j]) > 0.05) errorsrel[0]++;
-									else if (fabs((CC[i * pitch_c + j] - tmp_D[i * pitch_c + j]) / tmp_D[i * pitch_c + j]) < 0.0001) errorsrel[2]++;
-									else errorsrel[1]++;
-								}
-							}
-						}
-						if (errors)
-						{
-							fprintf(STD_OUT, "%lld elements were incorrect (Rel errors > 0.05: %lld, > 0.0001: %lld, rest: %lld)\n", (long long int) errors, (long long int) errorsrel[0], (long long int) errorsrel[1], (long long int) errorsrel[2]);
-							if (errorsrel[0] == 0)
-							{
-								fprintf(STD_OUT, "Passed with Warnings!!!\n");
-							}
-							else
-							{
-								fprintf(STD_OUT, "FAILED\n");
-							}
-						}
-						else
-						{
-							fprintf(STD_OUT, "PASSED\n");
-						}
-
-						delete[] tmp_D;
 					}
 				}
 				else

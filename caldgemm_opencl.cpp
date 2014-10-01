@@ -1122,6 +1122,9 @@ HighResTimer asynctimer;
 int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB)
 {
 	if (m == 0 || n == 0 || k == 0) return(0);
+
+	double* tmp_D = NULL;
+
 	asynctimer.ResetStart();
 	int useCPU = 0; 
 	
@@ -1130,12 +1133,12 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 		if (k % KernelSettings.min_k)
 		{
 			fprintf(STD_OUT, "Invalik k for async GPU DGEMM, running CPU DGEMM\n");
-			cblas_dgemm(orderColMajor ? CblasColMajor : CblasRowMajor, TransA ? CblasTrans : CblasNoTrans, TransB ? CblasTrans : CblasNoTrans, m, n, k, alpha, A, Apitch, B, Bpitch, beta, C, Cpitch);
+			cblas_dgemm(orderColMajor ? CblasColMajor : CblasRowMajor, TransA ? CblasTrans : CblasNoTrans, TransB ? CblasTrans : CblasNoTrans, m, n, k, alpha, (double*) A, Apitch, (double*) B, Bpitch, beta, C, Cpitch);
 			useCPU = 1;
 			break;
 		}
 
-		size_t BufferSize = std::max(BufferWidth, BufferHeight);
+		size_t BufferSize = std::max<size_t>(BufferWidth, BufferHeight);
 		BufferSize *= BufferSize;
 		if (orderColMajor)
 		{
@@ -1151,6 +1154,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			bool tmpB = TransA;
 			TransA = TransB;
 			TransB = tmpB;
+			orderColMajor = false;
 		}
 		
 		bool tile_m = (n <= m);
@@ -1162,7 +1166,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			tile_size_n = n - n % KernelSettings.min_tile_size;
 			if (tile_size_n)
 			{
-				tile_size_m = BufferSize / std::max(tile_size_n, k);
+				tile_size_m = BufferSize / std::max<size_t>(tile_size_n, k);
 				tile_size_m -= tile_size_m % KernelSettings.min_tile_size;
 				nTiles = (m + tile_size_m - 1) / tile_size_m;
 			}
@@ -1176,7 +1180,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			tile_size_m = m - m % KernelSettings.min_tile_size;
 			if (tile_size_m)
 			{
-				tile_size_n = BufferSize / std::max(tile_size_m, k);
+				tile_size_n = BufferSize / std::max<size_t>(tile_size_m, k);
 				tile_size_n -= tile_size_n % KernelSettings.min_tile_size;
 				nTiles = (n + tile_size_n - 1) / tile_size_n;
 			}
@@ -1188,11 +1192,17 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 		if (tile_size_m == 0 || tile_size_n == 0 || tile_size_m * k > BufferSize || tile_size_n * k > BufferSize)
 		{
 			fprintf(STD_OUT, "Matrix too large for async GPU DGEMM, running CPU DGEMM\n");
-			cblas_dgemm(CblasRowMajor, TransA ? CblasTrans : CblasNoTrans, TransB ? CblasTrans : CblasNoTrans, m, n, k, alpha, A, Apitch, B, Bpitch, beta, C, Cpitch);
+			cblas_dgemm(CblasRowMajor, TransA ? CblasTrans : CblasNoTrans, TransB ? CblasTrans : CblasNoTrans, m, n, k, alpha, (double*) A, Apitch, (double*) B, Bpitch, beta, C, Cpitch);
 			useCPU = 1;
 			break;
 		}
-	
+
+		if (Config->Verify)
+		{
+			tmp_D = new double[m * Cpitch];
+			memcpy(tmp_D, C, m * Cpitch * sizeof(double));
+		}
+
 		if (Config->Debug) fprintf(STD_OUT, "Running ASYNC DGEMM\n");
 
 		static int useDevice = 0;
@@ -1213,7 +1223,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 				g_B = B;
 				g_C = C + Aoffset * Cpitch;
 				g_n = tile_size_n;
-				g_m = std::min(tile_size_m, m - Aoffset);
+				g_m = std::min<size_t>(tile_size_m, m - Aoffset);
 				g_m -= g_m % KernelSettings.min_tile_size;
 			}
 			else
@@ -1223,7 +1233,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 				g_B = B + Boffset * (TransB ? Bpitch : 1);
 				g_C = C + Boffset;
 				g_m = tile_size_m;
-				g_n = std::min(tile_size_n, n - Boffset);
+				g_n = std::min<size_t>(tile_size_n, n - Boffset);
 				g_n -= g_n % KernelSettings.min_tile_size;
 			}
 			
@@ -1314,27 +1324,70 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 
 			//useDevice = (useDevice + 1) % nDevices;
 		}
-		clFinish(ocl_async_queue[useDevice]);
+		
 		
 		if (m % KernelSettings.min_tile_size)
 		{
 			cblas_dgemm(CblasRowMajor, TransA ? CblasTrans : CblasNoTrans, TransB ? CblasTrans : CblasNoTrans, m % KernelSettings.min_tile_size, n, k, alpha,
-			    A + (m - m % KernelSettings.min_tile_size) * (TransA ? 1 : Apitch), Apitch,
-			    B, Bpitch, beta,
+			    (double*) A + (m - m % KernelSettings.min_tile_size) * (TransA ? 1 : Apitch), Apitch,
+			    (double*) B, Bpitch, beta,
 			    C + (m - m % KernelSettings.min_tile_size) * Cpitch, Cpitch);
 		}
 		
 		if (n % KernelSettings.min_tile_size)
 		{
 			cblas_dgemm(CblasRowMajor, TransA ? CblasTrans : CblasNoTrans, TransB ? CblasTrans : CblasNoTrans, m - m % KernelSettings.min_tile_size, n % KernelSettings.min_tile_size, k, alpha,
-			    A, Apitch,
-			    B + (n - n % KernelSettings.min_tile_size) * (TransB ? Bpitch : 1), Bpitch, beta,
+			    (double*) A, Apitch,
+			    (double*) B + (n - n % KernelSettings.min_tile_size) * (TransB ? Bpitch : 1), Bpitch, beta,
 			    C + (n - n % KernelSettings.min_tile_size), Cpitch);
+		}
+
+		clFinish(ocl_async_queue[useDevice]);
+
+		if (Config->Verify)
+		{
+			cblas_dgemm(orderColMajor ? CblasColMajor : CblasRowMajor, TransA ? CblasTrans : CblasNoTrans, TransB ? CblasTrans : CblasNoTrans, m, n, k, alpha, (double*) A, Apitch, (double*) B, Bpitch, beta, tmp_D, Cpitch);
+
+			size_t errors = 0;
+			size_t errorsrel[3];
+			memset(errorsrel, 0, 3 * sizeof(size_t));
+
+			for (size_t i = 0; i < m; i++)
+			{
+				for (size_t j = 0; j < n; j++)
+				{
+					if (!isDoubleEqual(C[i * Cpitch + j], tmp_D[i * Cpitch + j]))
+					{
+						if (errors < 5) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le, Relative: %3.5le\n", (long long int) i, (long long int) j, tmp_D[i * Cpitch + j], C[i * Cpitch + j], tmp_D[i * Cpitch + j] - C[i * Cpitch + j], (tmp_D[i * Cpitch + j] - C[i * Cpitch + j]) / tmp_D[i * Cpitch + j]);
+						++errors;
+						if (fabs((C[i * Cpitch + j] - tmp_D[i * Cpitch + j]) / tmp_D[i * Cpitch + j]) > 0.05) errorsrel[0]++;
+						else if (fabs((C[i * Cpitch + j] - tmp_D[i * Cpitch + j]) / tmp_D[i * Cpitch + j]) < 0.0001) errorsrel[2]++;
+						else errorsrel[1]++;
+					}
+				}
+			}
+			if (errors)
+			{
+				fprintf(STD_OUT, "%lld elements were incorrect (Rel errors > 0.05: %lld, > 0.0001: %lld, rest: %lld)\n", (long long int) errors, (long long int) errorsrel[0], (long long int) errorsrel[1], (long long int) errorsrel[2]);
+				if (errorsrel[0] == 0)
+				{
+					fprintf(STD_OUT, "Passed with Warnings!!!\n");
+				}
+				else
+				{
+					fprintf(STD_OUT, "FAILED\n");
+				}
+			}
+			else
+			{
+				fprintf(STD_OUT, "PASSED\n");
+			}
+
+			delete[] tmp_D;
 		}
 		
 		break;
 	}
-	
 	
 	fprintf(STD_OUT, "ASYNC CALDGEMM (m = %6lld, n = %6lld, k = %6lld) %s - Time: %8.5f\n", (long long int) m, (long long int) n, (long long int) k, useCPU ? "CPU" : "GPU", asynctimer.GetCurrentElapsedTime());
 
