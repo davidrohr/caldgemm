@@ -822,6 +822,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	
 	goto_set_num_threads(conf_numprocs);
 
+	nDevicesInitialized = nDevices;
+
 	caldgemm_initialized = true;
 	
 	//printConfig();
@@ -1689,6 +1691,13 @@ void caldgemm::PreallocateFree()
 		delete[] buffer_pointers_B[l];
 	}
 	delete[] tileDistribution;
+}
+
+void caldgemm::SetNumberDevices(int n)
+{
+	nDevices = n;
+	if (nDevices <= 0) nDevices = 1;
+	if (nDevices > nDevicesInitialized) nDevices = nDevicesInitialized;
 }
 
 int caldgemm::RunAsyncSingleTileDGEMM(const double* A, const double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB)
@@ -2851,6 +2860,7 @@ int caldgemm::ExitCALDGEMM()
 		fprintf(STD_OUT, "CALDGEMM not initialized, cannot uninitialize!\n");
 		return(1);
 	}
+	nDevices = nDevicesInitialized;
 	if (Config->Debug) fprintf(STD_OUT, "Uninitializing CALDGEMM\n");
 	if (Config->PreallocData) PreallocateFree();
 
