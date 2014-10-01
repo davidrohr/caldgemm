@@ -1133,6 +1133,11 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 		if (k % KernelSettings.min_k)
 		{
 			fprintf(STD_OUT, "Invalik k for async GPU DGEMM, running CPU DGEMM\n");
+			useCPU = 1;
+		}
+		
+		if (m < 192 || n < 192 || k < 192) //Does not make sense for too small matrices
+		{
 			cblas_dgemm(orderColMajor ? CblasColMajor : CblasRowMajor, TransA ? CblasTrans : CblasNoTrans, TransB ? CblasTrans : CblasNoTrans, m, n, k, alpha, (double*) A, Apitch, (double*) B, Bpitch, beta, C, Cpitch);
 			useCPU = 1;
 			break;
@@ -1412,7 +1417,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 		break;
 	}
 	
-	fprintf(STD_OUT, "ASYNC CALDGEMM (m = %6lld, n = %6lld, k = %6lld) %s - Time: %8.5f\n", (long long int) m, (long long int) n, (long long int) k, useCPU ? "CPU" : "GPU", asynctimer.GetCurrentElapsedTime());
+	if (Config->Debug) fprintf(STD_OUT, "ASYNC CALDGEMM (m = %6lld, n = %6lld, k = %6lld) %s - Time: %8.5f\n", (long long int) m, (long long int) n, (long long int) k, useCPU ? "CPU" : "GPU", asynctimer.GetCurrentElapsedTime());
 
 	return(0);
 }
