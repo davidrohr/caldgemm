@@ -266,7 +266,7 @@ int caldgemm::getcpumask(cpu_set_t* set)
     int retVal = 0;
     for (int i = 0;i < 24;i++)
     {
-	if (CPU_ISSET(i, set)) retVal |= (1 << i);
+		if (CPU_ISSET(i, set)) retVal |= (1 << i);
     }
     return(retVal);
 }
@@ -482,6 +482,10 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	gethostname(hostname, 255);
 #endif
 
+#ifdef USE_GOTO_BLAS
+	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);		//GotoBLAS has its own thread pinning, store old value here.
+#endif
+
 	if (Config->PinCPU != -1)
 	{
 	    for (unsigned int i = 0;i < max_devices;i++) Config->GPUMapping[i] = Config->PinCPU;
@@ -490,10 +494,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	CPU_ZERO(&gpumask);
 	if (Config->PinMainThread == -1) Config->PinMainThread = Config->GPUMapping[0];
 	CPU_SET(Config->PinMainThread, &gpumask);
-
-#ifdef USE_GOTO_BLAS
-	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);		//GotoBLAS has its own thread pinning, store old value here.
-#endif
 
 	if (Config->Debug) fprintf(STD_OUT, "Init Caldgemm, setting CPU mask %X\n", getcpumask(&gpumask));
 	if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
@@ -546,9 +546,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	{
 		gpu_available = false;
 	}
-	int thread = Config->PinDeviceRuntimeThreads >= 0 ? Config->PinDeviceRuntimeThreads : Config->PinMainThread;
-	setUnknownAffinity(1, &thread);
-	setUnknownNames("Device Runtime");
+
 	if (Config->PinDeviceRuntimeThreads != -2 && 0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
 	{
 		fprintf(STD_OUT, "Error setting CPU affinity\n");
@@ -593,7 +591,30 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (CheckDevices()) return(1);
 
 	outputthreads = Config->OutputThreads == -1 ? (Config->KeepBuffersMapped || Config->DstMemory == 'g' ? CALDGEMM_OUTPUT_THREADS : CALDGEMM_OUTPUT_THREADS_SLOW) : Config->OutputThreads;
+
+	if (Config->UseGPU && InitDevices()) return(1);
 	
+	min_bbuffers = max_bbuffers;
+	for (int i = 0;i < nDevices;i++)
+	{
+		if (bbuffers[i] < min_bbuffers) min_bbuffers = bbuffers[i];
+	}
+	if (!Config->Quiet)
+	{
+		if (nDevices)
+		{
+			fprintf(STD_OUT, "Running on %d devices with %d bbuffers\n", nDevices, min_bbuffers);
+		}
+		else
+		{
+			fprintf(STD_OUT, "Running on CPU only\n");
+		}
+	}
+
+	int thread = Config->PinDeviceRuntimeThreads >= 0 ? Config->PinDeviceRuntimeThreads : Config->PinMainThread;
+	setUnknownAffinity(1, &thread);
+	setUnknownNames("Device Runtime");
+
 #ifndef USE_GOTO_BLAS		//If we do not use GotoBLAS thread pinning determine main blas thread only after determining GPU devices to avoid collisions. Store the thread afterward as for GotoBLAS.
 	if (Config->UseCPU)
 	{
@@ -622,25 +643,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		}
 	}
 #endif
-
-	if (Config->UseGPU && InitDevices()) return(1);
-	
-	min_bbuffers = max_bbuffers;
-	for (int i = 0;i < nDevices;i++)
-	{
-		if (bbuffers[i] < min_bbuffers) min_bbuffers = bbuffers[i];
-	}
-	if (!Config->Quiet)
-	{
-		if (nDevices)
-		{
-			fprintf(STD_OUT, "Running on %d devices with %d bbuffers\n", nDevices, min_bbuffers);
-		}
-		else
-		{
-			fprintf(STD_OUT, "Running on CPU only\n");
-		}
-	}
 
 	if (Config->MultiThread && UseOutputPthreads())
 	{
