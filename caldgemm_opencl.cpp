@@ -587,11 +587,11 @@ int caldgemm_opencl::InitDevices()
 			ocl_tmp_abuffers[i][j] = clCreateBuffer(ocl_context, tmp_flags, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
 			CHKRET(ocl_error, "Error allocating device memory (A tmp - Width: %lld Height: %lld)", (long long int) BufferWidth, (long long int) BufferHeight);
 
-			ocl_tmp_bbuffers[i][j] = clCreateBuffer(ocl_context, tmp_flags, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
-			CHKRET(ocl_error, "Error allocating device memory (B tmp)");
-
 			if (Config->GPU_C == 0)
 			{
+				ocl_tmp_bbuffers[i][j] = clCreateBuffer(ocl_context, tmp_flags, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
+				CHKRET(ocl_error, "Error allocating device memory (B tmp)");
+
 				ocl_tmp_abuffers_ptr[i][j] = (double*) clEnqueueMapBuffer(ocl_command_queues[i][0], ocl_tmp_abuffers[i][j], CL_TRUE, CL_MAP_WRITE, 0, BufferWidth * BufferHeight * sizeof(double), 0, NULL, NULL, &ocl_error);
 				CHKRET(ocl_error, "Error mapping buffer (A)");
 
@@ -602,7 +602,6 @@ int caldgemm_opencl::InitDevices()
 		if (Config->GPU_C)
 		{
 			CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], obuffercount, &ocl_tmp_abuffers[i][0], 0, 0, NULL, NULL), "Error migrating mem object");
-			CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], obuffercount, &ocl_tmp_bbuffers[i][0], 0, 0, NULL, NULL), "Error migrating mem object");
 		}
 
 		for (int j = 0;j < num_bbuffers;j++)
@@ -746,12 +745,12 @@ int caldgemm_opencl::InitDevices()
 			ocl_async_queue[i] = clCreateCommandQueue(ocl_context, ocl_devices[i], 0, &ocl_error);
 			CHKRET(ocl_error, "Error creating async OpenCL command queue");
 
-			for (int j = 0;j < 5;j++)
+			for (int j = 0;j < 4;j++)
 			{
 				ocl_async_buffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, std::max<size_t>(BufferWidth, BufferHeight) * std::max<size_t>(BufferWidth, BufferHeight) * sizeof(double), NULL, &ocl_error);
 				CHKRET(ocl_error, "Error allocating async device memory %d/%d", i, j);
 			}
-			CHKRET(clEnqueueMigrateMemObjects(ocl_async_queue[i], 5, &ocl_async_buffers[i][0], 0, 0, NULL, NULL), "Error migrating async mem object");
+			CHKRET(clEnqueueMigrateMemObjects(ocl_async_queue[i], 4, &ocl_async_buffers[i][0], 0, 0, NULL, NULL), "Error migrating async mem object");
 		}
 	}
 
@@ -1275,15 +1274,15 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 				region[0] = (TransB ? k : g_n) * sizeof(double);
 				region[1] = (TransB ? g_n : k);
 				if (Config->Debug) fprintf(STD_OUT, "ASYNC Copying B to GPU, width: %lld, height: %lld\n", (long long int) region[0] / sizeof(double), (long long int) region[1]);
-				CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][TransB || KernelSettings.texture_buffers ? 2 : 3], CL_FALSE, origin, origin, region, 0, 0, Bpitch * sizeof(double), 0, g_B, 0, NULL, NULL), "Error copying async A");
+				CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][TransB || KernelSettings.texture_buffers ? 0 : 2], CL_FALSE, origin, origin, region, 0, 0, Bpitch * sizeof(double), 0, g_B, 0, NULL, NULL), "Error copying async A");
 
 				if (TransB || KernelSettings.texture_buffers)
 				{
 					int arg_width = region[0] / sizeof(double);
 					int arg_height = region[1];
 					int arg_transpose = TransB ^ KernelSettings.transposeB;
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 0, sizeof(cl_mem), &ocl_async_buffers[useDevice][2]), "Error setting kernel arg, A, 0");
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 1, sizeof(cl_mem), &ocl_async_buffers[useDevice][3]), "Error setting kernel arg, A, 1");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 0, sizeof(cl_mem), &ocl_async_buffers[useDevice][0]), "Error setting kernel arg, A, 0");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 1, sizeof(cl_mem), &ocl_async_buffers[useDevice][2]), "Error setting kernel arg, A, 1");
 					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 2, sizeof(int), &arg_width), "Error setting kernel arg, A, 2");
 					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 3, sizeof(int), &arg_height), "Error setting kernel arg, A, 3");
 					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 4, sizeof(int), &arg_transpose), "Error setting kernel arg, A, 4");
@@ -1297,9 +1296,9 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			{
 				region[0] = g_n * sizeof(double);
 				region[1] = g_m;
-				CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][4], CL_FALSE, origin, origin, region, 0, 0, Cpitch * sizeof(double), 0, g_C, 0, NULL, NULL), "Error copying async C");
+				CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][3], CL_FALSE, origin, origin, region, 0, 0, Cpitch * sizeof(double), 0, g_C, 0, NULL, NULL), "Error copying async C");
 
-				CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 0, sizeof(cl_mem), &ocl_async_buffers[useDevice][4]), "Error setting kernel memory C");
+				CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 0, sizeof(cl_mem), &ocl_async_buffers[useDevice][3]), "Error setting kernel memory C");
 			}
 			else
 			{
@@ -1316,7 +1315,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			}
 
 			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 1, sizeof(cl_mem), &ocl_async_buffers[useDevice][1]), "Error setting kernel memory A");
-			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 2, sizeof(cl_mem), &ocl_async_buffers[useDevice][3]), "Error setting kernel memory B");
+			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 2, sizeof(cl_mem), &ocl_async_buffers[useDevice][2]), "Error setting kernel memory B");
 
 			int arg_m = g_m, arg_n = g_n, arg_k = k;
 			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 3, sizeof(int), &arg_n), "Error setting kernel arg height1");
@@ -1339,7 +1338,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 
 			if (Config->DstMemory == 'g')
 			{
-				CHKRET(clEnqueueReadBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][4], CL_FALSE, origin, origin, region, 0, 0, Cpitch * sizeof(double), 0, g_C, 0, NULL, NULL), "Error retrieving async C");
+				CHKRET(clEnqueueReadBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][3], CL_FALSE, origin, origin, region, 0, 0, Cpitch * sizeof(double), 0, g_C, 0, NULL, NULL), "Error retrieving async C");
 			}
 
 			useDevice = (useDevice + 1) % nDevices;
@@ -1614,7 +1613,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			region[0] = (TransposeB ? Config->Width : HeightN) * sizeof(double);
 			region[1] = (TransposeB ? HeightN : Config->Width);
 			int arg_width = region[0] / sizeof(double), arg_height = region[1];
-			cl_mem dest_buffer_tmp = ocl_tmp_bbuffers[num_device][j];
+			cl_mem dest_buffer_tmp = ocl_tmp_abuffers[num_device][j];
 			if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 			if (arg_transpose == 0 && KernelSettings.texture_buffers == false) dest_buffer_tmp = *dest_image;
 
@@ -1700,9 +1699,9 @@ int caldgemm_opencl::ExitDevices()
 				clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_abuffers[i][j], ocl_tmp_abuffers_ptr[i][j], 0, NULL, NULL);
 				clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_bbuffers[i][j], ocl_tmp_bbuffers_ptr[i][j], 0, NULL, NULL);
 				clFinish(ocl_command_queues[i][0]);
+				clReleaseMemObject(ocl_tmp_bbuffers[i][j]);
 			}
 			clReleaseMemObject(ocl_tmp_abuffers[i][j]);
-			clReleaseMemObject(ocl_tmp_bbuffers[i][j]);
 		}
 		for (int j = 0;j < bbuffers[i];j++)
 		{
@@ -1719,7 +1718,7 @@ int caldgemm_opencl::ExitDevices()
 		{
 			clReleaseCommandQueue(ocl_async_queue[i]);
 
-			for (int j = 0;j < 5;j++)
+			for (int j = 0;j < 4;j++)
 			{
 				clReleaseMemObject(ocl_async_buffers[i][j]);
 			}
