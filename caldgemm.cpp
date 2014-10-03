@@ -546,6 +546,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	{
 		gpu_available = false;
 	}
+	int thread = Config->PinDeviceRuntimeThreads >= 0 ? Config->PinDeviceRuntimeThreads : Config->PinMainThread;
+	setUnknownAffinity(1, &thread);
 	setUnknownNames("Device Runtime");
 	if (Config->PinDeviceRuntimeThreads != -2 && 0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
 	{
