@@ -23,7 +23,6 @@
  */
 
 #include "caldgemm.h"
-#include "caldgemm_common.h"
 #include "cmodules/qmalloc.h"
 #include "cmodules/affinity.h"
 #include "cmodules/qmath.h"
@@ -242,6 +241,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	ForceKernelVariant = -1;
 	PreallocData = 0;
 	AsyncSideQueue = false;
+	AsyncDTRSM = false;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -514,6 +514,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		fprintf(STD_OUT, "ASYNC Side queue can only work with GPU_C\n");
 		Config->AsyncSideQueue = false;
 	}
+	if (!Config->AsyncSideQueue) Config->AsyncDTRSM = false;
 
 #ifndef USE_GOTO_BLAS
 	if (Config->ParallelDMA && Config->linpack_broadcast_function && (Config->ParallelDMA > Config->AlternateLookahead || Config->DynamicSched))
@@ -1705,6 +1706,12 @@ void caldgemm::SetNumberDevices(int n)
 }
 
 int caldgemm::RunAsyncSingleTileDGEMM(const double* A, const double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB)
+{
+	fprintf(STD_OUT, "Async Queue not supported by backend\n");
+	return(1);
+}
+
+int caldgemm::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo, const CBLAS_TRANSPOSE TransA, const CBLAS_DIAG Diag, const size_t M, const size_t N, const double alpha, const double *A, const size_t lda, double *B, const size_t ldb)
 {
 	fprintf(STD_OUT, "Async Queue not supported by backend\n");
 	return(1);

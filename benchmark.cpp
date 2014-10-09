@@ -33,8 +33,6 @@
 #endif
 #include "caldgemm_cpu.h"
 
-#include "caldgemm_common.h"
-
 #ifndef _WIN32
 #include <sys/mman.h>
 #include <unistd.h>

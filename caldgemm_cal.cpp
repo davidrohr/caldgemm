@@ -23,7 +23,6 @@
  */
 
 #include "caldgemm_cal.h"
-#include "caldgemm_common.h"
 
 //#include "cal_fake.h"
 

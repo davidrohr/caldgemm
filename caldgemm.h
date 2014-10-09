@@ -69,6 +69,7 @@
 
 #include "cmodules/threadserver.h"
 #include "cmodules/qsem.h"
+#include "caldgemm_common.h"
 
 template <class T> T mymin(const T a, const T b) {return(a < b ? a : b);}
 template <class T> T mymax(const T a, const T b) {return(a > b ? a : b);}
@@ -164,6 +165,7 @@ public:
 		int NumaPinning;						//Rotate pinning over NUMA nodes, better die utilization but perhaps worse L3 cache utilization.
 		unsigned int AlternateLookahead;		//Alternate Lookahead implementation optimized for saving CPU cycles, set to an integer, AlternateLookahead is used as soon as n (since HPL is col major) is smaller than this value, 0 for disable
 		bool AsyncSideQueue;					//Create an asynchronous side queue to run small DGEMMs (without tiling) in parallel to a large DGEMM
+		bool AsyncDTRSM;					//Allow side-queue to run DTRSM as well
 		
 		size_t Height;							//height of subblock od A, width of subblock of B
 		size_t Width;							//k for matrix multiply
@@ -211,6 +213,7 @@ public:
 	int ExitCALDGEMM();
 	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = (size_t) -1, size_t k = (size_t) -1, size_t n = (size_t) -1, size_t Apitch = (size_t) -1, size_t Bpitch = (size_t) -1, size_t Cpitch = (size_t) -1, bool orderColMajor = false, bool TransA = false, bool TransB = false, int ExecuteLinpackCallbacks = 0);
 	virtual int RunAsyncSingleTileDGEMM(const double* A, const double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB);
+	virtual int RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo, const CBLAS_TRANSPOSE TransA, const CBLAS_DIAG Diag, const size_t M, const size_t N, const double alpha, const double *A, const size_t lda, double *B, const size_t ldb);
 	void SetNumberDevices(int n);
 	
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);

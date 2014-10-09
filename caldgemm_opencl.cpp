@@ -23,7 +23,6 @@
  */
 
 #include "caldgemm_opencl.h"
-#include "caldgemm_common.h"
 #include <CL/cl_ext.h>
 #include <algorithm>
 
@@ -651,7 +650,7 @@ int caldgemm_opencl::InitDevices()
 		if (Config->Debug) fprintf(STD_OUT, "Allocated %d BBuffers on Device %d\n", bbuffers[i], i);
 	}
 
-	for (int j = 0;j < 3 + 1 + (Config->GPU_C ? 1 : 0);j++)
+	for (int j = 0;j < 3 + 1 + (Config->GPU_C ? 1 : 0) + (Config->AsyncDTRSM ? 1 : 0);j++)
 	{
 		if (j != 3 && config_backend->kernelLib != NULL)
 		{
@@ -662,17 +661,20 @@ int caldgemm_opencl::InitDevices()
 
 			for (int i = 0;i < nDevices;i++)
 			{
-				ocl_kernel[i][j] = kernelLibCreate(&ocl_context, nDevices, ocl_devices, j, Config->Width, Config->GPU_C == 0);
-				if (ocl_kernel[i][j] == 0)
+				if (j < 5)
 				{
-					fprintf(STD_OUT, "Error obtaining kernel from external library\n");
-					return(1);
+					ocl_kernel[i][j] = kernelLibCreate(&ocl_context, nDevices, ocl_devices, j, Config->Width, Config->GPU_C == 0);
+					if (ocl_kernel[i][j] == 0)
+					{
+						fprintf(STD_OUT, "Error obtaining kernel from external library\n");
+						return(1);
+					}
 				}
 
-				if (Config->AsyncSideQueue && j == 0)
+				if (Config->AsyncSideQueue && (j == 0 || j == 5))
 				{
-					ocl_async_kernel[i][0] = kernelLibCreate(&ocl_context, nDevices, ocl_devices, j, Config->Width, Config->GPU_C == 0);
-					if (ocl_kernel[i][0] == 0)
+					ocl_async_kernel[i][j == 5 ? 2 : 0] = kernelLibCreate(&ocl_context, nDevices, ocl_devices, j, Config->Width, Config->GPU_C == 0);
+					if (ocl_async_kernel[i][j == 5 ? 2 : 0] == 0)
 					{
 						fprintf(STD_OUT, "Error obtaining async kernel from external library\n");
 						return(1);
@@ -682,6 +684,11 @@ int caldgemm_opencl::InitDevices()
 		}
 		else
 		{
+			if (j == 5)
+			{
+				fprintf(STD_OUT, "AsyncDTRSM only supported with 3rd party lib\n");
+				return(1);
+			}
 			const char* sourceCode;
 			switch (j)
 			{
@@ -1118,9 +1125,86 @@ int caldgemm_opencl::divideBuffer(double* src, size_t pitch_src, double* dest, s
 
 HighResTimer asynctimer;
 
+int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo, const CBLAS_TRANSPOSE TransA, const CBLAS_DIAG Diag, const size_t M, const size_t N, const double alpha, const double *A, const size_t lda, double *B, const size_t ldb)
+{
+	if (M == 0 || N == 0) return(0);
+	
+	if (!Config->AsyncDTRSM)
+	{
+		fprintf(STD_OUT, "Config DTRSM not enabled!\n");
+		return(1);
+	}
+
+	size_t BufferSize = std::max<size_t>(BufferWidth, BufferHeight);
+	if (M < 192 || N < 192 || Order != CblasColMajor || Side != CblasRight || Uplo != CblasUpper || TransA != CblasNoTrans || Diag != CblasUnit || N > BufferSize)
+	{
+		cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M, N, alpha, A, lda, B, ldb);
+		return(0);
+	}
+	BufferSize *= BufferSize;
+	
+	unsigned int tmpM = BufferSize / N;
+	const unsigned int nTiles = (M + tmpM - 1) / tmpM;
+	const size_t origin[3] = {0, 0, 0};
+	size_t region[3];
+	region[2] = 1;
+	
+	static int useDevice = 0;
+	int useDeviceStart = useDevice;
+	
+	for (unsigned int i = 0;i < nTiles;i++)
+	{
+		if (i == nTiles - 1) tmpM = M - i * tmpM;
+		if (i < (unsigned int) nDevices)
+		{
+			region[0] = N * sizeof(double);
+			region[1] = N;
+			if (Config->Debug) fprintf(STD_OUT, "ASYNC Copying A to GPU, width: %lld, height: %lld\n", (long long int) region[0] / sizeof(double), (long long int) region[1]);
+			CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][0], CL_FALSE, origin, origin, region, 0, 0, lda * sizeof(double), 0, A, 0, NULL, NULL), "Error copying async A");
+		}
+
+		region[0] = tmpM * sizeof(double);
+		region[1] = N;
+		if (Config->Debug) fprintf(STD_OUT, "ASYNC Copying B to GPU, width: %lld, height: %lld\n", (long long int) region[0] / sizeof(double), (long long int) region[1]);
+		CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][1], CL_FALSE, origin, origin, region, 0, 0, ldb * sizeof(double), 0, B, 0, NULL, NULL), "Error copying async B");
+
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][2], 0, sizeof(cl_uint), &tmpM), "Error setting kernel arg, 0");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][2], 1, sizeof(cl_uint), &N), "Error setting kernel arg, 1");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][2], 2, sizeof(cl_double), &alpha), "Error setting kernel arg, 2");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][2], 3, sizeof(cl_mem), &ocl_async_buffers[useDevice][0]), "Error setting kernel arg, 3");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][2], 4, sizeof(cl_uint), &N), "Error setting kernel arg, 4"); // lda = N
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][2], 5, sizeof(cl_mem), &ocl_async_buffers[useDevice][1]), "Error setting kernel arg, 5");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][2], 6, sizeof(cl_uint), &tmpM), "Error setting kernel arg, 6"); // ldb = M
+		
+		size_t globalThreads[1] = {2 * tmpM};
+		size_t localThreads[1]  = {64};
+		CHKRET(clEnqueueNDRangeKernel(ocl_async_queue[useDevice], ocl_async_kernel[useDevice][2], 1, NULL, globalThreads, localThreads, 0, NULL, NULL), "Error starting DTRSM Kernel");
+		
+		CHKRET(clEnqueueReadBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][1], CL_FALSE, origin, origin, region, 0, 0, ldb * sizeof(double), 0, B, 0, NULL, NULL), "Error retrieving async B");
+
+		useDevice = (useDevice + 1) % nDevices;
+		
+		B += tmpM;
+	}
+
+	for (int i = 0;i < std::min<int>(nTiles, nDevices);i++)
+	{
+		clFinish(ocl_async_queue[useDeviceStart]);
+		useDeviceStart = (useDeviceStart + 1) % nDevices;
+	}
+	
+	return(0);
+}
+
 int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB)
 {
 	if (m == 0 || n == 0 || k == 0) return(0);
+	
+	if (!Config->AsyncSideQueue)
+	{
+		fprintf(STD_OUT, "Config Side Queue not enabled!\n");
+		return(1);
+	}
 
 	double* tmp_D = NULL;
 
@@ -1710,7 +1794,7 @@ int caldgemm_opencl::ExitDevices()
 		for (int j = 0;j < 3 + 1 + (Config->GPU_C ? 1 : 0);j++)
 		{
 			clReleaseKernel(ocl_kernel[i][j]);
-			if (Config->AsyncSideQueue && j < 2) clReleaseKernel(ocl_async_kernel[i][j]);
+			if (Config->AsyncSideQueue && j < 2 + (Config->AsyncDTRSM ? 1 : 0)) clReleaseKernel(ocl_async_kernel[i][j]);
 			if (config_backend->kernelLib == NULL && i == nDevices - 1) clReleaseProgram(ocl_program[j]);
 		}
 

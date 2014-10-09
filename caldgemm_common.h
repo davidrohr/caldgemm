@@ -1,3 +1,6 @@
+#ifndef CALDGEMM_COMMON_H
+#define CALDGEMM_COMMON_H
+
 #include <signal.h>
 
 #ifdef _WIN32
@@ -71,4 +74,6 @@ extern pthread_mutex_t global_vt_mutex;
 #else
 #define VT_USER_START_A(a)
 #define VT_USER_END_A(a)
+#endif
+
 #endif

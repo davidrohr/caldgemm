@@ -76,6 +76,7 @@ private:
 	virtual void Preallocate();
 	virtual void PreallocateFree();
 	virtual int RunAsyncSingleTileDGEMM(const double* A, const double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB);
+	virtual int RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo, const CBLAS_TRANSPOSE TransA, const CBLAS_DIAG Diag, const size_t M, const size_t N, const double alpha, const double *A, const size_t lda, double *B, const size_t ldb);
 
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
@@ -98,7 +99,7 @@ private:
 	cl_kernel ocl_kernel[max_devices][5];
 
 	cl_command_queue ocl_async_queue[max_devices];
-	cl_kernel ocl_async_kernel[max_devices][2];
+	cl_kernel ocl_async_kernel[max_devices][3];
 	cl_mem ocl_async_buffers[max_devices][4];
 
 	struct caldgemm_opencl_simple_queue_event
