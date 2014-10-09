@@ -26,8 +26,8 @@ BUILDSCRIPT						= build.sh
 endif
 
 #GCC Compiler Options
-GCCFLAGSOPT						= -O3 $(GCCFLAGSARCH) -fweb -frename-registers -minline-all-stringops -mfpmath=sse -ftracer -funroll-loops -fpeel-loops -fprefetch-loop-arrays -ffast-math -ggdb
-CLANGFLAGSOPT					= -O3 $(GCCFLAGSARCH) -minline-all-stringops -mfpmath=sse -funroll-loops -ffast-math -ggdb $(EXTRAFLAGSCLANG)
+GCCFLAGSOPT						= -O3 $(GCCFLAGSARCH) -fweb -frename-registers -minline-all-stringops -mfpmath=sse -ftracer -funroll-loops -fpeel-loops -fprefetch-loop-arrays -ffast-math -fno-stack-protector -ggdb
+CLANGFLAGSOPT					= -O3 $(GCCFLAGSARCH) -minline-all-stringops -mfpmath=sse -funroll-loops -ffast-math -fno-stack-protector -ggdb $(EXTRAFLAGSCLANG)
 CLANGFLAGSDBG					= $(GCCFLAGSDBG) $(EXTRAFLAGSCLANG)
 #-fgcse-sm -fgcse-las -fmodulo-sched -fipa-pta -floop-interchange -floop-block 
 GCCFLAGSDBG						= -O0 $(GCCFLAGSARCH) -ggdb

@@ -3,6 +3,7 @@
     .section .rodata
 FILENAMEMOD:
     .incbin "FILENAMENORMAL"
-1:
+FILETERM:
+	
 FILENAMEMOD_size:
-    .int 1b - FILENAMEMOD
+    .int FILETERM - FILENAMEMOD
