@@ -1,9 +1,9 @@
-    .global FILENAMEMOD
-    .global FILENAMEMOD_size
-    .section .rodata
+	.global FILENAMEMOD
+	.global FILENAMEMOD_size
+	.section .rodata
 FILENAMEMOD:
-    .incbin "FILENAMENORMAL"
-FILETERM:
-	
+	.incbin "FILENAMENORMAL"
+1:
+	.byte 0
 FILENAMEMOD_size:
-    .int FILETERM - FILENAMEMOD
+	.int 1b - FILENAMEMOD
