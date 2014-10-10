@@ -26,6 +26,27 @@
 #include <CL/cl_ext.h>
 #include <algorithm>
 
+#ifndef _WIN32
+#include <syscall.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#ifndef MAP_HUGETLB
+#define MAP_HUGETLB 0x40000 /* arch specific */
+#endif
+#ifndef MPOL_DEFAULT
+#define MPOL_DEFAULT 0
+#endif
+#ifndef MPOL_PREFERRED
+#define MPOL_PREFERRED 1
+#endif
+#ifndef MPOL_BIND
+#define MPOL_BIND 2
+#endif
+#ifndef MPOL_INTERLEAVE
+#define MPOL_INTERLEAVE 3
+#endif
+#endif
+
 #define OCL_KERNEL_PRE \
 "#ifdef cl_amd_fp64\n" \
 "#pragma OPENCL EXTENSION cl_amd_fp64 : enable\n" \
@@ -1991,6 +2012,15 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 			fprintf(STD_OUT, "Cannot allocated more GPU memory, increase MAX_GPU_MEM_COUNT\n");
 			return(0);
 		}
+		if (interleave)
+		{
+			unsigned long nodemask = 0xffffff;
+			if (syscall(SYS_set_mempolicy, MPOL_INTERLEAVE, &nodemask, sizeof(nodemask) * 8) != 0)
+			{
+				fprintf(STD_OUT, "Error setting memory policy\n");
+			}
+		}
+
 		cl_int ocl_error;
 		cl_int mem_flags = CL_MEM_READ_WRITE;
 		mem_flags |= CL_MEM_ALLOC_HOST_PTR;
@@ -2036,6 +2066,14 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 			{
 				fprintf(STD_OUT, "Error allocating memory (clEnqueueMapBuffer) (%d: %s)\n", ocl_error, opencl_error_string(ocl_error));
 				return(0);
+			}
+		}
+		
+		if (interleave)
+		{
+			if (syscall(SYS_set_mempolicy, MPOL_DEFAULT, NULL) != 0)
+			{
+				fprintf(STD_OUT, "Error setting memory policy\n");
 			}
 		}
 		return((double*) gpu_mem[nGPUMEM++].ptr);
