@@ -547,8 +547,18 @@ int caldgemm_opencl::InitDevices()
 	ocl_image_format.image_channel_order = CL_RGBA;
 	ocl_image_format.image_channel_data_type = CL_UNSIGNED_INT32;
 
+	cpu_set_t tmpmask, oldtmpmask;
+	sched_getaffinity(0, sizeof(oldtmpmask), &oldtmpmask);
+
 	for (int i = 0;i < nDevices;i++)
 	{
+		if (AllocMapping[i] != -1)
+		{
+			CPU_ZERO(&tmpmask);
+			CPU_SET(Config->AllocMapping[i], &tmpmask);
+			sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+		}
+
 		for (int j = 0;j < ibuffercount;j++)
 		{
 			if (!KernelSettings.texture_buffers)
@@ -669,7 +679,22 @@ int caldgemm_opencl::InitDevices()
 			bbuffers[i] = j + 1;
 		}
 		if (Config->Debug) fprintf(STD_OUT, "Allocated %d BBuffers on Device %d\n", bbuffers[i], i);
+
+		if (Config->AsyncSideQueue)
+		{
+			ocl_async_queue[i] = clCreateCommandQueue(ocl_context, ocl_devices[i], 0, &ocl_error);
+			CHKRET(ocl_error, "Error creating async OpenCL command queue");
+
+			for (int j = 0;j < 4;j++)
+			{
+				ocl_async_buffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, std::max<size_t>(BufferWidth, BufferHeight) * std::max<size_t>(BufferWidth, BufferHeight) * sizeof(double), NULL, &ocl_error);
+				CHKRET(ocl_error, "Error allocating async device memory %d/%d", i, j);
+			}
+			CHKRET(clEnqueueMigrateMemObjects(ocl_async_queue[i], 4, &ocl_async_buffers[i][0], 0, 0, NULL, NULL), "Error migrating async mem object");
+		}
 	}
+
+	sched_setaffinity(0, sizeof(oldtmpmask), &oldtmpmask);
 
 	for (int j = 0;j < 3 + 1 + (Config->GPU_C ? 1 : 0) + (Config->AsyncDTRSM ? 1 : 0);j++)
 	{
@@ -763,22 +788,6 @@ int caldgemm_opencl::InitDevices()
 					CHKRET(ocl_error, "Error creating async kernel");
 				}
 			}
-		}
-	}
-
-	if (Config->AsyncSideQueue)
-	{
-		for (int i = 0;i < nDevices;i++)
-		{
-			ocl_async_queue[i] = clCreateCommandQueue(ocl_context, ocl_devices[i], 0, &ocl_error);
-			CHKRET(ocl_error, "Error creating async OpenCL command queue");
-
-			for (int j = 0;j < 4;j++)
-			{
-				ocl_async_buffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, std::max<size_t>(BufferWidth, BufferHeight) * std::max<size_t>(BufferWidth, BufferHeight) * sizeof(double), NULL, &ocl_error);
-				CHKRET(ocl_error, "Error allocating async device memory %d/%d", i, j);
-			}
-			CHKRET(clEnqueueMigrateMemObjects(ocl_async_queue[i], 4, &ocl_async_buffers[i][0], 0, 0, NULL, NULL), "Error migrating async mem object");
 		}
 	}
 
