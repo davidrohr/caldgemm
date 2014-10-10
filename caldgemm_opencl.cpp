@@ -552,7 +552,7 @@ int caldgemm_opencl::InitDevices()
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		if (AllocMapping[i] != -1)
+		if (Config->AllocMapping[i] != -1)
 		{
 			CPU_ZERO(&tmpmask);
 			CPU_SET(Config->AllocMapping[i], &tmpmask);
@@ -2104,8 +2104,10 @@ void caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
 				for (int j = 0;j < nDevices;j++)
 				{
 					clEnqueueUnmapMemObject(ocl_command_queues[j][0], gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL);
+					clFinish(ocl_command_queues[j][0]);
 				}
 				clEnqueueUnmapMemObject(ocl_command_queue_cpu, gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL);
+				clFinish(ocl_command_queue_cpu);
 				clReleaseMemObject(gpu_mem[i].mem_obj);
 				gpu_mem[i] = gpu_mem[--nGPUMEM];
 				return;
