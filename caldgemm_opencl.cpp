@@ -391,7 +391,7 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 	}
 	ocl_devices[nDevices] = cpu_device;
 	delete[] devices;
-	ocl_context = clCreateContext(NULL, nDevices + 1, ocl_devices, NULL, NULL, &ocl_error);
+	ocl_context = clCreateContext(NULL, nDevices + (Config->CPUInContext ? 1 : 0), ocl_devices, NULL, NULL, &ocl_error);
 	CHKRET(ocl_error, "Error creating OpenCL context");
 
 	for (int i = 0;i < nDevices;i++)
@@ -405,8 +405,11 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 		}
 	}
 
-	ocl_command_queue_cpu = clCreateCommandQueue(ocl_context, ocl_devices[nDevices], 0, &ocl_error);
-	CHKRET(ocl_error, "Error creating OpenCL CPU command queue");
+	if (Config->CPUInContext)
+	{
+		ocl_command_queue_cpu = clCreateCommandQueue(ocl_context, ocl_devices[nDevices], 0, &ocl_error);
+		CHKRET(ocl_error, "Error creating OpenCL CPU command queue");
+	}
 
 	return(0);
 }
@@ -998,7 +1001,10 @@ int caldgemm_opencl::ExitRuntime()
 			clReleaseCommandQueue(ocl_command_queues[i][j]);
 		}
 	}
-	clReleaseCommandQueue(ocl_command_queue_cpu);
+	if (Config->CPUInContext)
+	{
+		clReleaseCommandQueue(ocl_command_queue_cpu);
+	}
 
 	if (config_backend->kernelLib)
 	{
@@ -2106,7 +2112,7 @@ void caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
 					clEnqueueUnmapMemObject(ocl_command_queues[j][0], gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL);
 					clFinish(ocl_command_queues[j][0]);
 				}
-				clEnqueueUnmapMemObject(ocl_command_queue_cpu, gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL);
+				//clEnqueueUnmapMemObject(ocl_command_queue_cpu, gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL); //see above
 				clFinish(ocl_command_queue_cpu);
 				clReleaseMemObject(gpu_mem[i].mem_obj);
 				gpu_mem[i] = gpu_mem[--nGPUMEM];

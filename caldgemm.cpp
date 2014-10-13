@@ -242,6 +242,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	PreallocData = 0;
 	AsyncSideQueue = false;
 	AsyncDTRSM = false;
+	CPUInContext = 1;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
