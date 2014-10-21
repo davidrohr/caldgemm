@@ -161,6 +161,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-V <int>  Thread save GPU driver (0: no (default), 1: yes, -1: use global lock)\n");
 	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n");
 	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n");
+	fprintf(STD_OUT, "\t-Xb <int> Balancing mode for improved scheduler\n");
 	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n");
 	fprintf(STD_OUT, "\t-O <int>  Backend to use: 0 = CAL, 1 = OpenCL, 2 = CUDA, 3 = CPUOnly\n");
 	fprintf(STD_OUT, "\t-Oc <int> Set GPU_C parameter\n");
@@ -345,7 +346,15 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			Config->DivideToGPU = true;
 			break;
 		case 'X':
-			Config->ImprovedScheduler = true;
+			if (argv[x][2] == 'b')
+			{
+				if (++x >= argc) return(1);
+				sscanf(argv[x], "%d", (int*) &Config->ImprovedSchedulerBalance);
+			}
+			else
+			{
+				Config->ImprovedScheduler = true;
+			}
 			break;
 		case 'A':
 			Config->AsyncDMA = true;

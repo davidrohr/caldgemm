@@ -179,6 +179,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	DisplayTiming = false;
 	DeviceNum = -1;
 	ImprovedScheduler = false;
+	ImprovedSchedulerBalance = 1;
 	SimpleGPUQueuing = false;
 	NumDevices = max_devices;
 	max_bbuffers = 0;
@@ -2639,12 +2640,11 @@ recalculate_ratio:
 
 			if (Config->ImprovedScheduler)
 			{
-				//size_t numt[4] = {0,0,0,0}, sizet[4] = {0,0,0,0};
 				if (!Config->PreallocData) tileDistribution = new int[nBlocks];
 				for (int l = 0;l < nDevices;l++) first_device_k[l] = -1;
 				
 				size_t block_correction_factor = 0;
-				if (Config->Height > CALDGEMM_MIN_CORRECTION_SIZE && Config->SmallTiles)
+				if (Config->Height > CALDGEMM_MIN_CORRECTION_SIZE && Config->SmallTiles && Config->ImprovedSchedulerBalance == 1)
 				{
 					size_t undersize;
 					size_t scaler;
@@ -2664,7 +2664,21 @@ recalculate_ratio:
 						block_correction_factor = (Config->Height - undersize) * scaler / Config->Height;
 					}
 				}
-				
+				bool balance2 = Config->ImprovedSchedulerBalance == 2 && (DGEMM_favor_m ? gpu_n : gpu_m) % Config->Height;
+				int mb_use, nb_use, nBlocks_use;
+				if (balance2)
+				{
+					mb_use = DGEMM_favor_m ? mb : (mb - 1);
+					nb_use = DGEMM_favor_m ? (nb - 1) : nb;
+					nBlocks_use = mb_use * nb_use;
+				}
+				else
+				{
+					mb_use = mb;
+					nb_use = nb;
+					nBlocks_use = nBlocks;
+				}
+				//size_t numt[4] = {0,0,0,0}, sizet[4] = {0,0,0,0};
 				for (size_t l = 0;l < nBlocks;l++)
 				{
 					size_t blockn, blockm;
@@ -2673,25 +2687,50 @@ recalculate_ratio:
 					{
 						blockn = l % nb;
 						blockm = l / nb;
-						k = blockn * mb + blockm;
+						if (balance2 && blockn == nb - 1)
+						{
+							tileDistribution[l] = nDevices - 1 - nDevices * blockm / mb;
+						}
+						else
+						{
+							k = blockn * mb_use + blockm;
+							tileDistribution[l] = std::min<int>(nDevices * k / (nBlocks_use - block_correction_factor), nDevices - 1);
+						}
 					}
 					else
 					{
 						blockm = l % mb;
 						blockn = l / mb;
-						k = blockn + blockm * nb;
+						if (balance2 && blockm == mb - 1)
+						{
+							tileDistribution[l] = nDevices - 1 - nDevices * blockn / nb;
+						}
+						else
+						{
+							k = blockn + blockm * nb_use;
+							tileDistribution[l] = std::min<int>(nDevices * k / (nBlocks_use - block_correction_factor), nDevices - 1);
+						}
 					}
-					tileDistribution[l] = std::min<int>(nDevices * k / (nBlocks - block_correction_factor), nDevices - 1);
 					/*numt[tileDistribution[l]]++;
 					size_t height1 = (int) (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height);
-					size_t height2 = (int) (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);					
+					size_t height2 = (int) (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);
 					sizet[tileDistribution[l]] += height1 * height2;*/
 					if (first_device_k[tileDistribution[l]] == -1) first_device_k[tileDistribution[l]] = l;
 
-					if (Config->Debug) fprintf(STD_OUT, "Tile %lld (%lld / %lld) processed by device %d\n", (long long int) l, (long long int) blockm, (long long int) blockn, tileDistribution[l]);
+					//if (Config->Debug) fprintf(STD_OUT, "Tile %lld (%lld / %lld) processed by device %d\n", (long long int) l, (long long int) blockm, (long long int) blockn, tileDistribution[l]);
 				}
+				
 				//for (int l = 0;l < 4;l++) fprintf(STD_OUT, "TILESTAT %d: %3lld - %lld\n", l, (long long int) numt[l], (long long int) sizet[l]);
 				//fprintf(STD_OUT, "TILESIZE %lld (factor %lld - miss %lld)\n", (long long int) (Config->Height * Config->Height), (long long int) block_correction_factor, (long long int) ((sizet[2] - sizet[3]) / (Config->Height * Config->Height)));
+				
+				if (Config->Debug)
+				{
+					for (size_t l = 0;l < nBlocks;l++)
+					{
+						fprintf(STD_OUT, "%d ", tileDistribution[l]);
+						if ((l + 1) % (DGEMM_favor_m ? mb : nb) == 0) fprintf(STD_OUT, "\n");
+					}
+				}
 			}
 
 			for (int ii = 0;ii < nDevices;ii++)
