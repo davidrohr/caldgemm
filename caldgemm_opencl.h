@@ -99,7 +99,7 @@ private:
 	cl_kernel ocl_kernel[max_devices][5];
 
 	cl_command_queue ocl_async_queue[max_devices];
-	cl_kernel ocl_async_kernel[max_devices][3];
+	cl_kernel ocl_async_kernel[max_devices][4];
 	cl_mem ocl_async_buffers[max_devices][4];
 
 	struct caldgemm_opencl_simple_queue_event

@@ -170,6 +170,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Op <int> Preallocate buffers for at max <int> blocks (nb/mb)\n");
 	fprintf(STD_OUT, "\t-Oa       Create async side queues and use such a queue to test a single-tile dgemm\n");
 	fprintf(STD_OUT, "\t-Ox       Do not put the CPU in the OpenCL context\n");
+	fprintf(STD_OUT, "\t-Ot       Use 3rdPartyTranspose kernel\n");
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n");
 	fprintf(STD_OUT, "\t-J <int>  Allow small tiles to process the remainder on GPU (0 disable, 1 enable, 2 auto)\n");
 	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
@@ -520,6 +521,10 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			else if (argv[x][2] == 'x')
 			{
 				Config->CPUInContext = false;
+			}
+			else if (argv[x][2] == 't')
+			{
+				Config->Use3rdPartyTranspose = true;
 			}
 			else
 			{
@@ -912,14 +917,14 @@ int SetupUserData(caldgemm::caldgemm_config &Config)
 	{
 		for (unsigned int j = 0;j < width_a;j++)
 		{
-			AA[i * pitch_a + j] = j;
+			AA[i * pitch_a + j] = i;
 		}
 	}
 	for (unsigned int i = 0;i < height_b;i++)
 	{
 		for (unsigned int j = 0;j < width_b;j++)
 		{
-			BB[i * pitch_b + j] = 1;
+			BB[i * pitch_b + j] = j;
 		}
 	}
 #else

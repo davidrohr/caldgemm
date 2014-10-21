@@ -242,6 +242,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	PreallocData = 0;
 	AsyncSideQueue = false;
 	AsyncDTRSM = false;
+	Use3rdPartyTranspose = false;
 	CPUInContext = 1;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
@@ -2364,7 +2365,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		{
 			Config->Height = Config->Height > (size_t) KernelSettings.min_tile_size ? (Config->Height - Config->Height % KernelSettings.min_tile_size) : KernelSettings.min_tile_size;
 		}
-		if ((Config->Height != BufferHeight && !Config->Quiet) || Config->Debug)  fprintf(STD_OUT, "Using Height %lld of max %lld\n", (long long int) Config->Height, (long long int) BufferHeight);
+		if (Config->Debug)  fprintf(STD_OUT, "Using Height %lld of max %lld\n", (long long int) Config->Height, (long long int) BufferHeight);
 	}
 	HPL_CALDGEMM_gpu_height = Config->Height;
 
@@ -2591,7 +2592,7 @@ recalculate_ratio:
 
 		DGEMM_favor_m = (Config->LinpackSwapN == NULL && (ExecLinpack == 0 || Config->AlternateLookahead <= matrix_n)) ? (gpu_m >= gpu_n) : 1;
 
-		if (!Config->Quiet) fprintf(STD_OUT, "Ratio %f - gpu_m %lld gpu_n %lld - Split %c Favor %c - Height %lld, Min Tiling %lld (%lld, %lld)\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) Config->Height, (long long int) SmallTileHeight, (long long int) (gpu_m % Config->Height), (long long int) (gpu_n % Config->Height));
+		if (!Config->Quiet) fprintf(STD_OUT, "Ratio %f - gpu_m %lld gpu_n %lld - Split %c Favor %c - Height %lld (/ %lld), Min Tiling %lld (%lld, %lld)\n", GPURatio, (long long int) gpu_m, (long long int) gpu_n, DGEMM_split_m ? 'm' : 'n', DGEMM_favor_m ? 'm' : 'n', (long long int) Config->Height, (long long int) BufferHeight, (long long int) SmallTileHeight, (long long int) (gpu_m % Config->Height), (long long int) (gpu_n % Config->Height));
 
 		if (Config->ShowThreadPinning) printThreadPinning();
 
