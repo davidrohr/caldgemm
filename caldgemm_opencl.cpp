@@ -1175,7 +1175,7 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 	size_t BufferSize = std::max<size_t>(BufferWidth, BufferHeight);
 	const unsigned int K = (Side == CblasRight ? N : M);
 	const unsigned int L = (Side == CblasRight ? M : N) & ~31;
-	if (M < 192 || N < 192 || Order != CblasColMajor || Uplo != CblasUpper || ((Side != CblasRight) ^ (TransA != CblasNoTrans)) || Diag != CblasUnit || K > BufferSize || K & 31)
+	if (M < 192 || N < 192 || Order != CblasColMajor || Uplo != CblasUpper || ((Side != CblasLeft) | (TransA != CblasTrans)) || Diag != CblasUnit || K > BufferSize || K & 31)
 	{
 		cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M, N, alpha, A, lda, B, ldb);
 		return(0);
@@ -1425,10 +1425,10 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 					if (Config->Debug) fprintf(STD_OUT, "ASYNC Running conversion kernel for A: transpose %d, width %d, height %d\n", arg_transpose, arg_width, arg_height);
 					if (Config->Use3rdPartyTranspose)
 					{
-						local_size[0] = 8;
-						local_size[1] = 8;
-						global_size[0] = arg_height / 4;
-						global_size[1] = arg_width / 4;
+						local_size[0] = 16;
+						local_size[1] = 16;
+						global_size[0] = arg_width / 4;
+						global_size[1] = arg_height / 4;
 					}
 					CHKRET(clEnqueueNDRangeKernel(ocl_async_queue[useDevice], ocl_async_kernel[useDevice][1], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting conversion kernel for async A");
 				}
@@ -1454,10 +1454,10 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 					if (Config->Debug) fprintf(STD_OUT, "ASYNC Running conversion kernel for B: transpose %d, width %d, height %d\n", arg_transpose, arg_width, arg_height);
 					if (Config->Use3rdPartyTranspose)
 					{
-						local_size[0] = 8;
-						local_size[1] = 8;
-						global_size[0] = arg_height / 4;
-						global_size[1] = arg_width / 4;
+						local_size[0] = 16;
+						local_size[1] = 16;
+						global_size[0] = arg_width / 4;
+						global_size[1] = arg_height / 4;
 					}
 					CHKRET(clEnqueueNDRangeKernel(ocl_async_queue[useDevice], ocl_async_kernel[useDevice][1], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting conversion kernel for async B");
 				}
@@ -1714,10 +1714,10 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				}
 				else
 				{
-					local_size[0] = 8;
-					local_size[1] = 8;
-					global_size[0] = arg_height / 4;
-					global_size[1] = arg_width / 4;
+					local_size[0] = 16;
+					local_size[1] = 16;
+					global_size[0] = arg_width / 4;
+					global_size[1] = arg_height / 4;
 				}
 
 				if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", arg_width, arg_height, arg_transpose);
@@ -1838,10 +1838,10 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				}
 				else
 				{
-					local_size[0] = 8;
-					local_size[1] = 8;
-					global_size[0] = arg_height / 4;
-					global_size[1] = arg_width / 4;
+					local_size[0] = 16;
+					local_size[1] = 16;
+					global_size[0] = arg_width / 4;
+					global_size[1] = arg_height / 4;
 				}
 				if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
 

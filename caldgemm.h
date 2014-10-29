@@ -155,7 +155,7 @@ public:
 		int AllocMapping[max_devices];			//Core (die with that core in fact) where the memory for dma transfer is allocated
 		int DMAMapping[max_devices];			//Core for usage witgh ParallelDMA option
 		int PinMainThread;						//Pin main thread to specific device. Default: Use the first GPU preprocessing core
-		int PinDeviceRuntimeThreads;			//Pin threads of device runtime to this core, -1 for no pinning, -2 for same as main
+		int PinDeviceRuntimeThreads;			//Pin threads of device runtime to this core, -1 for no pinning, -2 for same as main (default)
 		int PinBroadcastThread;					//CPU core to pin broadcast thread to
 		bool RepinDuringActiveWaitForEvent;		//Repin the Main CPU core that does the active wait for the event to the allocmapping of the GPU it waits for
 		bool RepinMainThreadAlways;				//Superseedes the above setting. The main thread is always repinned to the allocmapping core of each GPU when working for this GPU
