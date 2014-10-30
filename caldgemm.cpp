@@ -60,6 +60,10 @@ extern "C"
 #define SHM_HUGETLB 04000
 #endif
 
+#ifdef USE_MKL
+#include <mkl_service.h>
+#endif
+
 #include <math.h>
 
 #include "cmodules/os_low_level_helper.h"
@@ -3687,6 +3691,9 @@ void goto_set_num_threads(int num)
 {
 	current_num_threads = num;
 	omp_set_num_threads(num);
+#ifdef USE_MKL
+	mkl_set_num_threads(num);
+#endif
 }
 
 #endif
