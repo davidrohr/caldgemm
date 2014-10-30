@@ -2747,7 +2747,7 @@ recalculate_ratio:
 
 			if (Config->PreallocData && ((int) mb > Config->PreallocData || (int) nb > Config->PreallocData))
 			{
-				fprintf(STD_OUT, "Value of PreallocData too small for current block count!");
+				fprintf(STD_OUT, "Value of PreallocData too small for current block count! (mb %d nb %d pre %d)", (int) mb, (int) nb, Config->PreallocData);
 				return(1);
 			}
 
