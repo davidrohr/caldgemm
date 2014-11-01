@@ -2004,7 +2004,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 
 		if (((int) (DGEMM_favor_m ? nb : mb) + nDevices - 1) / nDevices > min_bbuffers)
 		{
-			fprintf(STD_OUT, "SimpleGPUQueuing can only work if [Number of BBuffers] * [Number of GPUs] > [Number of Blocks in one dimension]\n");
+			fprintf(STD_OUT, "SimpleGPUQueuing can only work if [Number of BBuffers] * [Number of GPUs] > [Number of Blocks in one dimension] (bbuffers %d, devices %d, blocks %d)\n", min_bbuffers, nDevices, (int) (DGEMM_favor_m ? nb : mb));
 			return(1);
 		}
 
