@@ -1175,7 +1175,7 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 	size_t BufferSize = std::max<size_t>(BufferWidth, BufferHeight);
 	const unsigned int K = (Side == CblasRight ? N : M);
 	const unsigned int L = (Side == CblasRight ? M : N) & ~31;
-	if (M < 192 || N < 192 || Order != CblasColMajor || Uplo != CblasUpper || ((Side != CblasLeft) | (TransA != CblasTrans)) || Diag != CblasUnit || K > BufferSize || K & 31)
+	if (M < 192 || N < 192 || Order != CblasColMajor || Uplo != CblasUpper || ((Side != CblasLeft) ^ (TransA != CblasTrans)) || Diag != CblasUnit || K > BufferSize || K & 31)
 	{
 		cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M, N, alpha, A, lda, B, ldb);
 		return(0);
@@ -1323,7 +1323,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			{
 				tile_size_m = BufferSize / std::max<size_t>(tile_size_n, k);
 				tile_size_m -= tile_size_m % KernelSettings.min_tile_size;
-				nTiles = (m + tile_size_m - 1) / tile_size_m;
+				nTiles = (m - m % KernelSettings.min_tile_size + tile_size_m - 1) / tile_size_m;
 			}
 			else
 			{
@@ -1337,7 +1337,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			{
 				tile_size_n = BufferSize / std::max<size_t>(tile_size_m, k);
 				tile_size_n -= tile_size_n % KernelSettings.min_tile_size;
-				nTiles = (n + tile_size_n - 1) / tile_size_n;
+				nTiles = (n - n % KernelSettings.min_tile_size + tile_size_n - 1) / tile_size_n;
 			}
 			else
 			{
