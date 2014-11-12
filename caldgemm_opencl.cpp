@@ -907,9 +907,11 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		if (Task.j != simple_queue_events[Task.device][0][blockm].num_queue && simple_queue_event_requested[Task.device][Task.j][0][blockm] == 0)
 		{
 			simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][0][blockm].event;
+			simple_queue_event_requested[Task.device][Task.j][0][blockm] = 1;
 		}
 		if (Task.j != simple_queue_events[Task.device][1][blockn].num_queue && simple_queue_event_requested[Task.device][Task.j][1][blockn] == 0)
 		{
+			simple_queue_event_requested[Task.device][Task.j][1][blockn] = 1;
 			simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][1][blockn].event;
 		}
 		if (wait_num_events) wait_event = simple_queue_event;
