@@ -515,7 +515,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->SmallTiles = 1;
 	}
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
-	if (Config->ParallelDMA) Config->ImprovedScheduler = true;
+	if (Config->ParallelDMA || Config->SimpleGPUQueuing) Config->ImprovedScheduler = true;
 	if (Config->AsyncSideQueue && (Config->GPU_C == 0 || UseInputPthreads() || UseOutputPthreads()))
 	{
 		fprintf(STD_OUT, "ASYNC Side queue can only work with GPU_C\n");

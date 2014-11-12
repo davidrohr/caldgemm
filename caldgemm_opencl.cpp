@@ -882,6 +882,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d offset %lld\n", height1, height2, width, Alpha, Beta, pitch, (long long int) offset);
 	cl_event* kernel_event;
+	int need_retain_kernel_event = 0;
 	cl_event tmp_event;
 	int wait_num_events = 0;
 	cl_event* wait_event = NULL;
@@ -915,6 +916,35 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][1][blockn].event;
 		}
 		if (wait_num_events) wait_event = simple_queue_event;
+		
+		//Find whether we have to create an event, such that DGEMM_prepare_backend can check we are done
+		if (DGEMM_favor_m ? (blockm != mb - 1) : (blockn != nb - 1))
+		{
+			size_t kklast = k + (DGEMM_favor_m ? nb : mb);
+			kklast -= kklast % (DGEMM_favor_m ? nb : mb);
+
+			int num = 0;
+			for (size_t kk = k;kk < kklast;kk++)
+			{
+				if (tileDistribution[kk] == Task.device)
+				{
+					if (++num == ibuffercount) break;
+				}
+			}
+			if (num < ibuffercount)
+			{
+				cl_event* ev = &simple_queue_event_kernels[Task.device][DGEMM_favor_m ? (buffer_pointers_A[Task.device][blockm] % ibuffercount]) : (buffer_pointers_B[Task.device][blockn] % ibuffercount)][Task.j];
+				if (kernel_event == NULL)
+				{
+					kernel_event = *ev;
+				}
+				else
+				{
+					*ev = kernel_event;
+					need_retain_kernel_event = 1;
+				}
+			}
+		}
 	}
 	else
 	{
@@ -938,7 +968,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			wait_event = NULL;
 		}
 	}
-
+	
 	if (Config->VerboseTiming)
 	{
 		clFinish(ocl_command_queues[Task.device][Task.j]);
@@ -957,6 +987,11 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		Timers.CounterCopyFrom.Start();
 	}
 	
+	if (need_retain_kernel_event)
+	{
+		clRetainEvent(kernel_event);
+	}
+
 	if (Config->NoConcurrentKernels)
 	{
 		if (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync))
@@ -1615,10 +1650,15 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		WaitForEventAndRelease(&ocl_conversion_events[num_device][0]);
 		ocl_conversion_events_use[num_device][0] = 0;
 	}
+	
+	int nTransferEvents;
+	cl_event transferEvents[obuffercount - 1];
+	
 	if (prepareM)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 		Timers.divideA++;
+		nTransferEvents = 0;
 
 		int dest_image_id;
 		cl_mem *dest_image;
@@ -1634,6 +1674,24 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		{
 			dest_image_id = next_buffer_A[num_device] % ibuffercount;
 			dest_image = &ocl_abuffers[num_device][dest_image_id];
+			
+			if (Config->SimpleGPUQueuing)
+			{
+				for (int i = 0;i < obuffercount;i++)
+				{
+					if (simple_queue_event_requested[num_device][dest_image_id][i] != NULL)
+					{
+						if (i == j)
+						{
+							clReleaseEvent(simple_queue_event_requested[num_device][dest_image_id][i]);
+						}
+						else
+						{
+							transferEvents[nTransferEvents++] = simple_queue_event_requested[num_device][dest_image_id][i];
+						}
+					}
+				}
+			}
 		}
 
 		const int arg_transpose = TransposeA ^ KernelSettings.transposeA;
@@ -1694,7 +1752,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				ev = &ocl_conversion_events[num_device][0];
 			}
 
-			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, 0, NULL, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : NULL), "Error copying A");
+			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, transferEvents, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : NULL), "Error copying A");
+			for (int i = 0;i < nTransferEvents;i++) clReleaseEvent(transferEvents[i]);
 			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 			if (arg_transpose || KernelSettings.texture_buffers)
 			{
@@ -1738,6 +1797,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 	}
 	if (prepareN)
 	{
+		nTransferEvents = 0;
 		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 		Timers.divideB++;
 
@@ -1751,6 +1811,24 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		{
 			dest_image_id = next_buffer_B[num_device] % ibuffercount;
 			dest_image = &ocl_abuffers[num_device][dest_image_id];
+			
+			if (Config->SimpleGPUQueuing)
+			{
+				for (int i = 0;i < obuffercount;i++)
+				{
+					if (simple_queue_event_requested[num_device][dest_image_id][i] != NULL)
+					{
+						if (i == j)
+						{
+							clReleaseEvent(simple_queue_event_requested[Task.device][dest_image_id][i]);
+						}
+						else
+						{
+							transferEvents[nTransferEvents++] = simple_queue_event_requested[Task.device][dest_image_id][i];
+						}
+					}
+				}
+			}
 		}
 		else
 		{
@@ -1817,7 +1895,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				ev = &ocl_conversion_events[num_device][1];
 			}
 
-			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, 0, NULL, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : NULL), "Error copying B");
+			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, transferEvents, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : NULL), "Error copying B");
+			for (int i = 0;i < nTransferEvents;i++) clReleaseEvent(transferEvents[i]);
 			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 
 			if (arg_transpose || KernelSettings.texture_buffers)
@@ -2023,6 +2102,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		SetupSimpleQueue(mb, nb);
 		memset(simple_queue_events[0][0], 0, nDevices * (mb + nb) * sizeof(caldgemm_opencl_simple_queue_event));
 		memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(int));
+		memset(&simple_queue_event_kernels[0][0][0], nDevices * ibuffercount * obuffercount * sizeof(cl_event));
 	}
 	return(0);
 }
