@@ -2318,6 +2318,9 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (Config->AutoHeight)
 	{
+#ifdef CALDGEMM_CUSTOM_AUTO_HEIGHT
+#include CALDGEMM_CUSTOM_AUTO_HEIGHT
+#else
 		if (ExecLinpack >= 2 && !Config->SmallTiles)
 		{
 			if (MaxGpuM < 1024 || MaxGpuN < 1024)
@@ -2365,6 +2368,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			}
 			while (Config->SlowCPU && !Config->SmallTiles && Config->Height > 1024 && (MaxGpuM % Config->Height > 1024 || MaxGpuN % Config->Height > 1024)) Config->Height -= 1024;
 		}
+#endif
 		if (Config->Height > BufferHeight) Config->Height = BufferHeight;
 		if (Config->Height % KernelSettings.min_tile_size)
 		{
@@ -2574,7 +2578,27 @@ recalculate_ratio:
 
 			const size_t over_m = gpu_m % Config->Height, over_n = gpu_n % Config->Height;
 			if (over_m < CALDGEMM_MIN_TILE_DIM2) gpu_m -= over_m;
+#ifdef CALDGEMM_CUSTOM_HEIGHT_MOD
+			else
+			{
+#define MOD_OVER over_m
+#define MOD_GPU gpu_m
+#include CALDGEMM_CUSTOM_HEIGHT_MOD
+#undef MOD_OVER
+#undef MOD_GPU
+			}
+#endif
 			if (over_n < CALDGEMM_MIN_TILE_DIM2) gpu_n -= over_n;
+#ifdef CALDGEMM_CUSTOM_HEIGHT_MOD
+			else
+			{
+#define MOD_OVER over_n
+#define MOD_GPU gpu_n
+#include CALDGEMM_CUSTOM_HEIGHT_MOD
+#undef MOD_OVER
+#undef MOD_GPU
+			}
+#endif
 
 			cParam.cblas_size = DGEMM_split_m ? (matrix_m - gpu_m) : (matrix_n - gpu_n);
 		}
@@ -2732,7 +2756,7 @@ recalculate_ratio:
 					for (size_t l = 0;l < nBlocks;l++)
 					{
 						fprintf(STD_OUT, "%d ", tileDistribution[l]);
-						if ((l + 1) % (DGEMM_favor_m ? mb : nb) == 0) fprintf(STD_OUT, "\n");
+						if ((l + 1) % (DGEMM_favor_m ? nb : mb) == 0) fprintf(STD_OUT, "\n");
 					}
 				}
 			}

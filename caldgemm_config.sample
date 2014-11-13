@@ -108,5 +108,9 @@
 #define OCL_GROUP_SIZE_X 8
 #define OCL_GROUP_SIZE_Y 8
 
+//Custom header files for optimized height parameters
+//#define CALDGEMM_CUSTOM_AUTO_HEIGHT "auto_height.h"		//Can define a custom header file that is included in caldgemm, that handles autoheight feature
+//#define CALDGEMM_CUSTOM_HEIGHT_MOD "height_mod.h"		//Same for posterior height adoption
+
 //#define CALDGEMM_OPENCL_EMULATE_STRIDED		//Emulate strided transfers in OpenCL via linear transfers
 #define CALDGEMM_OPENCL_USE_ORIGINAL_POINTERS	//Use the original pointers returned by clEnqueueMapBuffer for the DMA transfers and supply an origin parameter for the correct offset
