@@ -1237,7 +1237,7 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 	for (unsigned int i = 0;i < nTiles;i++)
 	{
 		if (i == nTiles - 1) tmpL = L - i * tmpL;
-		if (i < (unsigned int) nDevices)
+		if (i < (unsigned int) nDevicesInitialized)
 		{
 			region[0] = K * sizeof(double);
 			region[1] = K;
@@ -1273,7 +1273,7 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 		
 		CHKRET(clEnqueueReadBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][1], CL_FALSE, origin, origin, region, 0, 0, ldb * sizeof(double), 0, B, 0, NULL, NULL), "Error retrieving async B");
 
-		useDevice = (useDevice + 1) % nDevices;
+		useDevice = (useDevice + 1) % nDevicesInitialized;
 		
 		if (Side == CblasRight)
 		{
@@ -1294,10 +1294,10 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 		if (N & 31) cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M, N & 31, alpha, A, lda, B, ldb);
 	}
 	
-	for (int i = 0;i < std::min<int>(nTiles, nDevices);i++)
+	for (int i = 0;i < std::min<int>(nTiles, nDevicesInitialized);i++)
 	{
 		clFinish(ocl_async_queue[useDeviceStart]);
-		useDeviceStart = (useDeviceStart + 1) % nDevices;
+		useDeviceStart = (useDeviceStart + 1) % nDevicesInitialized;
 	}
 	
 	return(0);
@@ -1443,7 +1443,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 				global_size[1] = local_size[1] * GROUP_COUNT_Y;
 			}
 			
-			if (i < nDevices || tile_m)
+			if (i < nDevicesInitialized || tile_m)
 			{
 				region[0] = (TransA ? g_m : k) * sizeof(double);
 				region[1] = (TransA ? k : g_m);
@@ -1474,7 +1474,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 				}
 			}
 
-			if (i < nDevices || !tile_m)
+			if (i < nDevicesInitialized || !tile_m)
 			{
 				region[0] = (TransB ? k : g_n) * sizeof(double);
 				region[1] = (TransB ? g_n : k);
@@ -1553,7 +1553,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 				CHKRET(clEnqueueReadBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][3], CL_FALSE, origin, origin, region, 0, 0, Cpitch * sizeof(double), 0, g_C, 0, NULL, NULL), "Error retrieving async C");
 			}
 
-			useDevice = (useDevice + 1) % nDevices;
+			useDevice = (useDevice + 1) % nDevicesInitialized;
 		}
 		
 		
@@ -1573,10 +1573,10 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			    C + (n - n % KernelSettings.min_tile_size), Cpitch);
 		}
 
-		for (int i = 0;i < std::min<int>(nTiles, nDevices);i++)
+		for (int i = 0;i < std::min<int>(nTiles, nDevicesInitialized);i++)
 		{
 			clFinish(ocl_async_queue[useDeviceStart]);
-			useDeviceStart = (useDeviceStart + 1) % nDevices;
+			useDeviceStart = (useDeviceStart + 1) % nDevicesInitialized;
 		}
 
 		if (Config->Verify)
