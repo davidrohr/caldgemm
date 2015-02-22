@@ -128,6 +128,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-s        Dynamic CPU GPU scheduling\n");
 	fprintf(STD_OUT, "\t-M        Disable third phase in dynamic scheduling\n");
 	fprintf(STD_OUT, "\t-N        Disable second phase in dynamic scheduling\n");
+	fprintf(STD_OUT, "\t-rr       Rereserve Linpack CPU after broadcast\n");
 	fprintf(STD_OUT, "\t-p        Interleaving Memory Policy\n");
 	fprintf(STD_OUT, "\t-u        Dump Test Matrix\n");
 	fprintf(STD_OUT, "\t-1        Transpose A Matrix\n");
@@ -597,18 +598,6 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'U':
 			if (x + 1 >= argc) return(1);
-			if (argv[x][2] == 'A')
-			{
-				sscanf(&argv[x++][3], "%d", &gpuid);
-				if ((unsigned) gpuid >= sizeof(Config->AllocMapping) / sizeof(Config->AllocMapping[0]))
-				{
-					fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
-					break;
-				}
-				sscanf(argv[x], "%d", &Config->AllocMapping[gpuid]);
-				printf("Allocating memory for GPU %d on core %d\n", gpuid, Config->AllocMapping[gpuid]);
-			}
-			else if (argv[x][2] == 'B')
 			{
 				sscanf(&argv[x++][3], "%d", &gpuid);
 				if ((unsigned) gpuid >= sizeof(Config->DMAMapping) / sizeof(Config->DMAMapping[0]))
@@ -672,8 +661,15 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			Config->MultiThreadDivide = true;
 			break;
 		case 'r':
-			if (++x >= argc) return(1);
-			sscanf(argv[x], "%u", &Config->Iterations);
+			if (argv[x][2] == 'r')
+			{
+				Config->RereserveLinpackCPU = true;
+			}
+			else
+			{
+				if (++x >= argc) return(1);
+				sscanf(argv[x], "%u", &Config->Iterations);
+			}
 			break;
 		case 'R':
 			if (++x >= argc) return(1);

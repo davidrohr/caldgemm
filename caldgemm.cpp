@@ -200,6 +200,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	Debug = false;
 	MultiThread = true;
 	MultiThreadDivide = true;
+	RereserveLinpackCPU = false;
 	UseGPU = true;
 	UseCPU = true;
 	GPURatio = -1.0;
@@ -1299,20 +1300,23 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 				}
 
 				size_t cblas2;
-#ifdef RERESERVE_LINPACK_CPUS
-				if (ExecLinpack && Config->LinpackNodes > 1 && Config->MultiThread && (((double) matrix_m * (double) matrix_n) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackCPUDGEMMTime[ExecLinpack] - linpackBcastTime[ExecLinpack] > 5.0)
+				if (Config->RereserveLinpackCPU)
 				{
-					cblas2 = (double) (DGEMM_split_m ? matrix_n : matrix_m) * (linpackBcastTime[ExecLinpack] + 3.0) / linpackCPUDGEMMTime[ExecLinpack];
-					if (!Config->Quiet) fprintf(STD_OUT, "Splitting CPU DGEMM for later enabling additional cores, cblas2=%lld\n", (long long int) cblas2);
+					if (ExecLinpack && Config->LinpackNodes > 1 && Config->MultiThread && (((double) matrix_m * (double) matrix_n) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackCPUDGEMMTime[ExecLinpack] - linpackBcastTime[ExecLinpack] > 5.0)
+					{
+						cblas2 = (double) (DGEMM_split_m ? matrix_n : matrix_m) * (linpackBcastTime[ExecLinpack] + 3.0) / linpackCPUDGEMMTime[ExecLinpack];
+						if (!Config->Quiet) fprintf(STD_OUT, "Splitting CPU DGEMM for later enabling additional cores, cblas2=%lld\n", (long long int) cblas2);
+					}
+					else
+					{
+						cblas2 = 0;
+					}
+					if (cblas2 % 8) cblas2 += 8 - cblas2 % 8;
 				}
 				else
 				{
 					cblas2 = 0;
 				}
-				if (cblas2 % 8) cblas2 += 8 - cblas2 % 8;
-#else
-				cblas2 = 0;
-#endif
 
 				if (DGEMM_split_m)	//favor splitting m because of consecutive memory
 				{

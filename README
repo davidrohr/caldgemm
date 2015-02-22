@@ -190,6 +190,12 @@ Disable third phase in dynamic scheduling
 -N (default: disabled)
 Disable second phase in dynamic scheduling
 
+-rr (default: disabled) (HPL-GPU Setting)
+Rereserve Linpack CPU: HPL-GPU requires one GPU core for the broadcast. This core is not available for
+CPU DGEMM. CALDGEMM can estimate the broadcast time and then try split the DGEMM in two parts. One part
+in parallel to the broadcast with one core less, and then a second part after the broadcast with all
+cores. Makes sense when you are not GPU dominated and when you do not have too many cpu cores.
+
 -p (default: disabled)
 Interleaving Memory Policy. Gotoblas usually activates memory interleaving. This leads to a problem with
 the CAL library. Interleaving should be activated after memory for the CAL library is allocated. Thus

@@ -132,6 +132,7 @@ public:
 		int MinimizeCPUDuringFact;				//Always minimize CPU part during factorization
 		bool UseCPU;							//use CPU for DGEMM
 		bool UseGPU;							//use GPUs for DGEMM
+		bool RereserveLinpackCPU;				//Use the Linpack CPU cores for DGEMM after they finished the broadcast
 		int GPU_C;								//Store the C matrix on CPU, not every option is supported by every backend, -1 = auto detect
 		int NoConcurrentKernels;				//Do not allow OpenCL to run multiple concurrent kernels in parallel.
 
