@@ -188,6 +188,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-* <int>  Enable Parallel DMA option if n >= <int>\n");
 	fprintf(STD_OUT, "\t-[ <int>  Enable Grouped Parallel DMA option if n < <int>\n");
 	fprintf(STD_OUT, "\t-] <int>  Maximum allowed GPU temperature (check applied after one caldgemm iteration, meaningfull in combination with -R)\n");
+	//available: -D 
 }
 
 void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
