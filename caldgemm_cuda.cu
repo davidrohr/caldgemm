@@ -143,6 +143,7 @@ int caldgemm_cuda::ValidateRuntime()
 {
 	if (Config->Debug) fprintf(STD_OUT, "CUDA ValidateRuntime\n");
 	Config->MultiThreadDivide = false;
+	if (Config->ThreadSaveDriver != -1) Config->ThreadSaveDriver = 1;
 
 	Config->GPU_C = true;
 	CHKRET(cudaGetDeviceCount(&nDevices), "Getting Device Count");

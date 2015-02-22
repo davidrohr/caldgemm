@@ -419,6 +419,7 @@ int caldgemm_opencl::ValidateRuntime()
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL ValidateRuntime\n");
 	Config->MultiThreadDivide = false;
 
+	if (Config->ThreadSaveDriver != -1) Config->ThreadSaveDriver = 1;
 	if (Config->GPU_C == -1) Config->GPU_C = 1;
 	if (Config->SimpleGPUQueuing)
 	{
