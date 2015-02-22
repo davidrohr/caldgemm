@@ -729,4 +729,11 @@ Multi-GPU with OpenCL (2 * 10 core numa system)
 Multi-GPU + CPU with OpenCL
 ./dgemm_bench -O 1 -w 1920 -h 2976 -_ -Ol amddgemm_hawai.so -A -z -p -X -Xb 2 -g -J 1 -: -UA0 0 -UA1 10 -UA2 0 -UA3 10 -K 0 -/ 0,2,1,3 -o g -6 58 -Oq -bb 15 -Op 60 -Ox -Ot -Y 4 -c -j 0.972
 
+Since the full list of parameters can be a bit overwhelming, it follows a list of common parameters required for good performance:
+
+General Parameters: -? -e -o -h -w -l -m -n -v -R -y -Y -bb -d -z -c -g -f -j -p -1 -2 -4 -6 -K -X -Xb -O -J -: -/ -@ -]
+Parameters for CAL / GPU_C = 0: -I -^ -Z -s -M -N -rr -B -Gx -Ux -UAx -UBx -. -= -* -[
+Parameters for OpenCL / CUDA / GPU_C = 1: -tr -UAx -Oc -Oq -Ol -Op -Ox -Ot -F -_
+Parameters for HPL: -Ca -Oa
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
