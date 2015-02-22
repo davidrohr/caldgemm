@@ -22,6 +22,7 @@
  * along with CALDGEMM.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+//CAL DGEMM Kernel Settings
 #define CALDGEMM_TRANSPOSED_A					//Use Kernel for transposed A Matrix
 //#define CALDGEMM_TRANSPOSED_B					//Use Kernel for transposed B Matrix
 //#define CALDGEMM_88							//8x8 tiling (implies memexport)
@@ -35,14 +36,22 @@
 //#define CALDGEMM_SINGLE_BUFFER				//Use a single buffer, 4x4 tiling a transposed, experimental
 //#define CALDGEMM_SINGLE_BUFFER_IMPROVED		//Alternative access scheme for single buffer, experimental
 //#define CALDGEMM_DUAL_BUFFERS					//Double number of buffers, 4x4 tiling a transposed, experimental
+#define CALDGEMM_LATE_EXIT_CONDITION			//Put exit condition at end of while loop
+#define CALDGEMM_SHIFT_TEXTURE 1				//Shift even numbered rows in texture by n pixels
+//#define CALDGEMM_44_BT_64						//64 bit DMA transfers for 4x4 B transposed kernel
+//#define CALDGEMM_44_BT_64_CONVERT				//Perform 64 bit DMA transfer but transform to 128 bit for kernel input
+
+//Other Settings
 //#define TESTMODE								//Activate Test Mode for debugging
 //#define CALDGEMM_LOOP_DETECTION				//Enable loop detection
 //#define TEST_KERNEL
 //#define TEST_PARAMETERS
 //#define CALDGEMM_UNALIGNED_ADDRESSES
+
 #ifndef STD_OUT
 #define STD_OUT stdout							//Output for all messages
 #endif
+
 #define CALDGEMM_OUTPUT_THREADS 1				//Number of Output threads
 #define CALDGEMM_OUTPUT_THREADS_SLOW 2			//Number of output threads when KeepBuffersMapped = false
 #define CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK 0	//Number of additional output threads when running in linpack mode
@@ -53,9 +62,6 @@
 
 //#define DEBUG_MSG_ALLOCATION					//Debug Messages considering GPU buffer allocation when in Debug = true
 //#define DEBUG_MSG_TIMED						//Add timestamps to all messages
-
-//#define CALDGEMM_44_BT_64						//64 bit DMA transfers for 4x4 B transposed kernel
-//#define CALDGEMM_44_BT_64_CONVERT				//Perform 64 bit DMA transfer but transform to 128 bit for kernel input
 
 //#define CALDGEMM_SGEMM						//Experimental SGEMM implementation (requires MemExport)
 //#define CALDGEMM_IGEMM						//Experimental IGEMM implementation (Integer instead of single) (requires SGEMM)
@@ -68,9 +74,9 @@
 //#define CALDGEMM_FORCE_K 16					//Force K Parameter to simulate different kernel perfoemance
 
 #define _NO_AMD_CPU								//Set to run on CPU without 3dnow (which nowadays also include AMD CPUs)
-//#define _NO_AVX									//Do not use AVX instructions (Only relevant for OpenCL code atm)
+#define _NO_AVX									//Do not use AVX instructions (Only relevant for OpenCL code atm)
 #define _NO_ADL									//Do not use ADL library to read GPU temps
-//#define _NO_AFFINITY								//Disable affinity setting
+//#define _NO_AFFINITY							//Disable affinity setting
 //#define USE_OLD_HUGE_MALLOC					//Use old method to allocate huge tables
 
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH		//Use prefetching in Divide / Merge Buffer
@@ -84,9 +90,6 @@
 //#define CALDGEMM_LDB_INC 0					//Override LDAB_INC for LDB
 //#define CALDGEMM_LDC_INC 0					//see above
 
-#define CALDGEMM_LATE_EXIT_CONDITION			//Put exit condition at end of while loop
-#define CALDGEMM_SHIFT_TEXTURE 1				//Shift even numbered rows in texture by n pixels
-
 //#define CALDGEMM_DIVIDE_STATIC_BUFFER			//Allocate tmpBuffer for divide staticly once and for all
 #define CALDGEMM_DIVIDE_BLOCKING 128			//Blocking size for divideBuffer with SHIFT_TEXTURE = 1 (larger multiple of two)
 //#define CALDGEMM_DIVIDE_TRANSPOSE_TWOPHASE	//Perform dividebuffer transposition in two phases such that fewer write combining buffers are used, Only works for 2 input buffers per matrix with A transposed!
@@ -96,7 +99,7 @@
 //#define CALDGEMM_USE_CAL_WAIT_FOR_EVENTS		//Use different method for queriying CAL events
 //#define CALDGEMM_USE_CAL_WAIT_FOR_EVENTS_NO_POLL	//Do not use active wait to reduce CPU utilization
 
-//#define CALDGEMM_MAX_GPU_RATIO 0.99				//Max GPU ratio, ensures CPU always gets a small part. This small part is required to calculate the size of the next CPU part based on GPU and CPU performance
+//#define CALDGEMM_MAX_GPU_RATIO 0.99			//Max GPU ratio, ensures CPU always gets a small part. This small part is required to calculate the size of the next CPU part based on GPU and CPU performance
 #define CALDGEMM_LOOKAHEAD_RATIO_MODIFIER 0.2	//Decrease CPU Part of matrix when using lookahead to compensate for performance fluctuations
 //#define VTRACE
 
