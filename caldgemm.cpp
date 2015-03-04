@@ -3615,6 +3615,10 @@ void caldgemm::SetDefaultKernelSettings()
 int caldgemm::CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, int nDevices) {return 0;}
 int caldgemm::CaldgemmCustomModHeight(size_t MOD_OVER, size_t MOD_GPU) {return 0;}
 
+int caldgemm::ParseParameters(unsigned int argc, char** argv)
+{
+#include "caldgemm_parse_parameters.h"
+}
 
 #ifndef USE_GOTO_BLAS
 static int caldgemm_restrict_cpus = 0;

@@ -226,7 +226,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 #endif
 
 #define CALDGEMM_PARAMETERS_BENCHMARK
-#include "caldgemm_pass_parameters.h"
+#include "caldgemm_parse_parameters.h"
 #undef CALDGEMM_PARAMETERS_BENCHMARK
 
 	if (!quietbench) fprintf(STD_OUT, "Use -? for help\n");
