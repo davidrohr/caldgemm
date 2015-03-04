@@ -2,25 +2,9 @@ for (unsigned int x = 1; x < argc; ++x)
 {
 	switch(argv[x][1])
 	{
-	default:
-		fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
-		PrintUsage();
-		return(1);
 	case 'q':
 		Config->Quiet = true;
 		break;
-	case 'Q':
-		wait_key = true;
-		break;
-	case '!':
-		mem_page_lock = false;
-		break;
-	case '_':
-		mem_gpu_access = true;
-		break;
-	case '?':
-		PrintUsage();
-		return(1);
 	case 'e':
 		Config->Verify = true;
 		break;
@@ -35,7 +19,9 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		else
 		{
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			benchmark = true;
+#endif
 		}
 		break;
 	case 'u':
@@ -48,10 +34,6 @@ for (unsigned int x = 1; x < argc; ++x)
 	case '[':
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%d", (int*) &Config->GroupParallelDMA);
-		break;
-	case ']':
-		if (++x >= argc) return(1);
-		sscanf(argv[x], "%d", &MaxGPUTemperature);
 		break;
 	case '@':
 	{
@@ -108,12 +90,6 @@ for (unsigned int x = 1; x < argc; ++x)
 	case 'a':
 		Config->Disassemble = true;
 		break;
-	case '1':
-		transa = true;
-		break;
-	case '2':
-		transb = true;
-		break;
 	case '9':
 		Config->TabularTiming = true;
 		break;
@@ -157,9 +133,6 @@ for (unsigned int x = 1; x < argc; ++x)
 	case '%':
 		Config->SkipCPUProcessing = true;
 		break;
-	case 'L':
-		linpackmemory = true;
-		break;
 	case 'C':
 		if (argv[x][2] == 'a')
 		{
@@ -168,64 +141,18 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		else
 		{
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			linpack_callbacks = 2;
 			Config->LinpackNodes = 2;
 			Config->linpack_factorize_function = linpack_fake1;
 			Config->linpack_broadcast_function = linpack_fake2;
 			Config->linpack_swap_function = linpack_fake3;
+#endif
 		}
-		break;
-	case 'P':
-		if (++x >= argc) return(1);
-		linpackpitch = true;
-		sscanf(argv[x], "%lld", (long long int*) &pitch_c);
 		break;
 	case '=':
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%d", &Config->OutputThreads);
-		break;
-	case '-':
-		if (argv[x][2])
-		{
-			fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
-			PrintUsage();
-			return(1);
-		}
-		if (++x >= argc) return(1);
-		Config->AsyncDMA = Config->KeepBuffersMapped = true;
-		matrix_m = matrix_n = 86016;
-		Config->MemPolicy = true;
-		Config->MultiThread = true;
-		Config->UseCPU = false;
-		Config->UseGPU = false;
-		sscanf(argv[x], "%d", &torture);
-		iterations = torture;
-		break;
-	case 'T':
-		mem_huge_table = true;
-		break;
-	case '8':
-		initialrun = false;
-		break;
-	case '7':
-		verifylarge = true;
-		break;
-	case '6':
-		fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (matrix_m = matrix_n = Config->Height * atoi(argv[++x])));
-		break;
-	case '4':
-		matrix_m = atoi(argv[++x]);
-		matrix_m -= matrix_m % Config->Height;
-		fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (matrix_n = matrix_m));
-		break;
-	case '5':
-		quietbench = true;
-		break;
-	case '3':
-		alphaone = true;
-		break;
-	case '#':
-		betazero = true;
 		break;
 	case 'i':
 		if (argv[x][2] == 'f')
@@ -267,13 +194,6 @@ for (unsigned int x = 1; x < argc; ++x)
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%d", (int*) &Config->UseDMAFetchQueue);
 		break;
-	case 'E':
-		if (++x >= argc) return(1);
-		sscanf(argv[x], "%d", &random_seed);
-		break;
-	case 'f':
-		fastinit = true;
-		break;
 	case 'O':
 		if (argv[x][2] == 'c')
 		{
@@ -283,7 +203,9 @@ for (unsigned int x = 1; x < argc; ++x)
 		else if (argv[x][2] == 'l')
 		{
 			if (++x >= argc) return(1);
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			OpenCL_kernel_lib = argv[x];
+#endif
 		}
 		else if (argv[x][2] == 'e')
 		{
@@ -313,7 +235,9 @@ for (unsigned int x = 1; x < argc; ++x)
 		else
 		{
 			if (++x >= argc) return(1);
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			sscanf(argv[x], "%d", &use_opencl_not_cal);
+#endif
 		}
 		break;
 	case 'F':
@@ -332,10 +256,6 @@ for (unsigned int x = 1; x < argc; ++x)
 	case 'w':
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%lld", (long long int*) &Config->Width);
-		break;
-	case 'W':
-		if (++x >= argc) return(1);
-		sscanf(argv[x], "%d", &reduced_width);
 		break;
 	case 't':
 		if (argv[x][2] == 's')
@@ -409,10 +329,6 @@ for (unsigned int x = 1; x < argc; ++x)
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%lld", (long long int*) &Config->Height);
 		break;
-	case 'H':
-		if (++x >= argc) return(1);
-		sscanf(argv[x], "%d", &reduced_height);
-		break;
 	case 'm':
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%lld", (long long int*) &matrix_m);
@@ -420,11 +336,6 @@ for (unsigned int x = 1; x < argc; ++x)
 	case 'n':
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%lld", (long long int*) &matrix_n);
-		break;
-	case 'x':
-		if (++x >= argc) return(1);
-		loadmatrix = true;
-		matrixfile = argv[x];
 		break;
 	case 'v':
 		Config->VerboseTiming = true;
@@ -472,6 +383,106 @@ for (unsigned int x = 1; x < argc; ++x)
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%lf", &Config->GPURatio);
 		fprintf(STD_OUT, "Using GPU Ratio %lf\n", Config->GPURatio);
+		break;
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
+	case '?':
+		PrintUsage();
+		return(1);
+	case 'Q':
+		wait_key = true;
+		break;
+	case '!':
+		mem_page_lock = false;
+		break;
+	case '_':
+		mem_gpu_access = true;
+		break;
+	case ']':
+		if (++x >= argc) return(1);
+		sscanf(argv[x], "%d", &MaxGPUTemperature);
+		break;
+	case '1':
+		transa = true;
+		break;
+	case '2':
+		transb = true;
+		break;
+	case 'L':
+		linpackmemory = true;
+		break;
+	case 'P':
+		if (++x >= argc) return(1);
+		linpackpitch = true;
+		sscanf(argv[x], "%lld", (long long int*) &pitch_c);
+		break;
+	case '-':
+		if (argv[x][2])
+		{
+			fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
+			PrintUsage();
+			return(1);
+		}
+		if (++x >= argc) return(1);
+		Config->AsyncDMA = Config->KeepBuffersMapped = true;
+		matrix_m = matrix_n = 86016;
+		Config->MemPolicy = true;
+		Config->MultiThread = true;
+		Config->UseCPU = false;
+		Config->UseGPU = false;
+		sscanf(argv[x], "%d", &torture);
+		iterations = torture;
+		break;
+	case 'T':
+		mem_huge_table = true;
+		break;
+	case '8':
+		initialrun = false;
+		break;
+	case '7':
+		verifylarge = true;
+		break;
+	case '6':
+		fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (matrix_m = matrix_n = Config->Height * atoi(argv[++x])));
+		break;
+	case '4':
+		matrix_m = atoi(argv[++x]);
+		matrix_m -= matrix_m % Config->Height;
+		fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (matrix_n = matrix_m));
+		break;
+	case '5':
+		quietbench = true;
+		break;
+	case '3':
+		alphaone = true;
+		break;
+	case '#':
+		betazero = true;
+		break;
+	case 'E':
+		if (++x >= argc) return(1);
+		sscanf(argv[x], "%d", &random_seed);
+		break;
+	case 'f':
+		fastinit = true;
+		break;
+	case 'W':
+		if (++x >= argc) return(1);
+		sscanf(argv[x], "%d", &reduced_width);
+		break;
+	case 'H':
+		if (++x >= argc) return(1);
+		sscanf(argv[x], "%d", &reduced_height);
+		break;
+	case 'x':
+		if (++x >= argc) return(1);
+		loadmatrix = true;
+		matrixfile = argv[x];
+		break;
+#endif
+	default:
+		fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
+		PrintUsage();
+		return(1);
 		break;
 	};
 }
