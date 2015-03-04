@@ -598,6 +598,18 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 			break;
 		case 'U':
 			if (x + 1 >= argc) return(1);
+			if (argv[x][2] == 'A')
+			{
+				sscanf(&argv[x++][3], "%d", &gpuid);
+				if ((unsigned) gpuid >= sizeof(Config->AllocMapping) / sizeof(Config->AllocMapping[0]))
+				{
+					fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+					break;
+				}
+				sscanf(argv[x], "%d", &Config->AllocMapping[gpuid]);
+				printf("Allocating memory for GPU %d on core %d\n", gpuid, Config->AllocMapping[gpuid]);
+			}
+			else if (argv[x][2] == 'B')
 			{
 				sscanf(&argv[x++][3], "%d", &gpuid);
 				if ((unsigned) gpuid >= sizeof(Config->DMAMapping) / sizeof(Config->DMAMapping[0]))
