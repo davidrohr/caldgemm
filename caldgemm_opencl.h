@@ -135,7 +135,10 @@ private:
 	cl_kernel (*kernelLibCreate) (cl_context* context, int nDevices, cl_device_id* devices, int kernelType, int k, int betazero);
 	void (*kernelLibQuerySettings) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y, int* min_tile_size, int* min_k);
 	void (*kernelLibTerminate) ();
-
+	size_t (*kernelLibSuggestedMaxHeight) ();
+	size_t (*kernelLibGetAutoHeight) (size_t MaxGpuM, size_t MaxGpuN, int nDevices);
+	void (*kernelLibModHeight) (size_t MOD_OVER, size_t MOD_GPU);
+	
 	cl_event last_device_kernel[max_devices];
 
 public:

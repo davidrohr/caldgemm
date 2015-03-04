@@ -486,13 +486,20 @@ int caldgemm_opencl::ValidateRuntime()
 		kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int, int)) dlsym(kernelLib, "kernelLibCreate");
 		kernelLibQuerySettings = (void (*) (int*, int*, bool*, bool*, bool*, int*, int*, int*, int*)) dlsym(kernelLib, "kernelLibQuerySettings");
 		kernelLibTerminate = (void (*) ()) dlsym(kernelLib, "kernelLibTerminate");
+		kernelLibSuggestedMaxHeight = (size_t (*) ())  dlsym(kernelLib, "suggestedMaxHeight");
+		kernelLibGetAutoHeight = (size_t (*) (size_t, size_t, int))  dlsym(kernelLib, "getAutoHeight");
+		kernelLibModHeight = (void (*) (size_t, size_t))  dlsym(kernelLib, "modHeight");
 #endif
-		if (kernelLibCreate == NULL || kernelLibQuerySettings == NULL || kernelLibTerminate == NULL)
+		if (kernelLibCreate == NULL || kernelLibQuerySettings == NULL || kernelLibTerminate == NULL || kernelLibSuggestedMaxHeight == NULL || kernelLibGetAutoHeight == NULL || kernelLibModHeight == NULL)
 		{
 			fprintf(STD_OUT, "Error getting function pointer from external library (%p %p %p)\n", kernelLibCreate, kernelLibQuerySettings, kernelLibTerminate);
 			return(1);
 		}
 		kernelLibQuerySettings(&KernelSettings.tiling_x, &KernelSettings.tiling_y, &KernelSettings.transposeA, &KernelSettings.transposeB, &KernelSettings.texture_buffers, &KernelSettings.group_size_x, &KernelSettings.group_size_y, &KernelSettings.min_tile_size, &KernelSettings.min_k);
+		if (Config->Height == 0)
+		{
+			Config->Height = kernelLibSuggestedMaxHeight();
+		}
 	}
 	else
 	{
@@ -2293,4 +2300,29 @@ void caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
 		}
 	}
 	caldgemm::FreeMemory(ptr);
+}
+
+int caldgemm_opencl::CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, int nDevices)
+{
+	if (config_backend->kernelLib != NULL)
+	{
+		kernelLibGetAutoHeight(MaxGpuM, MaxGpuN, nDevices);
+		return(1);
+	}
+	else
+	{
+		return{0};
+	}
+}
+int caldgemm_opencl::CaldgemmCustomModHeight(size_t MOD_OVER, size_t MOD_GPU)
+{
+	if (config_backend->kernelLib != NULL)
+	{
+		kernelLibModHeight(MOD_OVER, MOD_GPU);
+		return(1);
+	}
+	else
+	{
+		return(0);
+	}
 }

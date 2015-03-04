@@ -316,6 +316,9 @@ protected:
 	virtual int RunCALDGEMM_Exit();
 	virtual void Preallocate();
 	virtual void PreallocateFree();
+	
+	virtual int CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, int nDevices);
+	virtual int CaldgemmCustomModHeight(size_t MOD_OVER, size_t MOD_GPU);
 
 	virtual int reserve_cpu_cores();
 	

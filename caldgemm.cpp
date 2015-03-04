@@ -532,6 +532,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 #endif
 
 	if (ValidateRuntime()) return(1);
+	if (Config->Height == 0) Config->Height = 4096; //Runtime did not set suggested value, so we use the default
 	if (Config->ImplicitDriverSync == -1) Config->ImplicitDriverSync = 1;
 	buffersSwitchable = (KernelSettings.transposeA ^ KernelSettings.transposeB);
 	if (Config->Debug) fprintf(STD_OUT, "Initializing Backend\n");
@@ -2325,52 +2326,55 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 #ifdef CALDGEMM_CUSTOM_AUTO_HEIGHT
 #include CALDGEMM_CUSTOM_AUTO_HEIGHT
 #else
-		if (ExecLinpack >= 2 && !Config->SmallTiles)
+		if (CaldgemmCustomAutoHeight(MaxGpuM, MaxGpuN, nDevices) == 0)
 		{
-			if (MaxGpuM < 1024 || MaxGpuN < 1024)
+			if (ExecLinpack >= 2 && !Config->SmallTiles)
 			{
-				Config->Height = 512;
-			}
-			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || (MaxGpuM * MaxGpuN < 13 * 14 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 2048 >= 1024) || (MaxGpuM * MaxGpuN < 16 * 1024 * 1024))
-			{
-				Config->Height = 1024;
-			}
-			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || (MaxGpuM * MaxGpuN < 20 * 21 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 3072 >= 2048) || (MaxGpuM * MaxGpuN < 120 * 1024 * 1024))
-			{
-				Config->Height = 2048;
-			}
-			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < 27 * 28 * 1024 * 1024)
-			{
-				Config->Height = 3072;
+				if (MaxGpuM < 1024 || MaxGpuN < 1024)
+				{
+					Config->Height = 512;
+				}
+				else if (MaxGpuM < 2048 || MaxGpuN < 2048 || (MaxGpuM * MaxGpuN < 13 * 14 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 2048 >= 1024) || (MaxGpuM * MaxGpuN < 16 * 1024 * 1024))
+				{
+					Config->Height = 1024;
+				}
+				else if (MaxGpuM < 3072 || MaxGpuN < 3072 || (MaxGpuM * MaxGpuN < 20 * 21 * 1024 * 1024 && mymax(MaxGpuN, MaxGpuM) % 3072 >= 2048) || (MaxGpuM * MaxGpuN < 120 * 1024 * 1024))
+				{
+					Config->Height = 2048;
+				}
+				else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < 27 * 28 * 1024 * 1024)
+				{
+					Config->Height = 3072;
+				}
+				else
+				{
+					Config->Height = 4096;
+				}
 			}
 			else
 			{
-				Config->Height = 4096;
+				if (MaxGpuM < 1024 || MaxGpuN < 1024)
+				{
+					Config->Height = 512;
+				}
+				else if (MaxGpuM < 2048 || MaxGpuN < 2048 || MaxGpuM * MaxGpuN < (size_t) nDevices * 16 * 1024 * 1024)
+				{
+					Config->Height = 1024;
+				}
+				else if (MaxGpuM < 3072 || MaxGpuN < 3072 || MaxGpuM * MaxGpuN < (size_t) nDevices * 120 * 1024 * 1024)
+				{
+					Config->Height = 2048;
+				}
+				else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < (size_t) nDevices * 40 * 40 * 1024 * 1024)
+				{
+					Config->Height = 3072;
+				}
+				else
+				{
+					Config->Height = 4096;
+				}
+				while (Config->SlowCPU && !Config->SmallTiles && Config->Height > 1024 && (MaxGpuM % Config->Height > 1024 || MaxGpuN % Config->Height > 1024)) Config->Height -= 1024;
 			}
-		}
-		else
-		{
-			if (MaxGpuM < 1024 || MaxGpuN < 1024)
-			{
-				Config->Height = 512;
-			}
-			else if (MaxGpuM < 2048 || MaxGpuN < 2048 || MaxGpuM * MaxGpuN < (size_t) nDevices * 16 * 1024 * 1024)
-			{
-				Config->Height = 1024;
-			}
-			else if (MaxGpuM < 3072 || MaxGpuN < 3072 || MaxGpuM * MaxGpuN < (size_t) nDevices * 120 * 1024 * 1024)
-			{
-				Config->Height = 2048;
-			}
-			else if (MaxGpuM < 4096 || MaxGpuN < 4096 || MaxGpuM * MaxGpuN < (size_t) nDevices * 40 * 40 * 1024 * 1024)
-			{
-				Config->Height = 3072;
-			}
-			else
-			{
-				Config->Height = 4096;
-			}
-			while (Config->SlowCPU && !Config->SmallTiles && Config->Height > 1024 && (MaxGpuM % Config->Height > 1024 || MaxGpuN % Config->Height > 1024)) Config->Height -= 1024;
 		}
 #endif
 		if (Config->Height > BufferHeight) Config->Height = BufferHeight;
@@ -2582,27 +2586,31 @@ recalculate_ratio:
 
 			const size_t over_m = gpu_m % Config->Height, over_n = gpu_n % Config->Height;
 			if (over_m < CALDGEMM_MIN_TILE_DIM2) gpu_m -= over_m;
-#ifdef CALDGEMM_CUSTOM_HEIGHT_MOD
 			else
 			{
+#ifdef CALDGEMM_CUSTOM_HEIGHT_MOD
 #define MOD_OVER over_m
 #define MOD_GPU gpu_m
 #include CALDGEMM_CUSTOM_HEIGHT_MOD
 #undef MOD_OVER
 #undef MOD_GPU
-			}
+#else
+			CaldgemmCustomModHeight(over_m, gpu_m);
 #endif
+			}
 			if (over_n < CALDGEMM_MIN_TILE_DIM2) gpu_n -= over_n;
-#ifdef CALDGEMM_CUSTOM_HEIGHT_MOD
 			else
 			{
+#ifdef CALDGEMM_CUSTOM_HEIGHT_MOD
 #define MOD_OVER over_n
 #define MOD_GPU gpu_n
 #include CALDGEMM_CUSTOM_HEIGHT_MOD
 #undef MOD_OVER
 #undef MOD_GPU
-			}
+#else
+				CaldgemmCustomModHeight(over_n, gpu_n);
 #endif
+			}
 
 			cParam.cblas_size = DGEMM_split_m ? (matrix_m - gpu_m) : (matrix_n - gpu_n);
 		}
@@ -3603,6 +3611,10 @@ void caldgemm::SetDefaultKernelSettings()
 	KernelSettings.min_tile_size = CALDGEMM_MIN_TILE_DIM;
 	KernelSettings.min_k = 4;
 }
+
+int caldgemm::CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, int nDevices) {return 0;}
+int caldgemm::CaldgemmCustomModHeight(size_t MOD_OVER, size_t MOD_GPU) {return 0;}
+
 
 #ifndef USE_GOTO_BLAS
 static int caldgemm_restrict_cpus = 0;
