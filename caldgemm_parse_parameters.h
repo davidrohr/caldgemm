@@ -367,10 +367,6 @@ for (unsigned int x = 1; x < argc; ++x)
 			sscanf(argv[x], "%u", &Config->Iterations);
 		}
 		break;
-	case 'R':
-		if (++x >= argc) return(1);
-		sscanf(argv[x], "%u", &iterations);
-		break;
 	case 'y':
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%u", &Config->DeviceNum);
@@ -477,6 +473,10 @@ for (unsigned int x = 1; x < argc; ++x)
 		if (++x >= argc) return(1);
 		loadmatrix = true;
 		matrixfile = argv[x];
+		break;
+	case 'R':
+		if (++x >= argc) return(1);
+		sscanf(argv[x], "%u", &iterations);
 		break;
 #endif
 	default:
