@@ -2311,7 +2311,7 @@ int caldgemm_opencl::CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, in
 	}
 	else
 	{
-		return{0};
+		return(0);
 	}
 }
 int caldgemm_opencl::CaldgemmCustomModHeight(size_t MOD_OVER, size_t MOD_GPU)
