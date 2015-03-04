@@ -483,7 +483,9 @@ for (unsigned int x = 1; x < argc; ++x)
 #endif
 	default:
 		fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 		PrintUsage();
+#endif
 		return(1);
 		break;
 	};
