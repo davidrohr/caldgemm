@@ -189,7 +189,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	max_bbuffers = 0;
 	OpenCLPlatform = 0;
 	Width = 1024;
-	Height = 4096;
+	Height = 0; //Auto Height, Initialize later
 	AutoHeight = true;
 	Iterations = 1;
 	DstMemory = 'c';
