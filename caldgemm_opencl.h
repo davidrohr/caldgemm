@@ -80,6 +80,9 @@ private:
 
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
+	
+	virtual int CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, int nDevices);
+	virtual int CaldgemmCustomModHeight(size_t MOD_OVER, size_t MOD_GPU);
 
 	void SetupSimpleQueue(size_t mb, size_t nb);
 
