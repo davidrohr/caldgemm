@@ -415,7 +415,9 @@ for (unsigned int x = 1; x < argc; ++x)
 		if (argv[x][2])
 		{
 			fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			PrintUsage();
+#endif
 			return(1);
 		}
 		if (++x >= argc) return(1);
