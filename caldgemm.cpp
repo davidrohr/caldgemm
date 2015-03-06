@@ -3620,6 +3620,27 @@ int caldgemm::ParseParameters(unsigned int argc, char** argv)
 #include "caldgemm_parse_parameters.h"
 }
 
+int caldgemm::ParseParameters(char* params)
+{
+		char* tmpParams = new char[strlen(params) + 1]; //This memory will be leaked, in case of string parameters we need to keep a copy, and we do not know how long params will live.
+		strcpy(tmpParams, params);
+		int argc = 1;
+		char** argv = new char*[srlen(params) / 2 + 1];
+		char* tmppos = tmoParams;
+		argv[0] = "caldgemm";
+		while (*tmppos != 0)
+		{
+			while (*tmppos == ' ' || *tmppos == '	') tmppos++;
+			if (*tmppos == 0) break;
+			argv[argc++] = tmppos;
+			while (*tmppos != ' ' && *tmppos != '	') tmppos++;
+			*(tmppos++) = 0;
+		}
+		int retVal = ParseParameters(argc, argv);
+		delete[] argv;
+		return(retVal);
+}
+
 #ifndef USE_GOTO_BLAS
 static int caldgemm_restrict_cpus = 0;
 static int current_num_threads = get_num_procs();

@@ -220,6 +220,7 @@ public:
 	virtual int RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo, const CBLAS_TRANSPOSE TransA, const CBLAS_DIAG Diag, const size_t M, const size_t N, const double alpha, const double *A, const size_t lda, double *B, const size_t ldb);
 	void SetNumberDevices(int n);
 	int ParseParameters(unsigned int argc, char** argv);
+	int ParseParameters(char* params);
 	
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
