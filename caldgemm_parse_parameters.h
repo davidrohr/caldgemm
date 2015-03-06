@@ -489,5 +489,4 @@ for (unsigned int x = 1; x < argc; ++x)
 		return(1);
 		break;
 	};
-	return(0);
 }
