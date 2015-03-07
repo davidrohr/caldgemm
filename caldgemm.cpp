@@ -2502,7 +2502,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 					else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
 					if (GPURatio > 1.0) GPURatio = 1.0;
 				}
-				if (linpack_last_mn[ExecLinpack] > 0 && (((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackGPURatios[ExecLinpack] > 0.0001)
+				if (linpack_last_mn[ExecLinpack] > 0 && fabs(((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackGPURatios[ExecLinpack] > 0.0001)
 				{
 					GPURatio = linpackGPURatios[ExecLinpack];
 					if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3f\n", ExecLinpack, 100 * GPURatio);
