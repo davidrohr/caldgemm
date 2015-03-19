@@ -3623,6 +3623,7 @@ int caldgemm::ParseParameters(unsigned int argc, char** argv)
 
 int caldgemm::ParseParameters(char* params)
 {
+fprintf(stderr, "Parsing: %s\n", params);
 	char* tmpParams = new char[strlen(params) + 1]; //This memory will be leaked, in case of string parameters we need to keep a copy, and we do not know how long params will live.
 	strcpy(tmpParams, params);
 	int argc = 1;
@@ -3634,7 +3635,7 @@ int caldgemm::ParseParameters(char* params)
 		while (*tmppos == ' ' || *tmppos == '	') tmppos++;
 		if (*tmppos == 0) break;
 		argv[argc++] = tmppos;
-		while (*tmppos != ' ' && *tmppos != '	') tmppos++;
+		while (*tmppos != ' ' && *tmppos != '	' && *tmppos != 0) tmppos++;
 		*(tmppos++) = 0;
 	}
 	int retVal = ParseParameters(argc, argv);
