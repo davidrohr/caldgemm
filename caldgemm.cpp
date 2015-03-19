@@ -3615,19 +3615,19 @@ void caldgemm::SetDefaultKernelSettings()
 int caldgemm::CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, int nDevices) {return 0;}
 int caldgemm::CaldgemmCustomModHeight(size_t MOD_OVER, size_t MOD_GPU) {return 0;}
 
-int caldgemm::ParseParameters(unsigned int argc, char** argv)
+int caldgemm::ParseParameters(unsigned int argc, char** argv, caldgemm_config* Config)
 {
 #include "caldgemm_parse_parameters.h"
 	return(0);
 }
 
-int caldgemm::ParseParameters(char* params)
+int caldgemm::ParseParameters(char* params, caldgemm_config* Config)
 {
 fprintf(stderr, "Parsing: %s\n", params);
 	char* tmpParams = new char[strlen(params) + 1]; //This memory will be leaked, in case of string parameters we need to keep a copy, and we do not know how long params will live.
 	strcpy(tmpParams, params);
 	int argc = 1;
-	char** argv = new char*[strlen(params) / 2 + 1];
+	char** argv = new char*[strlen(params) / 2 + 3];
 	char* tmppos = tmpParams;
 	argv[0] = "caldgemm";
 	while (*tmppos != 0)
@@ -3638,7 +3638,8 @@ fprintf(stderr, "Parsing: %s\n", params);
 		while (*tmppos != ' ' && *tmppos != '	' && *tmppos != 0) tmppos++;
 		*(tmppos++) = 0;
 	}
-	int retVal = ParseParameters(argc, argv);
+	argv[argc] = NULL;
+	int retVal = ParseParameters(argc, argv, Config);
 	delete[] argv;
 	return(retVal);
 }
