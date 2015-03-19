@@ -414,7 +414,7 @@ for (unsigned int x = 1; x < argc; ++x)
 	case '-':
 		if (argv[x][2])
 		{
-			fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
+			fprintf(STD_OUT, "Invalid parameter: '%s'\n", argv[x]);
 #ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			PrintUsage();
 #endif
@@ -482,7 +482,7 @@ for (unsigned int x = 1; x < argc; ++x)
 		break;
 #endif
 	default:
-		fprintf(STD_OUT, "Invalid parameter: %s\n", argv[x]);
+		fprintf(STD_OUT, "Invalid parameter: '%s'\n", argv[x]);
 #ifdef CALDGEMM_PARAMETERS_BENCHMARK
 		PrintUsage();
 #endif

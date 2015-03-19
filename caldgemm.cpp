@@ -2521,7 +2521,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 				double threshold = (ExecLinpack > 1 && Config->GPURatioDuringFact > 0.) ? Config->GPURatioDuringFact : -Config->GPURatio;
 				if (GPURatio < threshold) GPURatio = threshold;
 			}
-			if (Config->AlternateLookahead > matrix_n) GPURatio = 1. - (1. - GPURatio) * 0.88;
+			//if (Config->AlternateLookahead > matrix_n) GPURatio = 1. - (1. - GPURatio) * 0.88;
 		}
 
 		gpu_ratio_used = GPURatio;
@@ -3623,7 +3623,7 @@ int caldgemm::ParseParameters(unsigned int argc, char** argv, caldgemm_config* C
 
 int caldgemm::ParseParameters(char* params, caldgemm_config* Config)
 {
-fprintf(stderr, "Parsing: %s\n", params);
+	fprintf(stderr, "Parsing CALDGEMM Parameters: '%s'\n", params);
 	char* tmpParams = new char[strlen(params) + 1]; //This memory will be leaked, in case of string parameters we need to keep a copy, and we do not know how long params will live.
 	strcpy(tmpParams, params);
 	int argc = 1;
@@ -3636,7 +3636,7 @@ fprintf(stderr, "Parsing: %s\n", params);
 		if (*tmppos == 0) break;
 		argv[argc++] = tmppos;
 		while (*tmppos != ' ' && *tmppos != '	' && *tmppos != 0) tmppos++;
-		*(tmppos++) = 0;
+		if (*tmppos) *(tmppos++) = 0;
 	}
 	argv[argc] = NULL;
 	int retVal = ParseParameters(argc, argv, Config);
