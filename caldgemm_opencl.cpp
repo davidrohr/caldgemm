@@ -410,6 +410,7 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 		ocl_command_queue_cpu = clCreateCommandQueue(ocl_context, ocl_devices[nDevices], 0, &ocl_error);
 		CHKRET(ocl_error, "Error creating OpenCL CPU command queue");
 	}
+	AlternateLookaheadDoneMutex.Lock();
 
 	return(0);
 }
@@ -1066,6 +1067,7 @@ int caldgemm_opencl::ExitRuntime()
 	}
 
 	clReleaseContext(ocl_context);
+	AlternateLookaheadDoneMutex.Unlock();
 
 	return(0);
 }
@@ -2039,6 +2041,7 @@ void caldgemm_opencl::CheckAlternateTilesRemainingSimpleQuieing()
 			clReleaseEvent(AlternateLookaheadTilesRemaining_events[i]);
 		}
 	}
+	AlternateLookaheadDoneMutex.Unlock();
 }
 
 void caldgemm_opencl::Preallocate()
@@ -2125,6 +2128,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 
 int caldgemm_opencl::RunCALDGEMM_Exit()
 {
+	if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && Config->SimpleGPUQueuing && Config->UseCPU) AlternateLookaheadDoneMutex.Lock();
 	if (Config->SimpleGPUQueuing)
 	{
 		for (int i = 0;i < nDevices;i++)

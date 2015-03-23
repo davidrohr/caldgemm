@@ -117,6 +117,7 @@ private:
 	
 	cl_event* AlternateLookaheadTilesRemaining_events;
 	virtual void CheckAlternateTilesRemainingSimpleQuieing();
+	qSem AlternateLookaheadDoneMutex;
 
 	double* ocl_tmp_abuffers_ptr[max_devices][ibuffercount];
 	double* ocl_tmp_bbuffers_ptr[max_devices][ibuffercount];
