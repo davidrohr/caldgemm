@@ -128,6 +128,12 @@ public:
 		unsigned int GroupParallelDMA;			//Use in combination with ParallelDMA. Group devices with identical AllocMapping setting to one thread, at least one paralleDMA thread with that DMAMapping must exist. Activated if n < setting., make sure to have a preprocessing thread set to each CPU core used for this feature, the thread won't be used but it will ensure correct core pinning. -1 for always Grouped parallel DMA.
 		double GPURatio;						//Fraction of the matrix processed by GPU
 		double GPURatioDuringFact;				//Use modified GPU Ratio during factorization, works currently only with negative GPURatio
+		double GPURatioMax;					//Max GPU ratio to use, if autocalculation exceeds this value, it is capped. This ensures the CPU always gets a certain part. (For the auto ratio calculation, the CPU needs a small part)
+		double GPURatioMarginTime;				//Time margin used in auto calculation to ensure GPU time exceeds CPU time
+		double GPURatioMarginTimeDuringFact;			//Same as bove dbut when Linpack Factorization is active
+		double GPURatioLookaheadSizeMod;			//Incrase the virtual size of the lookahead part of the CPU DGEMM by this factor, as it is usually not running as efficiently as full dgemm. Only relevant with alternate lookahead disabled.
+		int GPURatioPenalties;					//Apply penalties to the CPU part (0 disable, 1 apply penalty when CPU took to long, 2 apply penalty as well when CPU time is short in general)
+		double GPURatioPenaltyFactor;				//Factor to apply
 		unsigned int MinimizeCPUPart;			//Set GPURatio to 1.0 as soon as matrix n dimension is below this value
 		int MinimizeCPUDuringFact;				//Always minimize CPU part during factorization
 		bool UseCPU;							//use CPU for DGEMM
@@ -221,6 +227,7 @@ public:
 	void SetNumberDevices(int n);
 	int ParseParameters(unsigned int argc, char** argv, caldgemm_config* Config);
 	int ParseParameters(char* params, caldgemm_config* Config);
+	void ResetRatios();
 	
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);

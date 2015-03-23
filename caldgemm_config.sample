@@ -77,6 +77,7 @@
 #define _NO_ADL									//Do not use ADL library to read GPU temps
 //#define _NO_AFFINITY							//Disable affinity setting
 //#define USE_OLD_HUGE_MALLOC					//Use old method to allocate huge tables
+//#define VTRACE
 
 #define CALDGEMM_USE_VEC_MEMCPY_PREFETCH		//Use prefetching in Divide / Merge Buffer
 #define CALDGEMM_STREAMING_STORES_DIVIDE		//Use streaming stores in Divide Buffer
@@ -97,10 +98,6 @@
 //#define CALDGEMM_QUERY_ALL_EVENTS				//Query for all events, not only the last one in a queue
 //#define CALDGEMM_USE_CAL_WAIT_FOR_EVENTS		//Use different method for queriying CAL events
 //#define CALDGEMM_USE_CAL_WAIT_FOR_EVENTS_NO_POLL	//Do not use active wait to reduce CPU utilization
-
-//#define CALDGEMM_MAX_GPU_RATIO 0.99			//Max GPU ratio, ensures CPU always gets a small part. This small part is required to calculate the size of the next CPU part based on GPU and CPU performance
-#define CALDGEMM_LOOKAHEAD_RATIO_MODIFIER 0.2	//Decrease CPU Part of matrix when using lookahead to compensate for performance fluctuations
-//#define VTRACE
 
 //Settings for integrated OpenCL kernels, 3rd party kernels from -Ol library must override this
 #define OCL_TILING_X 4

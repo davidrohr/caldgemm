@@ -114,9 +114,8 @@ caldgemm::caldgemm_config_backend* caldgemm::create_caldgemm_config_backend()
 
 caldgemm::caldgemm_config_backend::~caldgemm_config_backend() {}
 
-caldgemm::caldgemm()
+void caldgemm::ResetRatios()
 {
-	caldgemm_initialized = false;
 	for (int i = 0;i < caldgemm::max_linpack_callback_types;i++)
 	{
 		linpack_last_mn[i] = -1.;
@@ -124,7 +123,13 @@ caldgemm::caldgemm()
 		linpackBcastTime[i] = 0;
 		linpackCPUDGEMMTime[i] = 0;
 	}
+}
 
+caldgemm::caldgemm()
+{
+	caldgemm_initialized = false;
+	ResetRatios();
+	
 	avggflops = 0;
 	avgngflops = 0;
 	
@@ -205,6 +210,12 @@ caldgemm::caldgemm_config::caldgemm_config()
 	UseCPU = true;
 	GPURatio = -1.0;
 	GPURatioDuringFact = 0.0;
+	GPURatioMax = 1.0;
+	GPURatioMarginTime = 0.0;
+	GPURatioMarginTimeDuringFact = 0.3;
+	GPURatioLookaheadSizeMod = 0.2;
+	GPURatioPenalties = 1;
+	GPURatioPenaltyFactor = 0.9;
 	DynamicSched = true;
 	ThirdPhaseDynamicRuns = true;
 	SecondPhaseDynamicRuns = true;
@@ -2462,7 +2473,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 		}
 		else
 		{
-			if (Config->GPURatio <= -0.999)
+			if (Config->GPURatio <= -0.999) //Auto determination (code must be adapted for each CPU / GPU config)
 			{
 				//Optimal ratio found using combined runs
 				if ((long long int) MaxGpuM * (long long int) MaxGpuN > (long long int) 5000000000) GPURatio = 0.75;
@@ -2496,26 +2507,24 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 			if (ExecLinpack && (Config->GPURatio < 0 || GPURatio < 0.99) && !Config->SlowCPU)
 			{
-				if (Config->GPURatio <= -0.99)
+				if (Config->GPURatio <= -0.99) //Auto determination
 				{
 					if (ExecLinpack > 1) GPURatio = 1.0 - (1.0 - GPURatio) * 0.80 * Config->Width / 1024;
 					else GPURatio = 1.0 - (1.0 - GPURatio) * 0.90;
 					if (GPURatio > 1.0) GPURatio = 1.0;
 				}
-				if (linpack_last_mn[ExecLinpack] > 0 && fabs(((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackGPURatios[ExecLinpack] > 0.0001)
+				if (linpack_last_mn[ExecLinpack] > 0 && (((double) MaxGpuM * (double) MaxGpuN) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackGPURatios[ExecLinpack] > 0.0001)
 				{
 					GPURatio = linpackGPURatios[ExecLinpack];
-					if (Config->Debug) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3f\n", ExecLinpack, 100 * GPURatio);
+					if (Config->Debug||1) fprintf(STD_OUT, "Taking GPU Ratio from table, entry %d, val %2.3f\n", ExecLinpack, 100 * GPURatio);
 				}
 				else
 				{
 					linpackGPURatios[ExecLinpack] = GPURatio;
-					if (Config->Debug) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3f\n", ExecLinpack, 100 * GPURatio);
+					if (Config->Debug||1) fprintf(STD_OUT, "Initializing ratio table entry %d with %2.3f\n", ExecLinpack, 100 * GPURatio);
 				}
 			}
-#ifdef CALDGEMM_MAX_GPU_RATIO
-			if (GPURatio > CALDGEMM_MAX_GPU_RATIO) GPURatio = CALDGEMM_MAX_GPU_RATIO;
-#endif
+			if (Config->GPURatioMax > 0 && GPURatio > Config->GPURatioMax) GPURatio = Config->GPURatioMax;;
 			if (Config->GPURatio < 0 && Config->GPURatio > -0.99)
 			{
 				double threshold = (ExecLinpack > 1 && Config->GPURatioDuringFact > 0.) ? Config->GPURatioDuringFact : -Config->GPURatio;
@@ -2544,7 +2553,7 @@ recalculate_ratio:
 			if ((DGEMM_split_m = ((Config->LinpackSwapN == NULL && (ExecLinpack == 0 || Config->AlternateLookahead <= matrix_n)) ? (matrix_m >= matrix_n) : 1)))
 			{
 				size_t virtualm = matrix_m + (matrix_n % SmallTileHeight) * matrix_m / matrix_n;
-				if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n) virtualm += Config->Width * (CALDGEMM_LOOKAHEAD_RATIO_MODIFIER + (float) matrix_m / matrix_n);
+				if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n) virtualm += Config->Width * (Config->GPURatioLookaheadSizeMod + (float) matrix_m / matrix_n);
 				gpu_m = GPURatio * (float) virtualm + (SmallTileHeight - 1);
 				if (gpu_m > matrix_m)
 				{
@@ -2565,7 +2574,7 @@ recalculate_ratio:
 			else
 			{
 				size_t virtualn = matrix_n + (matrix_m % SmallTileHeight) * matrix_n / matrix_m;
-				if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n) virtualn += Config->Width * (CALDGEMM_LOOKAHEAD_RATIO_MODIFIER + (float) matrix_n / matrix_m);
+				if (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n) virtualn += Config->Width * (Config->GPURatioLookaheadSizeMod + (float) matrix_n / matrix_m);
 				gpu_n = GPURatio * (float) virtualn + (SmallTileHeight - 1);
 				if (gpu_n > matrix_n)
 				{
@@ -2862,13 +2871,23 @@ recalculate_ratio:
 
 	if (ExecLinpack)
 	{
-		if (Timers.CPUTimer.GetElapsedTime() < 2.0)
+		if (Config->GPURatioPenalties >= 2)
 		{
-		    gpu_ratio_used = 1 - 0.8 * (1 - gpu_ratio_used);
+			if (Timers.CPUTimer.GetElapsedTime() < 2.0)
+			{
+				gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - gpu_ratio_used);
+			}
+			if (ExecLinpack >= 2 && Timers.GPUTimer.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() < 1.0)
+			{
+				gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - gpu_ratio_used);
+			}
 		}
-		if (ExecLinpack >= 2 && Timers.GPUTimer.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() < 1.0)
+		if (Config->GPURatioPenalties >= 1)
 		{
-		    gpu_ratio_used = 1 - 0.8 * (1 - gpu_ratio_used);
+			if (cpu_wait_time >= 0.05)
+			{
+				gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - gpu_ratio_used);
+			}
 		}
 		const double tmpratio = cpu_wait_time > 0.15 ? 0.0 : 0.5;
 		const double newratio = tmpratio * linpackGPURatios[ExecLinpack] + (1.0 - tmpratio) * gpu_ratio_used;
@@ -3255,7 +3274,10 @@ void caldgemm::displayMatrixTiming(const char* name)
 			fprintf(STD_OUT, "%sThrottling: %s (%2.3f GFlops)\n", Config->PreOut, hostname, flopsg);
 		}
 
-		const double gpu_ratio_used_new = flopsg / (flopsc * (Timers.System.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() - (ExecLinpack > 1 ? 0.4 : 0.0) - Timers.LinpackTimer3.GetElapsedTime()) / Timers.System.GetElapsedTime() + flopsg);
+		//const double gpu_ratio_used_new = std::min(1.0, flopsg / (flopsc * (Timers.System.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() - (ExecLinpack > 1 ? Config->GPURatioMarginTimeDuringFact : Config->GPURatioMarginTime) - Timers.LinpackTimer3.GetElapsedTime()) / Timers.System.GetElapsedTime() + flopsg));
+		double gpu_ratio_used_new = std::min(1.0, flopsg / (flopsc * (Timers.CPUTimer.GetElapsedTime() - (ExecLinpack > 1 ? Config->GPURatioMarginTimeDuringFact : Config->GPURatioMarginTime)) / Timers.TotalCPUTimer.GetElapsedTime() + flopsg));
+		if (gpu_ratio_used_new < 0) gpu_ratio_used = 1.;
+		
 		if (!Config->Quiet || (Config->DisplayTiming /*&& matrix_m * matrix_n >= 16 * 24 * 1024 * 1024*/))
 		{
 			char timingoutputbase[1024];
@@ -3264,7 +3286,7 @@ void caldgemm::displayMatrixTiming(const char* name)
 			if (ExecLinpack) timingoutput += sprintf(timingoutput, "   Linpack Time: %2.4f (%d, %2.4f, %2.4f)  Total CPU Time: %2.4f", Timers.LinpackTimer1.GetElapsedTime(), ExecLinpack, Timers.LinpackTimer2.GetElapsedTime(), Timers.LinpackTimer3.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime());
 			if (Config->TabularTiming)
 			{
-				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.3f Corrected: %2.3f Guessed: %2.3f , m*n: %.1E, CPU Wait Time: %2.3f", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, gpu_ratio_used, (double) (matrix_m * matrix_n), cpu_wait_time);
+				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.3f Corrected: %2.3f Guessed: %2.3f , m*n: %.1E, CPU Wait Time: %2.3f", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, gpu_ratio_used, (double) (matrix_m * matrix_n), cpu_wait_time > 0.001 ? cpu_wait_time : (Timers.TotalCPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()));
 			}
 			sprintf(timingoutput, "\n");
 			fwrite(timingoutputbase, 1, strlen(timingoutputbase), STD_OUT);

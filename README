@@ -177,7 +177,48 @@ constantly, which is not true for standard random numbers.
 Ratio of GPU performance to total CPU+GPU performance. Set to -1 for autodetection. This defines
 how the matrix is split between CPU and GPU. The GPU will process a fraction of j. For DGEMM only,
 this should be the GPU_Perf/(CPU_Perf + GPU_Perf). When used within HPL-GPU, keep in mind that the
-CPU will have to perform other tasks as well, so j should be larger then.
+CPU will have to perform other tasks as well, so j should be larger then. The -1 autodetection is
+usually missing a good initial guess for the first run, i.e. it will find a good value over time but
+at the beginning it can be far of. You can use a negative value to define an initial guess, i.e.
+-j -0.7 will start with a ratio of 0.7 and then refine this automatically.
+
+-jf <dbl> (default: disabled) (HPL-GPU Setting for Multi-Node runs)
+If greater zero, this defines a minimum gpu ratio that is used during factorization phases of linpaxk.
+In these phases, the factorization causes significant cpu load. The ratio should thus be higher than
+in non-factorization phases. In that case -jf defines a lower limit to support the autocalculation.
+
+-jm <dbl> (default: disabled)
+If greater zero, this defines a maximum gpu ratio. This ensures the CPU always gets a certain part of
+the matrix. This is particularly usefull in combination with automatic ratio calulation. Autocalculation
+works only if the CPU has a certain part. Without -jm, as soon as the CPU part became 0 once, it will
+usually remain zero and never recover. In that case, you can use -jm 0.99.
+
+-jt <bdbl> (default: 0)
+The automatic ratio calculation tries to match gpu and cpu execution time to ensure 100% execution of
+both processors. Performance is deterioted more, if the GPU idles, hence it is generally a good idea
+to aim for slightly longer gpu execution time than cpu execution time, to compensate for small
+variations. This margin parameter defines a margin in seconds, which defines how much GPU time should
+exceed CPU time.
+
+-js <dbl> (default: 0.4) (HPL-GPU Setting)
+In linpack factorization phases, execution time variations can be larger. This setting overrides the
+-jt setting in this case.
+
+-jl <dbl> (default: 0.2) (HPL-GPU Setting)
+With the standard (non-alternate) lookahead, the CPU has to process a small non-quadratic matrix-part
+in the preparatory phase of lookahead. DGEMM on this part is usually slower than the full DGEMM. This
+parameter defines an extra factor that virtually increases the lookahead part in the CPU / GP
+distribution calculation, to account for reduces CPU performance. (a setting of zero means no
+compensation.)
+
+-jp <int> (default: 1)
+Apply ratio penalties to CPU part in some situations to ensure GPU keeps the dominant processor. A
+setting of 0 disables penalties. Setting of 1 applies a penalty if the CPU took longer than the GPU in
+the last iteration. A setting of two applies a penalty in addition when the CPU part in the last
+iteration was short, because in that case CPU performance may fluctuate and is not that important.
+
+-jq <dbl> (default: 0.9)
+Penalty factor to apply to CPU part.
 
 -s (default: disabled)
 Dynamic CPU / GPU scheduling. Do not use only the fixed ratio specified by -j but use a dynamic CPU/GPU

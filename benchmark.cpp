@@ -125,6 +125,13 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-g        Use GPU\n");
 	fprintf(STD_OUT, "\t-f        Fast Init (Empty Matrices)\n");
 	fprintf(STD_OUT, "\t-j  <dbl> GPU to CPU ratio\n");
+	fprintf(STD_OUT, "\t-jf <dbl> GPU to CPU ratio during factorization\n");
+	fprintf(STD_OUT, "\t-jm <dbl> Max GPU to CPU ratio during autocalculation\n");
+	fprintf(STD_OUT, "\t-jt <dbl> Margin time during auto calculation\n");
+	fprintf(STD_OUT, "\t-js <dbl> Margin time during factorization\n");
+	fprintf(STD_OUT, "\t-jl <dbl> Lookahead size modifier in ratio calculation\n");
+	fprintf(STD_OUT, "\t-jp <int> Lookahead penalties\n");
+	fprintf(STD_OUT, "\t-jq <dbl> Lookahead penalty factor\n");
 	fprintf(STD_OUT, "\t-s        Dynamic CPU GPU scheduling\n");
 	fprintf(STD_OUT, "\t-M        Disable third phase in dynamic scheduling\n");
 	fprintf(STD_OUT, "\t-N        Disable second phase in dynamic scheduling\n");

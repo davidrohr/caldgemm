@@ -377,8 +377,18 @@ for (unsigned int x = 1; x < argc; ++x)
 		break;
 	case 'j':
 		if (++x >= argc) return(1);
-		sscanf(argv[x], "%lf", &Config->GPURatio);
-		fprintf(STD_OUT, "Using GPU Ratio %lf\n", Config->GPURatio);
+		if (argv[x][2] == 'f') sscanf(argv[x], "%lf", &Config->GPURatioDuringFact);
+		else if (argv[x][2] == 'm') sscanf(argv[x], "%lf", &Config->GPURatioMax);
+		else if (argv[x][2] == 't') sscanf(argv[x], "%lf", &Config->GPURatioMarginTime);
+		else if (argv[x][2] == 's') sscanf(argv[x], "%lf", &Config->GPURatioMarginTimeDuringFact);
+		else if (argv[x][2] == 'l') sscanf(argv[x], "%lf", &Config->GPURatioLookaheadSizeMod);
+		else if (argv[x][2] == 'p') sscanf(argv[x], "%d", &Config->GPURatioPenalties);
+		else if (argv[x][2] == 'q') sscanf(argv[x], "%lf", &Config->GPURatioPenaltyFactor);
+		else
+		{
+			sscanf(argv[x], "%lf", &Config->GPURatio);
+			fprintf(STD_OUT, "Using GPU Ratio %lf\n", Config->GPURatio);
+		}
 		break;
 #ifdef CALDGEMM_PARAMETERS_BENCHMARK
 	case '?':
