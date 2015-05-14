@@ -274,12 +274,13 @@ caldgemm::caldgemm_config_backend* caldgemm_opencl::create_caldgemm_config_backe
 
 caldgemm_opencl::caldgemm_config_backend_opencl::~caldgemm_config_backend_opencl() {}
 
-caldgemm_opencl::caldgemm_config_backend_opencl::virtual int ParseBackendOptions(int argc, char** argv)
+int caldgemm_opencl::caldgemm_config_backend_opencl::ParseBackendOptions(unsigned int argc, char** argv)
 {
 	caldgemm::caldgemm_config* Config = NULL; //Should never be accessed if caldgemm_parse_parameterts.h is correct
 #define CALDGEMM_PARAMETERS_BACKEND
 #include "caldgemm_parse_parameters.h"
 #undef CALDGEMM_PARAMETERS_BACKEND
+	return(0);
 }
 
 int caldgemm_opencl::WaitForEventAndRelease(cl_event* pEvent, int lock)

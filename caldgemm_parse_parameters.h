@@ -213,8 +213,8 @@ for (unsigned int x = 1; x < argc; ++x)
 			kernelLib = argv[x];
 #else
 			if (x + 1>= argc) return(1);
+			Config->AddBackendArgv(argv[x++]);
 			Config->AddBackendArgv(argv[x]);
-			Config->AddBackendArgv(argv[x + 1]);
 #endif
 		}
 		else if (argv[x][2] == 'e')
@@ -341,14 +341,6 @@ for (unsigned int x = 1; x < argc; ++x)
 	case 'h':
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%lld", (long long int*) &Config->Height);
-		break;
-	case 'm':
-		if (++x >= argc) return(1);
-		sscanf(argv[x], "%lld", (long long int*) &matrix_m);
-		break;
-	case 'n':
-		if (++x >= argc) return(1);
-		sscanf(argv[x], "%lld", (long long int*) &matrix_n);
 		break;
 	case 'v':
 		Config->VerboseTiming = true;
@@ -504,6 +496,15 @@ for (unsigned int x = 1; x < argc; ++x)
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%u", &iterations);
 		break;
+	case 'm':
+		if (++x >= argc) return(1);
+		sscanf(argv[x], "%lld", (long long int*) &matrix_m);
+		break;
+	case 'n':
+		if (++x >= argc) return(1);
+		sscanf(argv[x], "%lld", (long long int*) &matrix_n);
+		break;
+
 #endif
 	default:
 		fprintf(STD_OUT, "Invalid parameter: '%s'\n", argv[x]);

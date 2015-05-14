@@ -97,7 +97,7 @@ public:
 		size_t size;
 		caldgemm_config_backend() {size = sizeof(*this);}
 		virtual ~caldgemm_config_backend();
-		virtual int ParseBackendOptions(int argc, char** argv);
+		virtual int ParseBackendOptions(unsigned int argc, char** argv);
 	};
 
 	class caldgemm_config						//Run Parameters

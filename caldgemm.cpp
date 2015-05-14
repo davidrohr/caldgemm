@@ -112,7 +112,7 @@ caldgemm::caldgemm_config_backend* caldgemm::create_caldgemm_config_backend()
 
 caldgemm::caldgemm_config_backend::~caldgemm_config_backend() {}
 
-caldgemm::caldgemm_config_backend::virtual int ParseBackendOptions(int argc, char** argv)
+int caldgemm::caldgemm_config_backend::ParseBackendOptions(unsigned int argc, char** argv)
 {
 	if (argc > 1)
 	{
@@ -304,7 +304,7 @@ void caldgemm::caldgemm_config::AddBackendArgv(char* option)
 	argv_backend[argc_backend] = NULL;
 }
 
-void void caldgemm::caldgemm_config::InitializeBackendOptions()
+void caldgemm::caldgemm_config::InitializeBackendOptions()
 {
 	config_backend->ParseBackendOptions(argc_backend, argv_backend);
 	free(argv_backend);
