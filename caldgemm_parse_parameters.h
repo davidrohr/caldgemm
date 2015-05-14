@@ -49,7 +49,7 @@ for (unsigned int x = 1; x < argc; ++x)
 		int a = strlen(ptr);
 		for (int i = 0;i <= a;i++)
 		{
-			if (ptr[i] == ',' || ptr[i] == 0)
+			if (ptr[i] == ',' || ptr[i] == ';' || ptr[i] == 0)
 			{
 				if (i > j)
 				{
@@ -74,7 +74,7 @@ for (unsigned int x = 1; x < argc; ++x)
 		int devnum = 0;
 		for (int i = 0;i <= a;i++)
 		{
-			if (ptr[i] == ',' || ptr[i] == 0)
+			if (ptr[i] == ',' || ptr[i] == ';' || ptr[i] == 0)
 			{
 				if (i > j)
 				{
@@ -141,6 +141,11 @@ for (unsigned int x = 1; x < argc; ++x)
 		{
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", &Config->AlternateLookahead);
+		}
+		else if (argc[x][2] == 'm')
+		{
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->MinimizeCPUPart);
 		}
 		else
 		{
@@ -224,6 +229,10 @@ for (unsigned int x = 1; x < argc; ++x)
 		else if (argv[x][2] == 'a')
 		{
 			Config->AsyncSideQueue = true;
+		}
+		else if (argv[x][2] == 'd')
+		{
+			Config->AsyncDTRSM = true;
 		}
 		else if (argv[x][2] == 'q')
 		{

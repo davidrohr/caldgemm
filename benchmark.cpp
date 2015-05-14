@@ -150,7 +150,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-A        Do the DMA transfer to GPU asynchronously\n");
 	fprintf(STD_OUT, "\t-L        Memory Organisation like in HPL (LINPACK)\n");
 	fprintf(STD_OUT, "\t-C        Call fake LINPACK callback functions\n");
-	fprintf(STD_OUT, "\t-Ca <int> Set alternate lookahead threshold\n");
+	fprintf(STD_OUT, "\t-Ca <int> Linpack Option: Set alternate lookahead threshold\n");
+	fprintf(STD_OUT, "\t-Cm <int> Linpack Option: Minimize CPU part as soon as matrix size below threshold\n");
 	fprintf(STD_OUT, "\t-P  <int> LDA=LDB=LDC = val for HPL like memory\n");
 	fprintf(STD_OUT, "\t-T        Allocate Memory using Huge Tables\n");
 	fprintf(STD_OUT, "\t-B        Keep DMA Buffers mapped during kernel execution\n");
@@ -176,6 +177,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Oq       Use simple GPU Queuing\n");
 	fprintf(STD_OUT, "\t-Op <int> Preallocate buffers for at max <int> blocks (nb/mb)\n");
 	fprintf(STD_OUT, "\t-Oa       Create async side queues and use such a queue to test a single-tile dgemm\n");
+	fprintf(STD_OUT, "\t-Od       Use async side queue to offload DTRSM as well\n");
 	fprintf(STD_OUT, "\t-Ox       Do not put the CPU in the OpenCL context\n");
 	fprintf(STD_OUT, "\t-Ot       Use 3rdPartyTranspose kernel\n");
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n");
