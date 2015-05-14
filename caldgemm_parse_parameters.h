@@ -296,8 +296,16 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		break;
 	case 'K':
-		if (++x >= argc) return(1);
-		sscanf(argv[x], "%d", &Config->PinMainThread);
+		if (argv[x][2] == 'b')
+		{
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->PinBroadcastThread);
+		}
+		else
+		{
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->PinMainThread);
+		}
 		break;
 	case 'G':
 		if (x + 1 >= argc) return(1);

@@ -160,7 +160,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n");
 	fprintf(STD_OUT, "\t-ts       Show thread pinning\n");
 	fprintf(STD_OUT, "\t-tr <int> Pin device runtime threads to code <int>, set -1 for all cores");
-	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread for DMA handling to core n\n");
+	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread to core n\n");
+	fprintf(STD_OUT, "\t-Kb <int> Pin Broadcast thread to core n\n");
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n");
 	fprintf(STD_OUT, "\t-Ux <int> Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping\n");
 	fprintf(STD_OUT, "\t-UAx <int>Allocate memory for GPU x for die <int>, -1 = default mapping\n");
