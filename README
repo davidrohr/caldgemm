@@ -460,9 +460,9 @@ Skip CPU Pre- and Postprocessing. Leads to incorrect results.
 For internal testing only
 
 -@ <list> (default: disabled)
-Comma separated list of CPU cores to exclude. This is usefull if you run something in parallel to CALDGEMM.
-Or if you have a bulldozer or HyperThreading GPU and you want to disable all even or all odd numbered cores.
-In general, it is a good idea to disable HyperThreading for CALDGEMM.
+Comma or Semicolon separated list of CPU cores to exclude. This is usefull if you run something in parallel
+to CALDGEMM. Or if you have a bulldozer or HyperThreading GPU and you want to disable all even or all
+odd numbered cores. In general, it is a good idea to disable HyperThreading for CALDGEMM.
 
 -. (default: disabled) (CAL Runtime only)
 Repin Main Thread During Active Wait for GPU Event. This is a workaround required for the CAL Runtime on
@@ -479,7 +479,7 @@ Enable NUMA Pinning. This tries to distribute all employed CPU threads evenly am
 effect, does not always work, but has practically never a negative effect.
 
 -/ <list> (default: disabled)
-Comma separated list of GPU devices to use (replaces -y for multiple devices)
+Comma or Semicolon separated list of GPU devices to use (replaces -y for multiple devices)
 Usually, -Y 3 will use GPU devices 0, 1, and 2, while -y 3 will use only GPU device 3.
 This gives more fine-grained control on which GPU devices to use. On NUMA systems, it can be beneficial to
 interleave devices on different NUMA nodes.

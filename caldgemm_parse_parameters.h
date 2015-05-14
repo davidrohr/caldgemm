@@ -142,7 +142,7 @@ for (unsigned int x = 1; x < argc; ++x)
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", &Config->AlternateLookahead);
 		}
-		else if (argc[x][2] == 'm')
+		else if (argv[x][2] == 'm')
 		{
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", &Config->MinimizeCPUPart);
