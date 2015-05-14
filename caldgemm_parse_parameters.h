@@ -21,6 +21,9 @@ for (unsigned int x = 1; x < argc; ++x)
 		{
 #ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			benchmark = true;
+#else
+			fprintf(STD_OUT, "Option %s only supported in DGEMM bench\n", argv[x]);
+			return(1);
 #endif
 		}
 		break;
@@ -147,6 +150,9 @@ for (unsigned int x = 1; x < argc; ++x)
 			Config->linpack_factorize_function = linpack_fake1;
 			Config->linpack_broadcast_function = linpack_fake2;
 			Config->linpack_swap_function = linpack_fake3;
+#else
+			fprintf(STD_OUT, "Option %s only supported in DGEMM bench\n", argv[x]);
+			return(1);
 #endif
 		}
 		break;
@@ -202,9 +208,13 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		else if (argv[x][2] == 'l')
 		{
+#ifdef CALDGEMM_PARAMETERS_BACKEND
 			if (++x >= argc) return(1);
-#ifdef CALDGEMM_PARAMETERS_BENCHMARK
-			OpenCL_kernel_lib = argv[x];
+			kernelLib = argv[x];
+#else
+			if (x + 1>= argc) return(1);
+			Config->AddBackendArgv(argv[x]);
+			Config->AddBackendArgv(argv[x + 1]);
 #endif
 		}
 		else if (argv[x][2] == 'e')
@@ -234,9 +244,12 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		else
 		{
-			if (++x >= argc) return(1);
 #ifdef CALDGEMM_PARAMETERS_BENCHMARK
+			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", &use_opencl_not_cal);
+#else
+			fprintf(STD_OUT, "Option %s only supported in DGEMM bench\n", argv[x]);
+			return(1);
 #endif
 		}
 		break;
@@ -424,9 +437,10 @@ for (unsigned int x = 1; x < argc; ++x)
 	case '-':
 		if (argv[x][2])
 		{
-			fprintf(STD_OUT, "Invalid parameter: '%s'\n", argv[x]);
 #ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			PrintUsage();
+#else
+			fprintf(STD_OUT, "Option %s only supported in DGEMM bench\n", argv[x]);
 #endif
 			return(1);
 		}

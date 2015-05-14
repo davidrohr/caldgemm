@@ -48,6 +48,8 @@ public:
 	public:
 		virtual ~caldgemm_config_backend_opencl();
 		caldgemm_config_backend_opencl() {size = sizeof(*this);kernelLib = NULL;}
+		virtual int ParseBackendOptions(int argc, char** argv);
+
 		char* kernelLib;
 	};
 	virtual caldgemm_config_backend* create_caldgemm_config_backend();

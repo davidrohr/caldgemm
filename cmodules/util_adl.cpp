@@ -47,7 +47,8 @@ typedef int ( *ADL_ADAPTER_ADAPTERINFO_GET ) ( LPAdapterInfo, int );
 typedef int ( *ADL_OVERDRIVE5_TEMPERATURE_GET ) ( int, int , ADLTemperature * );
 typedef int ( *ADL_ADAPTER_ACTIVE_GET ) ( int, int* );
 typedef int ( *ADL_ADAPTER_VIDEOBIOSINFO_GET ) ( int, ADLBiosInfo* );
-typedef int ( *ADL_ADAPTER_ID_GET) ( int, int* );
+typedef int ( *ADL_ADAPTER_ID_GET ) ( int, int* );
+typedef int ( *ADL_OVERDRIVE5_POWERCONTROL_SET ) ( int, int );	 
 
 // Memory allocation function
 void* __stdcall ADL_Main_Memory_Alloc ( int iSize )
@@ -64,6 +65,7 @@ ADL_OVERDRIVE5_TEMPERATURE_GET   ADL_Overdrive5_Temperature_Get;
 ADL_ADAPTER_ACTIVE_GET           ADL_Adapter_Active_Get;
 ADL_ADAPTER_VIDEOBIOSINFO_GET    ADL_Adapter_VideoBiosInfo_Get;
 ADL_ADAPTER_ID_GET               ADL_Adapter_ID_Get;
+ADL_OVERDRIVE5_POWERCONTROL_SET  ADL_Overdrive5_PowerControl_Set;
 
 int nAdapters;
 int* nAdapterIndizes;
@@ -106,9 +108,11 @@ int adl_temperature_check_init()
         ADL_Adapter_Active_Get = (ADL_ADAPTER_ACTIVE_GET) (size_t) dlsym(hDLL,"ADL_Adapter_Active_Get");
         ADL_Adapter_VideoBiosInfo_Get = (ADL_ADAPTER_VIDEOBIOSINFO_GET) (size_t) dlsym(hDLL, "ADL_Adapter_VideoBiosInfo_Get");
         ADL_Adapter_ID_Get = (ADL_ADAPTER_ID_GET) (size_t) dlsym(hDLL, "ADL_Adapter_ID_Get");
+		ADL_Overdrive5_PowerControl_Set = (ADL_OVERDRIVE5_POWERCONTROL_SET) (size_t) dlsym(hDLL, "ADL_Overdrive5_PowerControl_Set");
         
         
-		if ( NULL == ADL_Main_Control_Create || NULL == ADL_Main_Control_Destroy || NULL == ADL_Adapter_NumberOfAdapters_Get || NULL == ADL_Adapter_AdapterInfo_Get || NULL == ADL_Overdrive5_Temperature_Get || NULL == ADL_Adapter_Active_Get || NULL == ADL_Adapter_VideoBiosInfo_Get || NULL == ADL_Adapter_ID_Get)
+		if ( NULL == ADL_Main_Control_Create || NULL == ADL_Main_Control_Destroy || NULL == ADL_Adapter_NumberOfAdapters_Get || NULL == ADL_Adapter_AdapterInfo_Get || NULL == ADL_Overdrive5_Temperature_Get ||
+			NULL == ADL_Adapter_Active_Get || NULL == ADL_Adapter_VideoBiosInfo_Get || NULL == ADL_Adapter_ID_Get || NULL == ADL_Overdrive5_PowerControl_Set )
 		{
 			printf("ADL's API is missing!\n");
 			return 0;
@@ -128,6 +132,10 @@ int adl_temperature_check_init()
 		printf("Cannot get the number of adapters!\n");
 		return 0;
 	}
+
+#ifdef VERBOSE
+	printf("Number of adapters: %d\n", iNumberAdapters);
+#endif
 		
 	if (iNumberAdapters == 0)
 	{
@@ -163,7 +171,7 @@ int adl_temperature_check_init()
 					ADL_Adapter_VideoBiosInfo_Get(nAdapterIndizes[nAdapters], &biosInfo);
 					int UID;
 					ADL_Adapter_ID_Get(nAdapterIndizes[nAdapters], &UID);
-					printf("Adapter %d Info: Bios %s %s %s, UID %d\n", nAdapters, biosInfo.strPartNumber, biosInfo.strVersion, biosInfo.strDate, UID);
+					printf("Adapter %d (%s) Info: Bios %s %s %s, UID %d\n", nAdapters, lpAdapterInfo[i].strAdapterName, biosInfo.strPartNumber, biosInfo.strVersion, biosInfo.strDate, UID);
 #endif
 				}
 				nAdapters++;
@@ -209,6 +217,18 @@ int adl_temperature_check_exit()
     return(0);
 }
 
+int adl_powertune_set(int val)
+{
+	for (int i = 0;i < nAdapters;i++)
+	{
+		if (ADL_Overdrive5_PowerControl_Set(nAdapterIndizes[i], val))
+		{
+			printf("Error setting powertune to adapter %d (val %d)\n", i, val);
+		}
+	}
+	return(0);
+}
+
 #ifdef MAINPROG
 int main (int argc, char** argv)
 {
@@ -224,6 +244,10 @@ int main (int argc, char** argv)
 		return(1);
 	}
 	printf("Maximum Temperature: %f\n", temperature);
+	if (argc > 1)
+	{
+		adl_powertune_set(atoi(argv[1]));
+	}
 	if (adl_temperature_check_exit())
 	{
 		printf("Error exiting ADL\n");

@@ -97,6 +97,7 @@ public:
 		size_t size;
 		caldgemm_config_backend() {size = sizeof(*this);}
 		virtual ~caldgemm_config_backend();
+		virtual int ParseBackendOptions(int argc, char** argv);
 	};
 
 	class caldgemm_config						//Run Parameters
@@ -104,9 +105,12 @@ public:
 	public:
 		caldgemm_config();
 		~caldgemm_config() {
-			if (config_backend)
-				delete config_backend;
+			if (config_backend) delete config_backend;
+			free(argv_backend);
 		}
+		void InitBackendArgc();
+		void AddBackendArgv(char* option);
+		void InitializeBackendOptions();
 
 		bool AsyncDMA;							//Run DMA transfer and kernel execution in parallel
 		bool DivideToGPU;						//Write preprocessed data difrectly to GPU
@@ -208,6 +212,9 @@ public:
 		int nExcludeCPUCores;					//CPU Cores to exlude
 		int* ExcludeCPUCores;
 		int ShowThreadPinning;					//Print thread pinning at each call
+
+		int argc_backend;
+		char** argv_backend;
 
 		caldgemm_config_backend* config_backend;
 	};

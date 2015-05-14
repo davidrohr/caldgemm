@@ -107,12 +107,20 @@ inline void printelapsedtime(bool reset = false)
 
 caldgemm::caldgemm_config_backend* caldgemm::create_caldgemm_config_backend()
 {
-	caldgemm_config_backend* tmp = new caldgemm_config_backend;
-	tmp->size = sizeof(*tmp);
-	return(tmp);
+	return(new caldgemm_config_backend);
 }
 
 caldgemm::caldgemm_config_backend::~caldgemm_config_backend() {}
+
+caldgemm::caldgemm_config_backend::virtual int ParseBackendOptions(int argc, char** argv)
+{
+	if (argc > 1)
+	{
+		fprintf(STD_OUT, "Invalid Backend Options\n");
+		return(1);
+	}
+	return(0);
+}
 
 void caldgemm::ResetRatios()
 {
@@ -276,8 +284,31 @@ caldgemm::caldgemm_config::caldgemm_config()
 	linpack_factorize_function = NULL;
 	linpack_broadcast_function = NULL;
 	linpack_swap_function = NULL;
-	
+
+	InitBackendArgc();
 	config_backend = NULL;
+}
+
+void caldgemm::caldgemm_config::InitBackendArgc()
+{
+	argc_backend = 1;
+	argv_backend = (char**) malloc(2 * sizeof(char*));
+	argv_backend[0] = "backend_options";
+	argv_backend[1] = NULL;
+}
+
+void caldgemm::caldgemm_config::AddBackendArgv(char* option)
+{
+	argv_backend = (char**) realloc(argv_backend, (argc_backend + 2) * sizeof(char*));
+	argv_backend[argc_backend++] = option;
+	argv_backend[argc_backend] = NULL;
+}
+
+void void caldgemm::caldgemm_config::InitializeBackendOptions()
+{
+	config_backend->ParseBackendOptions(argc_backend, argv_backend);
+	free(argv_backend);
+	InitBackendArgc();
 }
 
 int caldgemm::getcpumask(cpu_set_t* set)
@@ -3663,6 +3694,7 @@ int caldgemm::ParseParameters(char* params, caldgemm_config* Config)
 	argv[argc] = NULL;
 	int retVal = ParseParameters(argc, argv, Config);
 	delete[] argv;
+	Config->InitializeBackendOptions();
 	return(retVal);
 }
 

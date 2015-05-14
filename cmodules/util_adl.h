@@ -47,6 +47,7 @@ extern "C"
 int adl_temperature_check_init();
 int adl_temperature_check_run(double*, int);
 int adl_temperature_check_exit();
+int adl_powertune_set(int);
 
 #ifdef __cplusplus
 }

@@ -89,8 +89,6 @@ size_t matrix_m, matrix_n;
 
 int MaxGPUTemperature = -1;
 
-char* OpenCL_kernel_lib;
-
 void PrintUsage()
 {
 	fprintf(STD_OUT,"Command Line Arguments\n");
@@ -557,13 +555,8 @@ int main(int argc, char** argv)
 		return(1);
 	}
 	Config.config_backend = dgemm_obj->create_caldgemm_config_backend();
+	Config.InitializeBackendOptions();
 
-#ifdef CALDGEMM_OPENCL
-	if (use_opencl_not_cal == 1)
-	{
-		((caldgemm_opencl::caldgemm_config_backend_opencl*) Config.config_backend)->kernelLib = OpenCL_kernel_lib;
-	}
-#endif
 	if (dgemm_obj->InitCALDGEMM(&Config))
 	{
 		fprintf(STD_OUT, "Error initializing CALDGEMM\n");
