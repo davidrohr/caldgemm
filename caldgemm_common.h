@@ -14,6 +14,9 @@
 #if !defined(_WIN32) & defined(USE_GOTO_BLAS)
 extern "C" {
 #define CBLAS
+#define ASSEMBLER
+#include <common_linux.h>
+#undef ASSEMBLER
 #include <common.h>
 }
 #else

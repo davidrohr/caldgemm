@@ -32,7 +32,12 @@ endif
 
 ifeq ("$(CONFIG_OPENMP)", "1")
 INTELFLAGSCOMMON					+= -openmp
+ifneq ("0$(CPPFILES_ICC)", "0")
 LIBSUSE							+= -liomp5
+endif
+ifeq ($(CC_SELECTED), ICC)
+LIBSUSE							+= -liomp5
+endif
 endif
 
 #GCC link flags

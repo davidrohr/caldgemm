@@ -1236,7 +1236,7 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 	const unsigned int L = (Side == CblasRight ? M : N) & ~31;
 	if (M < 192 || N < 192 || Order != CblasColMajor || Uplo != CblasUpper || ((Side != CblasLeft) ^ (TransA != CblasTrans)) || Diag != CblasUnit || K > BufferSize || K & 31)
 	{
-		cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M, N, alpha, A, lda, B, ldb);
+		cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M, N, alpha, (double*) A, lda, B, ldb);
 		return(0);
 	}
 	
@@ -1306,11 +1306,11 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 	
 	if (Side == CblasRight)
 	{
-		if (M & 31) cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M & 31, N, alpha, A, lda, B, ldb);
+		if (M & 31) cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M & 31, N, alpha, (double*) A, lda, B, ldb);
 	}
 	else
 	{
-		if (N & 31) cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M, N & 31, alpha, A, lda, B, ldb);
+		if (N & 31) cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M, N & 31, alpha, (double*) A, lda, B, ldb);
 	}
 	
 	for (int i = 0;i < std::min<int>(nTiles, nDevicesInitialized);i++)

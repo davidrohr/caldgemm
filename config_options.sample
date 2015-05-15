@@ -1,8 +1,10 @@
-USE_GOTO_BLAS				= 0
-USE_MKL_NOT_ACML			= 1
+#Select BLAS Backend to use. Available options: MKL, ACML, GOTOBLAS
+BLAS_BACKEND				= MKL
 
+#Select which GPU backends are compiled. (The CPU backend is always compiled)
 INCLUDE_OPENCL				= 1
-INCLUDE_CAL					= 1
+INCLUDE_CAL				= 1
 INCLUDE_CUDA				= 1
 
-CONFIGURED					= 0
+#Mark CONFIGURED = 1 to enable compilation
+CONFIGURED				= 0

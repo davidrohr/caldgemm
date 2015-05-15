@@ -55,17 +55,17 @@ CPPFILES					+= caldgemm_cal.cpp
 DEFINES						+= CALDGEMM_CAL
 endif
 
-ifeq ($(USE_GOTO_BLAS), 1)
-INCLUDEPATHS				+= ../GotoBLAS2
+ifeq ($(BLAS_BACKEND), GOTOBLAS)
+INCLUDEPATHS				+= $(GOTOBLAS_PATH)
 DEFINES						+= USE_GOTO_BLAS
 ifeq ($(ARCH), i686-pc-cygwin)
-EXTRAOBJFILES				+= ../GotoBLAS2/libgoto2.lib
+EXTRAOBJFILES				+= $(GOTOBLAS_PATH)/libgoto2.lib
 else
 #LIBS						+= gfortran
-EXTRAOBJFILES				+= ../GotoBLAS2/libgoto2.a
+EXTRAOBJFILES				+= $(GOTOBLAS_PATH)/libgoto2.a
 endif
 else
-ifeq ($(USE_MKL_NOT_ACML), 1)
+ifeq ($(BLAS_BACKEND), MKL)
 INCLUDEPATHS				+= $(MKL_PATH)/include
 LIBS						+= iomp5 mkl_intel_lp64 mkl_core mkl_intel_thread
 LIBPATHS					+= $(MKL_PATH)/lib/intel64/
@@ -75,10 +75,16 @@ endif
 DEFINES						+= USE_MKL
 CONFIG_OPENMP				= 1
 else
-INCLUDEPATHS				+= ../acml-cblas/include
-EXTRAOBJFILES				+= ../acml-cblas/lib/cblas_LINUX.a ../acml/gfortran64_fma4_mp/lib/libacml_mp.a
+ifeq ($(BLAS_BACKEND), ACML)
+INCLUDEPATHS				+= $(CBLAS_PATH)/include
+LIBPATHS				+= $(ACML_PATH)/lib $(CBLAS_PATH)/include
+LIBS					+= acml_mp
+EXTRAOBJFILES				+= $(CBLAS_PATH)/lib/cblas_LINUX.a
 CONFIG_OPENMP				= 1
 LIBS						+= gfortran
+else
+error No valid BLAS_BACKEND selected
+endif
 endif
 endif
 
