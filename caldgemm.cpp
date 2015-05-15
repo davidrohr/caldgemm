@@ -519,6 +519,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 {
 	setThreadName("Main");
 	Config = pInfo;
+	
+#ifdef USE_GOTO_BLAS
+	if (!Config->Quiet) fprintf(STD_OUT, "Initializing GotoBLAS\n");
+	gotoblas_init();
+#endif
 
 	if (Config->Iterations > 1 && Config->UseCPU)
 	{
