@@ -279,6 +279,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	}
 	nExcludeCPUCores = 0;
 	ExcludeCPUCores = NULL;
+	ShowConfig = 0;
 	ShowThreadPinning = 0;
 
 	linpack_factorize_function = NULL;
@@ -887,7 +888,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	caldgemm_initialized = true;
 	
-	//printConfig();
+	if (Config->ShowConfig) printConfig();
 
 	return(0);
 }
@@ -3544,94 +3545,136 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DI
 	return(0);
 }
 
+#define mcat(a, b) a ## b
+#define mxcat(a, b) mcat(a, b)
+
+#define str(s) xstr(s)
+#define xstr(s) #s
+
+#define COMMA ,
+#define EMPTY
+
+#define PRINT_CONFIG_BASE(name1, name2, name1param, type, type2, conf) \
+	{ \
+		fprintf(STD_OUT, str(name1) " " type "\n", name1param (type2) conf->name2); \
+	}
+	
+#define PRINT_CONFIG_INT(name) PRINT_CONFIG_BASE(name, name, EMPTY, "%d", int, Config)
+#define PRINT_CONFIG_CHAR(name) PRINT_CONFIG_BASE(name, name, EMPTY, "%c", char, Config)
+#define PRINT_CONFIG_DOUBLE(name) PRINT_CONFIG_BASE(name, name, EMPTY, "%2.3f", double, Config)
+#define PRINT_CONFIG_STRING(name) PRINT_CONFIG_BASE(name, name, EMPTY, "%s", char*, Config)
+
+#define PRINT_CONFIG_INT_THIS(name) PRINT_CONFIG_BASE(name, name, EMPTY, "%d", int, this)
+
+#define PRINT_CONFIG_LOOP_INT(name, loopvar) \
+	{ \
+		for (int i = 0;i < loopvar;i++) \
+		{ \
+			PRINT_CONFIG_LOOP_INT(name "[%d]", name[i], i COMMA, "%d", int, Config) \
+		} \
+	}
+
+
 void caldgemm::printConfig()
 {
-	fprintf(STD_OUT, "AsyncDMA %d\n", (int) Config->AsyncDMA);
-	fprintf(STD_OUT, "DivideToGPU %d\n", (int) Config->DivideToGPU);
-	fprintf(STD_OUT, "DstMemory %c\n", Config->DstMemory);
-	fprintf(STD_OUT, "ImplicitDriverSync %d\n", (int) Config->ImplicitDriverSync);
-	fprintf(STD_OUT, "UseDMAFetchQueue %d\n", (int) Config->UseDMAFetchQueue);
-	fprintf(STD_OUT, "DynamicSched %d\n", (int) Config->DynamicSched);
-	fprintf(STD_OUT, "SecondPhaseDynamicRuns %d\n", (int) Config->SecondPhaseDynamicRuns);
-	fprintf(STD_OUT, "ThirdPhaseDynamicRuns %d\n", (int) Config->ThirdPhaseDynamicRuns);
-	fprintf(STD_OUT, "ThirdPhaseThreshold %d\n", (int) Config->ThirdPhaseThreshold);
-	fprintf(STD_OUT, "KeepBuffersMapped %d\n", (int) Config->KeepBuffersMapped);
-	fprintf(STD_OUT, "MemPolicy %d\n", (int) Config->MemPolicy);
-	fprintf(STD_OUT, "MultiThread %d\n", (int) Config->MultiThread);
-	fprintf(STD_OUT, "MultiThreadDivide %d\n", (int) Config->MultiThreadDivide);
-	fprintf(STD_OUT, "ImprovedScheduler %d\n", (int) Config->ImprovedScheduler);
-	fprintf(STD_OUT, "ParallelDMA %d\n", (int) Config->ParallelDMA);
-	fprintf(STD_OUT, "GroupParallelDMA %d\n", (int) Config->GroupParallelDMA);
-	fprintf(STD_OUT, "GPURatio %f\n", (double) Config->GPURatio);
-	fprintf(STD_OUT, "GPURatioDuringFact %f\n", (double) Config->GPURatioDuringFact);
-	fprintf(STD_OUT, "MinimizeCPUPart %d\n", (int) Config->MinimizeCPUPart);
-	fprintf(STD_OUT, "MinimizeCPUDuringFact %d\n", (int) Config->MinimizeCPUDuringFact);
-	fprintf(STD_OUT, "UseCPU %d\n", (int) Config->UseCPU);
-	fprintf(STD_OUT, "UseGPU %d\n", (int) Config->UseGPU);
-	fprintf(STD_OUT, "GPU_C %d\n", (int) Config->GPU_C);
+	PRINT_CONFIG_INT(AsyncDMA);
+	PRINT_CONFIG_INT(DivideToGPU);
+	PRINT_CONFIG_CHAR(DstMemory);
+	PRINT_CONFIG_INT(ImplicitDriverSync);
+	PRINT_CONFIG_INT(UseDMAFetchQueue);
+	PRINT_CONFIG_INT(DynamicSched);
+	PRINT_CONFIG_INT(SecondPhaseDynamicRuns);
+	PRINT_CONFIG_INT(ThirdPhaseDynamicRuns);
+	PRINT_CONFIG_INT(ThirdPhaseThreshold);
+	PRINT_CONFIG_INT(KeepBuffersMapped);
+	PRINT_CONFIG_INT(MemPolicy);
+	PRINT_CONFIG_INT(MultiThread);
+	PRINT_CONFIG_INT(MultiThreadDivide);
+	PRINT_CONFIG_INT(ImprovedScheduler);
+	PRINT_CONFIG_INT(ImprovedSchedulerBalance);
+	PRINT_CONFIG_INT(SimpleGPUQueuing);
+	PRINT_CONFIG_INT(ParallelDMA);
+	PRINT_CONFIG_INT(GroupParallelDMA);
+	PRINT_CONFIG_DOUBLE(GPURatio);
+	PRINT_CONFIG_DOUBLE(GPURatioDuringFact);
+	PRINT_CONFIG_DOUBLE(GPURatioMax);
+	PRINT_CONFIG_DOUBLE(GPURatioMarginTime);
+	PRINT_CONFIG_DOUBLE(GPURatioMarginTimeDuringFact);
+	PRINT_CONFIG_DOUBLE(GPURatioLookaheadSizeMod);
+	PRINT_CONFIG_INT(GPURatioPenalties);
+	PRINT_CONFIG_DOUBLE(GPURatioPenaltyFactor);
+	PRINT_CONFIG_INT(MinimizeCPUPart);
+	PRINT_CONFIG_INT(MinimizeCPUDuringFact);
+	PRINT_CONFIG_INT(UseCPU);
+	PRINT_CONFIG_INT(UseGPU);
+	PRINT_CONFIG_INT(RereserveLinpackCPU);
+	PRINT_CONFIG_INT(GPU_C);
+	PRINT_CONFIG_INT(NoConcurrentKernels);
 
-	fprintf(STD_OUT, "OpenCLPlatform %d\n", (int) Config->OpenCLPlatform);
-	fprintf(STD_OUT, "DeviceNum %d\n", (int) Config->DeviceNum);
-	fprintf(STD_OUT, "NumDevices %d\n", (int) Config->NumDevices);
-	for (int i = 0;i < nDevices;i++)
-	{
-		fprintf(STD_OUT, "DeviceNums[%d] %d\n", i, (int) Config->DeviceNums[i]);
-	}
+	PRINT_CONFIG_INT(OpenCLPlatform);
+	PRINT_CONFIG_INT(DeviceNum);
+	PRINT_CONFIG_INT(NumDevices);
+	PRINT_CONFIG_LOOP_INT(DeviceNums, nDevices);
+	PRINT_CONFIG_INT(max_bbuffers);
+	PRINT_CONFIG_INT(PreallocData);
+	PRINT_CONFIG_INT(CPUInContext);
 
-	fprintf(STD_OUT, "Debug %d\n", (int) Config->Debug);
-	fprintf(STD_OUT, "DumpMatrix %d\n", (int) Config->DumpMatrix);
-	fprintf(STD_OUT, "Iterations %d\n", (int) Config->Iterations);
-	fprintf(STD_OUT, "Verify %d\n", (int) Config->Verify);
-	fprintf(STD_OUT, "SkipCPUProcessing %d\n", (int) Config->SkipCPUProcessing);
+	PRINT_CONFIG_INT(Debug);
+	PRINT_CONFIG_INT(DumpMatrix);
+	PRINT_CONFIG_INT(Iterations);
+	PRINT_CONFIG_INT(Verify);
+	PRINT_CONFIG_INT(SkipCPUProcessing);
+	PRINT_CONFIG_INT(ForceKernelVariant);
 
-	for (int i = 0;i < nDevices;i++)
-	{
-		fprintf(STD_OUT, "GPUMapping[%d] %d\n", i, (int) Config->GPUMapping[i]);
-		fprintf(STD_OUT, "PostprocessMapping[%d] %d\n", i, (int) Config->PostprocessMapping[i]);
-		fprintf(STD_OUT, "AllocMapping[%d] %d\n", i, (int) Config->AllocMapping[i]);
-		fprintf(STD_OUT, "DMAMapping[%d] %d\n", i, (int) Config->DMAMapping[i]);
-	}
-	fprintf(STD_OUT, "PinMainThread %d\n", (int) Config->PinMainThread);
-	fprintf(STD_OUT, "PinBroadcastThread %d\n", (int) Config->PinBroadcastThread);
-	fprintf(STD_OUT, "RepinDuringActiveWaitForEvent %d\n", (int) Config->RepinDuringActiveWaitForEvent);
-	fprintf(STD_OUT, "RepinMainThreadAlways %d\n", (int) Config->RepinMainThreadAlways);
-	fprintf(STD_OUT, "SleepDuringActiveWait %d\n", (int) Config->SleepDuringActiveWait);
-	fprintf(STD_OUT, "ThreadSaveDriver %d\n", (int) Config->ThreadSaveDriver);
-	fprintf(STD_OUT, "PinCPU %d\n", (int) Config->PinCPU);
-	fprintf(STD_OUT, "SlowCPU %d\n", (int) Config->SlowCPU);
-	fprintf(STD_OUT, "OutputThreads %d\n", (int) Config->OutputThreads);
-	fprintf(STD_OUT, "NumaPinning %d\n", (int) Config->NumaPinning);
-	fprintf(STD_OUT, "AlternateLookahead %d\n", (int) Config->AlternateLookahead);
+	PRINT_CONFIG_LOOP_INT(GPUMapping, nDevices);
+	PRINT_CONFIG_LOOP_INT(PostprocessMapping, nDevices);
+	PRINT_CONFIG_LOOP_INT(AllocMapping, nDevices);
+	PRINT_CONFIG_LOOP_INT(DMAMapping, nDevices);
 
-	fprintf(STD_OUT, "Height %d\n", (int) Config->Height);
-	fprintf(STD_OUT, "Width %d\n", (int) Config->Width);
-	fprintf(STD_OUT, "AutoHeight %d\n", (int) Config->AutoHeight);
-	fprintf(STD_OUT, "SmallTiles %d\n", (int) Config->SmallTiles);
+	PRINT_CONFIG_INT(PinMainThread);
+	PRINT_CONFIG_INT(PinDeviceRuntimeThreads);
+	PRINT_CONFIG_INT(PinBroadcastThread);
+	PRINT_CONFIG_INT(RepinDuringActiveWaitForEvent);
+	PRINT_CONFIG_INT(RepinMainThreadAlways);
+	PRINT_CONFIG_INT(SleepDuringActiveWait);
+	PRINT_CONFIG_INT(ThreadSaveDriver);
+	PRINT_CONFIG_INT(PinCPU);
+	PRINT_CONFIG_INT(SlowCPU);
+	PRINT_CONFIG_INT(OutputThreads);
+	PRINT_CONFIG_INT(NumaPinning);
+	PRINT_CONFIG_INT(AlternateLookahead);
+	PRINT_CONFIG_INT(AsyncSideQueue);
+	PRINT_CONFIG_INT(AsyncDTRSM);
+	PRINT_CONFIG_INT(Use3rdPartyTranspose);
 
-	fprintf(STD_OUT, "Disassemble %d\n", (int) Config->Disassemble);
-	fprintf(STD_OUT, "PrintILKernel %d\n", (int) Config->PrintILKernel);
+	PRINT_CONFIG_INT(Height);
+	PRINT_CONFIG_INT(Width);
+	PRINT_CONFIG_INT(AutoHeight);
+	PRINT_CONFIG_INT(SmallTiles);
 
-	fprintf(STD_OUT, "AsyncTiming %d\n", (int) Config->AsyncTiming);
-	fprintf(STD_OUT, "DisplayTiming %d\n", (int) Config->DisplayTiming);
-	fprintf(STD_OUT, "NoPerformanceWarnings %d\n", (int) Config->NoPerformanceWarnings);
-	fprintf(STD_OUT, "PreOut %s\n", Config->PreOut);
-	fprintf(STD_OUT, "Quiet %d\n", (int) Config->Quiet);
-	fprintf(STD_OUT, "TabularTiming %d\n", (int) Config->TabularTiming);
-	fprintf(STD_OUT, "VerboseTiming %d\n", (int) Config->VerboseTiming);
+	PRINT_CONFIG_INT(Disassemble);
+	PRINT_CONFIG_INT(PrintILKernel);
 
-	fprintf(STD_OUT, "LinpackNodes %d\n", (int) Config->LinpackNodes);
-	fprintf(STD_OUT, "MPIRank %d\n", (int) Config->MPIRank);
-	fprintf(STD_OUT, "GPUClock %d\n", (int) Config->GPUClock);
+	PRINT_CONFIG_INT(AsyncTiming);
+	PRINT_CONFIG_INT(DisplayTiming);
+	PRINT_CONFIG_INT(NoPerformanceWarnings);
+	PRINT_CONFIG_STRING(PreOut);
+	PRINT_CONFIG_INT(Quiet);
+	PRINT_CONFIG_INT(TabularTiming);
+	PRINT_CONFIG_INT(VerboseTiming);
 
-	fprintf(STD_OUT, "HPLFactorizeRestrictCPUs %d\n", (int) Config->HPLFactorizeRestrictCPUs);
-	fprintf(STD_OUT, "LASWPSleep %d\n", (int) Config->LASWPSleep);
-	for (int i = 0;i < Config->nExcludeCPUCores;i++)
-	{
-		fprintf(STD_OUT, "ExcludeCPUCores[%d] %d\n", i, (int) Config->ExcludeCPUCores[i]);
-	}
+	PRINT_CONFIG_INT(LinpackNodes);
+	PRINT_CONFIG_INT(MPIRank);
+	PRINT_CONFIG_INT(GPUClock);
 
-	fprintf(STD_OUT, "BufferWidth %d\n", (int) BufferWidth);
-	fprintf(STD_OUT, "BufferHeight %d\n", (int) BufferHeight);
+	PRINT_CONFIG_INT(HPLFactorizeRestrictCPUs);
+	PRINT_CONFIG_INT(LASWPSleep);
+	PRINT_CONFIG_LOOP_INT(ExcludeCPUCores, Config->nExcludeCPUCores);
+	PRINT_CONFIG_INT(ShowConfig);
+	PRINT_CONFIG_INT(ShowThreadPinning);
+
+	PRINT_CONFIG_INT_THIS(BufferWidth);
+	PRINT_CONFIG_INT_THIS(BufferHeight);
 }
 
 double caldgemm::getMaxGPUTemperature()

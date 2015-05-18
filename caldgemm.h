@@ -211,6 +211,7 @@ public:
 		
 		int nExcludeCPUCores;					//CPU Cores to exlude
 		int* ExcludeCPUCores;
+		int ShowConfig;							//Show CALDGEMM Config
 		int ShowThreadPinning;					//Print thread pinning at each call
 
 		int argc_backend;

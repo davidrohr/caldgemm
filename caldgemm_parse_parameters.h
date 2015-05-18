@@ -284,6 +284,10 @@ for (unsigned int x = 1; x < argc; ++x)
 		{
 			Config->ShowThreadPinning = 1;
 		}
+		if (argv[x][2] == 'c')
+		{
+			Config->ShowConfig = 1;
+		}
 		else if (argv[x][2] == 'r')
 		{
 			if (++x >= argc) return(1);
