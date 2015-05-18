@@ -13,6 +13,8 @@ export INTELPATH=$HOME/intel
 export MKL_PATH=$INTELPATH/mkl
 #Path to libiomp (as part of ICC or standalone)
 export ICC_PATH=$INTELPATH
+#Path to Intel TBB library inside MKL (Comment out if you want to use MKL TBB instead of having hpl-gpu compile tbb)
+#export TBB_PATH=$INTELPATH/tbb
 #Path to the GotoBLAS BLAS library
 export GOTOBLAS_PATH=$HOME/GotoBLAS2
 #Path to AMD ACML BLAS library
