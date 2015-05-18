@@ -104,6 +104,7 @@ public:
 	{
 	public:
 		caldgemm_config();
+		caldgemm_config(const caldgemm_config& other);
 		~caldgemm_config() {
 			if (config_backend) delete config_backend;
 			free(argv_backend);
@@ -249,7 +250,7 @@ public:
 	virtual bool cpuUsed(int cpu);
 	virtual double getMaxGPUTemperature();
 	
-	void printConfig();
+	void printConfig(caldgemm_config* newConfig = NULL, caldgemm_config* oldConfig = NULL);
 	void setMatrixDim(size_t m, size_t n) {matrix_m = m;matrix_n = n;}
 
 protected:

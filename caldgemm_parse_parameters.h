@@ -1,5 +1,6 @@
 for (unsigned int x = 1; x < argc; ++x)
 {
+	//fprintf(STD_OUT, "Parsing option %s\n", argv[x]);
 	switch(argv[x][1])
 	{
 	case 'q':
@@ -284,7 +285,7 @@ for (unsigned int x = 1; x < argc; ++x)
 		{
 			Config->ShowThreadPinning = 1;
 		}
-		if (argv[x][2] == 'c')
+		else if (argv[x][2] == 'c')
 		{
 			Config->ShowConfig = 1;
 		}
