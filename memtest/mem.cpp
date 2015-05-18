@@ -542,13 +542,25 @@ int main(int argc, char** argv)
 		if (command_queues_read == NULL) quit("Memory allocation error");
 		cl_command_queue* command_queues_write = new cl_command_queue[num_gpus];
 		if (command_queues_write == NULL) quit("Memory allocation error");
+#ifdef CL_VERSION_2_0
+		cl_command_queue command_queue_cpu = clCreateCommandQueueWithProperties(context, device_cpu, NULL, &ocl_error);
+#else
 		cl_command_queue command_queue_cpu = clCreateCommandQueue(context, device_cpu, 0, &ocl_error);
+#endif
 		if (ocl_error != CL_SUCCESS) quit("Error creating OpenCL command queue");
 		for (int i = 0;i < num_gpus;i++)
 		{
+#ifdef CL_VERSION_2_0
+			command_queues_read[i] = clCreateCommandQueueWithProperties(context, devices[i], NULL, &ocl_error);
+#else
 			command_queues_read[i] = clCreateCommandQueue(context, devices[i], 0, &ocl_error);
+#endif
 			if (ocl_error != CL_SUCCESS) quit("Error creating OpenCL command queue");
+#ifdef CL_VERSION_2_0
+			command_queues_write[i] = clCreateCommandQueueWithProperties(context, devices[i], NULL, &ocl_error);
+#else
 			command_queues_write[i] = clCreateCommandQueue(context, devices[i], 0, &ocl_error);
+#endif
 			if (ocl_error != CL_SUCCESS) quit("Error creating OpenCL command queue");
 		}
 

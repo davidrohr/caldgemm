@@ -407,16 +407,26 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 	{
 		for (int j = 0;j < obuffercount;j++)
 		{
+#ifdef CL_VERSION_2_0
+			cl_queue_properties flags[] = {CL_QUEUE_PROPERTIES, 0, 0};
+			if (Config->VerboseTiming) flags[1] |= CL_QUEUE_PROFILING_ENABLE;
+			ocl_command_queues[i][j] = clCreateCommandQueueWithProperties(ocl_context, ocl_devices[i], flags, &ocl_error);
+#else
 			cl_command_queue_properties flags = 0;
 			if (Config->VerboseTiming) flags |= CL_QUEUE_PROFILING_ENABLE;
 			ocl_command_queues[i][j] = clCreateCommandQueue(ocl_context, ocl_devices[i], flags, &ocl_error);
+#endif
 			CHKRET(ocl_error, "Error creating OpenCL command queue");
 		}
 	}
 
 	if (Config->CPUInContext)
 	{
+#ifdef CL_VERSION_2_0
+		ocl_command_queue_cpu = clCreateCommandQueueWithProperties(ocl_context, ocl_devices[nDevices], NULL, &ocl_error);
+#else
 		ocl_command_queue_cpu = clCreateCommandQueue(ocl_context, ocl_devices[nDevices], 0, &ocl_error);
+#endif
 		CHKRET(ocl_error, "Error creating OpenCL CPU command queue");
 	}
 	AlternateLookaheadDoneMutex.Lock();
@@ -703,7 +713,11 @@ int caldgemm_opencl::InitDevices()
 
 		if (Config->AsyncSideQueue)
 		{
+#ifdef CL_VERSION_2_0
+			ocl_async_queue[i] = clCreateCommandQueueWithProperties(ocl_context, ocl_devices[i], NULL, &ocl_error);
+#else
 			ocl_async_queue[i] = clCreateCommandQueue(ocl_context, ocl_devices[i], 0, &ocl_error);
+#endif
 			CHKRET(ocl_error, "Error creating async OpenCL command queue");
 
 			for (int j = 0;j < 4;j++)
