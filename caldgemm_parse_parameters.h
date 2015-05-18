@@ -84,6 +84,11 @@ for (unsigned int x = 1; x < argc; ++x)
 					sscanf(&ptr[j], "%d", &tmpval);
 					fprintf(STD_OUT, "GPU device %d ID %d\n", devnum, tmpval);
 					j = i + 1;
+					if (devnum >= (signed) max_devices)
+					{
+						fprintf(STD_OUT, "Please increase max_devices\n");
+						return(1);
+					}
 					Config->DeviceNums[devnum] = tmpval;
 					devnum++;
 				}

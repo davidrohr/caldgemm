@@ -83,7 +83,7 @@ class caldgemm
 	static void* divide_wrapper(void* arg);
 	static void* cblas_wrapper(void* arg);
 	static void* linpack_wrapper(void* arg);
-protected:
+public:
 	static const unsigned int max_devices = 8;
 
 public:

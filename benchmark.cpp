@@ -234,6 +234,7 @@ int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config*
 	Config->KeepBuffersMapped = false;
 #endif
 
+	const int max_devices = caldgemm::max_devices;
 #define CALDGEMM_PARAMETERS_BENCHMARK
 #include "caldgemm_parse_parameters.h"
 #undef CALDGEMM_PARAMETERS_BENCHMARK
