@@ -502,17 +502,27 @@ int caldgemm_opencl::ValidateRuntime()
 		kernelLibCreate = (cl_kernel (*) (cl_context*, int, cl_device_id*, int, int, int)) GetProcAddress(kernelLib, "kernelLibCreate");
 		kernelLibQuerySettings = (void (*) (int*, int*, bool*, bool*, bool*, int*, int*, int*, int*)) GetProcAddress(kernelLib, "kernelLibQuerySettings");
 		kernelLibTerminate = (void (*) ()) GetProcAddress(kernelLib, "kernelLibTerminate");
+		kernelLibSuggestedMaxHeight = (size_t (*) ())  GetProcAddress(kernelLib, "suggestedMaxHeight");
+		kernelLibGetAutoHeight = (size_t (*) (size_t, size_t, int)) GetProcAddress(kernelLib, "getAutoHeight");
+		kernelLibModHeight = (void (*) (size_t, size_t)) GetProcAddress(kernelLib, "modHeight");
+		kernelLibInitialize = (int (*) (cl_platform_id)) GetProcAddress(kernelLib, "kernelLibInitialize");
 #else
 		kernelLibCreate = (cl_kernel (*)(cl_context*, int, cl_device_id*, int, int, int)) dlsym(kernelLib, "kernelLibCreate");
 		kernelLibQuerySettings = (void (*) (int*, int*, bool*, bool*, bool*, int*, int*, int*, int*)) dlsym(kernelLib, "kernelLibQuerySettings");
 		kernelLibTerminate = (void (*) ()) dlsym(kernelLib, "kernelLibTerminate");
-		kernelLibSuggestedMaxHeight = (size_t (*) ())  dlsym(kernelLib, "suggestedMaxHeight");
-		kernelLibGetAutoHeight = (size_t (*) (size_t, size_t, int))  dlsym(kernelLib, "getAutoHeight");
-		kernelLibModHeight = (void (*) (size_t, size_t))  dlsym(kernelLib, "modHeight");
+		kernelLibSuggestedMaxHeight = (size_t (*) ()) dlsym(kernelLib, "suggestedMaxHeight");
+		kernelLibGetAutoHeight = (size_t (*) (size_t, size_t, int)) dlsym(kernelLib, "getAutoHeight");
+		kernelLibModHeight = (void (*) (size_t, size_t)) dlsym(kernelLib, "modHeight");
+		kernelLibInitialize = (int (*) (cl_platform_id)) dlsym(kernelLib, "kernelLibInitialize");
 #endif
-		if (kernelLibCreate == NULL || kernelLibQuerySettings == NULL || kernelLibTerminate == NULL || kernelLibSuggestedMaxHeight == NULL || kernelLibGetAutoHeight == NULL || kernelLibModHeight == NULL)
+		if (kernelLibCreate == NULL || kernelLibQuerySettings == NULL || kernelLibTerminate == NULL || kernelLibSuggestedMaxHeight == NULL || kernelLibGetAutoHeight == NULL || kernelLibModHeight == NULL || kernelLibInitialize == NULL)
 		{
 			fprintf(STD_OUT, "Error getting function pointer from external library (%p %p %p)\n", kernelLibCreate, kernelLibQuerySettings, kernelLibTerminate);
+			return(1);
+		}
+		if (kernelLibInitialize(ocl_platform))
+		{
+			fprintf(STD_OUT, "3rd Party DGEMM Library failed to initialize\n");
 			return(1);
 		}
 		kernelLibQuerySettings(&KernelSettings.tiling_x, &KernelSettings.tiling_y, &KernelSettings.transposeA, &KernelSettings.transposeB, &KernelSettings.texture_buffers, &KernelSettings.group_size_x, &KernelSettings.group_size_y, &KernelSettings.min_tile_size, &KernelSettings.min_k);

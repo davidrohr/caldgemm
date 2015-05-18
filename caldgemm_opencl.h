@@ -144,6 +144,7 @@ private:
 	size_t (*kernelLibSuggestedMaxHeight) ();
 	size_t (*kernelLibGetAutoHeight) (size_t MaxGpuM, size_t MaxGpuN, int nDevices);
 	void (*kernelLibModHeight) (size_t MOD_OVER, size_t MOD_GPU);
+	int (*kernelLibInitialize) (cl_platform_id platform);
 	
 	cl_event last_device_kernel[max_devices];
 
