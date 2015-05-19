@@ -195,7 +195,7 @@ void printThreadPinning()
 				if (fp != NULL)
 				{
 					char buffer[1024];
-					fgets(buffer, 1023, fp);
+					if (fgets(buffer, 1023, fp) == NULL) break;
 					int count = 0;
 					for (unsigned int i = 0;i < strlen(buffer);i++)
 					{
