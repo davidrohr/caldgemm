@@ -110,6 +110,8 @@ caldgemm::caldgemm_config_backend* caldgemm::create_caldgemm_config_backend()
 	return(new caldgemm_config_backend);
 }
 
+void caldgemm::caldgemm_config_backend::printConfig(caldgemm::caldgemm_config_backend* oldConfig) {}
+
 caldgemm::caldgemm_config_backend::~caldgemm_config_backend() {}
 
 int caldgemm::caldgemm_config_backend::ParseBackendOptions(unsigned int argc, char** argv)
@@ -294,11 +296,13 @@ caldgemm::caldgemm_config::caldgemm_config(const caldgemm::caldgemm_config& othe
 {
 	memcpy(this, &other, sizeof(*this));
 	InitBackendArgc();
-	config_backend = NULL;
 	if (other.config_backend)
 	{
-		//config_backend = create_caldgemm_config_backend();
-		//memcpy(config_backend, other.config_backend, config_backend->size);
+		config_backend = other.config_backend->Clone();
+	}
+	else
+	{
+		config_backend = NULL;
 	}
 }
 
@@ -3558,58 +3562,6 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DI
 	return(0);
 }
 
-#define mcat(a, b) a ## b
-#define mxcat(a, b) mcat(a, b)
-
-#define str(s) xstr(s)
-#define xstr(s) #s
-
-#define COMMA ,
-#define EMPTY
-
-#define RED "\033[22;31m"
-#define BOLDRED "\033[1m\033[31m"
-#define BOLDBLACK "\033[1m\033[30m"
-#define RESET "\033[0m"
-
-#define PRINT_CONFIG_BASE(name1, name2, name1param, type, type2, conf) \
-	{ \
-		char tmpBuffer[256]; \
-		sprintf(tmpBuffer, str(name1) name1param); \
-		if (oldConfig) \
-		{ \
-			if (oldConfig->name2 != newConfig->name2) \
-				fprintf(STD_OUT, "%35s: " type " changed to " BOLDRED type RESET "\n", tmpBuffer, (type2) oldConfig->name2, (type2) newConfig->name2); \
-		} \
-		else \
-		{ \
-		     fprintf(STD_OUT, "%35s: " type "\n", tmpBuffer, (type2) conf->name2); \
-		} \
-	}
-
-#define PRINT_CONFIG_BASE_THIS(name1, name2, name1param, type, type2, conf) \
-	{ \
-		char tmpBuffer[256]; \
-		sprintf(tmpBuffer, str(name1) name1param); \
-		if (oldConfig == NULL) fprintf(STD_OUT, "%35s: " type "\n", tmpBuffer, (type2) conf->name2); \
-	}
-
-#define PRINT_CONFIG_INT(name) PRINT_CONFIG_BASE(name, name, EMPTY, "%5d", int, myConfig)
-#define PRINT_CONFIG_CHAR(name) PRINT_CONFIG_BASE(name, name, EMPTY, "%5c", char, myConfig)
-#define PRINT_CONFIG_DOUBLE(name) PRINT_CONFIG_BASE(name, name, EMPTY, "%2.3f", double, myConfig)
-#define PRINT_CONFIG_STRING(name) PRINT_CONFIG_BASE(name, name, EMPTY, "%5s", char*, myConfig)
-
-#define PRINT_CONFIG_INT_THIS(name) PRINT_CONFIG_BASE_THIS(name, name, EMPTY, "%5d", int, this)
-
-#define PRINT_CONFIG_LOOP_INT(name, loopvar) \
-	{ \
-		for (int i = 0;i < loopvar;i++) \
-		{ \
-			PRINT_CONFIG_BASE(name "[%d]", name[i], COMMA i, "%5d", int, myConfig) \
-		} \
-	}
-
-
 void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldgemm_config* oldConfig)
 {
 	caldgemm_config* myConfig = newConfig ? newConfig : Config;
@@ -3712,6 +3664,11 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 
 	PRINT_CONFIG_INT_THIS(BufferWidth);
 	PRINT_CONFIG_INT_THIS(BufferHeight);
+	
+	if (myConfig->config_backend && (oldConfig == NULL || oldConfig->config_backend))
+	{
+		myConfig->config_backend->printConfig(oldConfig ? oldConfig->config_backend : NULL);
+	}
 }
 
 double caldgemm::getMaxGPUTemperature()

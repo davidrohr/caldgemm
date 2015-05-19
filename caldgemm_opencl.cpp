@@ -272,6 +272,14 @@ caldgemm::caldgemm_config_backend* caldgemm_opencl::create_caldgemm_config_backe
 	return(new caldgemm_config_backend_opencl);
 }
 
+void caldgemm_opencl::caldgemm_config_backend_opencl::printConfig(caldgemm_config_backend* oldConfigA)
+{
+	caldgemm_config_backend_opencl* oldConfig = (caldgemm_config_backend_opencl*) oldConfigA;
+	caldgemm_config_backend_opencl* const newConfig = this;
+	caldgemm_config_backend_opencl* const myConfig = this;
+	PRINT_CONFIG_STRING(kernelLib);
+}
+
 caldgemm_opencl::caldgemm_config_backend_opencl::~caldgemm_config_backend_opencl() {}
 
 int caldgemm_opencl::caldgemm_config_backend_opencl::ParseBackendOptions(unsigned int argc, char** argv)

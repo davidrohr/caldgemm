@@ -98,6 +98,8 @@ public:
 		caldgemm_config_backend() {size = sizeof(*this);}
 		virtual ~caldgemm_config_backend();
 		virtual int ParseBackendOptions(unsigned int argc, char** argv);
+		virtual void printConfig(caldgemm_config_backend* oldConfig = NULL);
+		virtual caldgemm_config_backend* Clone() const {return new caldgemm_config_backend(*this);}
 	};
 
 	class caldgemm_config						//Run Parameters

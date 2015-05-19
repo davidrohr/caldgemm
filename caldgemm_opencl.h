@@ -49,6 +49,8 @@ public:
 		virtual ~caldgemm_config_backend_opencl();
 		caldgemm_config_backend_opencl() {size = sizeof(*this);kernelLib = NULL;}
 		virtual int ParseBackendOptions(unsigned int argc, char** argv);
+		virtual void printConfig(caldgemm_config_backend* oldConfig = NULL);
+		virtual caldgemm_config_backend_opencl* Clone() const {return new caldgemm_config_backend_opencl(*this);}
 
 		char* kernelLib;
 	};
