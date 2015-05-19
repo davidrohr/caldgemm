@@ -1,1 +1,8 @@
+release
+dgemm_bench.exe
 dgemm_bench
+.svn
+vcproject
+*.o
+caldgemm_config.h
+config_options.mak

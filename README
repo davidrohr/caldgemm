@@ -1,0 +1,780 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+Caldgemm Readme, Command Line Options, Performance Optimization Guide, and examples
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Command Line Options of dgemm_bench:
+The parameters here are those of DGEMM bench, and the defaults are valid for DGEMM bench.
+Most parameters translate directly to a CALDGEMM setting, in that case the relevant
+CALDGEMM setting with its default in CALDGEMM is listed.
+
+Some CALDGEMM settings are only valid for HPL-GPU. In that case, there is usually still
+a DGEMM bench option, to test this parameter. These parameters are marked (HPL-GPU Setting).
+
+CALDGEMM provides 4 backends, for CAL, OpenCL, CUDA, and CPU. Some parameters are only
+valid for only one or some backends. This is noted as e.g. (CAL Runtime and OpenCL Runtime
+only).
+
+CALDGEMM has two DMA Frameworks, one keeps the C matrix on GPU (GPU_C = 1), on keeps
+the C matrix on the host (GPU_C = 0). This is switched with -Oc switch. Some parameters
+are only valid for the either or the other case. This is noted as e.g. (GPU_C = 1 only).
+The CAL Runtime will always use GPU_C = 0, CUDA will always use GPU_C = 1, OpenCL supports
+both, for CPU backend this setting is ignored. In general, GPU_C = 1 should be favored
+when the GPU is much faster as CPU (i.e. with a multi-gpu system), GPU_C = 0 is better
+when GPU and CPU performance do not differ by more than a factor 4. The CPU_C = 0 option
+requires preprocessing (DivideBuffer) and postprocessing (MergeBuffer) on the host.
+Compared to GPU_C = 0, GPU_C = 1 requires half the global host memory bandwidth, but it
+requires full duplex DMA transfer instead of half duplex for GPU_C = 0.
+
+-?
+Display help on command line options.
+
+-e (default: disabled)
+Verify Computational Correctness. The matrix is copied at the beginning of the computation.
+Sufficient memory must be available. See -7 for verification of large matrices.
+
+-q (default: disabled)
+Supress Display Output in caldgemm. Output from dgemm_bench is still active.
+See -5 to suppress this.
+
+-a (default: disabled) (CAL Runtime Only)
+Print the disassembled kernel image
+
+-i (default: disabled) (CAL Runtime and OpenCL Runtime Only)
+Print IL Kernel used
+
+-if <int> (default -1 = autodetect)
+Force DGEMM Kernel Variant to use. CALDGEMM can use some special kernels for special cases,
+i.e. general (number 0), with beta=1 (number 1), with beta = 1 and alpha = 0 and hardcoded k
+(number 2), with beta = -1 and alpha = 1 (number 4). CALDGEMM will automatically use the
+correct kernel.
+Used for internal testing only.
+
+-o <c|g> (default: 'c')
+Specify the output location, c = CPU, g = GPU, default GPU.
+This is the output location of the kernel. If 'g' is specified the GPU write to GPU global
+memory and an additional DMA transfer fetches the data to the host. In general 'c' is the
+faster option. On some systems DMA is slow and 'g' gets the better kernel performance.
+See -I in combination with the 'g' option!
+
+-I (default: -1 = autodetect) (CAL Runtime Only)
+Force implicit driver sync.
+A bug in some AMD drivers prohibits DMA transfers and concurrent kernel execution in certain
+situations. Ths slows down caldgemm. A workaround is
+available that relies on a specific driver behavior and might result in wrong results with
+newer drivers. It is automatically detected whether you driver suffers by the bug and whether
+the workaround can be applied. This check does not work for newer driver versions though.
+-I forces the workaround enabled.
+
+-^  <int> (CAL Runtime Only)
+Set DMA fetch queue parameter. Some AMD GPU drivers show a bug with implicit driver sync,
+but they still prohibits the concurrent DMA transfer (see -I). In this case, the implicit
+driver sync (-I) cannot be used, but must be switched off. This would disallow concurrent
+DMA transfers. A DMA fetch queue is a second workaround, which works in general, but is
+slower than the implicit driver sync. In general, if the driver does not show the DMA
+limitation, no workaround should be used (-I 0 -^ 0), if the driver has the limitation and
+implicit driver sync does not cause data corruption, the implicit driver sync workaround
+should be used (-I 1 -^ 0), if implicit driver sync does not work, the DMA fetch queue
+should be used (-I 0 -^ 1).
+
+-h <int> (default: =4096)
+Tile size for matrix multiply, default 4096. If you use GPU only DGEMM the matrix sizes must
+be a multiple of h.
+
+-H <int> (default: =-h)
+Reduced block size for actual matrix multiply (buffer size given by -h).
+I.e. CALDGEMM will allocate buffers for a tile size of h, but then use an actual tile size of
+H. The reason is that when you want to run caldgemm with different matrix sizes, you should
+initialize it with large h suited for the largest matrix, but a smaller matrix might favor a
+smaller h, so tile size can be reduced during runtime in caldgemm. H is used to test the
+impact of this in dgemm_bench.
+Used for internal testing.
+
+-w <int> (default: 1024)
+k for matrix multiply, default 1024.
+
+-W <int> (default: =-w)
+Reduced width, see H.
+Used for internal testing.
+
+-l (default: disabled)
+Automatically select tile-size for good performance. The -h paramameter defines the maximal
+size possible. -l parameter will use smaller tiles for smaller matrices. Activating this is
+generally a good idea.
+
+-m <int> (default: 4096)
+m for matrix multiply, default 1024.
+Number of rows of the target matrix. If GPU-only DGEMM is used, this must be a multiple of
+-H. If small tiles are allowed via -J switch, it must be a multiple of the minimum small
+tile size. If CPU us used as well, m can be arbitrary. The CPU processes the remainder part.
+
+-n <int> (default: 4096)
+n for matrix multiply, must be multiple of h, default 1024.
+Number of cols of the target matrix. If GPU-only DGEMM is used this must be a multiple of -H.
+
+-v (default: disabled)
+Verbose Synchronous Timing for Single Kernels / Transfers.
+This disables all asynchronous transfers in caldgemm. Overall performance will be poor.
+This can be used for directly measuring kernel performance and DMA performance and pre-/
+postprocessing performance on CPU (pre-/postprocessing is only used for some operating modes.)
+
+-k (default: disabled) (GPU_C = 0 Only)
+Print Timing of Asynchronous DGEMM Operation.
+Used for internal testing.
+
+-r <int> (default: 1)
+Number of iterations to run the program (inside caldgemm)
+Used for internal testing.
+
+-R <int> (default: 1)
+Number of iterations to run in the benchmark (seperate caldgemm calls)
+Used for internal testing.
+
+-y <int> (default: -1)
+Force Device ID (-1 = all devices)
+Force the device id to use. You can either specify a single device or provide -1 to use all
+devices.
+
+-Y <int> (default: 8)
+Maximal number of devices to use. Setting -Y greater than zero requires -y to be -1
+
+-bb <int> (default: 0 = autodetection)
+Maxumum number of allowed bbuffers. In many cases, mostly for OpenCL autodetection might not
+work properly. Then, -bb should be set to the higherst max(m,n)/h which is run.
+
+-d (default: disabled)
+Print lots of debug output
+
+-z (default: disabled)
+Enable Multithreading. You definitely want to activate this. For some internal reasons, this
+is a prerequisite to use multiple GPUs. MultiThreading means asynchronous processing of pre-/
+postprocessing (required if GPU_C = 1 (-Oc parameter)). In addition, it is required for
+asynchronous factorization, broadcase, etc. in HPL-GPU.
+
+-Z (default: disabled)
+Enabld Multithreading for DivideBuffer as well. Requires -z. Only valid for multiple GPUs. Use
+-Gx to set CPUs for GPU pre/postprocessing!.
+
+-b (default: disabled)
+Enable internal benchmarking mode.
+Used for internal testing.
+
+-c (default: disabled)
+Use CPU for DGEMM. You can supply -g as well to use both CPU and GPU. Supplying neither of them
+will use GPU only.
+
+-g (default: enabled if and only if -c is disabled)
+Use GPU for DGEMM. You can supply -g as well to use both CPU and GPU. Supplying neither of them
+will use GPU only.
+
+-f (default: disabled)
+Fast Init (Empty Matrices). The matrices are filled with zeros instead of using a random number
+generator. Initialization is faster. Use for optimization and benchmarking only. The verification
+does not work with this initialization method. Neither are the benchmark results correct with
+newer GPUs. Multiplication with zeroes drains less power, hence the GPU will run in turbo mode
+constantly, which is not true for standard random numbers.
+
+-j <dbl> (default: -1)
+Ratio of GPU performance to total CPU+GPU performance. Set to -1 for autodetection. This defines
+how the matrix is split between CPU and GPU. The GPU will process a fraction of j. For DGEMM only,
+this should be the GPU_Perf/(CPU_Perf + GPU_Perf). When used within HPL-GPU, keep in mind that the
+CPU will have to perform other tasks as well, so j should be larger then. The -1 autodetection is
+usually missing a good initial guess for the first run, i.e. it will find a good value over time but
+at the beginning it can be far of. You can use a negative value to define an initial guess, i.e.
+-j -0.7 will start with a ratio of 0.7 and then refine this automatically.
+
+-jf <dbl> (default: disabled) (HPL-GPU Setting for Multi-Node runs)
+If greater zero, this defines a minimum gpu ratio that is used during factorization phases of linpaxk.
+In these phases, the factorization causes significant cpu load. The ratio should thus be higher than
+in non-factorization phases. In that case -jf defines a lower limit to support the autocalculation.
+
+-jm <dbl> (default: disabled)
+If greater zero, this defines a maximum gpu ratio. This ensures the CPU always gets a certain part of
+the matrix. This is particularly usefull in combination with automatic ratio calulation. Autocalculation
+works only if the CPU has a certain part. Without -jm, as soon as the CPU part became 0 once, it will
+usually remain zero and never recover. In that case, you can use -jm 0.99.
+
+-jt <bdbl> (default: 0)
+The automatic ratio calculation tries to match gpu and cpu execution time to ensure 100% execution of
+both processors. Performance is deterioted more, if the GPU idles, hence it is generally a good idea
+to aim for slightly longer gpu execution time than cpu execution time, to compensate for small
+variations. This margin parameter defines a margin in seconds, which defines how much GPU time should
+exceed CPU time.
+
+-js <dbl> (default: 0.4) (HPL-GPU Setting)
+In linpack factorization phases, execution time variations can be larger. This setting overrides the
+-jt setting in this case.
+
+-jl <dbl> (default: 0.2) (HPL-GPU Setting)
+With the standard (non-alternate) lookahead, the CPU has to process a small non-quadratic matrix-part
+in the preparatory phase of lookahead. DGEMM on this part is usually slower than the full DGEMM. This
+parameter defines an extra factor that virtually increases the lookahead part in the CPU / GP
+distribution calculation, to account for reduces CPU performance. (a setting of zero means no
+compensation.)
+
+-jp <int> (default: 1)
+Apply ratio penalties to CPU part in some situations to ensure GPU keeps the dominant processor. A
+setting of 0 disables penalties. Setting of 1 applies a penalty if the CPU took longer than the GPU in
+the last iteration. A setting of two applies a penalty in addition when the CPU part in the last
+iteration was short, because in that case CPU performance may fluctuate and is not that important.
+
+-jq <dbl> (default: 0.9)
+Penalty factor to apply to CPU part.
+
+-s (default: disabled)
+Dynamic CPU / GPU scheduling. Do not use only the fixed ratio specified by -j but use a dynamic CPU/GPU
+workload scheduling. This includes work-stealing, etc. The value provided by -j is the basis for the
+scheduling.
+
+-M (default: disabled)
+Disable third phase in dynamic scheduling
+
+-N (default: disabled)
+Disable second phase in dynamic scheduling
+
+-rr (default: disabled) (HPL-GPU Setting)
+Rereserve Linpack CPU: HPL-GPU requires one GPU core for the broadcast. This core is not available for
+CPU DGEMM. CALDGEMM can estimate the broadcast time and then try split the DGEMM in two parts. One part
+in parallel to the broadcast with one core less, and then a second part after the broadcast with all
+cores. Makes sense when you are not GPU dominated and when you do not have too many cpu cores.
+
+-p (default: disabled)
+Interleaving Memory Policy. Gotoblas usually activates memory interleaving. This leads to a problem with
+the CAL library. Interleaving should be activated after memory for the CAL library is allocated. Thus
+it is recommended to disable interleaving in GotoBLAS (apply the patch provided with caldgemm and
+set NO_MEMINTERLEAVE in GotoBLAS Make.rule) and use -p.
+
+-u (default: disabled)
+Dump Test Matrix.
+Used for internal testing only.
+
+-1 (default: disabled)
+Transpose A Matrix. Provide a transposed input A matrix.
+
+-2 (default: disabled)
+Transpose B Matrix. Provide a transposed input B matrix.
+
+-3 (default: disabled)
+Set alpha parameter to 1.0 to test optimized kernel.
+
+-# (default: disabled)
+Set beta parameter to 0.0 to test optimized memcpy.
+
+-5 (default: disabled)
+Quiet Benchmark mode (different from quiet caldgemm mode -q). This suppresses output of dgemm_bench.
+Output of caldgemm is not suppressed. See -q for this.
+
+-6 <int> (default: not used)
+Set m=n = value * tile-size (-h)
+
+-4 <int> (default: not used)
+Set m=n to the closest multiple of tile-size (-h) to value
+
+-7 (default: disabled)
+Verfication for large matrices. Compared to -e this does not require the matrix to be copied. However,
+the output is less elaborated and it only tells you whether the DGEMM succeeded.
+
+-8 (default: initial run enabled)
+No initial run to negate cache effects. The first run is usually slower as the kernel must be copied
+to GPU, etc. Thus, for benchmarks, an initial run is performed before the actual benchmark run is
+started. The -8 option ommits this initial run. The initial run is automatically deactivated if the
+-d option or some other are given. This option is primarily used for debugging.
+
+-9 (default: disabled)
+Output a table with timing information
+
+-0 (default: disabled) (CAL Runtime only)
+Write the output of divideBuffers-function directly to GPU instead of a seperate DMA transfer. This
+option turned out to not perform well. Better leave it deactivated.
+
+-A (default: disabled)
+Do the DMA transfer to GPU asynchronously. If you are not debugging, always enable this.
+
+-L (default: disabled)
+Memory Organisation like in HPL (LINPACK). Do not pack the A, B, C matrices together but use a
+memory organisation like in HPL where the matrices are stored kind of interleaved.
+
+-C (default: disabled)
+Call fake LINPACK callback functions. This is used to test the HPL callback implementation.
+For internal testing only.
+
+-Ca <int> (default: 0) (HPL-GPU Setting)
+Set alternate lookahead threshold. Alternate lookahead mode will be used as soon as matrix_n (the
+HPL-GPU value matrix_n becomes smaller than <int>.
+
+-P <int> (default: not used)
+LDA=LDB=LDC = val for HPL like memory. Forces the leading dimension of the matrices to a specific value.
+If not set the leading dimensions are chosen such that each row starts at a new cache line.
+
+-T (default: disabled)
+Allocate Memory using Huge Tables. Turned out not to perform well for some reasons. Better leave it 
+deactivated. To activate this feature shared memory segments with huge tables must be provided.
+
+-B (default: disabled) (CAL Runtime only)
+Keep DMA Buffers mapped during kernel execution. The Driver Hack is needed for this option. It is
+only relevant when using "-o c" which, however, is the default value.
+
+-x <file> (default: not used)
+Load Matrix from file.
+
+-- <int> (default: disabled)
+Run a torture test with n iterations. The torture test will automatically set "-A -B -p -z -g"
+If will use m and n of 86016. If you do not have sufficient memory available you can override
+the m and n settings. make sure you specifiy -m and -n after --. Without additional options
+a GPU only torture test is started. Using the standard option you can run combined GPU/CPU torture
+tests. E.g. a combined torture test with reduced matrix size can be started by:
+-- 10 -m 40960 -n 40960 -c -l -se;
+
+-t <int> (default: 0)
+Pin GPU thread to core n. The core which is closest to the GPU should be chosen. Mostly 0.
+The additional merge threads will use the next possible core then. E.g. running with 1 merge threads
+and -1 6 will use cores 6 and 7.
+
+-ts (default: disabled)
+Visualize the Thread affinities.
+
+-tr <int> (default: -2)
+Pin the GPU device runtime threads to CPU core <int>. Use -2 to use the same core as the CALDGEMM main
+thread. This is the default, as this frees the other cores for concurrent DGEMM execution. Set to -1 to
+allow the device runtime to utilize all CPU cores (which is the default of the device runtimes).
+
+-K  <int> (default: none)
+Pin GPU main thread for DMA handling to core <int>
+
+-Gx <int> (default: not used)
+Use CPU cored given for GPU x. The merge threads will use the next cores, ie -G1 12 will do dividebuffer
+for GPU 1 on core 12 (if -X) used and mergebuffers on 13 and following. Multiple GPUs assigned to the
+same core are automatically grouped correctly. Use multiple times for multiple GPUs, e.g. -G0 0 -G1 12 -G2 12.
+In order to use multiple cores for DivideBuffer, you have to enable the multithreaded DivideBuffer
+Option (-Z)!
+
+-Ux <int> (default: -1 = auto, see -Gx)
+Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping
+If -Ux and -Gx differ, postprocessing for GPU x happens on core Ux, other tasks happen on core Gx. (See -Gx)
+
+-UAx <int> (default: -1 = no special pinning)
+Allocate memory for host buffers for GPU x on CPU die <int>, -1 = default mapping
+In grouped DMA mode (see -[) this also defines the cpu core for the host thread responsible for GPU x.
+
+-UBx <int> (default: none)
+Set DMA Mapping for GPU x, i.e. the CPU thread responsible for GPU x in parallel DMA mode (See -*) will run
+on core UBx.
+
+-V <int> (default: automatic)
+Thread save GPU runtime: (0: no, 1: yes, -1: use global lock). This is mostly important for CAL backend.
+CAL is not completely thread save, some API functions are not reentrant. -V 0 will use a mutex to protect
+this, -V 1 will not use a mutex causing a possible race condition, so it is UNSAFE! For CUDA and OpenCL,
+the APIs are thread save, and there is no difference between -V 0 and -V 1.
+-V -1 has a different meaning. In that case, CALDGEMM will use a global mutex to protect and serialize all
+GPU API calls. This is for debugging in case one suspects the GPU driver to be not reentrant.
+
+-S (deafult: not used)
+Set slow CPU option (see below)
+
+-X (default: disabled)
+Do not use a round robin scheduler for multi-GPU but split the matrix along the not favored direction and
+process each part by a distinct GPU. This saves BBuffers and is usually faster. This is mandatory force
+very large matrices.
+
+-Xb <int> (default; 1)
+Use a balanced improved scheduler. Only relevant in combinatio with -X. This should always be better.
+There are three mode: 0 no balancing, 1 standard balancing, 2 advanced balancing.
+1 or 2 should always be better
+
+-E (default: 0)
+Define random seed to use for matrix initialization. Use 0 for time.
+
+-O (default: enabled)
+Define backend to use. Available options are:
+0: CAL
+1: OpenCL
+2: CUDA
+3: fCPU Only
+
+-Oc <int> (default: autodetect) (OpenCL Runtime only)
+Set this to 1, to enable the alter GPU_C DMA framework, which keeps the C matrix on the GPU. (See head of
+this file!). CAL is forced to -Oc 0, CUDA is forced to -Oc 1, OpenCL can use both and defaults to 0.
+It is usually a good idea to enable this with OpenCL, but some drivers do not support it, hence it is
+disabled by default.
+
+-Ol <string> (default: none) (OpenCL Runtime only)
+Set a 3rd party external library that provides the GPU kernels. If this is not set, reference kernels
+(unoptimized) that come with CALDGEMM are used.
+
+-Oe (default: disabled) (OpenCL Runtime only)
+Do not allow multiple concurrent OpenCL kernels. Some OpenCL devices are slower when they execute multiple
+DGEMM kernels at the same time. This settings uses OpenCL events to enforce serialization of OpenCL
+kernels. It does not work well, and should not be used. It is better to enforce serialization on the driver
+side, e.g. on AMD cards via GPU_NUM_COMPUTE_RINGS=1 env variable.
+
+-Oq (default: disabled) (OpenCL Runtime only, CUDA support planned)
+Use simple GPU Queuing for OpenCL. This comes with less overhead, so it is generally better for the GPU.
+But it is incompatible with GPU_C = 0 (-Oc option). If you use -Oc 1, you should also enable this. This
+enforces the Improved Scheduler (-X option)
+
+-Op <int> (default: disabled)
+CALDGEMM requires certain internal buffers. The number depends on n/h and m/h, i.e. on the matrix size.
+As this is not known in advance, these buffers are allocated during runtime. The can be preallocated
+during the initialization via -Op option. The maximum number of blocks maximum of(nb = n / h, mb = m/h)
+must be pro provided then.
+
+-Oa (default: disabled) (OpenCL Runtime Only, CUDA support planned) (HPL-GPU Setting)
+CALDGEMM can run asynchronous side queues on the GPU to offload other tasks concurrent to DGEMM execution
+If this is set, DGEMM bench creates an async side queues and uses this queue to test a single-tile dgemm.
+
+-Ox (default: disabled) (OpenCL Runtime Only)
+Do not put the CPU in the OpenCL context
+Can safe some OpenCL internal buffer sizes. Some OpenCL runtimes fail to allocate the large buffers
+required for -Oc 1. You should try whether it works, if yes fine, if not disable it.
+
+-Ot (default: disabled)
+Use 3rdPartyTranspose kernel for matrix transposition, which is provided by 3rd party external library
+(See -Ol setting)
+
+-F (default: 0)
+Define OpenCL Platform ID to use.
+
+-J <int> (default: 0)
+Allow small tiles to process the remainder on GPU (0 disable, 1 enable, 2 auto). Auto tries to
+find a good tile size automatically, which does not always work. In general, for a system with a fast CPU,
+it is best to leave this as 0. That will ensure optimal GPU tile size, the CPU does the rest.
+If the GPU is very fast, set this to 1, to ensure that the remainder part processed by the CPU does not
+become a bottleneck. In any case, you can try setting 2 when you try to optimize, but the effect is small
+and if the prediction fails, it deteriorates performance significantly.
+
+-Q (default: disabled)
+Wait for pressing a key before exiting
+
+-! (default: disabled)
+Do not use page locked memory
+
+-_ (default: disabled) (OpenCL Runtime and CUDA Runtime only)
+Allocate memory using the GPU runtime library (e.g. OpenCL) instead of malloc. This is required for using
+GPU_C = 1 (-Oc 1 option) in combination with -o c. In general, it is usually faster with GPU_C = 1 regardless
+of whether -o g or -o c is used. Some drivers do not support this properly.
+
+-= <int> (default: 2) (GPU_C = 0 only)
+Define number of MergeBuffer threads per GPU.
+
+-% (default: disabled)
+Skip CPU Pre- and Postprocessing. Leads to incorrect results.
+For internal testing only
+
+-@ <list> (default: disabled)
+Comma or Semicolon separated list of CPU cores to exclude. This is usefull if you run something in parallel
+to CALDGEMM. Or if you have a bulldozer or HyperThreading GPU and you want to disable all even or all
+odd numbered cores. In general, it is a good idea to disable HyperThreading for CALDGEMM.
+
+-. (default: disabled) (CAL Runtime only)
+Repin Main Thread During Active Wait for GPU Event. This is a workaround required for the CAL Runtime on
+Sandy-Bridge-E CPUs. It costs performance, so only enable when needed.
+
+-~ (default: disabled)
+Always repin main thread. This is an alternate workaround for Sandy-Bridge-E CPUs (see -. option)
+
+-, <int> (default: disabled) (CAL Runtime only)
+Sleep for n usec during active wait for GPU. This can save some CPU resources at the cost of increased latency.
+
+-: (default: disabled)
+Enable NUMA Pinning. This tries to distribute all employed CPU threads evenly among NUMA nodes. Has little
+effect, does not always work, but has practically never a negative effect.
+
+-/ <list> (default: disabled)
+Comma or Semicolon separated list of GPU devices to use (replaces -y for multiple devices)
+Usually, -Y 3 will use GPU devices 0, 1, and 2, while -y 3 will use only GPU device 3.
+This gives more fine-grained control on which GPU devices to use. On NUMA systems, it can be beneficial to
+interleave devices on different NUMA nodes.
+
+-* <int> (default: 0)
+Enable Parallel DMA option if n >= <int>. Set to very large number to enable always.
+This mode will use a different CPU core to manage each GPU, thus requiring more CPU resources. The cores are
+defined via -UBx option.
+
+-[ <int> (default: 0)
+Enable Grouped Parallel DMA option if n < <int>. Requires Parallel DMA option and requires -* > -[ or -* -1.
+Set this option to -1 in order to always use Gouped Parallel DMA and never standard Parallel DMA.
+This can group the GPUs and use a CPU core for multiple GPUs. Cores defined via -UAx option.
+As an example, -* -1 -[ 100000 -UA0 0 -UA1 0 -UA2 10 -UA3 10 -UB0 0 -UB1 1 -UB2 10 -UB3 11, will use 4 threads
+(one per gpu) for matrix sizes above 100000 on cores 0, 1, 10, 11 and 2 threads for smaller matrices on cores
+0 and 10, with core 0 handling gpus 0 and 1.
+
+-] <int> (default: disabled) (AMD GPUs only, uses ADL library)
+Maximum allowed GPU temperature (check applied after one caldgemm iteration, meaningfull in combination with -R)
+
+
+
+Other CALDGEMM Options:
+
+The CALDGEMM config allow the SlowCPU option which should be used when the CPU is comparably slow compared
+to the GPU. It deactivates 2nd and 3rd phase runs and adjusts the tiling size to minimize the 1st phase
+CPU run.
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Performance Optimization Guide:
+
+To achieve good performance multiple steps should be performed:
+0. Update Settings for the GPU used
+1. Optimize Kernel Performance.
+2. Optimize System Performance of GPU-DGEMM (including DMA-transfer, post-/ preprocessing).
+3. Optimize Combined GPU/CPU Performance.
+4. Optimize multi-GPU performance.
+
+If you have multiple GPUs better do the following with a single GPU first. Try multiGPU afterwards (step 4).
+Add -y 0 to each of the following command lines at the beginning.
+
+In principle, you should try to achieve the following performance:
+The kernel performance dictates the final performance. Kernel performance is usually 80%-90% of the
+theoretical peak performance of the GPU. The CAL kernel should achieve 574 GFLOPS with 5870 GPU,
+623 GFLOPS with 6970 GPU, 805 GFLOPS with 7970 GPU, to give a rough overview.
+
+Goint from single GPU kernel performance to single GPU system performance, you should expect a loss of 1%-3%.
+Scaling to multi-GPU should be almost perfect for 2 GPUs (less than 2% loss) and for 4 GPUs you should expect
+less than 4% less.
+
+If you then go to HPL, a rough guideline is that HPL should achieve 7%-15% less GFLOPS than DGEMM, while
+multi-node HPL will encounter an additional 5%-10% loss.
+
+The following procedure is mostly for CAL. Additional suggestions for OpenCL and CUDA follow later. Still, many
+aspects of the CAL guide are also valid for OpenCL / CUDA.
+
+Some general remarks at the beginning:
+CALDGEMM by default uses pinned host memory, which cannot be swapped. It might be necessary to set ulimits
+accordingly: ulimit -m unlimited; ulimit -l unlimited; ulimit -v unlimited;
+
+Some GPUs throttle themselves during DGEMM execution. For AMD GPUs, you can use the "atitweak" python utility
+to modify the GPU poertune feature (atitweak -p) to overcome this. Keep in mind that this might run the GPU our
+of spects, so it can damage your hardware if done incorrectly. This is at your own risk. You should at least
+monitor temperature constantly if doing so.
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Step 0:
+Different GPUs require different settings for optimal performance.
+
+Especially the splitting ratio calculation may not work correctly. Always keep an eye on the GPU time and the
+CPU time. If one of them is higher then the other, adjust the -j ratio. This is also relevant for the 5000
+series due to different clock speeds.
+
+CALDGEMM comes with Assembler GPU DGEMM kernels for the CAL runtime. Depending on the particular GPU used,
+the options in caldgenn_config.h should be adjusted for optimal DGEMM performance.
+
+For the 5xxx series, the following is suggested:
+Enable exactly CALDGEMM_TRANSPOSED_B, CALDGEMM_44 as DGEMM kernel settings in caldgemm_config.h
+For 5xxx series h can be used almost arbitrarily but is suggested to be at least 1024.
+5xxx works well both with -o g and -o c
+
+For the 6xxx series the following configuration is suggested:
+Enable CALDGEMM_TRANSPOSED_B, CALDGEMM_44.
+It is best to enable the CALDGEMM_44_BT_64 and CALDGEMM_44_BT_64_CONVERT options in caldgemm_config.h.
+h = 2304 performs best. 
+Use -o c in any case! See that implicit driver sync works (-I), or use DMA fetch queue (-^).
+
+For the 7xxx series, please enable the following settings (default):
+CALDGEMM_TRANSPOSED_A, CALDGEMM_44, CALDGEMM_DUAL_ENTRY, CALDGEMM_LATE_EXIT_CONDITION, CALDGEMM_SHIFT_TEXTURE 1
+h = 3072 works well.
+-o g works usually better than -o c
+
+In general, it is no longer suggested to use CAL. OpenCL and CUDA are the better options.
+OpenCL comes only with a reference kernel, it has support to load an optimized kernel from a 3rd party library.
+This is the suggested way.
+CUDA also comes only with a reference kernel yet, this should be changed to CUBLAS in the future.
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Step 1:
+The kernel performance should be good out of the box. Most kernel parameters cannot be changed via
+command-line but during compilation in caldgemm_config.h. Usually the parameters are fine as they are.
+
+Run a "./dgemm_bench -v" to check the kernel performance. The kernel will usually write its output to
+host memory.
+
+Some systems have a poor DMA. You can try to alter the output to GPU memory and see whether
+kernel performance gets better. Run "./dgemm_bench -o g -v" for this. If the second option is better,
+always use "-o g". For OpenCL and for 7xxx AMD series and above, -o g is suggested in general.
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Step 2:
+Optimize System performance
+
+First check whether DMA is working well. Run "./dgemm_bench -o g -v" and look at the copy speeds from and
+to the device. (-o g is required here to measure PCIe speed.)
+Anything above 5gb/s should be fine. If the speed is below probably the GPU threads are pinned
+to a wrong CPU core on NUMA architectures. You can alter the CPU core with the -t option.
+Try "./dgemm_bench -o g -v -t 0", "./dgemm_bench -o g -v -t 1", etc to find the best CPU core.
+Using a CPU core other than zero can lead to problems when using GPU/CPU combined DGEMM.
+
+Test you system GPU DGEMM performance. The parameters you definitely want to have are:
+-z (multithreading)
+-p (memory interleaving)
+-A (asynchronous DMA transfer)
+Run "./dgemm_bench -z -p -A -m 40960 -n 40960"
+
+This part is only relevant if you found you want to use "-o g" in Step 1:
+There is a DMA problem in the AMD driver that can be overcome by a workaround. Usually it is autotedected
+whether the workaround can and must be applied. Still, you better recheck by hand.
+You can force the workaround using the -I parameter.
+Rerun the above test: "./dgemm_bench -z -p -A -m 40960 -n 40960 -o g -I"
+If the performance is better you have to check whether the results are correct. The workaround will only
+work with some drivers and might produce false results with others. To verify run:
+"./dgemm_bench -z -p -A -m 40960 -n 40960 -o g -I -e"
+
+This part is only relevant if you found you want to use "-o c" in Step 1:
+Use the AMD driver hack. Apply the hack and then use the "-B" parameter.
+Run "./dgemm_bench -z -p -A -B -m 40960 -n 40960". You'll see a warning if the hack was not applied
+correctly. Performance is not necessarily better than without "-B" but the CPU load is decreased. You'll
+see the difference when using combined CPU/GPU DGEMM.
+
+If you have an Ivy-Bridge system with CAL runtime, add -. option.
+
+On intel systems, you can usually restrict to one output thread with -= 1 option.
+
+If you have much more GPU power then CPU power, -J 1 is suggested, and perhaps disable dynamic CPU/GPU scheduling (no -s).
+
+You can interleave GPUs among numa nodes with -/ setting (see quad-GPU 7xxx series example below).
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Step 3:
+Optimize Overall performance.
+
+First check the possible CPU performance: "./dgemm_bench -c -z -p -m 40960 -n 40960".
+Then do a combined CPU/GPU run: "./dgemm_bench -c -g -l -s -p -z -A -m 40960 -n 40960".
+Use the "-o g", "-I", and "-B" parameters as determined in steps 1 and 2.
+The performance should be better than in step 2.
+
+You can alter the CPU/GPU ratio using the "-j" parameter. Try to tune it such that the GPU and CPU DGEMM
+times are equal. It is better to set -j rather high, as the dynamic scheduler will compensate this with a
+work-stealing algorithm. If you see many 3rd-phase runs in caldgemm output, than "-j" is possibly to big.
+
+If the AMD driver hack is not available, you might get better combined performance by using "-o g"
+(foolow the appropriate instructions in step 2 also).
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Step 4:
+There is little you can do to optimize multi-GPU performance. You have to determine the CPU core for each GPU
+independently. Repeat this part of step2. Use -y 0, -y 1, -y 2 etc to optimize each gpu.
+Finally use -G0 ? -G1 ? -G2 ? and insert the optimal cpu core you obtained for each GPU.
+
+Next step is tuning -Ux settings. Try if Parallel DMA mode and grouped DMA mode yield a benefit.
+
+First try to run without CPU. From now on omit the "-y 0". The performance should scale almost linearly with
+multi-GPU.
+
+You can try the -X and -Z options. They usually increase performance for 3 GPUs or more. You might also
+want to increase w. w = 1536 or w = 2048 can achieve good performance. For larger w a smaller h is suggested.
+Try h = 3072 for instance.
+
+If you have good multi-GPU performance try to use the CPU as well. You might need to change the -j value.
+Best, start with -j 1 to do almost all work of the CPU. Then decrease j step by step until you see optimal
+performance. (-j 0.97 ... -j 0.94 ... -j 0.91).
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Guidelines for OpenCLL / CUDA:
+The CUDA part is not fully implemented yet. This guide is written as if it was fully integrated, feel free to
+implement the missing features for CUDA yourself :|.
+
+The most important thing for OpenCL is the 3rd party library for the DGEMM kernel. CALDGEMM itself comes only
+with an unoptimized reference implementation. There is a sample 3rd party library with a template that shows
+how such a library has to work. In caldgemm_config.h there are also some options to tweak the integrated OpenCL
+kernels's performance. Important aspects here are ENABLE_TILED_KERNEL and DISABLE_SIMPLE_BUFFERS, but
+performance will anyway be much less than with proper 3r party kernel.
+
+In general, you should try to use OpenCL with GPU_C = 1. It is almost always better. Only in the case of a com-
+paratively fast CPU (like 2 * 12 core CPU + slow GPU like 5870), the GPU_C = 0 option is possibly faster.
+In general, GPU_C = 0 works better with CAL, which is usually around 5% faster than OpenCL. So if you want to
+test is, CAL is probably the way to go (although no longer supported for newer GPUs).
+
+OpenCL with GPU_C = 0 setting has almost identical behavior as CAL, so please follow the above guide.
+The following refers to OpenCL with GPU_C = 1 and to CUDA.
+
+OpenCL with GPU_C = 1 will transfers tile of the C matrix completely to the GPU using strided submatrix transfers.
+There are no intermediate host buffers.
+
+Therefore, there are no pre-/postprocessing threads on the CPU.
+
+Due to the nature of GPU_C = 1,  the GPU pinnin has practically no influence (except perhaps of
+device API internal buffers, which can be pinned to the either or the other GPU.) Hence, it makes sense to set
+the -UAx settings as described above for the -Gx settings, as it comes at zero cost. But it is not really necessary.
+It works well without.
+
+In general, you will want to use device-runtime-allocated memory. It is usually mich faster than plain malloc.
+The -o c setting enforces device-runtime-allocated memory for OpenCL in any case.
+For this you need the -_ option. Be aware that some OpenCL drivers have problems allocated the large buffers required.
+If this leads to memory allocation problems, you should first try to fix this driver issue before you start to
+disable device-runtime-allocated memory.
+
+The baseline for OpenCL will thus be something like
+
+./dgemm_bench -O 1 -Oc 1 -o g -_ -Ol my_opencl_3rd_party_lib.so -w 1920 -h 3072 -UAx... -A -c -z -X -p -m ... -n ...
+
+The most relevant optimization settings are:
+-Oq (enable simple queuing, almost always faster)
+-J 1 (enable small tiles)
+-bb ? (choose correct number of bbuffers)
+-Op ? (chose correct preallocation setting)
+-Ox (exclude CPU from context)
+-Ot (improved transposition kernel)
+-Xb 1/2 (improved scheduler balancing)
+
+Of course you do not need -X -Xb if you use only a single GPU
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Examples:
+
+Measure kernel and PCIe performance:
+./dgemm_bench -o g -v
+
+Run GPU-only DGEMM
+./dgemm_bench -z -p -A -B -m 40960 -n 40960
+./dgemm_bench -z -p -A -o g -I -m 40960 -n 40960
+
+Run CPU/GPU DGEMM
+./dgemm_bench -c -g -z -s -l -p -A -B -y -1 -j -1 -m 40960 -n 40960
+./dgemm_bench -c -g -z -s -l -p -A -o g -I -y -1 -j -1 -m 40960 -n 40960
+
+Run Multi-GPU/CPU DGEMM
+./dgemm_bench -c -g -z -s -l -p -A -B -m 89088 -n 89088 -X -Z -w 1536 -h 3072 -G0 0 -G1 0 -G2 12 -j 0.91
+
+Example of quad-GPU without CPU 6xxx series (2 * 12 core AMD Magny-Cours system, GPUs 0,1, connected to numa node 0 (cores 0-11))
+./dgemm_bench -g -A -Z -X -p -w 2048 -h 2304 -o g -I 1 -4 123000 -G0 0 -G1 12 -G2 1 -G3 13 -U0 2 -U1 14 -U2 4 -U3 16 -UA0 0 -UA1 12 -UA2 0 -UA3 12 -K 0 -z -= 2 -/ 0,2,1,3 -J 1
+
+Example of quad-GPU+CPU 7xxx series DGEMM (2 * 8 core numa Ivy-Bridge system, GPUs 0,1 connected to numa node 0 (cores 0-7))
+./dgemm_bench -g -A -Z -X -p -w 1920 -h 3072 -o g -I 1 -4 123000 -G0 0 -G1 8 -G2 0 -G3 8 -U0 1 -U1 9 -U2 2 -U3 10 -UA0 0 -UA1 8 -UA2 0 -UA3 8 -K 0 -z -= 1 -. -/ 0,2,1,3 -c -j 0.955 -J 1
+
+Example as above, with Parallel DMA mode
+./dgemm_bench -g -A -Z -X -p -w 1920 -h 3072 -o g -I 1 -4 123000 -G0 0 -G1 8 -G2 0 -G3 8 -U0 1 -U1 9 -U2 2 -U3 10 -UA0 0 -UA1 8 -UA2 0 -UA3 8 -UB1 8 -UB2 4 -UB3 12 -K 0 -z -= 1 -. -/ 0,2,1,3 -* 1000000 -c -j 0.955 -J 1
+
+Example as above, with grouped DMA mode
+./dgemm_bench -g -A -Z -X -p -w 1920 -h 3072 -o g -I 1 -4 123000 -G0 0 -G1 8 -G2 0 -G3 8 -U0 1 -U1 9 -U2 2 -U3 10 -UA0 0 -UA1 8 -UA2 0 -UA3 8 -UB1 8 -UB2 4 -UB3 12 -K 0 -z -= 1 -. -/ 0,2,1,3 -* 1000000 -[ 1000000 -c -j 0.955 -J 1
+
+GPU only torture test for device 0
+./dgemm_bench -y 0 -- 100
+
+GPU/CPU torture test
+./dgemm_bench -- 100 -c -g -s -z -p
+
+Single GPU with OpenCL
+./dgemm_bench -O 1 -w 1920 -h 2976 -_ -Ol amddgemm_hawai.so -A -z -p -g -o g -6 20
+
+Single GPU with OpenCL and advanced options
+./dgemm_bench -O 1 -w 1920 -h 2976 -_ -Ol amddgemm_hawai.so -A -z -p -g -J 1 -: -o g -6 20 -Oq -bb 15 -Op 20 -Ox -Ot
+
+Multi-GPU with OpenCL (2 * 10 core numa system)
+./dgemm_bench -O 1 -w 1920 -h 2976 -_ -Ol amddgemm_hawai.so -A -z -p -X -Xb 2 -g -J 1 -: -UA0 0 -UA1 10 -UA2 0 -UA3 10 -K 0 -/ 0,2,1,3 -o g -6 58 -Oq -bb 15 -Op 60 -Ox -Ot -Y 4 
+
+Multi-GPU + CPU with OpenCL
+./dgemm_bench -O 1 -w 1920 -h 2976 -_ -Ol amddgemm_hawai.so -A -z -p -X -Xb 2 -g -J 1 -: -UA0 0 -UA1 10 -UA2 0 -UA3 10 -K 0 -/ 0,2,1,3 -o g -6 58 -Oq -bb 15 -Op 60 -Ox -Ot -Y 4 -c -j 0.972
+
+Since the full list of parameters can be a bit overwhelming, it follows a list of common parameters required for good performance:
+
+General Parameters: -? -e -o -h -w -l -m -n -v -R -y -Y -bb -d -z -c -g -f -j -p -1 -2 -4 -6 -K -X -Xb -O -J -: -/ -@ -]
+Parameters for CAL / GPU_C = 0: -I -^ -Z -s -M -N -rr -B -Gx -Ux -UAx -UBx -. -= -* -[
+Parameters for OpenCL / CUDA / GPU_C = 1: -tr -UAx -Oc -Oq -Ol -Op -Ox -Ot -F -_
+Parameters for HPL: -Ca -Oa
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1,493 +1,875 @@
-/* ============================================================
+/**
+ * Benchmark utility for CALDGEMM.
+ *
+ * Copyright 2010:
+ *  - David Rohr (drohr@jwdt.org)
+ *  - Matthias Bach (bach@compeng.uni-frankfurt.de)
+ *  - Matthias Kretz (kretz@compeng.uni-frankfurt.de)
+ *
+ * This file is part of CALDGEMM.
+ *
+ * CALDGEMM is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * CALDGEMM is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with CALDGEMM.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Copyright (c) 2007 Advanced Micro Devices, Inc.  All rights reserved.
+#ifdef CALDGEMM_OPENCL
+#include "caldgemm_opencl.h"
+#endif
+#ifdef CALDGEMM_CAL
+#include "caldgemm_cal.h"
+#endif
+#ifdef CALDGEMM_CUDA
+#include "caldgemm_cuda.h"
+#endif
+#include "caldgemm_cpu.h"
 
-Redistribution and use of this material is permitted under the following
-conditions:
-
-Redistributions must retain the above copyright notice and all terms of this
-license.
-
-In no event shall anyone redistributing or accessing or using this material
-commence or participate in any arbitration or legal action relating to this
-material against Advanced Micro Devices, Inc. or any copyright holders or
-contributors. The foregoing shall survive any expiration or termination of
-this license or any agreement or access or use related to this material.
-
-ANY BREACH OF ANY TERM OF THIS LICENSE SHALL RESULT IN THE IMMEDIATE REVOCATION
-OF ALL RIGHTS TO REDISTRIBUTE, ACCESS OR USE THIS MATERIAL.
-
-THIS MATERIAL IS PROVIDED BY ADVANCED MICRO DEVICES, INC. AND ANY COPYRIGHT
-HOLDERS AND CONTRIBUTORS "AS IS" IN ITS CURRENT CONDITION AND WITHOUT ANY
-REPRESENTATIONS, GUARANTEE, OR WARRANTY OF ANY KIND OR IN ANY WAY RELATED TO
-SUPPORT, INDEMNITY, ERROR FREE OR UNINTERRUPTED OPERATION, OR THAT IT IS FREE
-FROM DEFECTS OR VIRUSES.  ALL OBLIGATIONS ARE HEREBY DISCLAIMED - WHETHER
-EXPRESS, IMPLIED, OR STATUTORY - INCLUDING, BUT NOT LIMITED TO, ANY IMPLIED
-WARRANTIES OF TITLE, MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
-ACCURACY, COMPLETENESS, OPERABILITY, QUALITY OF SERVICE, OR NON-INFRINGEMENT.
-IN NO EVENT SHALL ADVANCED MICRO DEVICES, INC. OR ANY COPYRIGHT HOLDERS OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, PUNITIVE,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, REVENUE, DATA, OR PROFITS; OR
-BUSINESS INTERRUPTION) HOWEVER CAUSED OR BASED ON ANY THEORY OF LIABILITY
-ARISING IN ANY WAY RELATED TO THIS MATERIAL, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE. THE ENTIRE AND AGGREGATE LIABILITY OF ADVANCED MICRO DEVICES,
-INC. AND ANY COPYRIGHT HOLDERS AND CONTRIBUTORS SHALL NOT EXCEED TEN DOLLARS
-(US $10.00). ANYONE REDISTRIBUTING OR ACCESSING OR USING THIS MATERIAL ACCEPTS
-THIS ALLOCATION OF RISK AND AGREES TO RELEASE ADVANCED MICRO DEVICES, INC. AND
-ANY COPYRIGHT HOLDERS AND CONTRIBUTORS FROM ANY AND ALL LIABILITIES,
-OBLIGATIONS, CLAIMS, OR DEMANDS IN EXCESS OF TEN DOLLARS (US $10.00). THE
-FOREGOING ARE ESSENTIAL TERMS OF THIS LICENSE AND, IF ANY OF THESE TERMS ARE
-CONSTRUED AS UNENFORCEABLE, FAIL IN ESSENTIAL PURPOSE, OR BECOME VOID OR
-DETRIMENTAL TO ADVANCED MICRO DEVICES, INC. OR ANY COPYRIGHT HOLDERS OR
-CONTRIBUTORS FOR ANY REASON, THEN ALL RIGHTS TO REDISTRIBUTE, ACCESS OR USE
-THIS MATERIAL SHALL TERMINATE IMMEDIATELY. MOREOVER, THE FOREGOING SHALL
-SURVIVE ANY EXPIRATION OR TERMINATION OF THIS LICENSE OR ANY AGREEMENT OR
-ACCESS OR USE RELATED TO THIS MATERIAL.
-
-NOTICE IS HEREBY PROVIDED, AND BY REDISTRIBUTING OR ACCESSING OR USING THIS
-MATERIAL SUCH NOTICE IS ACKNOWLEDGED, THAT THIS MATERIAL MAY BE SUBJECT TO
-RESTRICTIONS UNDER THE LAWS AND REGULATIONS OF THE UNITED STATES OR OTHER
-COUNTRIES, WHICH INCLUDE BUT ARE NOT LIMITED TO, U.S. EXPORT CONTROL LAWS SUCH
-AS THE EXPORT ADMINISTRATION REGULATIONS AND NATIONAL SECURITY CONTROLS AS
-DEFINED THEREUNDER, AS WELL AS STATE DEPARTMENT CONTROLS UNDER THE U.S.
-MUNITIONS LIST. THIS MATERIAL MAY NOT BE USED, RELEASED, TRANSFERRED, IMPORTED,
-EXPORTED AND/OR RE-EXPORTED IN ANY MANNER PROHIBITED UNDER ANY APPLICABLE LAWS,
-INCLUDING U.S. EXPORT CONTROL LAWS REGARDING SPECIFICALLY DESIGNATED PERSONS,
-COUNTRIES AND NATIONALS OF COUNTRIES SUBJECT TO NATIONAL SECURITY CONTROLS.
-MOREOVER, THE FOREGOING SHALL SURVIVE ANY EXPIRATION OR TERMINATION OF ANY
-LICENSE OR AGREEMENT OR ACCESS OR USE RELATED TO THIS MATERIAL.
-
-NOTICE REGARDING THE U.S. GOVERNMENT AND DOD AGENCIES: This material is
-provided with "RESTRICTED RIGHTS" and/or "LIMITED RIGHTS" as applicable to
-computer software and technical data, respectively. Use, duplication,
-distribution or disclosure by the U.S. Government and/or DOD agencies is
-subject to the full extent of restrictions in all applicable regulations,
-including those found at FAR52.227 and DFARS252.227 et seq. and any successor
-regulations thereof. Use of this material by the U.S. Government and/or DOD
-agencies is acknowledgment of the proprietary rights of any copyright holders
-and contributors, including those of Advanced Micro Devices, Inc., as well as
-the provisions of FAR52.227-14 through 23 regarding privately developed and/or
-commercial computer software.
-
-This license forms the entire agreement regarding the subject matter hereof and
-supersedes all proposals and prior discussions and writings between the parties
-with respect thereto. This license does not affect any ownership, rights, title,
-or interest in, or relating to, this material. No terms of this license can be
-modified or waived, and no breach of this license can be excused, unless done
-so in a writing signed by all affected parties. Each term of this license is
-separately enforceable. If any term of this license is determined to be or
-becomes unenforceable or illegal, such term shall be reformed to the minimum
-extent necessary in order for this license to remain in effect in accordance
-with its terms as modified by such reformation. This license shall be governed
-by and construed in accordance with the laws of the State of Texas without
-regard to rules on conflicts of law of any state or jurisdiction or the United
-Nations Convention on the International Sale of Goods. All disputes arising out
-of this license shall be subject to the jurisdiction of the federal and state
-courts in Austin, Texas, and all defenses are hereby waived concerning personal
-jurisdiction and venue of these courts.
-
-============================================================ */
-
-#include "caldgemm.h"
+#ifndef _WIN32
 #include <sys/mman.h>
-#include <common.h>
+#include <unistd.h>
+#include <pthread.h>
+#else
+#include "cmodules/pthread_mutex_win32_wrapper.h"
+#endif
+#include "cmodules/affinity.h"
+#include "cmodules/qmath.h"
+
+#define FASTRAND_THREADS_MAX 24
 
 double *AA = NULL, *BB = NULL, *CC = NULL;
 bool benchmark = false;
 bool fastinit = false;
 bool loadmatrix = false;
+bool transa = false;
+bool transb = false;
+bool initialrun = true;
+bool verifylarge = false;
+bool quietbench = false;
+bool alphaone = false;
+bool betazero = false;
+bool linpackmemory = false;
+double* linpackmem = NULL;
+int reduced_height = -1;
+int reduced_width = -1;
+int iterations = 1;
+size_t pitch_a, pitch_b, pitch_c;
+bool linpackpitch = false;
+size_t height_a, height_b;
+bool colmajor = false;
+
+bool mem_page_lock = true;
+bool mem_huge_table = false;
+bool mem_gpu_access = false;
+int linpack_callbacks = 0;
+
+bool wait_key = false;
+
+int use_opencl_not_cal = 0;
+
+int random_seed = 0;
+
+int torture = 0;
+
 char* matrixfile;
 
-CALvoid Usage(const CALchar* name)
+long seedused;
+
+caldgemm* dgemm_obj;
+
+size_t matrix_m, matrix_n;
+
+int MaxGPUTemperature = -1;
+
+void PrintUsage()
 {
-    fprintf(stderr,"Usage: %s [-h|-e|-v|-p|-t|-a]"
-            " [-oc <1|2|4>] [-ic <1|2|4>] [-ol <c|g>] [-il <c|g>]"
-            " [-w <integer>] [-h <integer>] [-d <deviceNum>]"
-            " [-r <Iteration Count>]\n\n", name);
-    fprintf(stderr, "\t-?        Display this help information\n" );
-    fprintf(stderr, "\t-e        Verify Computational Correctness\n" );
-    fprintf(stderr, "\t-q        Supress Display Output\n" );
-    fprintf(stderr, "\t-a        Print the disassembled kernel image\n" );
-    fprintf(stderr, "\t-o  <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n" );
-    fprintf(stderr, "\t-w  <int> k for matrix multiply, default 1024\n" );
-    fprintf(stderr, "\t-h  <int> block size for matrix multiply, default 1024\n" );
-    fprintf(stderr, "\t-l        Automatically select height for good performance\n" );
-    fprintf(stderr, "\t-m  <int> m for matrix multiply, must be multiple of h, default 1024\n" );
-    fprintf(stderr, "\t-n  <int> n for matrix multiply, must be multiple of h, default 1024\n" );
-    fprintf(stderr, "\t-v        Verbose Symchronous Timing for Single Kernels / Transfers\n" );
-    fprintf(stderr, "\t-r  <int> Number of iterations to run the program\n" );
-    fprintf(stderr, "\t-y  <int> Force Device ID\n" );
-    fprintf(stderr, "\t-d        Enable Debug Mode\n" );
-    fprintf(stderr, "\t-z        Enable Multithreading\n" );
-    fprintf(stderr, "\t-b        Enable Benchmarking\n" );
-    fprintf(stderr, "\t-c        Use CPU\n" );
-    fprintf(stderr, "\t-g        Use GPU\n" );
-    fprintf(stderr, "\t-f        Fast Init (Empty Matrices)\n" );
-    fprintf(stderr, "\t-t  <int> Pin to a CPU core (-100 for no pinning, -x to use cpu 0 to x - 1)\n" );
-    fprintf(stderr, "\t-j  <dbl> GPU to CPU ratio\n" );
-    fprintf(stderr, "\t-s        Dynamic CPU GPU scheduling\n" );
-    fprintf(stderr, "\t-p        Interleaving Memory Policy\n" );
-    fprintf(stderr, "\t-u        Dump Test Matrix\n" );
-    fprintf(stderr, "\t-x <file> Load Matrix\n" );
-    
-    fprintf(stderr, "*The cacheable memory flags may cause failures if the amount\n"
-            " of cacheable memory is smaller than the requested memory\n"
-            " size. Cacheable memory is machine dependent, so use with\n"
-            " caution.\n");
+	fprintf(STD_OUT,"Command Line Arguments\n");
+	fprintf(STD_OUT, "\t-?        Display this help information\n");
+	fprintf(STD_OUT, "\t-e        Verify Computational Correctness\n");
+	fprintf(STD_OUT, "\t-q        Supress Display Output\n");
+	fprintf(STD_OUT, "\t-a        Print the disassembled kernel image\n");
+	fprintf(STD_OUT, "\t-i        Print IL Kernel used\n");
+	fprintf(STD_OUT, "\t-if <int> Force DGEMM Kernel Variant\n");
+	fprintf(STD_OUT, "\t-o  <c|g> Specify the output location, c = CPU, g = GPU, default GPU\n");
+	fprintf(STD_OUT, "\t-I  <int> Set implicit driver sync\n");
+	fprintf(STD_OUT, "\t-^  <int> Set DMA queue parameter\n");
+	fprintf(STD_OUT, "\t-h  <int> block size for matrix multiply, default 4096\n");
+	fprintf(STD_OUT, "\t-H  <int> Reduced block size for actual matrix multiply (buffer size given by -h)\n");
+	fprintf(STD_OUT, "\t-w  <int> k for matrix multiply, default 1024\n");
+	fprintf(STD_OUT, "\t-W  <int> reduced width, see H\n");
+	fprintf(STD_OUT, "\t-l        Automatically select height for good performance\n");
+	fprintf(STD_OUT, "\t-m  <int> m for matrix multiply, must be multiple of h, default 1024\n");
+	fprintf(STD_OUT, "\t-n  <int> n for matrix multiply, must be multiple of h, default 1024\n");
+	fprintf(STD_OUT, "\t-v        Verbose Synchronous Timing for Single Kernels / Transfers\n");
+	fprintf(STD_OUT, "\t-k        Print Timing of Asynchronous DGEMM Operation\n");
+	fprintf(STD_OUT, "\t-r  <int> Number of iterations to run the program (inside caldgemm)\n");
+	fprintf(STD_OUT, "\t-R  <int> Number of iterations to run the program (seperate caldgemm calls)\n");
+	fprintf(STD_OUT, "\t-y  <int> Force Device ID (-1 = all devices)\n");
+	fprintf(STD_OUT, "\t-Y  <int> Use n devices\n");
+	fprintf(STD_OUT, "\t-bb <int> Maxumum number of allowed bbuffers\n");
+	fprintf(STD_OUT, "\t-d        Enable Debug Mode\n");
+	fprintf(STD_OUT, "\t-z        Enable Multithreading\n");
+	fprintf(STD_OUT, "\t-Z        Enable Multithreading for DivideBuffer\n");
+	fprintf(STD_OUT, "\t-b        Enable Benchmarking\n");
+	fprintf(STD_OUT, "\t-c        Use CPU\n");
+	fprintf(STD_OUT, "\t-g        Use GPU\n");
+	fprintf(STD_OUT, "\t-f        Fast Init (Empty Matrices)\n");
+	fprintf(STD_OUT, "\t-j  <dbl> GPU to CPU ratio\n");
+	fprintf(STD_OUT, "\t-jf <dbl> GPU to CPU ratio during factorization\n");
+	fprintf(STD_OUT, "\t-jm <dbl> Max GPU to CPU ratio during autocalculation\n");
+	fprintf(STD_OUT, "\t-jt <dbl> Margin time during auto calculation\n");
+	fprintf(STD_OUT, "\t-js <dbl> Margin time during factorization\n");
+	fprintf(STD_OUT, "\t-jl <dbl> Lookahead size modifier in ratio calculation\n");
+	fprintf(STD_OUT, "\t-jp <int> Lookahead penalties\n");
+	fprintf(STD_OUT, "\t-jq <dbl> Lookahead penalty factor\n");
+	fprintf(STD_OUT, "\t-s        Dynamic CPU GPU scheduling\n");
+	fprintf(STD_OUT, "\t-M        Disable third phase in dynamic scheduling\n");
+	fprintf(STD_OUT, "\t-N        Disable second phase in dynamic scheduling\n");
+	fprintf(STD_OUT, "\t-rr       Rereserve Linpack CPU after broadcast\n");
+	fprintf(STD_OUT, "\t-p        Interleaving Memory Policy\n");
+	fprintf(STD_OUT, "\t-u        Dump Test Matrix\n");
+	fprintf(STD_OUT, "\t-1        Transpose A Matrix\n");
+	fprintf(STD_OUT, "\t-2        Transpose B Matrix\n");
+	fprintf(STD_OUT, "\t-3        Set alpha parameter to 1.0 to test optimized kernel\n");
+	fprintf(STD_OUT, "\t-#        Set beta parameter to 0.0 to test optimized memcpy\n");
+	fprintf(STD_OUT, "\t-5        Quiet Benchmark mode (different from quiet caldgemm mode)\n");
+	fprintf(STD_OUT, "\t-6  <int> Set m/n to value * height\n");
+	fprintf(STD_OUT, "\t-4  <int> Set m/n to the closest multiple of height to value\n");
+	fprintf(STD_OUT, "\t-7        Verify Large Matrices\n");
+	fprintf(STD_OUT, "\t-8        No initial run to negate cache effects\n");
+	fprintf(STD_OUT, "\t-9        Output a table with timing information\n");
+	fprintf(STD_OUT, "\t-0        Write the output of divideBuffers directly to GPU instead of a seperate DMA transfer\n");
+	fprintf(STD_OUT, "\t-A        Do the DMA transfer to GPU asynchronously\n");
+	fprintf(STD_OUT, "\t-L        Memory Organisation like in HPL (LINPACK)\n");
+	fprintf(STD_OUT, "\t-C        Call fake LINPACK callback functions\n");
+	fprintf(STD_OUT, "\t-Ca <int> Linpack Option: Set alternate lookahead threshold\n");
+	fprintf(STD_OUT, "\t-Cm <int> Linpack Option: Minimize CPU part as soon as matrix size below threshold\n");
+	fprintf(STD_OUT, "\t-P  <int> LDA=LDB=LDC = val for HPL like memory\n");
+	fprintf(STD_OUT, "\t-T        Allocate Memory using Huge Tables\n");
+	fprintf(STD_OUT, "\t-B        Keep DMA Buffers mapped during kernel execution\n");
+	fprintf(STD_OUT, "\t-x <file> Load Matrix\n");
+	fprintf(STD_OUT, "\t--  <int> Torture Test, n iterations\n");
+	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n");
+	fprintf(STD_OUT, "\t-ts       Show thread pinning\n");
+	fprintf(STD_OUT, "\t-tc       Show CALDGEMM config\n");
+	fprintf(STD_OUT, "\t-tr <int> Pin device runtime threads to code <int>, set -1 for all cores");
+	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread to core n\n");
+	fprintf(STD_OUT, "\t-Kb <int> Pin Broadcast thread to core n\n");
+	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n");
+	fprintf(STD_OUT, "\t-Ux <int> Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping\n");
+	fprintf(STD_OUT, "\t-UAx <int>Allocate memory for GPU x for die <int>, -1 = default mapping\n");
+	fprintf(STD_OUT, "\t-UBx <int>Set DMA Mapping\n");
+	fprintf(STD_OUT, "\t-V <int>  Thread save GPU driver (0: no (default), 1: yes, -1: use global lock)\n");
+	fprintf(STD_OUT, "\t-S        Run on system with slow CPU\n");
+	fprintf(STD_OUT, "\t-X        Advanced multi-GPU tiling scheduler\n");
+	fprintf(STD_OUT, "\t-Xb <int> Balancing mode for improved scheduler\n");
+	fprintf(STD_OUT, "\t-E <int>  Define random seed (0 for time)\n");
+	fprintf(STD_OUT, "\t-O <int>  Backend to use: 0 = CAL, 1 = OpenCL, 2 = CUDA, 3 = CPUOnly\n");
+	fprintf(STD_OUT, "\t-Oc <int> Set GPU_C parameter\n");
+	fprintf(STD_OUT, "\t-Ol lib   Set library name used to obtain OpenCL DGEMM kernel\n");
+	fprintf(STD_OUT, "\t-Oe       Do not allow multiple concurrent OpenCL kernels\n");
+	fprintf(STD_OUT, "\t-Oq       Use simple GPU Queuing\n");
+	fprintf(STD_OUT, "\t-Op <int> Preallocate buffers for at max <int> blocks (nb/mb)\n");
+	fprintf(STD_OUT, "\t-Oa       Create async side queues and use such a queue to test a single-tile dgemm\n");
+	fprintf(STD_OUT, "\t-Od       Use async side queue to offload DTRSM as well\n");
+	fprintf(STD_OUT, "\t-Ox       Do not put the CPU in the OpenCL context\n");
+	fprintf(STD_OUT, "\t-Ot       Use 3rdPartyTranspose kernel\n");
+	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n");
+	fprintf(STD_OUT, "\t-J <int>  Allow small tiles to process the remainder on GPU (0 disable, 1 enable, 2 auto)\n");
+	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
+	fprintf(STD_OUT, "\t-!        Do not use page locked memory\n");
+	fprintf(STD_OUT, "\t-_        Allocate memory using the GPU runtime library (e.g. OpenCL)\n");
+	fprintf(STD_OUT, "\t-= <int>  Define number of output threads\n");
+	fprintf(STD_OUT, "\t-%%        Skip CPU Pre- and Postprocessing\n");
+	fprintf(STD_OUT, "\t-@ <list> Comma or Semicolon separated list of CPU cores to exclude\n");
+	fprintf(STD_OUT, "\t-.        Repin Main Thread During Active Wait for GPU Event\n");
+	fprintf(STD_OUT, "\t-~        Always repin main thread\n");
+	fprintf(STD_OUT, "\t-, <int>  Sleep for n usec during active wait\n");
+	fprintf(STD_OUT, "\t-:        Enable NUMA Pinning\n");
+	fprintf(STD_OUT, "\t-/ <list> Comma or Semicolon separated list of GPU devices to use (replaces -y for multiple devices)\n");
+	fprintf(STD_OUT, "\t-* <int>  Enable Parallel DMA option if n >= <int>\n");
+	fprintf(STD_OUT, "\t-[ <int>  Enable Grouped Parallel DMA option if n < <int>\n");
+	fprintf(STD_OUT, "\t-] <int>  Maximum allowed GPU temperature (check applied after one caldgemm iteration, meaningfull in combination with -R)\n");
+	//available: -D 
 }
 
-CALboolean ParseCommandLine(CALuint argc, CALchar* argv[], caldgemm::SampleInfo* Info)
+void linpack_fake1() {fprintf(STD_OUT, "Linpack fake 1 called\n");}
+void linpack_fake2() {fprintf(STD_OUT, "Linpack fake 2 called\n");}
+void linpack_fake3() {fprintf(STD_OUT, "Linpack fake 3 called\n");}
+
+int ParseCommandLine(unsigned int argc, char* argv[], caldgemm::caldgemm_config* Config)
 {
-    Info->Verify = CAL_FALSE;
-    Info->MemPolicy = CAL_FALSE;
-    Info->Disassemble = CAL_FALSE;
-    Info->Quiet = CAL_FALSE;
-    Info->Pin = -3;
-    Info->MultiThread = CAL_FALSE;
-    Info->DeviceNum = 0;
-    Info->Width = 1024;
-    Info->Height = 2048;
-    Info->AutoHeight = CAL_FALSE;
-    Info->DynamicSched = CAL_FALSE;
-    Info->VerboseTiming = CAL_FALSE;
-    Info->Debug = CAL_FALSE;
-    Info->m = Info->n = 4096;
-    Info->Iterations = 1;
-    Info->DstMemory = 'g';
-    Info->UseCPU = Info->UseGPU = CAL_FALSE;
-    Info->GPURatio = -1;
-    Info->DumpMatrix = CAL_FALSE;
-    Info->System.Reset();
-    Info->Kernel.Reset();
-    Info->CounterDivide.Reset();
-    Info->CounterMerge.Reset();
-    Info->CounterCopyTo.Reset();
-    Info->CounterCopyFrom.Reset();
+	Config->Quiet = false;
+#ifndef TEST_PARAMETERS
+	Config->Verify = false;
+	Config->MemPolicy = false;
+	Config->Disassemble = false;
+	Config->PrintILKernel = false;
+	Config->MultiThread = false;
+	Config->MultiThreadDivide = false;
+	//Config->DeviceNum = 0;
+	//Config->Width = 1024;
+	//Config->Height = 4096;
+	Config->AutoHeight = false;
+	Config->DynamicSched = false;
+	Config->VerboseTiming = false;
+	Config->TabularTiming = false;
+	Config->Debug = false;
+	matrix_m = matrix_n = 4096;
+	Config->Iterations = 1;
+	//Config->DstMemory = 'g';
+	Config->UseCPU = Config->UseGPU = false;
+	//Config->GPURatio = -1;
+	Config->DumpMatrix = false;
+	Config->DivideToGPU = false;
+	Config->AsyncDMA = false;
+	Config->KeepBuffersMapped = false;
+#endif
 
-    printf("Use -? for help\n");
+	const int max_devices = caldgemm::max_devices;
+#define CALDGEMM_PARAMETERS_BENCHMARK
+#include "caldgemm_parse_parameters.h"
+#undef CALDGEMM_PARAMETERS_BENCHMARK
 
-    for (CALuint x = 1; x < argc; ++x)
-    {
-        switch(argv[x][1])
-        {
-            default:
-				Usage(argv[0]);
-                return CAL_FALSE;
-            case 'q':
-                Info->Quiet = CAL_TRUE;
-                break;
-            case '?':
-                Usage(argv[0]);
-                return CAL_FALSE;
-            case 'e':
-                Info->Verify = CAL_TRUE;
-                Info->Iterations = 1;
-                break;
-            case 'p':
-                Info->MemPolicy = CAL_TRUE;
-                break;
-            case 'b':
-		benchmark = true;
-                break;
-            case 'u':
-		Info->DumpMatrix = CAL_TRUE;
-                break;
-            case 'a':
-                Info->Disassemble = CAL_TRUE;
-                break;
-            case 'c':
-		Info->UseCPU = CAL_TRUE;
-                break;
-            case 'l':
-		Info->AutoHeight = CAL_TRUE;
-                break;
-            case 's':
-		Info->DynamicSched = CAL_TRUE;
-                break;
-            case 'g':
-                Info->UseGPU = CAL_TRUE;
-                break;
-            case 'f':
-                fastinit = true;
-                break;
-            case 'o':
-                if (++x < argc)
-                {
-                    Info->DstMemory = argv[x][0];
-                    if (Info->DstMemory != 'c' && Info->DstMemory != 'g')
-                    {
-                        fprintf(stderr, "Invalid destination memory type\n" );
-                        return CAL_FALSE;
-                    }
-                }
-                else
-                {
-                    return CAL_FALSE;
-                }
-                break;
-            case 'w':
-                if (++x < argc)
-                {
-                    sscanf(argv[x], "%u", &Info->Width);
-                }
-                else
-                {
-                    return CAL_FALSE;
-                }
-                break;
-            case 'h':
-                if (++x < argc)
-                {
-                    sscanf(argv[x], "%u", &Info->Height);
-                }
-                else
-                {
-                    return CAL_FALSE;
-                }
-                break;
-            case 'm':
-                if (++x < argc)
-                {
-                    sscanf(argv[x], "%u", &Info->m);
-                }
-                else
-                {
-                    return CAL_FALSE;
-                }
-                break;
-            case 'n':
-                if (++x < argc)
-                {
-                    sscanf(argv[x], "%u", &Info->n);
-                }
-                else
-                {
-                    return CAL_FALSE;
-                }
-                break;
-            case 'x':
-                if (++x < argc)
-                {
-        	    loadmatrix = true;
-        	    matrixfile = argv[x];
-        	}
-        	else
-        	{
-        	    return(CAL_FALSE);
-        	}
-        	break;
-            case 'v':
-        	Info->VerboseTiming = CAL_TRUE;
-        	break;
-            case 'd':
-        	Info->Debug = CAL_TRUE;
-        	break;
-            case 'z':
-        	Info->MultiThread = CAL_TRUE;
-        	break;
-            case 'r':
-                if (++x < argc)
-                {
-                    sscanf(argv[x], "%u", &Info->Iterations);
-                }
-                else
-                {
-                    return CAL_FALSE;
-                }
-                break;
-            case 'y':
-                if (++x < argc)
-                {
-                    sscanf(argv[x], "%u", &Info->DeviceNum);
-                }
-                else
-                {
-                    return CAL_FALSE;
-                }
-                break;
-            case 'j':
-                if (++x < argc)
-                {
-                    sscanf(argv[x], "%lf", &Info->GPURatio);
-                    printf("Using GPU Ratio %lf\n", Info->GPURatio);
-                }
-                else
-                {
-                    return CAL_FALSE;
-                }
-                break;
-                
-    
-	    case 't':
-		Info->Pin = argc > x + 1 ? atoi(argv[++x]) : 0;
-		break;
-        };
-    }
-    
-    if (Info->UseCPU == CAL_FALSE && Info->UseGPU == CAL_FALSE) Info->UseGPU = CAL_TRUE;
-    
-    return CAL_TRUE;
+	if (!quietbench) fprintf(STD_OUT, "Use -? for help\n");
+	if (Config->UseCPU == false && Config->UseGPU == false) Config->UseGPU = true;
+
+	return(0);
 }
 
-int SetupUserData(caldgemm::SampleInfo &Info)
+int fastrand_seed;
+volatile int fastrand_done[FASTRAND_THREADS_MAX];
+double* fastrand_A;
+size_t fastrand_size;
+int nfastmatthreads;
+
+void* fastmatgen_slave(void* arg)
 {
-    if (AA) delete[] AA;
-    if (BB) delete[] BB;
-    if (CC) delete[] CC;
-    
-    AA = new CALdouble[(size_t) Info.m * (size_t) Info.Width];
-    BB = new CALdouble[(size_t) Info.Width * (size_t) Info.n];
-    CC = new CALdouble[(size_t) Info.m * (size_t) Info.n];
-    
-    if (mlock(AA, (size_t) Info.m * (size_t) Info.Width * sizeof(double)) ||
-    mlock(BB, (size_t) Info.Width * (size_t) Info.n * sizeof(double)) ||
-    mlock(CC, (size_t) Info.m * (size_t) Info.n * sizeof(double))) printf("Error locking memory\n");
-    
-    if (AA == NULL || BB == NULL || CC == NULL)
-    {
-	printf("Memory allocation error allocating matrices\n");
-	return(1);
-    }
-    
-    if (fastinit)
-    {
-	memset(AA, 0, (size_t) Info.m * (size_t) Info.Width * sizeof(double));
-	memset(BB, 0, (size_t) Info.Width * (size_t) Info.n * sizeof(double));
-	memset(CC, 0, (size_t) Info.m * (size_t) Info.n * sizeof(double));
-    }
-    else
-    {
-	for (long long int i = 0;i < (long long int) Info.m * (long long int) Info.n;i++)
-        {
-	    CC[i] = (CALdouble) (i % 16);
+	int num = (int) (size_t) arg;
+
+	cpu_set_t mask;
+	CPU_ZERO(&mask);
+	CPU_SET(num, &mask);
+	sched_setaffinity(0, sizeof(cpu_set_t), &mask);
+
+	size_t fastrand_num = fastrand_seed + 65537 * num;
+	const size_t fastrand_mul = 84937482743;
+	const size_t fastrand_add = 138493846343;
+	const size_t fastrand_mod = 538948374763;
+	
+	size_t sizeperthread = fastrand_size / nfastmatthreads;
+
+	double* A = fastrand_A + num * sizeperthread;
+	size_t size = (num == nfastmatthreads - 1) ? (fastrand_size - (nfastmatthreads - 1) * sizeperthread) : sizeperthread;
+
+	for (size_t i = 0;i < size;i++)
+	{
+		double randval = 0;
+		for (int k = 0;k < 100;k++)
+		{
+			fastrand_num = (fastrand_num * fastrand_mul + fastrand_add) % fastrand_mod;
+			randval += (double) -0.5 + (double) fastrand_num / (double)fastrand_mod;
+		}
+		A[i] = randval;
 	}
-    
-	for (CALuint y = 0; y < Info.Width; y++)
-        {
-    	    for (CALuint x = 0; x < Info.m; x++)
-    	    {
-        	AA[x * Info.Width + y] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
-    	    }
-    	    for (CALuint x = 0; x < Info.n; x++)
-    	    {
-        	BB[y * Info.n + x] = (x&1? -1.0 : 0) + (rand() / static_cast<CALdouble>(RAND_MAX + 1.0));
-    	    }
-	}
-    }
-    if (Info.Debug) printf("User Data Initialized\n");
-    return(0);
+
+	fastrand_done[num] = 1;
+	return(NULL);
 }
 
-int main(CALint argc, CALchar** argv)
+void fastmatgen(int SEED, double* A, size_t size)
 {
-    caldgemm::SampleInfo Info;
-    caldgemm dgemm;
+	fastrand_seed = SEED;
+	fastrand_A = A;
+	fastrand_size = size;
+	
+#ifdef _WIN32
+	SYSTEM_INFO sysinfo;
+	GetSystemInfo( &sysinfo );
+	nfastmatthreads = sysinfo.dwNumberOfProcessors;
+#else
+	nfastmatthreads = sysconf(_SC_NPROCESSORS_CONF);
+#endif
+	if (nfastmatthreads < 1) nfastmatthreads = 1;
+	if (nfastmatthreads > FASTRAND_THREADS_MAX) nfastmatthreads = FASTRAND_THREADS_MAX;
+	
+	memset((void*) fastrand_done, 0, nfastmatthreads * sizeof(int));
 
-    if (!ParseCommandLine(argc, argv, &Info))
-    {
-        return 1;
-    }
-    
-    if (dgemm.InitCALDGEMM(&Info))
-    {
-	printf("Error initializing CALDGEMM\n");
-	return(1);
-    }
+	cpu_set_t oldmask;
+	sched_getaffinity(0, sizeof(cpu_set_t), &oldmask);
 
-    if (loadmatrix)
-    {
-	FILE* fp;
-	double* a, b, c;
-	double alpha, beta;
-	int tmp_m, tmp_k, tmp_n;
-	int Apitch, Bpitch, Cpitch;
-	
-	if ((fp = fopen(matrixfile, "rb")) == NULL)
+	for (int i = 0;i < nfastmatthreads - 1;i++)
 	{
-	    printf("Error opening matrix dump\n");
-	    return(1);
+		pthread_t thr;
+		pthread_create(&thr, NULL, fastmatgen_slave, (void*) (size_t) i);
 	}
-	fread(&a, sizeof(a), 1, fp);
-	fread(&b, sizeof(b), 1, fp);
-	fread(&c, sizeof(c), 1, fp);
-	fread(&alpha, sizeof(alpha), 1, fp);
-	fread(&beta, sizeof(beta), 1, fp);
-	fread(&tmp_m, sizeof(tmp_m), 1, fp);
-	fread(&tmp_k, sizeof(tmp_k), 1, fp);
-	fread(&tmp_n, sizeof(tmp_n), 1, fp);
-	fread(&Apitch, sizeof(Apitch), 1, fp);
-	fread(&Bpitch, sizeof(Bpitch), 1, fp);
-	fread(&Cpitch, sizeof(Cpitch), 1, fp);
-	
-	Apitch = 1536;
-	
-	AA = new CALdouble[(size_t) tmp_m * (size_t) Apitch];
-	BB = new CALdouble[(size_t) tmp_k * (size_t) Bpitch];
-	CC = new CALdouble[(size_t) tmp_m * (size_t) Cpitch];
-	
-	for (int i = 0;i < tmp_m;i++)
+	fastmatgen_slave((void*) (size_t) (nfastmatthreads - 1));
+
+	for (int i = 0;i < nfastmatthreads;i++)
 	{
-	    fread(AA + i * Apitch, tmp_k, sizeof(double), fp);
+		while (fastrand_done[i] == 0) {}
 	}
-	for (int i = 0;i < tmp_k;i++)
+	sched_setaffinity(0, sizeof(cpu_set_t), &oldmask);
+}
+
+void SetupUserDataC(caldgemm::caldgemm_config &Config)
+{
+	if (fastinit || torture)
 	{
-	    fread(BB + i * Bpitch, tmp_n, sizeof(double), fp);
+		if (torture) memset(CC, 0, matrix_m * pitch_c * sizeof(double));
 	}
-	fclose(fp);
-	memset(CC, 0, (size_t) tmp_m * (size_t) Cpitch * sizeof(double));
-	
-	printf("matrix loaded: m=%d k=%d n=%d lda=%d ldb=%d ldc=%d alpha=%2.4lf beta=%2.4lf\n", tmp_m, tmp_k, tmp_n, Apitch, Bpitch, Cpitch, alpha, beta);
-	
-	dgemm.RunCALDGEMM(AA, BB, CC, alpha, beta, tmp_m, tmp_k, tmp_n, Apitch, Bpitch, Cpitch);
-    }
-    else
-    {
-	if (SetupUserData(Info))
+	else
 	{
-	    return(1);
+		for (size_t i = 0;i < matrix_m;i++)
+		{
+			for (size_t j = 0;j < matrix_n;j++)
+			{
+#ifdef TESTMODE
+				CC[i * pitch_c + j] = 0;
+#else
+				CC[i * pitch_c + j] = (double) ((i + j) % 16);
+#endif
+			}
+		}
+	}
+}
+
+int SetupUserData(caldgemm::caldgemm_config &Config)
+{
+#ifdef _WIN32
+	LARGE_INTEGER randtime;
+	QueryPerformanceCounter(&randtime);
+	srand((int) randtime.LowPart);
+#else
+	timespec randtime;
+	if (random_seed == 0)
+	{
+		clock_gettime(CLOCK_REALTIME, &randtime);
+	}
+	else
+	{
+		randtime.tv_nsec = random_seed;
+	}
+	srand((int) (seedused = randtime.tv_nsec));
+#endif
+	size_t width_a, width_b;
+
+	if (linpackmemory)
+	{
+		if (transa || transb) fprintf(STD_OUT, "WARNING: Transposed not supported in linpackmem-mode, disabling !!!\n");
+		transa = transb = false;
+		if (linpackmem) delete[] linpackmem;
+
+		if (linpackpitch)
+		{
+			if (pitch_c < matrix_m + Config.Width)
+			{
+				fprintf(STD_OUT, "Pitch too small\n");
+				return(1);
+			}
+			pitch_a = pitch_b = pitch_c;
+		}
+		else
+		{
+			pitch_c = matrix_m + Config.Width;
+			if (pitch_c % 8)
+			{
+				pitch_c += 8;
+				pitch_c -= pitch_c % 8;
+			}
+			pitch_a = pitch_b = pitch_c;
+		}
+		size_t memsize = pitch_c * (matrix_n + Config.Width + 1) + 16;
+		fprintf(stderr, "Allocating %lld KB...", (long long int) (memsize * 8 / 1024));
+		linpackmem = dgemm_obj->AllocMemory(memsize, mem_page_lock, mem_huge_table, mem_gpu_access);
+		if (linpackmem == NULL) {fprintf(STD_OUT, "Memory Allocation Error\n"); return(1);}
+
+		char* linpackmem2 = (char*) linpackmem;
+		if ((size_t) linpackmem2 % 64) linpackmem2 += 64 - ((size_t) linpackmem2) % 64;
+		double* linpackmem3 = (double*) linpackmem2;
+		
+		colmajor = true;
+
+		AA = linpackmem3 + Config.Width;
+		BB = linpackmem3 + Config.Width * pitch_c;
+		CC = linpackmem3 + Config.Width * (pitch_c + 1);
+		
+		width_a = Config.Width;
+		height_a = matrix_m;
+		width_b = matrix_n;
+		height_b = Config.Width;
+	}
+	else
+	{
+		if (transa)
+		{
+			pitch_a = matrix_m;
+			height_a = Config.Width;
+			width_a = matrix_m;
+		}
+		else
+		{
+			pitch_a = Config.Width;
+			height_a = matrix_m;
+			width_a = Config.Width;
+		}
+		if (pitch_a % 8) pitch_a += (8 - pitch_a % 8);
+		if (((pitch_a / 8) & 1) == 0)
+		{
+			pitch_a += 8;
+		}
+		if (transb)
+		{
+			pitch_b = Config.Width;
+			height_b = matrix_n;
+			width_b = Config.Width;
+		}
+		else
+		{
+			height_b = Config.Width;
+			pitch_b = matrix_n;
+			width_b = matrix_n;
+		}
+		if (pitch_b % 8) pitch_b += (8 - pitch_b % 8);
+		if (((pitch_b / 8) & 1) == 0)
+		{
+			pitch_b += 8;
+		}
+		pitch_c = matrix_n;
+		if (pitch_c % 8) pitch_c += (8 - pitch_c % 8);
+		if (matrix_n % 8) fprintf(STD_OUT, "Padding 8 bytes for correct alignment of B, n = %lld, pitch = %lld\n", (long long int) matrix_n, (long long int) pitch_b);
+		if (((pitch_c / 8) & 1) == 0)
+		{
+			pitch_c += 8;
+		}
+
+		if (AA) dgemm_obj->FreeMemory(AA, mem_gpu_access);
+		//if (BB) dgemm_obj->FreeMemory(BB, mem_gpu_access);
+		//if (CC) dgemm_obj->FreeMemory(CC, mem_gpu_access);
+		if (!quietbench) fprintf(stderr, "...alloc A (%lld KB) B (%lld KB) C (%lld KB)...", (long long int) (height_a * pitch_a * sizeof(double) / 1024), (long long int) (height_b * pitch_b * sizeof(double)  / 1024), (long long int) (matrix_m * pitch_c * sizeof(double)  / 1024));
+		AA = dgemm_obj->AllocMemory(height_a * pitch_a + height_b * pitch_b + matrix_m * pitch_c, mem_page_lock, mem_huge_table, mem_gpu_access);
+		BB = AA + height_a * pitch_a;
+		CC = BB + height_b * pitch_b;
+
+		if (AA == NULL || BB == NULL || CC == NULL)
+		{
+			fprintf(STD_OUT, "Memory allocation error allocating matrices\n");
+			return(1);
+		}
 	}
 
-	//Initial run to negate cache effects
-        if (Info.Debug == CAL_FALSE && Info.DumpMatrix == CAL_FALSE)
-        {
-	    CALboolean tmpquiet = Info.Quiet;
-    	    CALuint tmpiter = Info.Iterations;
-    	    CALuint tmpm = Info.m, tmpn = Info.n;
-    	    Info.Quiet = CAL_TRUE;
-    	    Info.Iterations = 2;
-    	    if (Info.m > 2 * Info.Height) Info.m = 2 * Info.Height;
-    	    if (Info.n > 2 * Info.Height) Info.n = 2 * Info.Height;
-    	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.0, 1.0))
-    	    {
-	        printf("Error running CALDGEMM\n");
+#ifdef TESTMODE
+	for (unsigned int i = 0;i < height_a;i++)
+	{
+		for (unsigned int j = 0;j < width_a;j++)
+		{
+			AA[i * pitch_a + j] = i;
+		}
+	}
+	for (unsigned int i = 0;i < height_b;i++)
+	{
+		for (unsigned int j = 0;j < width_b;j++)
+		{
+			BB[i * pitch_b + j] = j;
+		}
+	}
+#else
+	if (fastinit)
+	{
+		//memset(AA, 0, height_a * pitch_a * sizeof(double));
+		//memset(BB, 0, height_b * pitch_b * sizeof(double));
+	}
+	else
+	{
+		if (!quietbench) fprintf(stderr, "...init A");
+		fastmatgen(rand() * 100, AA, (colmajor ? width_a : height_a) * pitch_a);
+		if (!quietbench) fprintf(stderr, "...init B");
+		fastmatgen(rand() * 100, BB, (colmajor ? width_b : height_b) * pitch_b);
+	}
+#endif
+	if (Config.Debug) fprintf(STD_OUT, "User Data Initialized\n");
+	if (!quietbench) fprintf(stderr, "...");
+	return(0);
+}
+
+bool isDoubleEqual(double a, double b)
+{
+	if (!qIsFinite(a) || !qIsFinite(b)) return(false);
+	double valmax = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
+	if (valmax < 1e-15)
+	{
+		return(fabs(a - b) < 1e16);
+	}
+	else if (valmax < 1e-9)
+	{
+		return(fabs((a - b)/valmax) < 5e-2);
+	}
+	else if(valmax < 1e-8)
+	{
+		return (fabs((a-b)/valmax) < 1e-3);
+	}
+	else
+	{
+		return (fabs((a-b)/valmax) < 1e-4);
+	}
+}
+
+int main(int argc, char** argv)
+{
+	setUnknownNames("Unknown - Before Main");
+	caldgemm::caldgemm_config Config;
+
+	if (ParseCommandLine(argc, argv, &Config))
+	{
+		return 1;
+	}
+
+#ifdef CALDGEMM_CAL
+	if (use_opencl_not_cal == 0)
+	{
+		dgemm_obj = new caldgemm_cal;
+	} else
+#endif
+#ifdef CALDGEMM_OPENCL
+	if (use_opencl_not_cal == 1)
+	{
+		dgemm_obj = new caldgemm_opencl;
+	} else
+#endif
+#ifdef CALDGEMM_CUDA
+	if (use_opencl_not_cal == 2)
+	{
+		dgemm_obj = new caldgemm_cuda;
+	} else
+#endif
+	{
+		dgemm_obj = new caldgemm_cpu;
+	}
+
+	if (dgemm_obj == NULL)
+	{
+		fprintf(STD_OUT, "Error creating caldgem object\n");
 		return(1);
-	    }
-	    Info.m = tmpm;
-	    Info.n = tmpn;
-	    Info.Quiet = tmpquiet;
-    	Info.Iterations = tmpiter;
 	}
-	dgemm.ResetTimers();
-    
-	do
-        {
-	    if (dgemm.RunCALDGEMM(AA, BB, CC, 0.5, 1.0, Info.m, Info.Width, Info.n, Info.Width, Info.n, Info.n))
-	    {
-		printf("Error running CALDGEMM\n");
+	Config.config_backend = dgemm_obj->create_caldgemm_config_backend();
+	Config.InitializeBackendOptions();
+
+	if (dgemm_obj->InitCALDGEMM(&Config))
+	{
+		fprintf(STD_OUT, "Error initializing CALDGEMM\n");
 		return(1);
-	    }
-	    dgemm.ResetTimers();
-	} while (benchmark && (Info.n += Info.Height) < 70000 && (Info.m += Info.Height) < 70000 && SetupUserData(Info) == 0);
-    }
-    
-    dgemm.ExitCALDGEMM();
+	}
 
-    delete[] AA;
-    delete[] BB;
-    delete[] CC;
-    return 0;
+	if (reduced_height != -1)
+	{
+		fprintf(STD_OUT, "Using partial buffers %d / %lld\n", reduced_height, (long long int) Config.Height);
+		Config.Height = reduced_height;
+	}
+	if (reduced_width != -1)
+	{
+		fprintf(STD_OUT, "Using partial buffer width %d / %lld\n", reduced_width, (long long int) Config.Width);
+		Config.Width = reduced_width;
+	}
+
+#ifndef TEST_PARAMETERS
+	if (loadmatrix)
+	{
+		FILE* fp;
+		double* a, b, c;
+		double alpha, beta;
+		int tmp_m, tmp_k, tmp_n;
+		int Apitch, Bpitch, Cpitch;
+		size_t nread;
+
+		if ((fp = fopen(matrixfile, "rb")) == NULL)
+		{
+			fprintf(STD_OUT, "Error opening matrix dump\n");
+			return(1);
+		}
+		nread = fread(&a, sizeof(a), 1, fp);
+		nread += fread(&b, sizeof(b), 1, fp);
+		nread += fread(&c, sizeof(c), 1, fp);
+		nread += fread(&alpha, sizeof(alpha), 1, fp);
+		nread += fread(&beta, sizeof(beta), 1, fp);
+		nread += fread(&tmp_m, sizeof(tmp_m), 1, fp);
+		nread += fread(&tmp_k, sizeof(tmp_k), 1, fp);
+		nread += fread(&tmp_n, sizeof(tmp_n), 1, fp);
+		nread += fread(&Apitch, sizeof(Apitch), 1, fp);
+		nread += fread(&Bpitch, sizeof(Bpitch), 1, fp);
+		nread += fread(&Cpitch, sizeof(Cpitch), 1, fp);
+
+		Apitch = 1536;
+
+		AA = new double[(size_t) tmp_m * (size_t) Apitch];
+		BB = new double[(size_t) tmp_k * (size_t) Bpitch];
+		CC = new double[(size_t) tmp_m * (size_t) Cpitch];
+
+		for (int i = 0;i < tmp_m;i++)
+		{
+			nread += fread(AA + i * Apitch, tmp_k, sizeof(double), fp);
+		}
+		for (int i = 0;i < tmp_k;i++)
+		{
+			nread += fread(BB + i * Bpitch, tmp_n, sizeof(double), fp);
+		}
+		fclose(fp);
+		if (nread == 0)
+		{
+			fprintf(STD_OUT, "Error Reading matrix file");
+			return(1);
+		}
+		memset(CC, 0, (size_t) tmp_m * (size_t) Cpitch * sizeof(double));
+
+		fprintf(STD_OUT, "matrix loaded: m=%d k=%d n=%d lda=%d ldb=%d ldc=%d alpha=%2.4lf beta=%2.4lf\n", tmp_m, tmp_k, tmp_n, Apitch, Bpitch, Cpitch, alpha, beta);
+
+		dgemm_obj->RunCALDGEMM(AA, BB, CC, alpha, beta, tmp_m, tmp_k, tmp_n, Apitch, Bpitch, Cpitch);
+	}
+	else
+	{
+		if (!quietbench)
+		{
+			fprintf(stderr, "Initializing Data... ");
+		}
+		if (SetupUserData(Config))
+		{
+			return(1);
+		}
+		if (!quietbench)
+		{
+			fprintf(stderr, "Done\n");
+		}
+
+		//Initial run to negate cache effects
+#ifndef TESTMODE
+#ifndef DEBUG_MSG_TIMED
+		if (Config.Debug == false && Config.DumpMatrix == false && initialrun && !torture)
+#endif
+		{
+			if (!quietbench)
+			{
+				fprintf(stderr, "Doing initial run... ");
+			}
+			bool tmpquiet = Config.Quiet, tmpverify = Config.Verify;
+			unsigned int tmpiter = Config.Iterations;
+			unsigned int tmpm = matrix_m, tmpn = matrix_n, tmpdebug = Config.Debug;
+			unsigned int tmpshowpin = Config.ShowThreadPinning;
+			unsigned int tmpautoheight = Config.AutoHeight;
+			Config.ShowThreadPinning = 0;
+			Config.Quiet = true;
+			Config.Verify = false;
+			Config.Iterations = 1;
+			Config.Debug = false;
+			Config.AutoHeight = 0;
+			if (matrix_m > 2 * Config.Height) matrix_m = 2 * Config.Height;
+			else if (matrix_m % Config.Height) matrix_m -= matrix_m % Config.Height;
+			if (matrix_n > 2 * Config.Height) matrix_n = 2 * Config.Height;
+			else if (matrix_n % Config.Height) matrix_n -= matrix_n % Config.Height;
+			if (dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? 1.0 : 0.5, 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
+			{
+				fprintf(STD_OUT, "Error running CALDGEMM\nexiting\n");
+				return(1);
+			}
+			matrix_m = tmpm;
+			matrix_n = tmpn;
+			Config.AutoHeight = tmpautoheight;
+			Config.Quiet = tmpquiet;
+			Config.Verify = tmpverify;
+			Config.Iterations = tmpiter;
+			Config.Debug = tmpdebug;
+			Config.ShowThreadPinning = tmpshowpin;
+			if (!quietbench)
+			{
+				fprintf(STD_OUT, "Done\n");
+			}
+		}
+#endif
+		if (!quietbench)
+		{
+			fprintf(STD_OUT, "Initializing Matrix C\n");
+		}
+		SetupUserDataC(Config);
+		dgemm_obj->ResetTimers();
+		if (!quietbench)
+		{
+			fprintf(STD_OUT, "Running Benchmark\n");
+		}
+		do
+		{
+			double *org_AA = AA, *org_BB = BB, *org_CC = CC;
+			size_t org_m = matrix_m, org_n = matrix_n;
+			for (int iter = 0;iter < iterations;iter++)
+			{
+				if (iterations > 1 && !quietbench) fprintf(STD_OUT, "\nDGEMM Call Iteration %d\n\n", iter);
+#ifdef TESTMODE
+				double use_alpha = 1.0;
+				double use_beta = 0.0;
+#else
+				double use_alpha = alphaone ? 1.0 : -1.0;
+				double use_beta = betazero ? 0.0 : 1.0;
+#endif
+				size_t tmpn = matrix_m > matrix_n ? matrix_m : matrix_n;
+				if (linpack_callbacks) Config.LinpackSwapN = &tmpn;
+				if (Config.AsyncSideQueue)
+				{
+					if (dgemm_obj->RunAsyncSingleTileDGEMM(AA, BB, CC, use_alpha, use_beta, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb))
+					{
+						fprintf(STD_OUT, "Error running async CALDGEMM");
+						return(1);
+					}
+				}
+				else
+				{
+					if (dgemm_obj->RunCALDGEMM(AA, BB, CC, use_alpha, use_beta, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks))
+					{
+						fprintf(STD_OUT, "Error running CALDGEMM\n");
+						return(1);
+					}
+				}
+				if (MaxGPUTemperature > 0)
+				{
+					int tmpVal = (int) dgemm_obj->getMaxGPUTemperature();
+					if (tmpVal > MaxGPUTemperature && tmpVal < 500)
+					{
+						fprintf(STD_OUT, "Maximum GPU Temperature of %d exceeded, temperature is %d\n", MaxGPUTemperature, tmpVal);
+						return(1);
+					}
+				}
+				fflush(STD_OUT);
+				if (torture)
+				{
+					dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks);
+				}
+				
+				if (linpackmemory && iterations > 1)
+				{
+					if (matrix_m > Config.Width && matrix_n > Config.Width)
+					{
+						AA += Config.Width;
+						BB += Config.Width * pitch_c;
+						CC += Config.Width * (pitch_c + 1);
+						matrix_m -= Config.Width;
+						matrix_n -= Config.Width;
+					}
+					else
+					{
+						AA = org_AA;
+						BB = org_BB;
+						CC = org_CC;
+						matrix_m = org_m;
+						matrix_n = org_n;
+					}
+				}
+			}
+		} while (benchmark && (matrix_n += Config.Height) < 70000 && (matrix_m += Config.Height) < 70000 && SetupUserData(Config) == 0);
+		
+	}
+	
+	if (torture)
+	{
+		for (size_t i = 0;i < matrix_m * pitch_c;i++)
+		{
+			if (CC[i] > 10E-10)
+			{
+				fprintf(STD_OUT, "Torture Test FAILED\n");
+				if (!quietbench) fprintf(STD_OUT, "Entry %lld is %lf\n", (long long int) i, CC[i]);
+				torture = 0;
+				break;
+			}
+		}
+		if (torture) fprintf(STD_OUT, "Torture Test PASSED (%2.3lf gflops)\n", dgemm_obj->avggflops);
+	}
+
+	if (verifylarge)
+	{
+		fprintf(STD_OUT, "Running verification for large matrices\n");
+		srand((int) seedused);
+		Config.UseGPU = false;
+		Config.UseCPU = true;
+		Config.Verify = false;
+		Config.Quiet = true;
+		dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : 1.0, 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb);
+		fprintf(STD_OUT, "CPU DGEMM Comparison run complete, comparing results\n");
+		int verifyok = 1;
+		for (size_t i = 0;i < matrix_m;i++)
+		{
+			for (size_t j = 0;j < matrix_n;j++)
+			{
+				if (!isDoubleEqual(CC[i * pitch_c + j] * 1.0, (double) ((i + j) % 16)))
+				{
+					fprintf(STD_OUT, "Verification failed at i = %lld, m = %lld, n = %lld\n", (long long int) i, (long long int) i / pitch_c, (long long int) i % pitch_c);
+					verifyok = 0;
+					break;
+				}
+			}
+			if (!verifyok) break;
+		}
+		if (verifyok) fprintf(STD_OUT, "Verification succeeded\n");
+	}
+#else //TEST_PARAMETERS
+	char* mem = new char[(size_t) 40 * 1024 * 1024 * 1024];
+	{
+		size_t tmpmem = (size_t) mem;
+		fprintf(STD_OUT, "tmpmem = 0x%llx\n", tmpmem);
+		tmpmem += (size_t) 1024 * 1024 * 1024;
+		fprintf(STD_OUT, "tmpmem = 0x%llx\n", tmpmem);
+		tmpmem -= ((size_t) tmpmem) % ((size_t) 1024 * 1024 * 1024);
+		fprintf(STD_OUT, "tmpmem = 0x%llx\n", tmpmem);
+		AA = (double*) tmpmem;
+		tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
+		BB = (double*) tmpmem;
+		tmpmem += (size_t) 10 * 1024 * 1024 * 1024;
+		CC = (double*) tmpmem;
+
+		AA = (double*) (((size_t) AA) | ((size_t) 0x6ea040));
+		BB = (double*) (((size_t) BB) | ((size_t) 0xeec080));
+		CC = (double*) (((size_t) CC) | ((size_t) 0x495040));
+		double ALPHA = -1.0;
+		double BETA = 1.0;
+		size_t M = 3072, N = 3072, K = 1024;
+		size_t APITCH = 4104, BPITCH = 3072, CPITCH = 4104;
+		bool ORDER = true;
+		bool TRANSA = false, TRANSB = true;
+		fprintf(STD_OUT, "Filling Source Matrices with random data\n");
+		for (int i = 0;i < APITCH * (M > K ? M : K);i++) AA[i] = i % 257;
+		for (int i = 0;i < BPITCH * (N > K ? N : K);i++) BB[i] = i % 97;
+		for (int i = 0;i < CPITCH * (M > N ? M : N);i++) CC[i] = i % 65537;
+
+		fprintf(STD_OUT, "Running with caldgemm parameters: A=0x%llx, B=0x%llx, C=0x%llx, ALPHA=%2.4lf, BETA=%2.4lf, m=%lld, k=%lld, n=%lld, Apitch=0x%llx, Bpitch=0x%llx, Cpitch=0x%llx, ColMajor=%d, TransA=%d, TransB=%d\n", AA, BB, CC, ALPHA, BETA, M, K, N, APITCH, BPITCH, CPITCH, (int) (ORDER == CblasColMajor), (int) (TRANSA == CblasTrans), (int) (TRANSB == CblasTrans));
+		dgemm_obj->RunCALDGEMM(AA, BB, CC, ALPHA, BETA, M, K, N, APITCH, BPITCH, CPITCH, ORDER, TRANSA, TRANSB);
+		fprintf(STD_OUT, "Caldgemm run complete\n");
+
+		delete[] mem;
+	}
+#endif //TEST_PARAMETERS
+
+#ifndef TEST_PARAMETERS
+	if (linpackmemory)
+	{
+		dgemm_obj->FreeMemory(linpackmem, mem_gpu_access);
+	}
+	else
+	{
+		dgemm_obj->FreeMemory(AA, mem_gpu_access);
+		//dgemm_obj->FreeMemory(BB, mem_gpu_access);
+		//dgemm_obj->FreeMemory(CC, mem_gpu_access);
+	}
+#endif
+
+	dgemm_obj->ExitCALDGEMM();
+	delete dgemm_obj;
+
+	if (wait_key)
+	{
+		fprintf(STD_OUT, "Press return to exit!\n");
+		getchar();
+	}
+	return 0;
 }
-
-
-

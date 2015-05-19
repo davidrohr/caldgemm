@@ -1,15 +1,22 @@
---- ./common.h	2010-01-20 20:58:34.000000000 +0100
-+++ ../goto2/common.h	2010-08-18 14:55:20.000000000 +0200
-@@ -393,6 +393,7 @@
+diff -ur ../GotoBLAS2-org/common.h ./common.h
+--- ../GotoBLAS2-org/common.h	2010-01-20 21:58:34.000000000 +0100
++++ ./common.h	2015-05-15 17:56:32.199159003 +0200
+@@ -392,7 +392,11 @@
+ int get_node_equal (void);
  #endif
  
++void gotoblas_init(void);
  void goto_set_num_threads(int);
 +void caldgemm_goto_reserve_cpus(int);
++void caldgemm_goto_reserve_cpu(int, int);
++void caldgemm_goto_restrict_cpus(int);
  
  void gotoblas_affinity_init(void);
  void gotoblas_affinity_quit(void);
---- ./common_thread.h	2009-12-16 02:22:38.000000000 +0100
-+++ ../goto2/common_thread.h	2010-08-18 15:45:36.000000000 +0200
+Only in .: common.h.orig
+diff -ur ../GotoBLAS2-org/common_thread.h ./common_thread.h
+--- ../GotoBLAS2-org/common_thread.h	2009-12-16 03:22:38.000000000 +0100
++++ ./common_thread.h	2015-05-15 00:19:42.438276252 +0200
 @@ -30,6 +30,7 @@
  
  /* Global Parameter */
@@ -18,8 +25,18 @@
  extern int blas_num_threads;
  extern int blas_omp_linked;
  
---- ./driver/others/blas_server.c	2010-02-05 16:46:32.000000000 +0100
-+++ ../goto2/driver/others/blas_server.c	2010-08-18 16:29:28.000000000 +0200
+@@ -106,6 +107,7 @@
+ #ifdef SMP_SERVER
+ 
+ extern int blas_server_avail;
++extern int caldgemm_restrict_cpus;
+ 
+ static __inline int num_cpu_avail(int level) {
+ 
+Only in .: common_thread.h.orig
+diff -ur ../GotoBLAS2-org/driver/others/blas_server.c ./driver/others/blas_server.c
+--- ../GotoBLAS2-org/driver/others/blas_server.c	2010-02-05 17:46:32.000000000 +0100
++++ ./driver/others/blas_server.c	2015-05-15 18:04:57.827867225 +0200
 @@ -25,6 +25,10 @@
  #include <sys/resource.h>
  #endif
@@ -31,7 +48,16 @@
  #ifdef SMP_SERVER
  
  #undef MONITOR
-@@ -52,6 +56,8 @@
+@@ -34,6 +38,8 @@
+ 
+ #define ATTRIBUTE_SIZE 128
+ 
++extern int reserved_cpu_cores[MAX_CPUS];
++
+ /* This is a thread server model implementation.  The threads are   */
+ /* spawned at first access to blas library, and still remains until */
+ /* destruction routine is called.  The number of threads are        */
+@@ -52,6 +58,8 @@
  static unsigned long server_lock       = 0;
  #endif
  
@@ -40,19 +66,36 @@
  #define THREAD_STATUS_SLEEP		2
  #define THREAD_STATUS_WAKEUP		4
  
-@@ -547,9 +553,9 @@
+@@ -210,6 +218,10 @@
+ #ifdef TIMING_DEBUG
+   unsigned long start, stop;
+ #endif
++
++  char myName[32];
++  sprintf(myName, "GotoBLAS Thread %d", cpu);
++  setThreadName(myName);
+   
+ #if defined(OS_LINUX) && !defined(NO_AFFINITY)
+   if (!increased_threads)
+@@ -547,9 +559,15 @@
        /* Node Mapping Mode */
  
        if (queue -> mode & BLAS_NODE) {
 -
  	do {
 -	  while((thread_status[i].node != node || thread_status[i].queue) && (i < blas_num_threads - 1)) i ++;
-+	  while((i < blas_num_threads - 1) && (thread_status[i].node != node || thread_status[i].queue || cpu_mapping[i + 1] < caldgemm_reserve_cpus) ) i ++;
++	  while((i < blas_num_threads - 1) && (thread_status[i].node != node || thread_status[i].queue || cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]] ))
++	  {
++	    i ++;
++#ifdef SMP_DEBUG
++	    if (cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]]) printf("Ommiting thread %d\n", i);
++#endif
++	  }
 +	  
  	  
  	  if (i < blas_num_threads - 1) break;
  
-@@ -561,19 +567,24 @@
+@@ -561,19 +579,29 @@
  	  }
  
  	} while (1);
@@ -62,15 +105,20 @@
  
        } else {
 -	while(thread_status[i].queue) {
-+	while(thread_status[i].queue || i < caldgemm_reserve_cpus) {
-+		if (i < caldgemm_reserve_cpus) printf("Ommiting thread %d\n", i);
++	while(thread_status[i].queue || cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]]) {
++#ifdef SMP_DEBUG
++		if (cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]]) printf("Ommiting thread %d\n", i);
++#endif
  	  i ++;
  	  if (i >= blas_num_threads - 1) i = 0;
  	}
        }
  #else
 -      while(thread_status[i].queue) {
-+      while(thread_status[i].queue || i < caldgemm_reserve_cpus) {
++        while(thread_status[i].queue || cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]]) {
++#ifdef SMP_DEBUG
++		if (cpu_mapping[i + 1] < caldgemm_reserve_cpus || reserved_cpu_cores[cpu_mapping[i + 1]]) printf("Ommiting thread %d\n", i);
++#endif
  	i ++;
  	if (i >= blas_num_threads - 1) i = 0;
        }
@@ -79,22 +127,48 @@
        
        queue -> assigned = i;
        WMB;
-@@ -741,6 +752,10 @@
+@@ -741,6 +769,21 @@
  
  }
  
 +void caldgemm_goto_reserve_cpus(int num_cpus) {
++    int i;
 +    caldgemm_reserve_cpus = num_cpus;
++    for (i = 0;i < blas_num_threads;i++) reserved_cpu_cores[i] = 0;
 +};
++
++void caldgemm_goto_restrict_cpus(int val)
++{
++    caldgemm_restrict_cpus = val;
++}
++void caldgemm_goto_reserve_cpu(int cpu_id, int val)
++{
++    reserved_cpu_cores[cpu_id] = val;
++}
 +
  /* Compatible function with pthread_create / join */
  
  int gotoblas_pthread(int numthreads, void *function, void *args, int stride) {
-diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
---- ./driver/others/init.c	2010-08-18 21:58:56.176744600 +0200
-+++ ../goto2/driver/others/init.c	2010-08-18 16:29:18.000000000 +0200
-@@ -63,7 +63,7 @@
+Only in ./driver/others: blas_server.c.orig
+diff -ur ../GotoBLAS2-org/driver/others/init.c ./driver/others/init.c
+--- ../GotoBLAS2-org/driver/others/init.c	2009-12-09 17:48:08.000000000 +0100
++++ ./driver/others/init.c	2015-05-15 18:14:27.575604056 +0200
+@@ -53,17 +53,19 @@
+   int num_nodes;
+   int num_procs;
+   int final_num_procs;
+-  unsigned long avail;
++  unsigned long long int avail;
+   
+   unsigned long cpu_info   [MAX_CPUS];
+-  unsigned long node_info  [MAX_NODES];
++  unsigned long long int node_info  [MAX_NODES];
+   int cpu_use[MAX_CPUS];
  
+ } shm_t;
+ 
++int reserved_cpu_cores[MAX_CPUS];
++
  static cpu_set_t cpu_orig_mask[4];
  
 -static int  cpu_mapping[MAX_CPUS];
@@ -102,16 +176,159 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
  static int  node_mapping[MAX_CPUS * 4];
  static int  cpu_sub_mapping[MAX_CPUS];
  static int  disable_mapping;
-@@ -366,7 +366,7 @@
+@@ -76,7 +78,8 @@
+ static int shmid, pshmid;
+ static void *paddr;
+ 
+-static unsigned long lprocmask, lnodemask;
++static unsigned long long int lprocmask;
++static unsigned long lnodemask;
+ static int numprocs = 1;
+ static int numnodes = 1;
+ 
+@@ -122,12 +125,12 @@
+   return count;
+ }
+ 
+-static inline unsigned long get_cpumap(int node) {
++static inline unsigned long long int get_cpumap(int node) {
+ 
+   int infile;
+-  unsigned long affinity;
++  unsigned long long int affinity;
+   char name[160];
+-  char *p, *dummy;
++  char *p, *pp, *dummy;
+   
+   sprintf(name, CPUMAP_NAME, node);
+   
+@@ -137,24 +140,37 @@
+     
+   if (infile != -1) {
+     
+-    read(infile, name, sizeof(name));
++    name[read(infile, name, sizeof(name))] = 0;
+    
+     p = name;
+ 
++    p[128] = NULL;
+     while ((*p == '0') || (*p == ',')) p++;
++    pp = p;
++    pp++;
++    while (*pp != ',' && *pp != 0) pp++;
++    if (*pp == ',')
++    {
++	do
++	{
++	    *pp = *(pp + 1);
++	    pp++;
++	} while (*pp != 0);
++    }
++    
+ 
+-    affinity = strtol(p, &dummy, 16);
+-   
++    affinity = strtoll(p, &dummy, 16);
++    
+     close(infile);
+   }
+ 
+   return affinity;
+ }
+ 
+-static inline unsigned long get_share(int cpu, int level) {
++static inline unsigned long long int get_share(int cpu, int level) {
+ 
+   int infile;
+-  unsigned long affinity;
++  unsigned long long int affinity;
+   char name[160];
+   char *p;
+   
+@@ -162,7 +178,7 @@
+   
+   infile = open(name, O_RDONLY);
+ 
+-  affinity = (1UL << cpu);
++  affinity = (((unsigned long long int) 1) << cpu);
+     
+   if (infile != -1) {
+     
+@@ -172,7 +188,7 @@
+ 
+     while ((*p == '0') || (*p == ',')) p++;
+ 
+-    affinity = strtol(p, &p, 16);
++    affinity = strtoll(p, &p, 16);
+    
+     close(infile);
+   }
+@@ -221,7 +237,7 @@
+   fprintf(stderr, "Numa found : number of Nodes = %2d\n", common -> num_nodes);
+ 
+   for (node = 0; node < common -> num_nodes; node ++)
+-    fprintf(stderr, "MASK (%2d) : %08lx\n", node, common -> node_info[node]);
++    fprintf(stderr, "MASK (%2d) : %08llx\n", node, common -> node_info[node]);
+ #endif
+ 
+   return common -> num_nodes;
+@@ -237,7 +253,7 @@
+   for (node = 0; node < common -> num_nodes; node ++) {
+     core = 0;
+     for (cpu = 0; cpu < common -> num_procs; cpu ++) {
+-      if (common -> node_info[node] & common -> avail & (1UL << cpu)) {
++      if (common -> node_info[node] & common -> avail & (((unsigned long long int) 1) << cpu)) {
+ 	common -> cpu_info[count] = WRITE_CORE(core) | WRITE_NODE(node) | WRITE_CPU(cpu);
+ 	count ++;
+ 	core ++;
+@@ -294,10 +310,10 @@
+ 
+ static void disable_hyperthread(void) {
+ 
+-  unsigned long share;
++  unsigned long long int share;
+   int cpu;
+ 
+-  common -> avail = (1UL << common -> num_procs) - 1;
++  common -> avail = (((unsigned long long int) 1) << common -> num_procs) - 1;
+ 
+ #ifdef DEBUG
+   fprintf(stderr, "\nAvail CPUs    : %04lx.\n", common -> avail);
+@@ -311,10 +327,10 @@
+       
+ #ifdef DEBUG
+       fprintf(stderr, "Detected Hyper Threading on CPU %4x; disabled CPU %04lx.\n",
+-	      cpu, share & ~(1UL << cpu));
++	      cpu, share & ~(((unsigned long long int) 1) << cpu));
+ #endif
+       
+-      common -> avail &= ~((share & ~(1UL << cpu)));
++      common -> avail &= ~((share & ~(((unsigned long long int) 1) << cpu)));
+     }
+   }
+ }
+@@ -326,7 +342,7 @@
+     fprintf(stderr, "CPU mask                  : %04lx.\n\n", *(unsigned long *)&cpu_orig_mask[0]);
+ #endif
+ 
+-  lprocmask = (1UL << common -> final_num_procs) - 1;
++  lprocmask = (((unsigned long long int) 1) << common -> final_num_procs) - 1;
+ 
+ #ifndef USE_OPENMP
+   lprocmask &= *(unsigned long *)&cpu_orig_mask[0];
+@@ -365,8 +381,10 @@
+ #ifdef DEBUG
      fprintf(stderr, "Node mask = %lx\n", lnodemask);
  #endif
-     
--    my_set_mempolicy(MPOL_INTERLEAVE, &lnodemask, sizeof(lnodemask) * 8);
-+    //my_set_mempolicy(MPOL_INTERLEAVE, &lnodemask, sizeof(lnodemask) * 8);
+-    
++
++#ifndef NO_MEMPOLICY
+     my_set_mempolicy(MPOL_INTERLEAVE, &lnodemask, sizeof(lnodemask) * 8);
++#endif
  
      numnodes = popcount(lnodemask);
    }
-@@ -424,7 +424,7 @@
+@@ -424,7 +442,7 @@
  
    int cpu, id, mapping;
  
@@ -120,7 +337,16 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
    mapping = 0;
  
    do {
-@@ -443,9 +443,9 @@
+@@ -434,7 +452,7 @@
+       if (is_dead(id)) common -> cpu_use[cpu] = 0;
+     }
+ 
+-    if ((common -> cpu_use[cpu] == 0) && (lprocmask & (1UL << cpu))) {
++    if ((common -> cpu_use[cpu] == 0) && (lprocmask & (((unsigned long long int) 1) << cpu))) {
+ 
+       common -> cpu_use[cpu] = pshmid;
+       cpu_mapping[mapping] = READ_CPU(common -> cpu_info[cpu]);
+@@ -443,9 +461,9 @@
        mapping ++;
      }
  
@@ -132,7 +358,7 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
    
    disable_mapping = 0;
  
-@@ -469,7 +469,7 @@
+@@ -469,7 +487,7 @@
  int get_num_nodes(void)  { return numnodes; }
  int get_node_equal(void) { 
  
@@ -141,13 +367,281 @@ diff -ru ./driver/others/init.c ../goto2/driver/others/init.c
    
  }
  
---- ./driver/others/memory.c	2010-01-28 20:15:42.000000000 +0100
-+++ ../goto2/driver/others/memory.c	2010-08-18 14:56:30.000000000 +0200
-@@ -157,6 +157,7 @@
+@@ -517,11 +535,13 @@
+ void gotoblas_affinity_init(void) {
+ 
+   int cpu, num_avail;
++  int i;
+ #ifndef USE_OPENMP
+   cpu_set_t cpu_mask;
+ #endif
+ 
+   if (initialized) return;
++  for (i = 0;i < MAX_CPUS;i++) reserved_cpu_cores[i] = 0;
+ 
+   initialized = 1;
+ 
+Only in ./driver/others: init.c.orig
+diff -ur ../GotoBLAS2-org/driver/others/memory.c ./driver/others/memory.c
+--- ../GotoBLAS2-org/driver/others/memory.c	2010-01-28 21:15:42.000000000 +0100
++++ ./driver/others/memory.c	2015-05-15 17:54:31.297256662 +0200
+@@ -20,7 +20,6 @@
+ /*********************************************************************/
+ 
+ #undef  DEBUG
+-
+ #include "common.h"
+ 
+ #ifdef OS_WINDOWS
+@@ -92,6 +91,11 @@
+ gotoblas_t *gotoblas = NULL;
+ #endif
+ 
++#ifdef DEBUG
++int alloc_area[NUM_BUFFERS];
++int alloc_used[NUM_BUFFERS];
++#endif
++
+ #ifndef SMP
+ 
+ #define blas_cpu_number 1
+@@ -157,6 +161,8 @@
  #endif
  
  int blas_cpu_number  = 0;
 +int caldgemm_reserve_cpus = 0;
++int caldgemm_restrict_cpus = 0;
  int blas_num_threads = 0;
  
  int  goto_get_num_procs  (void) {
+@@ -895,7 +901,9 @@
+ 
+       while ((func != NULL) && (map_address == (void *) -1)) {
+ 
+-	map_address = (*func)((void *)base_address);
++      LOCK_COMMAND(&alloc_lock);
++      map_address = (*func)((void *)base_address);
++      UNLOCK_COMMAND(&alloc_lock);
+ 
+ #ifdef ALLOC_DEVICEDRIVER
+ 	if ((*func ==  alloc_devicedirver) && (map_address == (void *)-1)) {
+@@ -919,7 +927,7 @@
+       }
+ 
+ #ifdef DEBUG
+-      printf("  Success -> %08lx\n", map_address);
++      printf("  Success -> %08lx\n", (unsigned long int) map_address);
+ #endif
+       if (((BLASLONG) map_address) == -1) base_address = 0UL;
+ 
+@@ -1155,7 +1163,7 @@
+ 
+ static int gotoblas_initialized = 0;
+ 
+-void CONSTRUCTOR gotoblas_init(void) {
++void gotoblas_init(void) {
+ 
+   if (gotoblas_initialized) return;
+ 
+Only in ./driver/others: memory.c.orig
+Only in .: gotoblas.patch
+diff -ur ../GotoBLAS2-org/interface/axpy.c ./interface/axpy.c
+--- ../GotoBLAS2-org/interface/axpy.c	2009-12-09 17:13:14.000000000 +0100
++++ ./interface/axpy.c	2015-05-15 00:19:42.442275976 +0200
+@@ -62,7 +62,15 @@
+   if (incy < 0) y -= (n - 1) * incy;
+ 
+ #ifdef SMP
+-  nthreads = num_cpu_avail(1);
++  if (caldgemm_restrict_cpus > 2)
++  {
++    nthreads = 8;
++    if (nthreads > num_cpu_avail(1)) nthreads = num_cpu_avail(1);
++  }
++  else
++  {
++    nthreads = num_cpu_avail(1);
++  }
+ 
+   if (nthreads == 1) {
+ #endif
+Only in ./interface: axpy.c.orig
+diff -ur ../GotoBLAS2-org/interface/gemm.c ./interface/gemm.c
+--- ../GotoBLAS2-org/interface/gemm.c	2009-12-09 15:40:41.000000000 +0100
++++ ./interface/gemm.c	2015-05-15 00:19:42.442275976 +0200
+@@ -381,6 +381,20 @@
+ 
+   args.common = NULL;
+   args.nthreads = num_cpu_avail(3);
++  if (caldgemm_restrict_cpus)
++  {
++    long long int tflops = (long long int) args.m * (long long int) args.n * (long long int) args.k;
++    if (tflops <= 16384) args.nthreads = 1;
++    else if (tflops <= 65536) args.nthreads = 2;
++    else if (tflops < 200000 || (tflops > 2000000 && tflops < 4000000)) args.nthreads = 3;
++    else if (tflops <= 2000000) args.nthreads = 4;
++    else if (tflops <= 26542080) args.nthreads = 8;
++    else if (tflops <= 56623104) args.nthreads = 12;
++    else if (tflops <= 89915392) args.nthreads = 16;
++    else if (tflops <= 262144000) args.nthreads = 20;
++
++    if (args.nthreads > num_cpu_avail(3)) args.nthreads = num_cpu_avail(3);
++  }
+ 
+  if (args.nthreads == 1) {
+ #endif
+Only in ./interface: gemm.c.orig
+diff -ur ../GotoBLAS2-org/interface/gemv.c ./interface/gemv.c
+--- ../GotoBLAS2-org/interface/gemv.c	2009-12-09 15:40:24.000000000 +0100
++++ ./interface/gemv.c	2015-05-15 00:19:42.442275976 +0200
+@@ -194,8 +194,30 @@
+   buffer = (FLOAT *)blas_memory_alloc(1);
+ 
+ #ifdef SMP
+-  nthreads = num_cpu_avail(2);
+-
++  
++  if (caldgemm_restrict_cpus)
++  {
++    if (m >= 4 * n)
++    {
++	long long int tflops = (long long int) m * 64;
++	if (tflops <= 458752) nthreads = 4;
++	else if (tflops <= 655360) nthreads = 8;
++	else nthreads = 24;
++    }
++    else
++    {
++	long long int tflops = (long long int) m * (long long int) n;
++	if (tflops < 102400) nthreads = 1;
++	else if (tflops < 3686400) nthreads = 3;
++	else nthreads = 4;
++    }
++    if (caldgemm_restrict_cpus > 2 && nthreads > 8) nthreads = 8;
++    if (nthreads > num_cpu_avail(2)) nthreads = num_cpu_avail(2);
++  }
++  else
++  {
++    nthreads = num_cpu_avail(2);
++  }
+   if (nthreads == 1) {
+ #endif
+     
+Only in ./interface: gemv.c.orig
+diff -ur ../GotoBLAS2-org/interface/scal.c ./interface/scal.c
+--- ../GotoBLAS2-org/interface/scal.c	2009-12-09 15:28:26.000000000 +0100
++++ ./interface/scal.c	2015-05-15 00:19:42.442275976 +0200
+@@ -59,7 +59,15 @@
+ 
+ 
+ #ifdef SMP
+-  nthreads = num_cpu_avail(1);
++  if (caldgemm_restrict_cpus > 2)
++  {
++    nthreads = 8;
++    if (nthreads > num_cpu_avail(1)) nthreads = num_cpu_avail(1);
++  }
++  else
++  {
++    nthreads = num_cpu_avail(1);
++  }
+ 
+   if (nthreads == 1) {
+ #endif
+Only in ./interface: scal.c.orig
+diff -ur ../GotoBLAS2-org/interface/trsm.c ./interface/trsm.c
+--- ../GotoBLAS2-org/interface/trsm.c	2009-12-09 17:02:32.000000000 +0100
++++ ./interface/trsm.c	2015-05-15 00:19:42.442275976 +0200
+@@ -345,6 +345,16 @@
+   mode |= (side  << BLAS_RSIDE_SHIFT);
+ 
+   args.nthreads = num_cpu_avail(3);
++  if (caldgemm_restrict_cpus)
++  {
++    long long int tflops = (long long int) args.n * (long long int) args.n * (long long int) args.m;
++    if (tflops <= 32768) args.nthreads = 1;
++    else if (tflops <= 110592) args.nthreads = 3;
++    else if (tflops <= 100000000) args.nthreads = 4;
++    else if (tflops <= 1000000000) args.nthreads = 16;
++    if (caldgemm_restrict_cpus > 2 && args.nthreads > 8) args.nthreads = 8;
++    if (args.nthreads > num_cpu_avail(3)) args.nthreads = num_cpu_avail(3);
++  }
+ 
+   if (args.nthreads == 1) {
+ #endif
+Only in ./interface: trsm.c.orig
+Only in .: lapack-3.1.1.tgz
+diff -ur ../GotoBLAS2-org/Makefile ./Makefile
+--- ../GotoBLAS2-org/Makefile	2010-01-20 21:54:38.000000000 +0100
++++ ./Makefile	2015-05-15 00:19:42.446275718 +0200
+@@ -13,9 +13,14 @@
+ 
+ SUBDIRS	= $(BLASDIRS) lapack
+ 
++ifdef NO_SELFTEST
++SUBDIRS_ALL = $(SUBDIRS) exports ../laswp ../bench
++.PHONY : all libs netlib shared
++else
+ SUBDIRS_ALL = $(SUBDIRS) test ctest exports benchmark ../laswp ../bench
+-
+ .PHONY : all libs netlib test ctest shared
++endif
++
+ .NOTPARALLEL : all libs prof lapack-test
+ 
+ all :: libs netlib tests shared
+@@ -71,6 +76,7 @@
+ endif
+ 
+ tests :
++ifndef NO_SELFTEST
+ ifndef NOFORTRAN
+ ifndef TARGET
+ ifndef CROSS
+@@ -83,6 +89,7 @@
+ endif
+ endif
+ endif
++endif
+ endif
+ 
+ libs :
+diff -ur ../GotoBLAS2-org/Makefile.rule ./Makefile.rule
+--- ../GotoBLAS2-org/Makefile.rule	2010-02-05 17:02:04.000000000 +0100
++++ ./Makefile.rule	2015-05-15 18:15:09.725654877 +0200
+@@ -7,7 +7,7 @@
+ 
+ # You can specify the target architecture, otherwise it's
+ # automatically detected.
+-# TARGET = PENRYN
++# TARGET = NEHALEM
+ 
+ # If you want to support multiple architecture in one binary
+ # DYNAMIC_ARCH = 1
+@@ -59,6 +59,12 @@
+ # If you want to disable CPU/Memory affinity on Linux.
+ # NO_AFFINITY = 1
+ 
++# Do not set the memory policy to interleaving automatically
++NO_MEMPOLICY = 1
++
++# Do not run selftest after compilation
++NO_SELFTEST = 1
++
+ # If you would like to know minute performance report of GotoBLAS.
+ # FUNCTION_PROFILE = 1
+ 
+diff -ur ../GotoBLAS2-org/Makefile.system ./Makefile.system
+--- ../GotoBLAS2-org/Makefile.system	2010-01-28 21:11:08.000000000 +0100
++++ ./Makefile.system	2015-05-15 00:19:42.446275718 +0200
+@@ -570,6 +570,10 @@
+ endif
+ endif
+ 
++ifdef NO_MEMPOLICY
++CCOMMON_OPT    += -DNO_MEMPOLICY
++endif
++
+ ifdef NO_AFFINITY
+ CCOMMON_OPT	+= -DNO_AFFINITY
+ endif
