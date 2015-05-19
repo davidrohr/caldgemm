@@ -111,7 +111,7 @@ public:
 		}
 		void InitBackendArgc();
 		void AddBackendArgv(char* option);
-		void InitializeBackendOptions();
+		int InitializeBackendOptions();
 
 		bool AsyncDMA;							//Run DMA transfer and kernel execution in parallel
 		bool DivideToGPU;						//Write preprocessed data difrectly to GPU

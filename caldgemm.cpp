@@ -317,11 +317,12 @@ void caldgemm::caldgemm_config::AddBackendArgv(char* option)
 	argv_backend[argc_backend] = NULL;
 }
 
-void caldgemm::caldgemm_config::InitializeBackendOptions()
+int caldgemm::caldgemm_config::InitializeBackendOptions()
 {
-	config_backend->ParseBackendOptions(argc_backend, argv_backend);
+	int retVal = config_backend->ParseBackendOptions(argc_backend, argv_backend);
 	free(argv_backend);
 	InitBackendArgc();
+	return(retVal);
 }
 
 int caldgemm::getcpumask(cpu_set_t* set)
@@ -3650,7 +3651,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(OpenCLPlatform);
 	PRINT_CONFIG_INT(DeviceNum);
 	PRINT_CONFIG_INT(NumDevices);
-	PRINT_CONFIG_LOOP_INT(DeviceNums, nDevices);
+	PRINT_CONFIG_LOOP_INT(DeviceNums, myConfig->NumDevices);
 	PRINT_CONFIG_INT(max_bbuffers);
 	PRINT_CONFIG_INT(PreallocData);
 	PRINT_CONFIG_INT(CPUInContext);
@@ -3662,10 +3663,10 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(SkipCPUProcessing);
 	PRINT_CONFIG_INT(ForceKernelVariant);
 
-	PRINT_CONFIG_LOOP_INT(GPUMapping, nDevices);
-	PRINT_CONFIG_LOOP_INT(PostprocessMapping, nDevices);
-	PRINT_CONFIG_LOOP_INT(AllocMapping, nDevices);
-	PRINT_CONFIG_LOOP_INT(DMAMapping, nDevices);
+	PRINT_CONFIG_LOOP_INT(GPUMapping, myConfig->NumDevices);
+	PRINT_CONFIG_LOOP_INT(PostprocessMapping, myConfig->NumDevices);
+	PRINT_CONFIG_LOOP_INT(AllocMapping, myConfig->NumDevices);
+	PRINT_CONFIG_LOOP_INT(DMAMapping, myConfig->NumDevices);
 
 	PRINT_CONFIG_INT(PinMainThread);
 	PRINT_CONFIG_INT(PinDeviceRuntimeThreads);
@@ -3778,7 +3779,7 @@ int caldgemm::ParseParameters(char* params, caldgemm_config* Config)
 	argv[argc] = NULL;
 	int retVal = ParseParameters(argc, argv, Config);
 	delete[] argv;
-	Config->InitializeBackendOptions();
+	retVal |= Config->InitializeBackendOptions();
 	return(retVal);
 }
 
