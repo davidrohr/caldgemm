@@ -913,7 +913,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	
 	goto_set_num_threads(conf_numprocs);
 	
-	if (Config->PipelinedOperation && FinishDataInit()) return(1);
+	if (FinishDataInit()) return(1);
 
 	nDevicesInitialized = nDevices;
 
