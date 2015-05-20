@@ -148,6 +148,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-9        Output a table with timing information\n");
 	fprintf(STD_OUT, "\t-0        Write the output of divideBuffers directly to GPU instead of a seperate DMA transfer\n");
 	fprintf(STD_OUT, "\t-A        Do the DMA transfer to GPU asynchronously\n");
+	fprintf(STD_OUT, "\t-Ap       Enable pipelined CALDGEMM operation\n");
 	fprintf(STD_OUT, "\t-L        Memory Organisation like in HPL (LINPACK)\n");
 	fprintf(STD_OUT, "\t-C        Call fake LINPACK callback functions\n");
 	fprintf(STD_OUT, "\t-Ca <int> Linpack Option: Set alternate lookahead threshold\n");

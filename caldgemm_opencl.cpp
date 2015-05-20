@@ -2185,11 +2185,14 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 				}
 			}
 		}
-		for (int i = 0;i < nDevices;i++)
+		if (!Config->PipelinedOperation)
 		{
-			for (int j = 0;j < obuffercount;j++)
+			for (int i = 0;i < nDevices;i++)
 			{
-				clFinish(ocl_command_queues[i][j]);
+				for (int j = 0;j < obuffercount;j++)
+				{
+					clFinish(ocl_command_queues[i][j]);
+				}
 			}
 		}
 	}
@@ -2222,6 +2225,24 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 	}
 	return(0);
 }
+
+int caldgemm_opencl::RunCALDGEMM_Finish()
+{
+	for (int i = 0;i < nDevices;i++)
+	{
+		for (int j = 0;j < obuffercount;j++)
+		{
+			clFinish(ocl_command_queues[i][j]);
+		}
+	}
+	return(0);
+}
+
+int caldgemm_opencl::CheckParams()
+{
+    return(0);
+}
+
 
 #define MAX_GPU_MEM_COUNT 64
 static caldgemm_opencl::gpu_mem_struct_opencl gpu_mem[MAX_GPU_MEM_COUNT];

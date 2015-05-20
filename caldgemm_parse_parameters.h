@@ -117,7 +117,14 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		break;
 	case 'A':
-		Config->AsyncDMA = true;
+		if (argv[x][2] == 'b')
+		{
+			Config->PipelinedOperation = true;
+		}
+		else
+		{
+			Config->AsyncDMA = true;
+		}
 		break;
 	case '.':
 		Config->RepinDuringActiveWaitForEvent = true;
