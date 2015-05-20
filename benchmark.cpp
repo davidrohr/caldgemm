@@ -754,6 +754,7 @@ int main(int argc, char** argv)
 				if (torture)
 				{
 					dgemm_obj->RunCALDGEMM(AA, BB, CC, 1.0, 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb, linpack_callbacks);
+					if (Config.PipelinedOperation) dgemm_obj->FinishCALDGEMM();
 				}
 				
 				if (linpackmemory && iterations > 1)
@@ -804,6 +805,7 @@ int main(int argc, char** argv)
 		Config.Verify = false;
 		Config.Quiet = true;
 		dgemm_obj->RunCALDGEMM(AA, BB, CC, alphaone ? -1.0 : 1.0, 1.0, matrix_m, Config.Width, matrix_n, pitch_a, pitch_b, pitch_c, colmajor, transa, transb);
+		if (Config.PipelinedOperation) dgemm_obj->FinishCALDGEMM();
 		fprintf(STD_OUT, "CPU DGEMM Comparison run complete, comparing results\n");
 		int verifyok = 1;
 		for (size_t i = 0;i < matrix_m;i++)
