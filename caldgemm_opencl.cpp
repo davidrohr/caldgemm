@@ -382,7 +382,7 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 		{
 			devices[gooddevices++] = devices[i];
 		}
-		if (device_type & CL_DEVICE_TYPE_CPU)
+		else if (device_type & CL_DEVICE_TYPE_CPU)
 		{
 			cpu_found = 1;
 			cpu_device = devices[i];
@@ -391,7 +391,14 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 
 	if (cpu_found == 0)
 	{
-		ERRRET("No CPU OpenCL device found for mapping buffers\n");
+		if (config_backend->allowCPUDevice == false && Config->CPUInContext)
+		{
+			ERRRET("No CPU OpenCL device found for mapping buffers\n");
+		}
+		else
+		{
+			Config->CPUInContext = false;
+		}
 	}
 	if (gooddevices == 0)
 	{
@@ -2189,7 +2196,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		{
 			for (int j = 0;j < obuffercount;j++)
 			{
-				 clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &(((finishStructOpenCL*) finishData)->StartMarker[i][j]));
+				 CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &(((finishStructOpenCL*) finishData)->StartMarker[i][j])), "Error enqueuing OpenCL marker");
 			}
 		}
 	}
@@ -2218,13 +2225,13 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 		{
 			for (int j = 0;j < obuffercount;j++)
 			{
-				if (!Config->PipelinedOperation)
+				if (Config->PipelinedOperation)
 				{
-					clFinish(ocl_command_queues[i][j]);
+					 CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &(((finishStructOpenCL*) finishData)->EndMarker[i][j])), "Error enqueuing OpenCL marker");
 				}
 				else
 				{
-					 clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &(((finishStructOpenCL*) finishData)->EndMarker[i][j]));
+					clFinish(ocl_command_queues[i][j]);
 				}
 			}
 		}
@@ -2261,17 +2268,26 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 
 int caldgemm_opencl::RunCALDGEMM_Finish()
 {
-	if (!Config->PipelinedOperation) return(0);
-	cl_ulong start, end, gputime = 0;
+	if (!Config->PipelinedOperation || finishData->CPUOnlyRun) return(0);
+	cl_ulong gputime = 0;
 	for (int i = 0;i < nDevices;i++)
 	{
-		CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]), "Error waiting to finish DGEMM");
+		CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]), "Error waiting to finish DGEMM (%d)", i);
+		cl_ulong minstart = ~0, maxend = 0; 
 		for (int j = 0;j < obuffercount;j++)
 		{
+			cl_ulong start, end;
 			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL), "Error getting event profiling info");
-			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
-			if (end - start > gputime) gputime = end - start;
+			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_QUEUED, sizeof(start), &start, NULL), "Error getting event profiling info");
+			if (start < minstart) minstart = start;
+			if (end > maxend) maxend = end;
 		}
+		if (maxend - minstart > gputime) gputime = maxend - minstart;
+	}
+	if (gputime == 0)
+	{
+		fprintf(STD_OUT, "Error obtaining times from OpenCL runtime\n");
+		return(1);
 	}
 	if ((double) gputime * 1e-9 > finishData->GPUTimer) finishData->GPUTimer = (double) gputime * 1e-9;
 	if (finishData->GPUTimer > finishData->System) finishData->System = finishData->GPUTimer;

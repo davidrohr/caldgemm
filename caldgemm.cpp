@@ -2942,7 +2942,7 @@ recalculate_ratio:
 	finishData->cpu_k = cParam.cpu_k;
 	finishData->dynamic_run2 = cParam.dynamic_run2;
 
-	if (Config->PipelinedOperation)
+	if (Config->PipelinedOperation && !CPUOnlyRun)
 	{
 		return(0);
 	}
