@@ -251,12 +251,15 @@ static const char* opencl_error_string(int errorcode)
 
 #define ERRRET(...) {fprintf(STD_OUT, __VA_ARGS__);fprintf(STD_OUT, "\n");return(1);}
 #define CHKRET(result, ...) \
-	if (result != CL_SUCCESS) \
 	{ \
-		fprintf(STD_OUT, __VA_ARGS__); \
-		fprintf(STD_OUT, ":\n"); \
-		fprintf(STD_OUT, "OpenCL Error %d: (%s: %d) %s\n", result, __FILE__, __LINE__, opencl_error_string(result)); \
-		return(1); \
+		const cl_int tmp_ocl_error = result; \
+		if (tmp_ocl_error != CL_SUCCESS) \
+		{ \
+			fprintf(STD_OUT, __VA_ARGS__); \
+			fprintf(STD_OUT, ":\n"); \
+			fprintf(STD_OUT, "OpenCL Error %d: (%s: %d) %s\n", tmp_ocl_error, __FILE__, __LINE__, opencl_error_string(tmp_ocl_error)); \
+			return(1); \
+		} \
 	}
 
 caldgemm_opencl::caldgemm_opencl() : caldgemm()
@@ -2125,6 +2128,12 @@ void caldgemm_opencl::SetupSimpleQueue(size_t mb, size_t nb)
 	}
 }
 
+int caldgemm_opencl::FinishDataInit()
+{
+	finishData = new finishStructOpenCL;
+    return(finishData == NULL);
+}
+
 int caldgemm_opencl::RunCALDGEMM_Init()
 {
 	for (int i = 0;i < nDevices;i++)
@@ -2164,6 +2173,17 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(int));
 		memset(&simple_queue_event_kernels[0][0][0], 0, nDevices * ibuffercount * obuffercount * sizeof(cl_event));
 	}
+	
+	if (Config->PipelinedOperation)
+	{
+		for (int i = 0;i < nDevices;i++)
+		{
+			for (int j = 0;j < obuffercount;j++)
+			{
+				 clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &(((finishStructOpenCL*) finishData)->StartMarker[i][j]));
+			}
+		}
+	}
 	return(0);
 }
 
@@ -2185,13 +2205,17 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 				}
 			}
 		}
-		if (!Config->PipelinedOperation)
+		for (int i = 0;i < nDevices;i++)
 		{
-			for (int i = 0;i < nDevices;i++)
+			for (int j = 0;j < obuffercount;j++)
 			{
-				for (int j = 0;j < obuffercount;j++)
+				if (!Config->PipelinedOperation)
 				{
 					clFinish(ocl_command_queues[i][j]);
+				}
+				else
+				{
+					 clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &(((finishStructOpenCL*) finishData)->EndMarker[i][j]));
 				}
 			}
 		}
@@ -2228,13 +2252,19 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 
 int caldgemm_opencl::RunCALDGEMM_Finish()
 {
+	if (!Config->PipelinedOperation) return(0);
+	cl_ulong start, end, gputime = 0;
 	for (int i = 0;i < nDevices;i++)
 	{
+		CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]), "Error waiting to finish DGEMM");
 		for (int j = 0;j < obuffercount;j++)
 		{
-			clFinish(ocl_command_queues[i][j]);
+			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL), "Error getting event profiling info");
+			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
+			if (end - start > gputime) gputime = end - start;
 		}
 	}
+	if ((double) gputime * 1e9 > finishData->GPUTimer) finishData->GPUTimer = (double) gputime * 1e9;
 	return(0);
 }
 

@@ -337,6 +337,7 @@ protected:
 	virtual int RunCALDGEMM_Init();
 	virtual int RunCALDGEMM_Exit();
 	virtual int RunCALDGEMM_Finish();
+	virtual int FinishDataInit();
 	virtual int CheckParams();
 	virtual void Preallocate();
 	virtual void PreallocateFree();
@@ -493,12 +494,10 @@ protected:
 	
 	struct finishStruct
 	{
-//		TimerInfo Timers;
-//		caldgemm_config* Config;
+		virtual ~finishStruct() {}
 		size_t matrix_m, matrix_n, SmallTileHeight, orig_m, orig_n;
-		double gpu_ratio_used, cpu_wait_time;//, avggflops;
-		int ExecLinpack;//, avgngflops;
-		//char* hostname;
+		double gpu_ratio_used, cpu_wait_time;
+		int ExecLinpack;
 		bool CPUOnlyRun, DGEMM_split_m;
 		
 		double System, CPUTimer, GPUTimer, TotalCPUTimer, LinpackTimer1, LinpackTimer2, LinpackTimer3, BcastTimer;
@@ -511,7 +510,7 @@ protected:
 		size_t cpu_k;							//k that cpu will take over from gpu in 3rd phase dynamic run
 		size_t dynamic_run2;		
 	};
-	finishStruct finishData;
+	finishStruct* finishData;
 
 	struct cblasParameters
 	{
