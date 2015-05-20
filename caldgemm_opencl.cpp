@@ -420,11 +420,11 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 		{
 #ifdef CL_VERSION_2_0
 			cl_queue_properties flags[] = {CL_QUEUE_PROPERTIES, 0, 0};
-			if (Config->VerboseTiming) flags[1] |= CL_QUEUE_PROFILING_ENABLE;
+			if (Config->VerboseTiming || Config->PipelinedOperation) flags[1] |= CL_QUEUE_PROFILING_ENABLE;
 			ocl_command_queues[i][j] = clCreateCommandQueueWithProperties(ocl_context, ocl_devices[i], flags, &ocl_error);
 #else
 			cl_command_queue_properties flags = 0;
-			if (Config->VerboseTiming) flags |= CL_QUEUE_PROFILING_ENABLE;
+			if (Config->VerboseTiming || Config->PipelinedOperation) flags |= CL_QUEUE_PROFILING_ENABLE;
 			ocl_command_queues[i][j] = clCreateCommandQueue(ocl_context, ocl_devices[i], flags, &ocl_error);
 #endif
 			CHKRET(ocl_error, "Error creating OpenCL command queue");
