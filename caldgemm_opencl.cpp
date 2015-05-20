@@ -2260,11 +2260,12 @@ int caldgemm_opencl::RunCALDGEMM_Finish()
 		for (int j = 0;j < obuffercount;j++)
 		{
 			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL), "Error getting event profiling info");
-			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
+			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
 			if (end - start > gputime) gputime = end - start;
 		}
 	}
 	if ((double) gputime * 1e9 > finishData->GPUTimer) finishData->GPUTimer = (double) gputime * 1e9;
+	if (finishData->GPUTimer > finishData->System) finishData->System = finishData->GPUTimer;
 	return(0);
 }
 
