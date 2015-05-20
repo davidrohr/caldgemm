@@ -912,6 +912,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 	
 	goto_set_num_threads(conf_numprocs);
+	
+	if (Config->PipelinedOperation && FinishDataInit()) return(1);
 
 	nDevicesInitialized = nDevices;
 
@@ -2923,22 +2925,22 @@ recalculate_ratio:
 	Timers.System.Stop();
 	if (Config->Debug) fprintf(STD_OUT, "DGEMM Run Complete\n");
 	
-	finishData.matrix_m = matrix_m; finishData.matrix_n = matrix_n; finishData.SmallTileHeight = SmallTileHeight; finishData.orig_m = orig_m; finishData.orig_n = orig_n;
-	finishData.gpu_ratio_used = gpu_ratio_used; finishData.cpu_wait_time = cpu_wait_time;
-	finishData.ExecLinpack = ExecLinpack;
-	finishData.CPUOnlyRun = CPUOnlyRun; finishData.DGEMM_split_m = DGEMM_split_m;
+	finishData->matrix_m = matrix_m; finishData->matrix_n = matrix_n; finishData->SmallTileHeight = SmallTileHeight; finishData->orig_m = orig_m; finishData->orig_n = orig_n;
+	finishData->gpu_ratio_used = gpu_ratio_used; finishData->cpu_wait_time = cpu_wait_time;
+	finishData->ExecLinpack = ExecLinpack;
+	finishData->CPUOnlyRun = CPUOnlyRun; finishData->DGEMM_split_m = DGEMM_split_m;
 	
-	finishData.System = Timers.System.GetElapsedTime(); finishData.CPUTimer = Timers.CPUTimer.GetElapsedTime(); finishData.GPUTimer = Timers.GPUTimer.GetElapsedTime(); finishData.TotalCPUTimer = Timers.TotalCPUTimer.GetElapsedTime();
-	finishData.LinpackTimer1 = Timers.LinpackTimer1.GetElapsedTime(); finishData.LinpackTimer2 = Timers.LinpackTimer2.GetElapsedTime(); finishData.LinpackTimer3 = Timers.LinpackTimer3.GetElapsedTime(); finishData.BcastTimer = Timers.BcastTimer.GetElapsedTime();
+	finishData->System = Timers.System.GetElapsedTime(); finishData->CPUTimer = Timers.CPUTimer.GetElapsedTime(); finishData->GPUTimer = Timers.GPUTimer.GetElapsedTime(); finishData->TotalCPUTimer = Timers.TotalCPUTimer.GetElapsedTime();
+	finishData->LinpackTimer1 = Timers.LinpackTimer1.GetElapsedTime(); finishData->LinpackTimer2 = Timers.LinpackTimer2.GetElapsedTime(); finishData->LinpackTimer3 = Timers.LinpackTimer3.GetElapsedTime(); finishData->BcastTimer = Timers.BcastTimer.GetElapsedTime();
 	
-	finishData.divideA = Timers.divideA; finishData.divideB = Timers.divideB; finishData.divideC = Timers.divideC;
-	finishData.device_kernel = Timers.device_kernel;
+	finishData->divideA = Timers.divideA; finishData->divideB = Timers.divideB; finishData->divideC = Timers.divideC;
+	finishData->device_kernel = Timers.device_kernel;
 
-	finishData.cblas_size = cParam.cblas_size;
-	finishData.dynamic_run = cParam.dynamic_run;
-	finishData.dynamic_size = cParam.dynamic_size;
-	finishData.cpu_k = cParam.cpu_k;
-	finishData.dynamic_run2 = cParam.dynamic_run2;
+	finishData->cblas_size = cParam.cblas_size;
+	finishData->dynamic_run = cParam.dynamic_run;
+	finishData->dynamic_size = cParam.dynamic_size;
+	finishData->cpu_k = cParam.cpu_k;
+	finishData->dynamic_run2 = cParam.dynamic_run2;
 
 	if (Config->PipelinedOperation)
 	{
@@ -2948,6 +2950,12 @@ recalculate_ratio:
 	{
 		return(FinishCALDGEMM());
 	}
+}
+
+int caldgemm::FinishDataInit()
+{
+	finishData = new finishStruct;
+	return(finishData == NULL);
 }
 
 int caldgemm::FinishCALDGEMM()
@@ -2961,9 +2969,9 @@ int caldgemm::FinishCALDGEMM()
 	print_submatrices(C, 12, 24, C_pitch, 1, 1, 1, 1);
 #endif
 
-	if (!Config->NoPerformanceWarnings && Config->DynamicSched && Config->UseCPU && Config->UseGPU && !finishData.CPUOnlyRun && fabs(finishData.TotalCPUTimer - finishData.GPUTimer) > 1.0)
+	if (!Config->NoPerformanceWarnings && Config->DynamicSched && Config->UseCPU && Config->UseGPU && !finishData->CPUOnlyRun && fabs(finishData->TotalCPUTimer - finishData->GPUTimer) > 1.0)
 	{
-		fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4f, CPU Time: %2.4f (m = %lld, n = %lld)\n", finishData.GPUTimer, finishData.TotalCPUTimer, (long long int) finishData.matrix_m, (long long int) finishData.matrix_n);
+		fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4f, CPU Time: %2.4f (m = %lld, n = %lld)\n", finishData->GPUTimer, finishData->TotalCPUTimer, (long long int) finishData->matrix_m, (long long int) finishData->matrix_n);
 	}
 	displayMatrixTiming("caldgemm");
 	if (Config->Verify)
@@ -2977,34 +2985,34 @@ int caldgemm::FinishCALDGEMM()
 		delete[] D;
 	}
 
-	if (finishData.ExecLinpack)
+	if (finishData->ExecLinpack)
 	{
 		if (Config->GPURatioPenalties >= 2)
 		{
-			if (finishData.CPUTimer < 2.0)
+			if (finishData->CPUTimer < 2.0)
 			{
-				finishData.gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - finishData.gpu_ratio_used);
+				finishData->gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - finishData->gpu_ratio_used);
 			}
-			if (finishData.ExecLinpack >= 2 && finishData.GPUTimer - finishData.LinpackTimer1 < 1.0)
+			if (finishData->ExecLinpack >= 2 && finishData->GPUTimer - finishData->LinpackTimer1 < 1.0)
 			{
-				finishData.gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - finishData.gpu_ratio_used);
+				finishData->gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - finishData->gpu_ratio_used);
 			}
 		}
 		if (Config->GPURatioPenalties >= 1)
 		{
-			if (finishData.cpu_wait_time >= 0.05)
+			if (finishData->cpu_wait_time >= 0.05)
 			{
-				finishData.gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - finishData.gpu_ratio_used);
+				finishData->gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - finishData->gpu_ratio_used);
 			}
 		}
-		const double tmpratio = finishData.cpu_wait_time > 0.15 ? 0.0 : 0.5;
-		const double newratio = tmpratio * linpackGPURatios[finishData.ExecLinpack] + (1.0 - tmpratio) * finishData.gpu_ratio_used;
-		if (Config->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.3f, new: %2.3f, factor: %2.3f) => %2.3f\n", finishData.ExecLinpack, 100 * linpackGPURatios[finishData.ExecLinpack], 100 * finishData.gpu_ratio_used, tmpratio, 100 * newratio);
+		const double tmpratio = finishData->cpu_wait_time > 0.15 ? 0.0 : 0.5;
+		const double newratio = tmpratio * linpackGPURatios[finishData->ExecLinpack] + (1.0 - tmpratio) * finishData->gpu_ratio_used;
+		if (Config->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.3f, new: %2.3f, factor: %2.3f) => %2.3f\n", finishData->ExecLinpack, 100 * linpackGPURatios[finishData->ExecLinpack], 100 * finishData->gpu_ratio_used, tmpratio, 100 * newratio);
 
-		linpackGPURatios[finishData.ExecLinpack] = newratio;
-		linpackCPUDGEMMTime[finishData.ExecLinpack] = finishData.CPUTimer;
-		linpackBcastTime[finishData.ExecLinpack] = finishData.LinpackTimer2;
-		linpack_last_mn[finishData.ExecLinpack] = (double) finishData.orig_m * (double) finishData.orig_n;
+		linpackGPURatios[finishData->ExecLinpack] = newratio;
+		linpackCPUDGEMMTime[finishData->ExecLinpack] = finishData->CPUTimer;
+		linpackBcastTime[finishData->ExecLinpack] = finishData->LinpackTimer2;
+		linpack_last_mn[finishData->ExecLinpack] = (double) finishData->orig_m * (double) finishData->orig_n;
 	}
 
 	return(0);
@@ -3083,6 +3091,7 @@ int caldgemm::ExitCALDGEMM()
 	}
 	nDevices = nDevicesInitialized;
 	if (Config->Debug) fprintf(STD_OUT, "Uninitializing CALDGEMM\n");
+	if (Config->PipelinedOperation) delete finishData;
 	if (Config->PreallocData) PreallocateFree();
 
 	if (Config->UseGPU && ExitDevices()) return(1);
@@ -3355,53 +3364,53 @@ void caldgemm::FreeMemory(double* ptr, bool gpuaccessible)
 
 void caldgemm::displayMatrixTiming(const char* name)
 {
-	double gflops_CPU = (double) 1e-09 * finishData.orig_m * finishData.orig_n * (2 * Config->Width + 2) * (double) Config->Iterations / finishData.System;
+	double gflops_CPU = (double) 1e-09 * finishData->orig_m * finishData->orig_n * (2 * Config->Width + 2) * (double) Config->Iterations / finishData->System;
 	avggflops = ((double) avgngflops * avggflops + gflops_CPU) / (double) (avgngflops + 1);
 	avgngflops++;
 	if (!Config->Quiet || (Config->DisplayTiming /*&& matrix_m * matrix_n >= 16 * 24 * 1024 * 1024*/)) fprintf(STD_OUT, "%sProgram: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3f System Gflops %2.3f\n", Config->PreOut, name, 
-		(long long int) finishData.orig_m, (long long int) Config->Width, (long long int) Config->Width, (long long int) finishData.orig_n, (long long int) finishData.orig_m, (long long int) finishData.orig_n, hostname, finishData.System, gflops_CPU);
+		(long long int) finishData->orig_m, (long long int) Config->Width, (long long int) Config->Width, (long long int) finishData->orig_n, (long long int) finishData->orig_m, (long long int) finishData->orig_n, hostname, finishData->System, gflops_CPU);
 	if (Config->UseCPU == true && Config->UseGPU == true)
 	{
 		double flopsc, flopsg;
-		if (finishData.CPUOnlyRun)
+		if (finishData->CPUOnlyRun)
 		{
-			flopsc = (double) 1e-09 * finishData.orig_m * finishData.orig_n * (2 * Config->Width + 2) * Config->Iterations / finishData.CPUTimer;
+			flopsc = (double) 1e-09 * finishData->orig_m * finishData->orig_n * (2 * Config->Width + 2) * Config->Iterations / finishData->CPUTimer;
 			flopsg = 0.0;
 		}
-		else if (finishData.DGEMM_split_m)
+		else if (finishData->DGEMM_split_m)
 		{
-			flopsc = (double) 1e-09 * (finishData.dynamic_run * finishData.dynamic_size + finishData.cblas_size * finishData.matrix_n + (finishData.matrix_n % finishData.SmallTileHeight) * (finishData.matrix_m - finishData.cblas_size) + finishData.dynamic_run2 * Config->Height * Config->Height + (finishData.ExecLinpack >= 2 && Config->AlternateLookahead <= finishData.matrix_n ? Config->Width * finishData.matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / finishData.CPUTimer;
-			flopsg = (double) 1e-09 * ((finishData.matrix_m - finishData.cblas_size) * (finishData.matrix_n - finishData.matrix_n % finishData.SmallTileHeight) - finishData.dynamic_run * finishData.dynamic_size - finishData.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / finishData.GPUTimer;
+			flopsc = (double) 1e-09 * (finishData->dynamic_run * finishData->dynamic_size + finishData->cblas_size * finishData->matrix_n + (finishData->matrix_n % finishData->SmallTileHeight) * (finishData->matrix_m - finishData->cblas_size) + finishData->dynamic_run2 * Config->Height * Config->Height + (finishData->ExecLinpack >= 2 && Config->AlternateLookahead <= finishData->matrix_n ? Config->Width * finishData->matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / finishData->CPUTimer;
+			flopsg = (double) 1e-09 * ((finishData->matrix_m - finishData->cblas_size) * (finishData->matrix_n - finishData->matrix_n % finishData->SmallTileHeight) - finishData->dynamic_run * finishData->dynamic_size - finishData->dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / finishData->GPUTimer;
 		}
 		else
 		{
-			flopsc = (double) 1e-09 * (finishData.dynamic_run * finishData.dynamic_size + finishData.cblas_size * finishData.matrix_m + (finishData.matrix_m % finishData.SmallTileHeight) * (finishData.matrix_n - finishData.cblas_size) + finishData.dynamic_run2 * Config->Height * Config->Height + (finishData.ExecLinpack >= 2 && Config->AlternateLookahead <= finishData.matrix_n ? Config->Width * finishData.matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / finishData.CPUTimer;
-			flopsg = (double) 1e-09 * ((finishData.matrix_n - finishData.cblas_size) * (finishData.matrix_m - finishData.matrix_m % finishData.SmallTileHeight) - finishData.dynamic_run * finishData.dynamic_size - finishData.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / finishData.GPUTimer;
+			flopsc = (double) 1e-09 * (finishData->dynamic_run * finishData->dynamic_size + finishData->cblas_size * finishData->matrix_m + (finishData->matrix_m % finishData->SmallTileHeight) * (finishData->matrix_n - finishData->cblas_size) + finishData->dynamic_run2 * Config->Height * Config->Height + (finishData->ExecLinpack >= 2 && Config->AlternateLookahead <= finishData->matrix_n ? Config->Width * finishData->matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / finishData->CPUTimer;
+			flopsg = (double) 1e-09 * ((finishData->matrix_n - finishData->cblas_size) * (finishData->matrix_m - finishData->matrix_m % finishData->SmallTileHeight) - finishData->dynamic_run * finishData->dynamic_size - finishData->dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / finishData->GPUTimer;
 		}
 		
-		if (Config->GPUClock && finishData.matrix_m * finishData.matrix_n >= 24 * 24 * 1024 * 1024 && flopsg <= (double) 460 * (double) Config->GPUClock / (double) 850 - (double) 20)
+		if (Config->GPUClock && finishData->matrix_m * finishData->matrix_n >= 24 * 24 * 1024 * 1024 && flopsg <= (double) 460 * (double) Config->GPUClock / (double) 850 - (double) 20)
 		{
 			fprintf(STD_OUT, "%sThrottling: %s (%2.3f GFlops)\n", Config->PreOut, hostname, flopsg);
 		}
 
 		//const double gpu_ratio_used_new = std::min(1.0, flopsg / (flopsc * (Timers.System.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() - (ExecLinpack > 1 ? Config->GPURatioMarginTimeDuringFact : Config->GPURatioMarginTime) - Timers.LinpackTimer3.GetElapsedTime()) / Timers.System.GetElapsedTime() + flopsg));
-		double gpu_ratio_used_new = std::min(1.0, flopsg / (flopsc * (finishData.CPUTimer - (finishData.ExecLinpack > 1 ? Config->GPURatioMarginTimeDuringFact : Config->GPURatioMarginTime)) / finishData.TotalCPUTimer + flopsg));
-		if (gpu_ratio_used_new < 0) finishData.gpu_ratio_used = 1.;
+		double gpu_ratio_used_new = std::min(1.0, flopsg / (flopsc * (finishData->CPUTimer - (finishData->ExecLinpack > 1 ? Config->GPURatioMarginTimeDuringFact : Config->GPURatioMarginTime)) / finishData->TotalCPUTimer + flopsg));
+		if (gpu_ratio_used_new < 0) finishData->gpu_ratio_used = 1.;
 		
 		if (!Config->Quiet || (Config->DisplayTiming /*&& matrix_m * matrix_n >= 16 * 24 * 1024 * 1024*/))
 		{
 			char timingoutputbase[1024];
 			char *timingoutput = timingoutputbase;
-			timingoutput += sprintf(timingoutput, "%sGPU Time %2.4f (%2.4f Gflops)   CPU Time %2.4f (%2.4f Gflops)", Config->PreOut, finishData.GPUTimer, flopsg, finishData.CPUTimer, flopsc);
-			if (finishData.ExecLinpack) timingoutput += sprintf(timingoutput, "   Linpack Time: %2.4f (%d, %2.4f, %2.4f)  Total CPU Time: %2.4f", finishData.LinpackTimer1, finishData.ExecLinpack, finishData.LinpackTimer2, finishData.LinpackTimer3, finishData.TotalCPUTimer);
+			timingoutput += sprintf(timingoutput, "%sGPU Time %2.4f (%2.4f Gflops)   CPU Time %2.4f (%2.4f Gflops)", Config->PreOut, finishData->GPUTimer, flopsg, finishData->CPUTimer, flopsc);
+			if (finishData->ExecLinpack) timingoutput += sprintf(timingoutput, "   Linpack Time: %2.4f (%d, %2.4f, %2.4f)  Total CPU Time: %2.4f", finishData->LinpackTimer1, finishData->ExecLinpack, finishData->LinpackTimer2, finishData->LinpackTimer3, finishData->TotalCPUTimer);
 			if (Config->TabularTiming)
 			{
-				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.3f Corrected: %2.3f Guessed: %2.3f , m*n: %.1E, CPU Wait Time: %2.3f", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, finishData.gpu_ratio_used, (double) (finishData.matrix_m * finishData.matrix_n), finishData.cpu_wait_time > 0.001 ? finishData.cpu_wait_time : (finishData.TotalCPUTimer - finishData.GPUTimer));
+				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.3f Corrected: %2.3f Guessed: %2.3f , m*n: %.1E, CPU Wait Time: %2.3f", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, finishData->gpu_ratio_used, (double) (finishData->matrix_m * finishData->matrix_n), finishData->cpu_wait_time > 0.001 ? finishData->cpu_wait_time : (finishData->TotalCPUTimer - finishData->GPUTimer));
 			}
 			sprintf(timingoutput, "\n");
 			fwrite(timingoutputbase, 1, strlen(timingoutputbase), STD_OUT);
 		}
-		finishData.gpu_ratio_used = gpu_ratio_used_new;
+		finishData->gpu_ratio_used = gpu_ratio_used_new;
 	}
 	if ((!Config->Quiet || (Config->DisplayTiming /*&& matrix_n * matrix_m >= 16 * 24 * 1024 * 1024*/)) && Config->VerboseTiming)
 	{
