@@ -148,6 +148,7 @@ public:
 		bool RereserveLinpackCPU;				//Use the Linpack CPU cores for DGEMM after they finished the broadcast
 		int GPU_C;								//Store the C matrix on CPU, not every option is supported by every backend, -1 = auto detect
 		int NoConcurrentKernels;				//Do not allow OpenCL to run multiple concurrent kernels in parallel.
+		bool PipelinedOperation;					//Allows to queue two caldgemm calls in a pipeline. You need to run FinishCALDGEMM() to finish the iteration.
 
 		int OpenCLPlatform;						//OpenCL Platform ID to use
 		int DeviceNum;							//CAL Device to use (-1 for all devices)
@@ -233,6 +234,7 @@ public:
 	int InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit = false);
 	int ExitCALDGEMM();
 	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = (size_t) -1, size_t k = (size_t) -1, size_t n = (size_t) -1, size_t Apitch = (size_t) -1, size_t Bpitch = (size_t) -1, size_t Cpitch = (size_t) -1, bool orderColMajor = false, bool TransA = false, bool TransB = false, int ExecuteLinpackCallbacks = 0);
+	int FinishCALDGEMM();
 	virtual int RunAsyncSingleTileDGEMM(const double* A, const double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB);
 	virtual int RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo, const CBLAS_TRANSPOSE TransA, const CBLAS_DIAG Diag, const size_t M, const size_t N, const double alpha, const double *A, const size_t lda, double *B, const size_t ldb);
 	void SetNumberDevices(int n);
@@ -334,6 +336,8 @@ protected:
 	virtual int ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, int blockm, int blockn) = 0;
 	virtual int RunCALDGEMM_Init();
 	virtual int RunCALDGEMM_Exit();
+	virtual int RunCALDGEMM_Finish();
+	virtual int CheckParams();
 	virtual void Preallocate();
 	virtual void PreallocateFree();
 	
@@ -486,6 +490,28 @@ protected:
 
 	int nDevices;
 	int nDevicesInitialized;
+	
+	struct finishStruct
+	{
+//		TimerInfo Timers;
+//		caldgemm_config* Config;
+		size_t matrix_m, matrix_n, SmallTileHeight, orig_m, orig_n;
+		double gpu_ratio_used, cpu_wait_time;//, avggflops;
+		int ExecLinpack;//, avgngflops;
+		//char* hostname;
+		bool CPUOnlyRun, DGEMM_split_m;
+		
+		double System, CPUTimer, GPUTimer, TotalCPUTimer, LinpackTimer1, LinpackTimer2, LinpackTimer3, BcastTimer;
+		int divideA, divideB, divideC;
+		size_t device_kernel;
+
+		size_t cblas_size;
+		size_t dynamic_run;						//Do an extra dynamic cblas run?, works also as m for the dynamic run
+		size_t dynamic_size;					//n for dynamic run
+		size_t cpu_k;							//k that cpu will take over from gpu in 3rd phase dynamic run
+		size_t dynamic_run2;		
+	};
+	finishStruct finishData;
 
 	struct cblasParameters
 	{

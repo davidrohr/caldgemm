@@ -271,6 +271,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	AsyncDTRSM = false;
 	Use3rdPartyTranspose = false;
 	CPUInContext = 1;
+	PipelinedOperation = false;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -533,6 +534,16 @@ void caldgemm::ensure_omp_thread_pinning()
 #endif
 }
 
+int caldgemm::CheckParams()
+{
+	if (Config->PipelinedOperation)
+	{
+		fprintf(STD_OUT, "Pipelined Mode not supported by backend!\n");
+		return(1);
+	}
+	return(0);
+}
+
 int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 {
 	setThreadName("Main");
@@ -595,6 +606,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		fprintf(STD_OUT, "WARNING: There is a possible thread-pinning collision when using Parallel DMA in multi-node HPL if either Dynamic Scheduling is activated or ParallelDMA > AlternateLookahead\n");
 	}
 #endif
+	if (CheckParams()) return(1);
 
 	if (ValidateRuntime()) return(1);
 	if (Config->Height == 0) Config->Height = 4096; //Runtime did not set suggested value, so we use the default
@@ -2338,6 +2350,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 
 	if (Config->Verify)
 	{
+		if (Config->PipelinedOperation)
+		{
+				fprintf(STD_OUT, "PipelinedOperation cannot be used in combination with Verify!\n");
+				return(1);
+		}
 		D = new double[(size_t) matrix_m * (size_t) C_pitch];
 		if (D == NULL)
 		{
@@ -2905,56 +2922,95 @@ recalculate_ratio:
 
 	Timers.System.Stop();
 	if (Config->Debug) fprintf(STD_OUT, "DGEMM Run Complete\n");
+	
+	finishData.matrix_m = matrix_m; finishData.matrix_n = matrix_n; finishData.SmallTileHeight = SmallTileHeight; finishData.orig_m = orig_m; finishData.orig_n = orig_n;
+	finishData.gpu_ratio_used = gpu_ratio_used; finishData.cpu_wait_time = cpu_wait_time;
+	finishData.ExecLinpack = ExecLinpack;
+	finishData.CPUOnlyRun = CPUOnlyRun; finishData.DGEMM_split_m = DGEMM_split_m;
+	
+	finishData.System = Timers.System.GetElapsedTime(); finishData.CPUTimer = Timers.CPUTimer.GetElapsedTime(); finishData.GPUTimer = Timers.GPUTimer.GetElapsedTime(); finishData.TotalCPUTimer = Timers.TotalCPUTimer.GetElapsedTime();
+	finishData.LinpackTimer1 = Timers.LinpackTimer1.GetElapsedTime(); finishData.LinpackTimer2 = Timers.LinpackTimer2.GetElapsedTime(); finishData.LinpackTimer3 = Timers.LinpackTimer3.GetElapsedTime(); finishData.BcastTimer = Timers.BcastTimer.GetElapsedTime();
+	
+	finishData.divideA = Timers.divideA; finishData.divideB = Timers.divideB; finishData.divideC = Timers.divideC;
+	finishData.device_kernel = Timers.device_kernel;
 
+	finishData.cblas_size = cParam.cblas_size;
+	finishData.dynamic_run = cParam.dynamic_run;
+	finishData.dynamic_size = cParam.dynamic_size;
+	finishData.cpu_k = cParam.cpu_k;
+	finishData.dynamic_run2 = cParam.dynamic_run2;
+
+	if (Config->PipelinedOperation)
+	{
+		return(0);
+	}
+	else
+	{
+		return(FinishCALDGEMM());
+	}
+}
+
+int caldgemm::FinishCALDGEMM()
+{
+	if (Config->PipelinedOperation)
+	{
+		int retVal = RunCALDGEMM_Finish();
+		if (retVal) return(retVal);
+	}
 #ifdef TESTMODE
 	print_submatrices(C, 12, 24, C_pitch, 1, 1, 1, 1);
 #endif
 
-	if (!Config->NoPerformanceWarnings && Config->DynamicSched && Config->UseCPU && Config->UseGPU && !CPUOnlyRun && fabs(Timers.TotalCPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()) > 1.0)
+	if (!Config->NoPerformanceWarnings && Config->DynamicSched && Config->UseCPU && Config->UseGPU && !finishData.CPUOnlyRun && fabs(finishData.TotalCPUTimer - finishData.GPUTimer) > 1.0)
 	{
-		fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4f, CPU Time: %2.4f (m = %lld, n = %lld)\n", Timers.GPUTimer.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime(), (long long int) matrix_m, (long long int) matrix_n);
+		fprintf(STD_OUT, "WARNING: Bad GPU / CPU Splitting: GPU Time: %2.4f, CPU Time: %2.4f (m = %lld, n = %lld)\n", finishData.GPUTimer, finishData.TotalCPUTimer, (long long int) finishData.matrix_m, (long long int) finishData.matrix_n);
 	}
 	displayMatrixTiming("caldgemm");
-	A = orig_a;
-	B = orig_b;
-	C = orig_c;
-	matrix_m = orig_m;
-	matrix_n = orig_n;
-	AnalyzeResults();
-	if (Config->Verify) delete[] D;
+	if (Config->Verify)
+	{
+		A = orig_a;
+		B = orig_b;
+		C = orig_c;
+		matrix_m = orig_m;
+		matrix_n = orig_n;
+		AnalyzeResults();
+		delete[] D;
+	}
 
-	if (ExecLinpack)
+	if (finishData.ExecLinpack)
 	{
 		if (Config->GPURatioPenalties >= 2)
 		{
-			if (Timers.CPUTimer.GetElapsedTime() < 2.0)
+			if (finishData.CPUTimer < 2.0)
 			{
-				gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - gpu_ratio_used);
+				finishData.gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - finishData.gpu_ratio_used);
 			}
-			if (ExecLinpack >= 2 && Timers.GPUTimer.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() < 1.0)
+			if (finishData.ExecLinpack >= 2 && finishData.GPUTimer - finishData.LinpackTimer1 < 1.0)
 			{
-				gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - gpu_ratio_used);
+				finishData.gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - finishData.gpu_ratio_used);
 			}
 		}
 		if (Config->GPURatioPenalties >= 1)
 		{
-			if (cpu_wait_time >= 0.05)
+			if (finishData.cpu_wait_time >= 0.05)
 			{
-				gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - gpu_ratio_used);
+				finishData.gpu_ratio_used = 1. - Config->GPURatioPenaltyFactor * (1. - finishData.gpu_ratio_used);
 			}
 		}
-		const double tmpratio = cpu_wait_time > 0.15 ? 0.0 : 0.5;
-		const double newratio = tmpratio * linpackGPURatios[ExecLinpack] + (1.0 - tmpratio) * gpu_ratio_used;
-		if (Config->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.3f, new: %2.3f, factor: %2.3f) => %2.3f\n", ExecLinpack, 100 * linpackGPURatios[ExecLinpack], 100 * gpu_ratio_used, tmpratio, 100 * newratio);
+		const double tmpratio = finishData.cpu_wait_time > 0.15 ? 0.0 : 0.5;
+		const double newratio = tmpratio * linpackGPURatios[finishData.ExecLinpack] + (1.0 - tmpratio) * finishData.gpu_ratio_used;
+		if (Config->Debug) fprintf(STD_OUT, "updating ratio table entry %d (old: %2.3f, new: %2.3f, factor: %2.3f) => %2.3f\n", finishData.ExecLinpack, 100 * linpackGPURatios[finishData.ExecLinpack], 100 * finishData.gpu_ratio_used, tmpratio, 100 * newratio);
 
-		linpackGPURatios[ExecLinpack] = newratio;
-		linpackCPUDGEMMTime[ExecLinpack] = Timers.CPUTimer.GetElapsedTime();
-		linpackBcastTime[ExecLinpack] = Timers.LinpackTimer2.GetElapsedTime();
-		linpack_last_mn[ExecLinpack] = (double) matrix_m * (double) matrix_n;
+		linpackGPURatios[finishData.ExecLinpack] = newratio;
+		linpackCPUDGEMMTime[finishData.ExecLinpack] = finishData.CPUTimer;
+		linpackBcastTime[finishData.ExecLinpack] = finishData.LinpackTimer2;
+		linpack_last_mn[finishData.ExecLinpack] = (double) finishData.orig_m * (double) finishData.orig_n;
 	}
 
 	return(0);
 }
+
+int caldgemm::RunCALDGEMM_Finish() {return(0);}
 
 int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task CALDGEMM_DIVBUFA)
 {
@@ -3299,57 +3355,57 @@ void caldgemm::FreeMemory(double* ptr, bool gpuaccessible)
 
 void caldgemm::displayMatrixTiming(const char* name)
 {
-	double gflops_CPU = (double) 1e-09 * orig_m * orig_n * (2 * Config->Width + 2) * (double) Config->Iterations / Timers.System.GetElapsedTime();
+	double gflops_CPU = (double) 1e-09 * finishData.orig_m * finishData.orig_n * (2 * Config->Width + 2) * (double) Config->Iterations / finishData.System;
 	avggflops = ((double) avgngflops * avggflops + gflops_CPU) / (double) (avgngflops + 1);
 	avgngflops++;
 	if (!Config->Quiet || (Config->DisplayTiming /*&& matrix_m * matrix_n >= 16 * 24 * 1024 * 1024*/)) fprintf(STD_OUT, "%sProgram: %s Sizes - A: %lldx%lld B: %lldx%lld C:%lldx%lld (Host: %s) System Time %2.3f System Gflops %2.3f\n", Config->PreOut, name, 
-		(long long int) orig_m, (long long int) Config->Width, (long long int) Config->Width, (long long int) orig_n, (long long int) orig_m, (long long int) orig_n, hostname, Timers.System.GetElapsedTime(), gflops_CPU);
+		(long long int) finishData.orig_m, (long long int) Config->Width, (long long int) Config->Width, (long long int) finishData.orig_n, (long long int) finishData.orig_m, (long long int) finishData.orig_n, hostname, finishData.System, gflops_CPU);
 	if (Config->UseCPU == true && Config->UseGPU == true)
 	{
 		double flopsc, flopsg;
-		if (CPUOnlyRun)
+		if (finishData.CPUOnlyRun)
 		{
-			flopsc = (double) 1e-09 * orig_m * orig_n * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * finishData.orig_m * finishData.orig_n * (2 * Config->Width + 2) * Config->Iterations / finishData.CPUTimer;
 			flopsg = 0.0;
 		}
-		else if (DGEMM_split_m)
+		else if (finishData.DGEMM_split_m)
 		{
-			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * matrix_n + (matrix_n % SmallTileHeight) * (matrix_m - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n ? Config->Width * matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
-			flopsg = (double) 1e-09 * ((matrix_m - cParam.cblas_size) * (matrix_n - matrix_n % SmallTileHeight) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / Timers.GPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * (finishData.dynamic_run * finishData.dynamic_size + finishData.cblas_size * finishData.matrix_n + (finishData.matrix_n % finishData.SmallTileHeight) * (finishData.matrix_m - finishData.cblas_size) + finishData.dynamic_run2 * Config->Height * Config->Height + (finishData.ExecLinpack >= 2 && Config->AlternateLookahead <= finishData.matrix_n ? Config->Width * finishData.matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / finishData.CPUTimer;
+			flopsg = (double) 1e-09 * ((finishData.matrix_m - finishData.cblas_size) * (finishData.matrix_n - finishData.matrix_n % finishData.SmallTileHeight) - finishData.dynamic_run * finishData.dynamic_size - finishData.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / finishData.GPUTimer;
 		}
 		else
 		{
-			flopsc = (double) 1e-09 * (cParam.dynamic_run * cParam.dynamic_size + cParam.cblas_size * matrix_m + (matrix_m % SmallTileHeight) * (matrix_n - cParam.cblas_size) + cParam.dynamic_run2 * Config->Height * Config->Height + (ExecLinpack >= 2 && Config->AlternateLookahead <= matrix_n ? Config->Width * matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / Timers.CPUTimer.GetElapsedTime();
-			flopsg = (double) 1e-09 * ((matrix_n - cParam.cblas_size) * (matrix_m - matrix_m % SmallTileHeight) - cParam.dynamic_run * cParam.dynamic_size - cParam.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / Timers.GPUTimer.GetElapsedTime();
+			flopsc = (double) 1e-09 * (finishData.dynamic_run * finishData.dynamic_size + finishData.cblas_size * finishData.matrix_m + (finishData.matrix_m % finishData.SmallTileHeight) * (finishData.matrix_n - finishData.cblas_size) + finishData.dynamic_run2 * Config->Height * Config->Height + (finishData.ExecLinpack >= 2 && Config->AlternateLookahead <= finishData.matrix_n ? Config->Width * finishData.matrix_n : 0)) * (2 * Config->Width + 2) * Config->Iterations / finishData.CPUTimer;
+			flopsg = (double) 1e-09 * ((finishData.matrix_n - finishData.cblas_size) * (finishData.matrix_m - finishData.matrix_m % finishData.SmallTileHeight) - finishData.dynamic_run * finishData.dynamic_size - finishData.dynamic_run2 * Config->Height * Config->Height) * (2 * Config->Width + 2) * Config->Iterations / finishData.GPUTimer;
 		}
 		
-		if (Config->GPUClock && matrix_m * matrix_n >= 24 * 24 * 1024 * 1024 && flopsg <= (double) 460 * (double) Config->GPUClock / (double) 850 - (double) 20)
+		if (Config->GPUClock && finishData.matrix_m * finishData.matrix_n >= 24 * 24 * 1024 * 1024 && flopsg <= (double) 460 * (double) Config->GPUClock / (double) 850 - (double) 20)
 		{
 			fprintf(STD_OUT, "%sThrottling: %s (%2.3f GFlops)\n", Config->PreOut, hostname, flopsg);
 		}
 
 		//const double gpu_ratio_used_new = std::min(1.0, flopsg / (flopsc * (Timers.System.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() - (ExecLinpack > 1 ? Config->GPURatioMarginTimeDuringFact : Config->GPURatioMarginTime) - Timers.LinpackTimer3.GetElapsedTime()) / Timers.System.GetElapsedTime() + flopsg));
-		double gpu_ratio_used_new = std::min(1.0, flopsg / (flopsc * (Timers.CPUTimer.GetElapsedTime() - (ExecLinpack > 1 ? Config->GPURatioMarginTimeDuringFact : Config->GPURatioMarginTime)) / Timers.TotalCPUTimer.GetElapsedTime() + flopsg));
-		if (gpu_ratio_used_new < 0) gpu_ratio_used = 1.;
+		double gpu_ratio_used_new = std::min(1.0, flopsg / (flopsc * (finishData.CPUTimer - (finishData.ExecLinpack > 1 ? Config->GPURatioMarginTimeDuringFact : Config->GPURatioMarginTime)) / finishData.TotalCPUTimer + flopsg));
+		if (gpu_ratio_used_new < 0) finishData.gpu_ratio_used = 1.;
 		
 		if (!Config->Quiet || (Config->DisplayTiming /*&& matrix_m * matrix_n >= 16 * 24 * 1024 * 1024*/))
 		{
 			char timingoutputbase[1024];
 			char *timingoutput = timingoutputbase;
-			timingoutput += sprintf(timingoutput, "%sGPU Time %2.4f (%2.4f Gflops)   CPU Time %2.4f (%2.4f Gflops)", Config->PreOut, Timers.GPUTimer.GetElapsedTime(), flopsg, Timers.CPUTimer.GetElapsedTime(), flopsc);
-			if (ExecLinpack) timingoutput += sprintf(timingoutput, "   Linpack Time: %2.4f (%d, %2.4f, %2.4f)  Total CPU Time: %2.4f", Timers.LinpackTimer1.GetElapsedTime(), ExecLinpack, Timers.LinpackTimer2.GetElapsedTime(), Timers.LinpackTimer3.GetElapsedTime(), Timers.TotalCPUTimer.GetElapsedTime());
+			timingoutput += sprintf(timingoutput, "%sGPU Time %2.4f (%2.4f Gflops)   CPU Time %2.4f (%2.4f Gflops)", Config->PreOut, finishData.GPUTimer, flopsg, finishData.CPUTimer, flopsc);
+			if (finishData.ExecLinpack) timingoutput += sprintf(timingoutput, "   Linpack Time: %2.4f (%d, %2.4f, %2.4f)  Total CPU Time: %2.4f", finishData.LinpackTimer1, finishData.ExecLinpack, finishData.LinpackTimer2, finishData.LinpackTimer3, finishData.TotalCPUTimer);
 			if (Config->TabularTiming)
 			{
-				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.3f Corrected: %2.3f Guessed: %2.3f , m*n: %.1E, CPU Wait Time: %2.3f", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, gpu_ratio_used, (double) (matrix_m * matrix_n), cpu_wait_time > 0.001 ? cpu_wait_time : (Timers.TotalCPUTimer.GetElapsedTime() - Timers.GPUTimer.GetElapsedTime()));
+				timingoutput += sprintf(timingoutput, " --- GPU Ratio - Real: %2.3f Corrected: %2.3f Guessed: %2.3f , m*n: %.1E, CPU Wait Time: %2.3f", (flopsg / (flopsc + flopsg)), gpu_ratio_used_new, finishData.gpu_ratio_used, (double) (finishData.matrix_m * finishData.matrix_n), finishData.cpu_wait_time > 0.001 ? finishData.cpu_wait_time : (finishData.TotalCPUTimer - finishData.GPUTimer));
 			}
 			sprintf(timingoutput, "\n");
 			fwrite(timingoutputbase, 1, strlen(timingoutputbase), STD_OUT);
 		}
-		gpu_ratio_used = gpu_ratio_used_new;
+		finishData.gpu_ratio_used = gpu_ratio_used_new;
 	}
 	if ((!Config->Quiet || (Config->DisplayTiming /*&& matrix_n * matrix_m >= 16 * 24 * 1024 * 1024*/)) && Config->VerboseTiming)
 	{
-		double gflops = (double)1e-09 * matrix_m * matrix_n * (2 * Config->Width - 1) * (double)Config->Iterations / Timers.Kernel.GetElapsedTime();
+		double gflops = (double) 1e-09 * matrix_m * matrix_n * (2 * Config->Width - 1) * (double)Config->Iterations / Timers.Kernel.GetElapsedTime();
 #ifdef CALDGEMM_BENCHMARK_KERNEL
 		gflops *= (double) CALDGEMM_BENCHMARK_KERNEL;
 #endif
@@ -3377,91 +3433,85 @@ unsigned int caldgemm::AnalyzeResults()
 	size_t errors = 0;
 	size_t total = 0;
 	
-	if (Config->Verify)
-	{
-		if (!Config->Quiet) fprintf(STD_OUT, "Verifying results can take a long time on large matrices.\n");
-		HighResTimer Timer;
-		Timer.Reset();
-		Timer.Start();
-		cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, matrix_m, matrix_n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
-		Timer.Stop();
-		if (!Config->Quiet) fprintf(STD_OUT, "CPU Time: %f Gflops: %f\n", Timer.GetElapsedTime(), (double)1e-09 * 2 * matrix_m * matrix_n * Config->Width / Timer.GetElapsedTime());
-		
+	if (!Config->Quiet) fprintf(STD_OUT, "Verifying results can take a long time on large matrices.\n");
+	HighResTimer Timer;
+	Timer.Reset();
+	Timer.Start();
+	cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, matrix_m, matrix_n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, D, C_pitch);
+	Timer.Stop();
+	if (!Config->Quiet) fprintf(STD_OUT, "CPU Time: %f Gflops: %f\n", Timer.GetElapsedTime(), (double)1e-09 * 2 * matrix_m * matrix_n * Config->Width / Timer.GetElapsedTime());
+	
 #ifdef TESTMODE
-		fprintf(STD_OUT, "Reference Matrix:\n");
-		print_submatrices(D, 12, 24, C_pitch, 1, 1, 1, 1);
+	fprintf(STD_OUT, "Reference Matrix:\n");
+	print_submatrices(D, 12, 24, C_pitch, 1, 1, 1, 1);
 #endif
 
-		int nblocksm = 0;
-		int* errortiles = NULL;
-		if (Config->Height)
-		{
-			nblocksm = matrix_m / Config->Height + 1;
-			errortiles = (int*) malloc((matrix_n / Config->Height + 1) * nblocksm * sizeof(int));
-			memset(errortiles, 0, (matrix_n / Config->Height + 1) * nblocksm * sizeof(int));
-		}
-		size_t errorsrel[3];
-		memset(errorsrel, 0, 3 * sizeof(size_t));
+	int nblocksm = 0;
+	int* errortiles = NULL;
+	if (Config->Height)
+	{
+		nblocksm = matrix_m / Config->Height + 1;
+		errortiles = (int*) malloc((matrix_n / Config->Height + 1) * nblocksm * sizeof(int));
+		memset(errortiles, 0, (matrix_n / Config->Height + 1) * nblocksm * sizeof(int));
+	}
+	size_t errorsrel[3];
+	memset(errorsrel, 0, 3 * sizeof(size_t));
 
-		for (size_t i=0; i < matrix_m; i++)
+	for (size_t i=0; i < matrix_m; i++)
+	{
+		for (size_t j=0; j < matrix_n; j++)
 		{
-			for (size_t j=0; j < matrix_n; j++)
+			if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
 			{
-				if (!isDoubleEqual(C[i * C_pitch + j],D[i * C_pitch + j]))
-				{
-					if (errors < 5) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le, Relative: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j], (D[i * C_pitch + j] - C[i * C_pitch + j]) / D[i * C_pitch + j]);
-					++errors;
-					if (Config->Height) errortiles[j / Config->Height * nblocksm + i / Config->Height]++;
-					if (fabs((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j]) > 0.05) errorsrel[0]++;
-					else if (fabs((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j]) < 0.0001) errorsrel[2]++;
-					else errorsrel[1]++;
-				}
-				++total;
+				if (errors < 5) fprintf(STD_OUT, "Error found at row %lld, col %lld: Expected: %3.5le, Found: %3.5le, Diff: %3.5le, Relative: %3.5le\n", (long long int) i, (long long int) j, D[i * C_pitch + j], C[i * C_pitch + j], D[i * C_pitch + j] - C[i * C_pitch + j], (D[i * C_pitch + j] - C[i * C_pitch + j]) / D[i * C_pitch + j]);
+				++errors;
+				if (Config->Height) errortiles[j / Config->Height * nblocksm + i / Config->Height]++;
+				if (fabs((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j]) > 0.05) errorsrel[0]++;
+				else if (fabs((C[i * C_pitch + j] - D[i * C_pitch + j]) / D[i * C_pitch + j]) < 0.0001) errorsrel[2]++;
+				else errorsrel[1]++;
 			}
+			++total;
 		}
-		if (errors)
+	}
+	if (errors)
+	{
+		fprintf(STD_OUT, "%lld out of %lld elements were incorrect (Rel errors > 0.05: %lld, > 0.0001: %lld, rest: %lld)\n", (long long int) errors, (long long int) total, (long long int) errorsrel[0], (long long int) errorsrel[1], (long long int) errorsrel[2]);
+		if (errorsrel[0] == 0)
 		{
-			fprintf(STD_OUT, "%lld out of %lld elements were incorrect (Rel errors > 0.05: %lld, > 0.0001: %lld, rest: %lld)\n", (long long int) errors, (long long int) total, (long long int) errorsrel[0], (long long int) errorsrel[1], (long long int) errorsrel[2]);
-			if (errorsrel[0] == 0)
-			{
-				fprintf(STD_OUT, "Passed with Warnings!!!\n");
-			}
-			else
-			{
-				fprintf(STD_OUT, "FAILED (Host %s)\n", hostname);
-			}
+			fprintf(STD_OUT, "Passed with Warnings!!!\n");
 		}
-		else if (!Config->Quiet)
+		else
 		{
-			fprintf(STD_OUT, "Passed!\n");
+			fprintf(STD_OUT, "FAILED (Host %s)\n", hostname);
 		}
-		if (!Config->NoPerformanceWarnings && (errors || Config->Debug) && Config->Height)
-		{
-			fprintf(STD_OUT, "GPU output matrix\n");
-			print_submatrices(C, matrix_n, matrix_m, C_pitch, 1, 1, Config->Height, Config->Height);
-			fprintf(STD_OUT, "Reference matrix\n");
-			print_submatrices(D, matrix_n, matrix_m, C_pitch, 1, 1, Config->Height, Config->Height, C);
-		}
-
-		if (!Config->NoPerformanceWarnings && errors && Config->Height)
-		{
-			fprintf(STD_OUT, "Number of errors in tiles\n");
-			for (size_t i = 0;i < matrix_m;i += Config->Height)
-			{
-				for (size_t j = 0;j < matrix_n;j += Config->Height)
-				{
-					fprintf(STD_OUT, "%8d\t", errortiles[j / Config->Height * nblocksm + i / Config->Height]);
-				}
-				fprintf(STD_OUT, "\n");
-			}
-		}
-
-		if (Config->Height) free(errortiles);
-		
-		//memcpy(C, D, matrix_m * C_pitch * sizeof(double));
-		//cblas_dgemm(CblasRowMajor, TransposeA ? CblasTrans : CblasNoTrans, TransposeB ? CblasTrans : CblasNoTrans, gpu_m, gpu_n, Config->Width, Alpha, A, A_pitch, B, B_pitch, Beta, C, C_pitch);
+	}
+	else if (!Config->Quiet)
+	{
+		fprintf(STD_OUT, "Passed!\n");
+	}
+	if (!Config->NoPerformanceWarnings && (errors || Config->Debug) && Config->Height)
+	{
+		fprintf(STD_OUT, "GPU output matrix\n");
+		print_submatrices(C, matrix_n, matrix_m, C_pitch, 1, 1, Config->Height, Config->Height);
+		fprintf(STD_OUT, "Reference matrix\n");
+		print_submatrices(D, matrix_n, matrix_m, C_pitch, 1, 1, Config->Height, Config->Height, C);
 	}
 
+	if (!Config->NoPerformanceWarnings && errors && Config->Height)
+	{
+		fprintf(STD_OUT, "Number of errors in tiles\n");
+		for (size_t i = 0;i < matrix_m;i += Config->Height)
+		{
+			for (size_t j = 0;j < matrix_n;j += Config->Height)
+			{
+				fprintf(STD_OUT, "%8d\t", errortiles[j / Config->Height * nblocksm + i / Config->Height]);
+			}
+			fprintf(STD_OUT, "\n");
+		}
+	}
+
+	if (Config->Height) free(errortiles);
+		
 	return(errors == 0);
 }
 
