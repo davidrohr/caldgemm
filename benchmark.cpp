@@ -678,6 +678,7 @@ int main(int argc, char** argv)
 				fprintf(STD_OUT, "Error running CALDGEMM\nexiting\n");
 				return(1);
 			}
+			if (Config.PipelinedOperation) dgemm_obj->FinishCALDGEMM();
 			matrix_m = tmpm;
 			matrix_n = tmpn;
 			Config.AutoHeight = tmpautoheight;
@@ -732,6 +733,12 @@ int main(int argc, char** argv)
 					{
 						fprintf(STD_OUT, "Error running CALDGEMM\n");
 						return(1);
+					}
+					
+					if (Config.PipelinedOperation)
+					{
+						fprintf(STD_OUT, "Pipelined run issued, waiting for result\n");
+						dgemm_obj->FinishCALDGEMM();
 					}
 				}
 				if (MaxGPUTemperature > 0)
