@@ -117,7 +117,7 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		break;
 	case 'A':
-		if (argv[x][2] == 'b')
+		if (argv[x][2] == 'p')
 		{
 			Config->PipelinedOperation = true;
 		}
