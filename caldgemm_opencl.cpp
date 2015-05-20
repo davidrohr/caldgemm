@@ -2273,7 +2273,7 @@ int caldgemm_opencl::RunCALDGEMM_Finish()
 			if (end - start > gputime) gputime = end - start;
 		}
 	}
-	if ((double) gputime * 1e9 > finishData->GPUTimer) finishData->GPUTimer = (double) gputime * 1e9;
+	if ((double) gputime * 1e-9 > finishData->GPUTimer) finishData->GPUTimer = (double) gputime * 1e-9;
 	if (finishData->GPUTimer > finishData->System) finishData->System = finishData->GPUTimer;
 	return(0);
 }
