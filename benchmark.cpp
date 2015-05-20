@@ -505,9 +505,9 @@ bool isDoubleEqual(double a, double b)
 {
 	if (!qIsFinite(a) || !qIsFinite(b)) return(false);
 	double valmax = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
-	if (valmax < 1e-15)
+	if (valmax < 1e-10)
 	{
-		return(fabs(a - b) < 1e16);
+		return(fabs(a - b) < 1e10);
 	}
 	else if (valmax < 1e-9)
 	{
@@ -814,9 +814,10 @@ int main(int argc, char** argv)
 			{
 				if (!isDoubleEqual(CC[i * pitch_c + j] * 1.0, (double) ((i + j) % 16)))
 				{
-					fprintf(STD_OUT, "Verification failed at i = %lld, m = %lld, n = %lld\n", (long long int) i, (long long int) i / pitch_c, (long long int) i % pitch_c);
+					fprintf(STD_OUT, "Verification failed at i = %lld, j = %lld (%e %e)\n", (long long int) i, (long long int) j, CC[i * pitch_c + j] * 1.0, (double) ((i + j) % 16));
 					verifyok = 0;
-					break;
+					static int ii = 0;
+					if (++ii > 1) break;
 				}
 			}
 			if (!verifyok) break;
