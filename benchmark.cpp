@@ -184,6 +184,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Ox       Do not put the CPU in the OpenCL context\n");
 	fprintf(STD_OUT, "\t-Ot       Use 3rdPartyTranspose kernel\n");
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n");
+	fprintf(STD_OUT, "\t-Fc       Allow CPU device as OpenCL device\n");
 	fprintf(STD_OUT, "\t-J <int>  Allow small tiles to process the remainder on GPU (0 disable, 1 enable, 2 auto)\n");
 	fprintf(STD_OUT, "\t-Q        Wait for pressing a key before exiting\n");
 	fprintf(STD_OUT, "\t-!        Do not use page locked memory\n");
@@ -530,6 +531,7 @@ int main(int argc, char** argv)
 
 	if (ParseCommandLine(argc, argv, &Config))
 	{
+		fprintf(STD_OUT, "Error parsing command line options\n");
 		return 1;
 	}
 

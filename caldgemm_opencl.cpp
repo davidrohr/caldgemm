@@ -270,6 +270,13 @@ caldgemm_opencl::~caldgemm_opencl()
 {
 }
 
+caldgemm_opencl::caldgemm_config_backend_opencl::caldgemm_config_backend_opencl()
+{
+	size = sizeof(*this);
+	kernelLib = NULL;
+	allowCPUDevice = false;
+}
+
 caldgemm::caldgemm_config_backend* caldgemm_opencl::create_caldgemm_config_backend()
 {
 	return(new caldgemm_config_backend_opencl);
@@ -367,7 +374,9 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 		clGetDeviceInfo(devices[i], CL_DEVICE_VENDOR, 64, device_vendor, NULL);
 		clGetDeviceInfo(devices[i], CL_DEVICE_TYPE, sizeof(cl_device_type), &device_type, NULL);
 		clGetDeviceInfo(devices[i], CL_DEVICE_ADDRESS_BITS, sizeof(nbits), &nbits, NULL);
-		int device_ok = (device_type & CL_DEVICE_TYPE_GPU) && !(device_type & CL_DEVICE_TYPE_CPU);
+		int device_ok = config_backend->allowCPUDevice ?
+			(device_type & (CL_DEVICE_TYPE_CPU | CL_DEVICE_TYPE_GPU)) :
+			(device_type & CL_DEVICE_TYPE_GPU) && !(device_type & CL_DEVICE_TYPE_CPU);
 		if (Config->Debug) fprintf(STD_OUT, "Device %d -> %d: %s %s (%d bits)\n", i, device_ok ? gooddevices : -1, device_vendor, device_name, nbits);
 		if (device_ok)
 		{

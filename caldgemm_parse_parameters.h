@@ -276,8 +276,20 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		break;
 	case 'F':
-		if (++x >= argc) return(1);
-		sscanf(argv[x], "%d", &Config->OpenCLPlatform);
+		if (argv[x][2] == 'c')
+		{
+#ifdef CALDGEMM_PARAMETERS_BACKEND
+			allowCPUDevice = true;
+#else
+			Config->AddBackendArgv(argv[x]);
+#endif
+
+		}
+		else
+		{
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->OpenCLPlatform);
+		}
 		break;
 	case 'o':
 		if (++x >= argc) return(1);
