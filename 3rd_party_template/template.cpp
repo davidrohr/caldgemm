@@ -29,9 +29,11 @@ extern "C" DLL_EXPORT void kernelLibTerminate();
 //kernelType:
 //0 - no further optimizations
 //1 - can assume alpha = 1
-//2 - can assume alpha = 1 and k is fixed to the parameter passed as k
+//2 - can assume alpha = 1, beta = 0/1 depending on betazero, and k is fixed to the parameter passed as k
 //3 - not used
-//4 - can assume alpha = -1 and k is fixed to the parameter passed as k
+//4 - can assume alpha = -1, beta = 0/1 depending on betazero and k is fixed to the parameter passed as k
+//5
+//6
 
 //kernelLibQuerySettings must return
 //The tiling size in x and y (defines how many work-items are started
