@@ -288,6 +288,7 @@ void caldgemm_opencl::caldgemm_config_backend_opencl::printConfig(caldgemm_confi
 	caldgemm_config_backend_opencl* const newConfig = this;
 	caldgemm_config_backend_opencl* const myConfig = this;
 	PRINT_CONFIG_STRING(kernelLib);
+	PRINT_CONFIG_INT(allowCPUDevice);
 }
 
 caldgemm_opencl::caldgemm_config_backend_opencl::~caldgemm_config_backend_opencl() {}
@@ -2147,7 +2148,17 @@ void caldgemm_opencl::SetupSimpleQueue(size_t mb, size_t nb)
 int caldgemm_opencl::FinishDataInit()
 {
 	finishData = new finishStructOpenCL;
-    return(finishData == NULL);
+	return(finishData == NULL);
+}
+
+void caldgemm_opencl::FinishDataFill()
+{
+	if (Config->PipelinedOperation)
+	{
+		memcpy(((finishStructOpenCL*) finishData)->StartMarker, StartMarker, sizeof(StartMarker));
+		memcpy(((finishStructOpenCL*) finishData)->MidMarker, MidMarker, sizeof(MidMarker));
+		memcpy(((finishStructOpenCL*) finishData)->EndMarker, EndMarker, sizeof(EndMarker));
+	}
 }
 
 int caldgemm_opencl::RunCALDGEMM_Init()
@@ -2196,7 +2207,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		{
 			for (int j = 0;j < obuffercount;j++)
 			{
-				 CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &(((finishStructOpenCL*) finishData)->StartMarker[i][j])), "Error enqueuing OpenCL marker");
+				 CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &StartMarker[i][j]), "Error enqueuing OpenCL marker");
 			}
 		}
 	}
@@ -2227,7 +2238,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 			{
 				if (Config->PipelinedOperation)
 				{
-					 CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &(((finishStructOpenCL*) finishData)->EndMarker[i][j])), "Error enqueuing OpenCL marker");
+					 CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &EndMarker[i][j]), "Error enqueuing OpenCL marker");
 				}
 				else
 				{

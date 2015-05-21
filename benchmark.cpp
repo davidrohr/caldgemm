@@ -737,7 +737,7 @@ int main(int argc, char** argv)
 						return(1);
 					}
 					
-					if (Config.PipelinedOperation)
+					if (Config.PipelinedOperation && iter == iterations - 1)
 					{
 						fprintf(STD_OUT, "Pipelined run issued, waiting for result\n");
 						dgemm_obj->FinishCALDGEMM();
