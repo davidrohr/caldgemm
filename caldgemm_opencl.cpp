@@ -2220,7 +2220,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		
 		if (Config->PipelinedMidMarker)
 		{
-			memset(((finishStructOpenCL*) finishData)->MidMarker, 0, sizeof(MidMarker));
+			memset(MidMarker, 0, sizeof(MidMarker));
 		}
 	}
 	return(0);
@@ -2305,7 +2305,7 @@ int caldgemm_opencl::RunCALDGEMM_Finish()
 			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
 			clReleaseEvent(((finishStructOpenCL*) finishData)->StartMarker[i][j]);
 			clReleaseEvent(((finishStructOpenCL*) finishData)->EndMarker[i][j]);
-			if (Config->PipelinedMidMarker && ((finishStructOpenCL*) finishData)->MidMarker[i][j] != 0) clReleaseEvent(((finishStructOpenCL*) finishData)->MidMarker[i][j]);
+			if (Config->PipelinedMidMarker) clReleaseEvent(((finishStructOpenCL*) finishData)->MidMarker[i][j]);
 			if (start < minstart) minstart = start;
 			if (end > maxend) maxend = end;
 		}
