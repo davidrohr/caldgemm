@@ -919,6 +919,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	goto_set_num_threads(conf_numprocs);
 	
 	if (FinishDataInit()) return(1);
+	finishData->running = false;
 
 	nDevicesInitialized = nDevices;
 
@@ -2953,6 +2954,7 @@ recalculate_ratio:
 	finishData->dynamic_size = cParam.dynamic_size;
 	finishData->cpu_k = cParam.cpu_k;
 	finishData->dynamic_run2 = cParam.dynamic_run2;
+	FinishDataFill();
 
 	if (Config->PipelinedOperation && !CPUOnlyRun)
 	{
@@ -2970,6 +2972,11 @@ int caldgemm::FinishDataInit()
 {
 	finishData = new finishStruct;
 	return(finishData == NULL);
+}
+
+void caldgemm::FinishDataFill()
+{
+
 }
 
 int caldgemm::FinishCALDGEMM()
@@ -3642,6 +3649,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	caldgemm_config* myConfig = newConfig ? newConfig : Config;
 
 	PRINT_CONFIG_INT(AsyncDMA);
+	PRINT_CONFIG_INT(PipelinedOperation);
 	PRINT_CONFIG_INT(DivideToGPU);
 	PRINT_CONFIG_CHAR(DstMemory);
 	PRINT_CONFIG_INT(ImplicitDriverSync);

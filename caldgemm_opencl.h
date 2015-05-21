@@ -85,6 +85,7 @@ private:
 	virtual int RunCALDGEMM_Finish();
 	virtual int CheckParams();
 	virtual int FinishDataInit();
+	virtual void FinishDataFill();
 	virtual void WaitForCALDGEMMProgress(size_t n);
 
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
@@ -128,6 +129,9 @@ private:
 		cl_event MidMarker[max_devices][obuffercount];
 		cl_event EndMarker[max_devices][obuffercount];
 	};
+	cl_event StartMarker[max_devices][obuffercount];
+	cl_event MidMarker[max_devices][obuffercount];
+	cl_event EndMarker[max_devices][obuffercount];
 
 	caldgemm_opencl_simple_queue_event* simple_queue_events[max_devices][2]; //2 for m and n direction
 	int* simple_queue_event_requested[max_devices][obuffercount][2];

@@ -339,6 +339,7 @@ protected:
 	virtual int RunCALDGEMM_Exit();
 	virtual int RunCALDGEMM_Finish();
 	virtual int FinishDataInit();
+	virtual void FinishDataFill();
 	virtual int CheckParams();
 	virtual void Preallocate();
 	virtual void PreallocateFree();
