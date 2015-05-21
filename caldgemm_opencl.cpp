@@ -2158,7 +2158,7 @@ int caldgemm_opencl::FinishDataInit()
 
 void caldgemm_opencl::FinishDataFill()
 {
-	if (Config->PipelinedOperation)
+	if (Config->PipelinedOperation && !CPUOnlyRun)
 	{
 		memcpy(((finishStructOpenCL*) finishData)->StartMarker, StartMarker, sizeof(StartMarker));
 		memcpy(((finishStructOpenCL*) finishData)->MidMarker, MidMarker, sizeof(MidMarker));
@@ -2217,6 +2217,11 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 				 CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &StartMarker[i][j]), "Error enqueuing OpenCL marker");
 			}
 		}
+		
+		if (Config->PipelinedMidMarker)
+		{
+			memset(((finishStructOpenCL*) finishData)->MidMarker, 0, sizeof(MidMarker));
+		}
 	}
 	return(0);
 }
@@ -2243,7 +2248,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 		{
 			for (int j = 0;j < obuffercount;j++)
 			{
-				if (Config->PipelinedOperation)
+				if (Config->PipelinedOperation && !CPUOnlyRun)
 				{
 					if (Config->PipelinedMidMarker && MidMarker[i][j] == 0) CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &MidMarker[i][j]), "Error enqueuing OpenCL marker");
 					CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &EndMarker[i][j]), "Error enqueuing OpenCL marker");
