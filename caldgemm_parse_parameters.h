@@ -121,6 +121,11 @@ for (unsigned int x = 1; x < argc; ++x)
 		{
 			Config->PipelinedOperation = true;
 		}
+		else if (argv[x][2] == 'q')
+		{
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%lld", (long long int*) &Config->PipelinedMidMarker);
+		}		
 		else
 		{
 			Config->AsyncDMA = true;

@@ -285,6 +285,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	ShowConfig = 0;
 	ShowThreadPinning = 0;
 
+	PipelinedMidMarker = 0;
 	linpack_factorize_function = NULL;
 	linpack_broadcast_function = NULL;
 	linpack_swap_function = NULL;
@@ -596,6 +597,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->DynamicSched = false;
 		Config->SmallTiles = 1;
 	}
+	if (!Config->SimpleGPUQueuing) Config->PipelinedOperation = false;
+	if (!Config->PipelinedOperation) Config->PipelinedMidMarker = 0;
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
 	if (Config->ParallelDMA || Config->SimpleGPUQueuing) Config->ImprovedScheduler = true;
 	if (Config->AsyncSideQueue && (Config->GPU_C == 0 || UseInputPthreads() || UseOutputPthreads()))
@@ -2974,10 +2977,7 @@ int caldgemm::FinishDataInit()
 	return(finishData == NULL);
 }
 
-void caldgemm::FinishDataFill()
-{
-
-}
+void caldgemm::FinishDataFill(){}
 
 int caldgemm::FinishCALDGEMM()
 {
@@ -3650,6 +3650,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 
 	PRINT_CONFIG_INT(AsyncDMA);
 	PRINT_CONFIG_INT(PipelinedOperation);
+	PRINT_CONFIG_INT(PipelinedMidMarker);
 	PRINT_CONFIG_INT(DivideToGPU);
 	PRINT_CONFIG_CHAR(DstMemory);
 	PRINT_CONFIG_INT(ImplicitDriverSync);
