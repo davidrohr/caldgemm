@@ -544,6 +544,11 @@ int caldgemm::CheckParams()
 	return(0);
 }
 
+void caldgemm::WaitForCALDGEMMProgress(size_t n)
+{
+	return;	//Default backend does not support pipelined mode, so we do not have to bother.
+}
+
 int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 {
 	setThreadName("Main");
@@ -2948,15 +2953,15 @@ recalculate_ratio:
 	finishData->dynamic_size = cParam.dynamic_size;
 	finishData->cpu_k = cParam.cpu_k;
 	finishData->dynamic_run2 = cParam.dynamic_run2;
-	
-	finishData->running = true;
 
 	if (Config->PipelinedOperation && !CPUOnlyRun)
 	{
+		finishData->running = true;
 		return(0);
 	}
 	else
 	{
+		finishData->running = false;
 		return(FinishCALDGEMM());
 	}
 }
@@ -2969,11 +2974,11 @@ int caldgemm::FinishDataInit()
 
 int caldgemm::FinishCALDGEMM()
 {
-	if (!finishData->running) return(0);
-	finishData->running = false;
 	if (Config->PipelinedOperation)
 	{
 		int retVal = RunCALDGEMM_Finish();
+		finishData->running = false;
+
 		if (retVal) return(retVal);
 	}
 #ifdef TESTMODE

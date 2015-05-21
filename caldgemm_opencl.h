@@ -85,6 +85,7 @@ private:
 	virtual int RunCALDGEMM_Finish();
 	virtual int CheckParams();
 	virtual int FinishDataInit();
+	virtual void WaitForCALDGEMMProgress(size_t n);
 
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
