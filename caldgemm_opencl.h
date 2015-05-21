@@ -128,6 +128,8 @@ private:
 		cl_event StartMarker[max_devices][obuffercount];
 		cl_event MidMarker[max_devices][obuffercount];
 		cl_event EndMarker[max_devices][obuffercount];
+		
+		bool MidMarkerDone, EndMarkerDone;
 	};
 	cl_event StartMarker[max_devices][obuffercount];
 	cl_event MidMarker[max_devices][obuffercount];

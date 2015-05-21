@@ -1091,6 +1091,11 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			if (FetchResult(Task.device, Task.j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 		}
 	}
+	if (Config->PipelinedMidMarker && blockm * Config->Height >= Config->PipelinedMidMarker && MidMarker[Task.device][Task.j] == 0)
+	{
+		CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[Task.device][Task.j], 0, NULL, &MidMarker[Task.device][Task.j]), "Error enqueuing OpenCL mid marker");
+	}
+
 	clFlush(ocl_command_queues[Task.device][Task.j]);
 	if (Config->VerboseTiming)
 	{
@@ -2158,6 +2163,8 @@ void caldgemm_opencl::FinishDataFill()
 		memcpy(((finishStructOpenCL*) finishData)->StartMarker, StartMarker, sizeof(StartMarker));
 		memcpy(((finishStructOpenCL*) finishData)->MidMarker, MidMarker, sizeof(MidMarker));
 		memcpy(((finishStructOpenCL*) finishData)->EndMarker, EndMarker, sizeof(EndMarker));
+		((finishStructOpenCL*) finishData)->MidMarkerDone = false;
+		((finishStructOpenCL*) finishData)->EndMarkerDone = false;
 	}
 }
 
@@ -2238,7 +2245,8 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 			{
 				if (Config->PipelinedOperation)
 				{
-					 CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &EndMarker[i][j]), "Error enqueuing OpenCL marker");
+					if (Config->PipelinedMidMarker && MidMarker[i][j] == 0) CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &MidMarker[i][j]), "Error enqueuing OpenCL marker");
+					CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &EndMarker[i][j]), "Error enqueuing OpenCL marker");
 				}
 				else
 				{
@@ -2292,6 +2300,7 @@ int caldgemm_opencl::RunCALDGEMM_Finish()
 			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
 			clReleaseEvent(((finishStructOpenCL*) finishData)->StartMarker[i][j]);
 			clReleaseEvent(((finishStructOpenCL*) finishData)->EndMarker[i][j]);
+			if (Config->PipelinedMidMarker && ((finishStructOpenCL*) finishData)->MidMarker[i][j] != 0) clReleaseEvent(((finishStructOpenCL*) finishData)->MidMarker[i][j]);
 			if (start < minstart) minstart = start;
 			if (end > maxend) maxend = end;
 		}
@@ -2316,10 +2325,22 @@ void caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
 {
 	if (Config->PipelinedOperation && finishData->running)
 	{
+		if (((finishStructOpenCL*) finishData)->EndMarkerDone) return;
+		if (n < Config->PipelinedMidMarker * Config->Height)
+		{
+			if (((finishStructOpenCL*) finishData)->MidMarkerDone) return;
+			for (int i = 0;i < nDevices;i++)
+			{
+				clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->MidMarker[i]);;
+			}
+			((finishStructOpenCL*) finishData)->MidMarkerDone = true;
+			return;
+		}
 		for (int i = 0;i < nDevices;i++)
 		{
 			clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]);;
 		}
+		((finishStructOpenCL*) finishData)->EndMarkerDone = true;
 	}
 }
 
