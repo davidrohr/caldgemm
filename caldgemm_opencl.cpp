@@ -2278,7 +2278,7 @@ int caldgemm_opencl::RunCALDGEMM_Finish()
 		{
 			cl_ulong start, end;
 			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL), "Error getting event profiling info");
-			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_QUEUED, sizeof(start), &start, NULL), "Error getting event profiling info");
+			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
 			if (start < minstart) minstart = start;
 			if (end > maxend) maxend = end;
 		}

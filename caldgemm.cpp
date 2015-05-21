@@ -2925,6 +2925,13 @@ recalculate_ratio:
 	Timers.System.Stop();
 	if (Config->Debug) fprintf(STD_OUT, "DGEMM Run Complete\n");
 	
+	if (finishData->running)
+	{
+			fprintf(STD_OUT, "Waiting for previous pipelined DGEMM iteration to finish\n");
+			int retVal = FinishCALDGEMM();
+			if (retVal) return(retVal);
+	}
+	
 	finishData->matrix_m = matrix_m; finishData->matrix_n = matrix_n; finishData->SmallTileHeight = SmallTileHeight; finishData->orig_m = orig_m; finishData->orig_n = orig_n;
 	finishData->gpu_ratio_used = gpu_ratio_used; finishData->cpu_wait_time = cpu_wait_time;
 	finishData->ExecLinpack = ExecLinpack;
@@ -2941,6 +2948,8 @@ recalculate_ratio:
 	finishData->dynamic_size = cParam.dynamic_size;
 	finishData->cpu_k = cParam.cpu_k;
 	finishData->dynamic_run2 = cParam.dynamic_run2;
+	
+	finishData->running = true;
 
 	if (Config->PipelinedOperation && !CPUOnlyRun)
 	{
@@ -2960,6 +2969,8 @@ int caldgemm::FinishDataInit()
 
 int caldgemm::FinishCALDGEMM()
 {
+	if (!finishData->running) return(0);
+	finishData->running = false;
 	if (Config->PipelinedOperation)
 	{
 		int retVal = RunCALDGEMM_Finish();
