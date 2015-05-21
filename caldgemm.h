@@ -505,10 +505,12 @@ protected:
 		size_t device_kernel;
 
 		size_t cblas_size;
-		size_t dynamic_run;						//Do an extra dynamic cblas run?, works also as m for the dynamic run
-		size_t dynamic_size;					//n for dynamic run
-		size_t cpu_k;							//k that cpu will take over from gpu in 3rd phase dynamic run
+		size_t dynamic_run;
+		size_t dynamic_size;
+		size_t cpu_k;
 		size_t dynamic_run2;
+		
+		bool running;
 	};
 	finishStruct* finishData;
 
