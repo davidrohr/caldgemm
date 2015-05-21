@@ -2277,7 +2277,6 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 			}
 		}
 	}
-
 	if (Config->SimpleGPUQueuing && !Config->PreallocData)
 	{
 		delete[] simple_queue_events[0][0];
@@ -2336,7 +2335,9 @@ void caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
 			if (((finishStructOpenCL*) finishData)->MidMarkerDone) return;
 			for (int i = 0;i < nDevices;i++)
 			{
+				fprintf(STD_OUT, "Waiting for Mid Marked\n");
 				clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->MidMarker[i]);;
+				fprintf(STD_OUT, "Mid Marker Reached\n");
 			}
 			((finishStructOpenCL*) finishData)->MidMarkerDone = true;
 			return;

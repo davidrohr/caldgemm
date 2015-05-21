@@ -2967,7 +2967,7 @@ recalculate_ratio:
 	else
 	{
 		finishData->running = false;
-		return(FinishCALDGEMM());
+		return(FinishCALDGEMM(true));
 	}
 }
 
@@ -2979,8 +2979,9 @@ int caldgemm::FinishDataInit()
 
 void caldgemm::FinishDataFill(){}
 
-int caldgemm::FinishCALDGEMM()
+int caldgemm::FinishCALDGEMM(bool force)
 {
+	if (!(force || finishData->running)) return(0);
 	if (Config->PipelinedOperation)
 	{
 		int retVal = RunCALDGEMM_Finish();
