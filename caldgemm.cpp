@@ -544,6 +544,11 @@ int caldgemm::CheckParams()
 	return(0);
 }
 
+void caldgemm::WaitForCALDGEMMProgress(size_t n)
+{
+	return;	//Default backend does not support pipelined mode, so we do not have to bother.
+}
+
 int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 {
 	setThreadName("Main");
@@ -2925,6 +2930,13 @@ recalculate_ratio:
 	Timers.System.Stop();
 	if (Config->Debug) fprintf(STD_OUT, "DGEMM Run Complete\n");
 	
+	if (finishData->running)
+	{
+			fprintf(STD_OUT, "Waiting for previous pipelined DGEMM iteration to finish\n");
+			int retVal = FinishCALDGEMM();
+			if (retVal) return(retVal);
+	}
+	
 	finishData->matrix_m = matrix_m; finishData->matrix_n = matrix_n; finishData->SmallTileHeight = SmallTileHeight; finishData->orig_m = orig_m; finishData->orig_n = orig_n;
 	finishData->gpu_ratio_used = gpu_ratio_used; finishData->cpu_wait_time = cpu_wait_time;
 	finishData->ExecLinpack = ExecLinpack;
@@ -2944,10 +2956,12 @@ recalculate_ratio:
 
 	if (Config->PipelinedOperation && !CPUOnlyRun)
 	{
+		finishData->running = true;
 		return(0);
 	}
 	else
 	{
+		finishData->running = false;
 		return(FinishCALDGEMM());
 	}
 }
@@ -2963,6 +2977,8 @@ int caldgemm::FinishCALDGEMM()
 	if (Config->PipelinedOperation)
 	{
 		int retVal = RunCALDGEMM_Finish();
+		finishData->running = false;
+
 		if (retVal) return(retVal);
 	}
 #ifdef TESTMODE

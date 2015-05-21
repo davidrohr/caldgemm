@@ -2190,7 +2190,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		memset(&simple_queue_event_kernels[0][0][0], 0, nDevices * ibuffercount * obuffercount * sizeof(cl_event));
 	}
 	
-	if (Config->PipelinedOperation)
+	if (Config->PipelinedOperation && !CPUOnlyRun)
 	{
 		for (int i = 0;i < nDevices;i++)
 		{
@@ -2268,7 +2268,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 
 int caldgemm_opencl::RunCALDGEMM_Finish()
 {
-	if (!Config->PipelinedOperation || finishData->CPUOnlyRun) return(0);
+	if (!finishData->running) return(0);
 	cl_ulong gputime = 0;
 	for (int i = 0;i < nDevices;i++)
 	{
@@ -2278,7 +2278,9 @@ int caldgemm_opencl::RunCALDGEMM_Finish()
 		{
 			cl_ulong start, end;
 			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL), "Error getting event profiling info");
-			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_QUEUED, sizeof(start), &start, NULL), "Error getting event profiling info");
+			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
+			clReleaseEvent(((finishStructOpenCL*) finishData)->StartMarker[i][j]);
+			clReleaseEvent(((finishStructOpenCL*) finishData)->EndMarker[i][j]);
 			if (start < minstart) minstart = start;
 			if (end > maxend) maxend = end;
 		}
@@ -2299,6 +2301,16 @@ int caldgemm_opencl::CheckParams()
     return(0);
 }
 
+void caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
+{
+	if (Config->PipelinedOperation && finishData->running)
+	{
+		for (int i = 0;i < nDevices;i++)
+		{
+			clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]);;
+		}
+	}
+}
 
 #define MAX_GPU_MEM_COUNT 64
 static caldgemm_opencl::gpu_mem_struct_opencl gpu_mem[MAX_GPU_MEM_COUNT];

@@ -235,6 +235,7 @@ public:
 	int ExitCALDGEMM();
 	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = (size_t) -1, size_t k = (size_t) -1, size_t n = (size_t) -1, size_t Apitch = (size_t) -1, size_t Bpitch = (size_t) -1, size_t Cpitch = (size_t) -1, bool orderColMajor = false, bool TransA = false, bool TransB = false, int ExecuteLinpackCallbacks = 0);
 	int FinishCALDGEMM();
+	virtual void WaitForCALDGEMMProgress(size_t n);
 	virtual int RunAsyncSingleTileDGEMM(const double* A, const double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB);
 	virtual int RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLAS_SIDE Side, const CBLAS_UPLO Uplo, const CBLAS_TRANSPOSE TransA, const CBLAS_DIAG Diag, const size_t M, const size_t N, const double alpha, const double *A, const size_t lda, double *B, const size_t ldb);
 	void SetNumberDevices(int n);
@@ -505,10 +506,12 @@ protected:
 		size_t device_kernel;
 
 		size_t cblas_size;
-		size_t dynamic_run;						//Do an extra dynamic cblas run?, works also as m for the dynamic run
-		size_t dynamic_size;					//n for dynamic run
-		size_t cpu_k;							//k that cpu will take over from gpu in 3rd phase dynamic run
+		size_t dynamic_run;
+		size_t dynamic_size;
+		size_t cpu_k;
 		size_t dynamic_run2;
+		
+		bool running;
 	};
 	finishStruct* finishData;
 
