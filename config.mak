@@ -18,8 +18,10 @@ LIBS						=
 EXTRAOBJFILES				=
 
 CONFIG_STATIC				= 0
+ifeq ($(CONFIG_LTO), 1)
 EXTRAFLAGSGCC				= -flto
 EXTRAFLAGSLINK				= -flto
+endif
 
 CPPFILES					= caldgemm.cpp benchmark.cpp cmodules/timer.cpp cmodules/qmalloc.cpp caldgemm_cpu.cpp cmodules/affinity.cpp cmodules/threadserver.cpp cmodules/qsem.cpp caldgemm_adl.cpp
 CXXFILES					=
