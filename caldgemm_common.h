@@ -143,7 +143,7 @@ extern pthread_mutex_t global_vt_mutex;
 	{ \
 		for (int i = 0;i < loopvar;i++) \
 		{ \
-			PRINT_CONFIG_BASE_WRAP(name "[%d]", name[i], PASS_ARG(COMMA) i, "%5d", int, myConfig) \
+			PRINT_CONFIG_BASE_WRAP(name[%d], name[i], PASS_ARG(COMMA) i, "%5d", int, myConfig) \
 		} \
 	}
 
