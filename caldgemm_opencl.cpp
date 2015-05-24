@@ -2330,22 +2330,24 @@ void caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
 	if (Config->PipelinedOperation && finishData->running)
 	{
 		if (((finishStructOpenCL*) finishData)->EndMarkerDone) return;
-		if (n < Config->PipelinedMidMarker * Config->Height)
+		if (n < Config->PipelinedMidMarker)
 		{
 			if (((finishStructOpenCL*) finishData)->MidMarkerDone) return;
+			fprintf(STD_OUT, "Waiting for Mid Marked (Need %lld, marker %lld)\n", (long long int) n, (long long int) Config->PipelinedMidMarker);
 			for (int i = 0;i < nDevices;i++)
 			{
-				fprintf(STD_OUT, "Waiting for Mid Marked\n");
 				clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->MidMarker[i]);;
-				fprintf(STD_OUT, "Mid Marker Reached\n");
 			}
+			fprintf(STD_OUT, "Mid Marker Reached\n");
 			((finishStructOpenCL*) finishData)->MidMarkerDone = true;
 			return;
 		}
+		fprintf(STD_OUT, "Waiting for End Marked (Need %lld, marker %lld)\n", (long long int) n, (long long int) gpu_n);
 		for (int i = 0;i < nDevices;i++)
 		{
 			clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]);;
 		}
+		fprintf(STD_OUT, "End Marker Reached\n");
 		((finishStructOpenCL*) finishData)->EndMarkerDone = true;
 	}
 }
