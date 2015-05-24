@@ -6,5 +6,9 @@ INCLUDE_OPENCL				= 1
 INCLUDE_CAL				= 1
 INCLUDE_CUDA				= 1
 
+#Other Config options
+#Use link time optimization
+CONFIG_LTO				= 1
+
 #Mark CONFIGURED = 1 to enable compilation
 CONFIGURED				= 0
