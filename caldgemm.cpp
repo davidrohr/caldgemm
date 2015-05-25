@@ -2879,6 +2879,7 @@ recalculate_ratio:
 				return(1);
 			}
 
+			WaitForCALDGEMMProgress(0);
 			if (RunCALDGEMM_Init()) return(1);
 
 			if (Config->ParallelDMA != 0 && matrix_n >= Config->ParallelDMA)

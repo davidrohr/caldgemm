@@ -2334,7 +2334,8 @@ int caldgemm_opencl::RunCALDGEMM_Finish()
 		fprintf(STD_OUT, "Error obtaining times from OpenCL runtime\n");
 		return(1);
 	}
-	if ((double) gputime * 1e-9 > finishData->GPUTimer) finishData->GPUTimer = (double) gputime * 1e-9;
+	//if ((double) gputime * 1e-9 > finishData->GPUTimer)
+	finishData->GPUTimer = (double) gputime * 1e-9;
 	if (finishData->GPUTimer > finishData->System) finishData->System = finishData->GPUTimer;
 	return(0);
 }
@@ -2349,7 +2350,7 @@ int caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
 	if (Config->PipelinedOperation && finishData->running)
 	{
 		if (((finishStructOpenCL*) finishData)->EndMarkerDone) return(0);
-		if (n < Config->PipelinedMidMarker)
+		if (n && n < Config->PipelinedMidMarker)
 		{
 			if (((finishStructOpenCL*) finishData)->MidMarkerDone)
 			{
