@@ -2281,7 +2281,7 @@ endimprovedphase:
 	return(0);
 }
 
-int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB, int ExecuteLinpackCallbacks)
+int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double beta, size_t tmp_m, size_t tmp_k, size_t tmp_n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB, int ExecuteLinpackCallbacks, int pipelined)
 {
 	if (!caldgemm_initialized)
 	{
@@ -2354,6 +2354,7 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	TransposeA = TransA;
 	TransposeB = TransB;    
 	ExecLinpack = ExecuteLinpackCallbacks;
+	pipelinedRun = pipelined;
 	orig_m = matrix_m;
 	orig_n = matrix_n;
 	orig_a = A;
@@ -2961,7 +2962,7 @@ recalculate_ratio:
 	finishData->dynamic_run2 = cParam.dynamic_run2;
 	FinishDataFill();
 
-	if (Config->PipelinedOperation && !CPUOnlyRun)
+	if (Config->PipelinedOperation && !CPUOnlyRun && pipelinedRun)
 	{
 		finishData->running = true;
 		return(0);

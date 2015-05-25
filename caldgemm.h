@@ -234,7 +234,7 @@ public:
 	//The Width (k in matrix multiply) is fixed and cannot be changed without reinitializing
 	int InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit = false);
 	int ExitCALDGEMM();
-	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = (size_t) -1, size_t k = (size_t) -1, size_t n = (size_t) -1, size_t Apitch = (size_t) -1, size_t Bpitch = (size_t) -1, size_t Cpitch = (size_t) -1, bool orderColMajor = false, bool TransA = false, bool TransB = false, int ExecuteLinpackCallbacks = 0);
+	int RunCALDGEMM(double* A, double* B, double* C, double alpha, double beta, size_t m = (size_t) -1, size_t k = (size_t) -1, size_t n = (size_t) -1, size_t Apitch = (size_t) -1, size_t Bpitch = (size_t) -1, size_t Cpitch = (size_t) -1, bool orderColMajor = false, bool TransA = false, bool TransB = false, int ExecuteLinpackCallbacks = 0, int pipelined = 0);
 	int FinishCALDGEMM(bool force = false);
 	virtual int WaitForCALDGEMMProgress(size_t n);
 	virtual int RunAsyncSingleTileDGEMM(const double* A, const double* B, double* C, double alpha, double beta, size_t m, size_t k, size_t n, size_t Apitch, size_t Bpitch, size_t Cpitch, bool orderColMajor, bool TransA, bool TransB);
@@ -562,7 +562,7 @@ protected:
 	pthread_mutex_t globalDriverLock;
 
 	bool CPUOnlyRun;
-	int ExecLinpack;
+	int ExecLinpack, pipelinedRun;
 	double gpu_ratio_used;
 	double cpu_wait_time;
 

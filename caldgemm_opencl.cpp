@@ -2173,7 +2173,7 @@ int caldgemm_opencl::FinishDataInit()
 
 void caldgemm_opencl::FinishDataFill()
 {
-	if (Config->PipelinedOperation && !CPUOnlyRun)
+	if (Config->PipelinedOperation && !CPUOnlyRun && pipelinedRun)
 	{
 		memcpy(((finishStructOpenCL*) finishData)->StartMarker, StartMarker, sizeof(StartMarker));
 		memcpy(((finishStructOpenCL*) finishData)->MidMarker, MidMarker, sizeof(MidMarker));
@@ -2223,7 +2223,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		memset(&simple_queue_event_kernels[0][0][0], 0, nDevices * ibuffercount * obuffercount * sizeof(cl_event));
 	}
 	
-	if (Config->PipelinedOperation && !CPUOnlyRun)
+	if (Config->PipelinedOperation && !CPUOnlyRun && pipelinedRun)
 	{
 		for (int i = 0;i < nDevices;i++)
 		{
@@ -2263,7 +2263,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 		{
 			for (int j = 0;j < obuffercount;j++)
 			{
-				if (Config->PipelinedOperation && !CPUOnlyRun)
+				if (Config->PipelinedOperation && !CPUOnlyRun && pipelinedRun)
 				{
 					if (Config->PipelinedMidMarker && MidMarker[i][j] == 0)
 					{
