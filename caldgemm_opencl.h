@@ -86,10 +86,10 @@ private:
 	virtual int CheckParams();
 	virtual int FinishDataInit();
 	virtual void FinishDataFill();
-	virtual void WaitForCALDGEMMProgress(size_t n);
+	virtual int WaitForCALDGEMMProgress(size_t n);
 
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
-	virtual void FreeMemory(double* ptr, bool gpuaccessible = false);
+	virtual int FreeMemory(double* ptr, bool gpuaccessible = false);
 	
 	virtual int CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, int nDevices);
 	virtual int CaldgemmCustomModHeight(size_t MOD_OVER, size_t MOD_GPU);
@@ -140,7 +140,7 @@ private:
 	cl_event simple_queue_event_kernels[max_devices][ibuffercount][obuffercount];
 	
 	cl_event* AlternateLookaheadTilesRemaining_events;
-	virtual void CheckAlternateTilesRemainingSimpleQuieing();
+	virtual int CheckAlternateTilesRemainingSimpleQuieing();
 	qSem AlternateLookaheadDoneMutex;
 
 	double* ocl_tmp_abuffers_ptr[max_devices][ibuffercount];

@@ -559,7 +559,7 @@ double* caldgemm_cuda::AllocMemory(size_t nDoubles, bool page_locked, bool huge_
 	return(ptr);
 }
 
-void caldgemm_cuda::FreeMemory(double* ptr, bool gpuaccessible)
+int caldgemm_cuda::FreeMemory(double* ptr, bool gpuaccessible)
 {
 	if (gpuaccessible)
 	{
@@ -569,9 +569,9 @@ void caldgemm_cuda::FreeMemory(double* ptr, bool gpuaccessible)
 			{
 				cudaFreeHost(ptr);
 				gpu_mem[i] = gpu_mem[--nGPUMEM];
-				return;
+				return(0);
 			}
 		}
 	}
-	caldgemm::FreeMemory(ptr);
+	return(caldgemm::FreeMemory(ptr));
 }

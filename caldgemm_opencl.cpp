@@ -354,14 +354,14 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 	cl_int ocl_error;
 
 	cl_uint num_devices;
-	clGetDeviceIDs(ocl_platform, CL_DEVICE_TYPE_ALL, 0, NULL, &num_devices);
+	CHKRET(clGetDeviceIDs(ocl_platform, CL_DEVICE_TYPE_ALL, 0, NULL, &num_devices), "Error getting device IDs");
 	nDevices = num_devices;
 	if (nDevices == 0) ERRRET("No OpenCL device for this platform found\n");
 	if (Config->Debug) fprintf(STD_OUT, "%d OpenCL devices found for this platform\n", nDevices);
 
 	cl_device_id* devices = new cl_device_id[nDevices];
 	if (devices == NULL) ERRRET("Memory allocation error\n");
-	CHKRET(clGetDeviceIDs(ocl_platform, CL_DEVICE_TYPE_ALL, nDevices, devices, NULL), "Error getting OpenCL devices\n");
+	CHKRET(clGetDeviceIDs(ocl_platform, CL_DEVICE_TYPE_ALL, nDevices, devices, NULL), "Error getting OpenCL devices");
 
 	int gooddevices = 0;
 	int cpu_found = 0;
@@ -371,10 +371,10 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 		char device_vendor[64], device_name[64];
 		cl_device_type device_type;
 		cl_uint nbits;
-		clGetDeviceInfo(devices[i], CL_DEVICE_NAME, 64, device_name, NULL);
-		clGetDeviceInfo(devices[i], CL_DEVICE_VENDOR, 64, device_vendor, NULL);
-		clGetDeviceInfo(devices[i], CL_DEVICE_TYPE, sizeof(cl_device_type), &device_type, NULL);
-		clGetDeviceInfo(devices[i], CL_DEVICE_ADDRESS_BITS, sizeof(nbits), &nbits, NULL);
+		CHKRET(clGetDeviceInfo(devices[i], CL_DEVICE_NAME, 64, device_name, NULL), "Error getting device info");
+		CHKRET(clGetDeviceInfo(devices[i], CL_DEVICE_VENDOR, 64, device_vendor, NULL), "Error getting device info");
+		CHKRET(clGetDeviceInfo(devices[i], CL_DEVICE_TYPE, sizeof(cl_device_type), &device_type, NULL), "Error getting device info");
+		CHKRET(clGetDeviceInfo(devices[i], CL_DEVICE_ADDRESS_BITS, sizeof(nbits), &nbits, NULL), "Error getting device info");
 		int device_ok = config_backend->allowCPUDevice ?
 			(device_type & (CL_DEVICE_TYPE_CPU | CL_DEVICE_TYPE_GPU)) :
 			(device_type & CL_DEVICE_TYPE_GPU) && !(device_type & CL_DEVICE_TYPE_CPU);
@@ -495,10 +495,10 @@ int caldgemm_opencl::ValidateRuntime()
 	for (unsigned int i = 0;i < num_platforms;i++)
 	{
 		char platform_profile[64], platform_version[64], platform_name[64], platform_vendor[64];
-		clGetPlatformInfo(platforms[i], CL_PLATFORM_PROFILE, 64, platform_profile, NULL);
-		clGetPlatformInfo(platforms[i], CL_PLATFORM_VERSION, 64, platform_version, NULL);
-		clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, 64, platform_name, NULL);
-		clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR, 64, platform_vendor, NULL);
+		CHKRET(clGetPlatformInfo(platforms[i], CL_PLATFORM_PROFILE, 64, platform_profile, NULL), "Error getting platform info");
+		CHKRET(clGetPlatformInfo(platforms[i], CL_PLATFORM_VERSION, 64, platform_version, NULL), "Error getting platform info");
+		CHKRET(clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, 64, platform_name, NULL), "Error getting platform info");
+		CHKRET(clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR, 64, platform_vendor, NULL), "Error getting platform info");
 		if (Config->Debug) fprintf(STD_OUT, "Platform %d: (%s %s) %s %s\n", i, platform_profile, platform_version, platform_vendor, platform_name);
 	}
 
@@ -1044,14 +1044,14 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	
 	if (Config->VerboseTiming)
 	{
-		clFinish(ocl_command_queues[Task.device][Task.j]);
+		CHKRET(clFinish(ocl_command_queues[Task.device][Task.j]), "Error in clFinish");
 		Timers.Kernel.Start();
 		if (kernel_event == NULL) kernel_event = &tmp_event;
 	}
 	CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[Task.device][Task.j], ocl_kernel[Task.device][Task.kernel_num], 2, NULL, &global_size[0], &local_size[0], wait_num_events, wait_event, kernel_event), "Error starting MM Kernel");
 	if (Config->VerboseTiming)
 	{
-		clFinish(ocl_command_queues[Task.device][Task.j]);
+		CHKRET(clFinish(ocl_command_queues[Task.device][Task.j]), "Error in clFinish");
 		Timers.Kernel.Stop();
 		cl_ulong start, end;
 		CHKRET(clGetEventProfilingInfo(*kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start, NULL), "Error getting kernel profiling info");
@@ -1062,14 +1062,14 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	
 	if (need_retain_kernel_event)
 	{
-		clRetainEvent(*kernel_event);
+		CHKRET(clRetainEvent(*kernel_event), "Error in clRetainEvent");
 	}
 
 	if (Config->NoConcurrentKernels)
 	{
 		if (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync))
 		{
-			if (last_device_kernel[Task.device] != 0) clReleaseEvent(last_device_kernel[Task.device]);
+			if (last_device_kernel[Task.device] != 0) CHKRET(clReleaseEvent(last_device_kernel[Task.device]), "Error in clReleaseEvent");
 		}
 		last_device_kernel[Task.device] = *kernel_event;
 	}
@@ -1094,12 +1094,13 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	if (Config->PipelinedMidMarker && blockm * Config->Height >= Config->PipelinedMidMarker && MidMarker[Task.device][Task.j] == 0)
 	{
 		CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[Task.device][Task.j], 0, NULL, &MidMarker[Task.device][Task.j]), "Error enqueuing OpenCL mid marker");
+		if (Config->Debug) fprintf(STD_OUT, "Mid Marker Device %d queue %d block %d (Event %lld)\n", Task.device, Task.j, (int) blockm, (long long int) MidMarker[Task.device][Task.j]);
 	}
 
-	clFlush(ocl_command_queues[Task.device][Task.j]);
+	CHKRET(clFlush(ocl_command_queues[Task.device][Task.j]), "Error in clFlush");
 	if (Config->VerboseTiming)
 	{
-		clFinish(ocl_command_queues[Task.device][Task.j]);
+		CHKRET(clFinish(ocl_command_queues[Task.device][Task.j]), "Error in clFinish");
 		Timers.CounterCopyFrom.Stop();
 	}
 
@@ -1114,12 +1115,12 @@ int caldgemm_opencl::ExitRuntime()
 	{
 		for (int j = 0;j < obuffercount;j++)
 		{
-			clReleaseCommandQueue(ocl_command_queues[i][j]);
+			CHKRET(clReleaseCommandQueue(ocl_command_queues[i][j]), "Error in clReleaseCommandQueue");
 		}
 	}
 	if (Config->CPUInContext)
 	{
-		clReleaseCommandQueue(ocl_command_queue_cpu);
+		CHKRET(clReleaseCommandQueue(ocl_command_queue_cpu), "Error in clReleaseCommandQueue");
 	}
 
 	if (config_backend->kernelLib)
@@ -1132,7 +1133,7 @@ int caldgemm_opencl::ExitRuntime()
 #endif
 	}
 
-	clReleaseContext(ocl_context);
+	CHKRET(clReleaseContext(ocl_context), "Error in clReleaseContext");
 	AlternateLookaheadDoneMutex.Unlock();
 
 	return(0);
@@ -1144,10 +1145,10 @@ int caldgemm_opencl::FetchResult(int device, int j, int m, int n, int mustlock)
 	if (Config->GPU_C == 0 && Config->DstMemory == 'g')
 	{
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-		clEnqueueCopyBuffer(ocl_command_queues[device][j], ocl_cbuffers[device][j], ocl_tmp_cbuffers[device][j], 0, 0, Config->Height * Config->Height * sizeof(double), 0, NULL, &ocl_events[device][j]);
-		clFlush(ocl_command_queues[device][j]);
+		CHKRET(clEnqueueCopyBuffer(ocl_command_queues[device][j], ocl_cbuffers[device][j], ocl_tmp_cbuffers[device][j], 0, 0, Config->Height * Config->Height * sizeof(double), 0, NULL, &ocl_events[device][j]), "Error copying resulg from GPU to host");
+		CHKRET(clFlush(ocl_command_queues[device][j]), "Error in clFlush");
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
-		if (Config->VerboseTiming) clFinish(ocl_command_queues[device][j]);
+		if (Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[device][j]), "Error in clFinish");
 	}
 	return(0);
 }
@@ -1372,7 +1373,7 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 	
 	for (int i = 0;i < std::min<int>(nTiles, nDevicesInitialized);i++)
 	{
-		clFinish(ocl_async_queue[useDeviceStart]);
+		CHKRET(clFinish(ocl_async_queue[useDeviceStart]), "Error in clFinish");
 		useDeviceStart = (useDeviceStart + 1) % nDevicesInitialized;
 	}
 	
@@ -1651,7 +1652,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 
 		for (int i = 0;i < std::min<int>(nTiles, nDevicesInitialized);i++)
 		{
-			clFinish(ocl_async_queue[useDeviceStart]);
+			CHKRET(clFinish(ocl_async_queue[useDeviceStart]), "Error in clFinish");
 			useDeviceStart = (useDeviceStart + 1) % nDevicesInitialized;
 		}
 
@@ -1732,12 +1733,14 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 	
 	int nTransferEvents;
 	cl_event transferEvents[obuffercount - 1];
+	bool freeTransferEvents;
 	
 	if (prepareM)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 		Timers.divideA++;
 		nTransferEvents = 0;
+		freeTransferEvents = true;
 
 		int dest_image_id;
 		cl_mem *dest_image;
@@ -1763,13 +1766,18 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 						//printf("DEBUG: ABuffer blockm %d Need to wait for device %d Buffer %d Context %d\n", (int) blockm, num_device, dest_image_id, i);
 						if (i == j)
 						{
-							clReleaseEvent(simple_queue_event_kernels[num_device][dest_image_id][i]);
+							CHKRET(clReleaseEvent(simple_queue_event_kernels[num_device][dest_image_id][i]), "Error in clReleaseEvent");
 						}
 						else
 						{
 							transferEvents[nTransferEvents++] = simple_queue_event_kernels[num_device][dest_image_id][i];
 						}
 						simple_queue_event_kernels[num_device][dest_image_id][i] = 0;
+					}
+					else if (Config->PipelinedOperation && finishData->running && i != j)
+					{
+						transferEvents[nTransferEvents++] = ((finishStructOpenCL*) finishData)->EndMarker[num_device][i];
+						freeTransferEvents = false;
 					}
 				}
 			}
@@ -1808,7 +1816,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			if (Config->VerboseTiming)
 			{
-				clFinish(ocl_command_queues[num_device][j]);
+				CHKRET(clFinish(ocl_command_queues[num_device][j]), "Error in clFinish");
 				Timers.CounterCopyTo.Stop();
 			}
 		}
@@ -1834,7 +1842,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			}
 			//printf("DEBUG: ABuffer device %d buffer %d blockm %d wait for %d kernels\n", num_device, j, (int) blockm, nTransferEvents);
 			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : NULL), "Error copying A");
-			for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event A");
+			if (freeTransferEvents) for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event A");
 			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 			if (arg_transpose || KernelSettings.texture_buffers)
 			{
@@ -1868,7 +1876,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		ocl_conversion_events_use[num_device][0] = 1;
-		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
+		if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][j]), "Error in clFinish");
 	}
 
 	if (!Config->SimpleGPUQueuing && ocl_conversion_events_use[num_device][1])
@@ -1879,6 +1887,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 	if (prepareN)
 	{
 		nTransferEvents = 0;
+		freeTransferEvents = true;
 		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
 		Timers.divideB++;
 
@@ -1902,13 +1911,18 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 						//printf("DEBUG: ABuffer blockn %d Need to wait for device %d Buffer %d Context %d\n", (int) blockn, num_device, dest_image_id, i);
 						if (i == j)
 						{
-							clReleaseEvent(simple_queue_event_kernels[num_device][dest_image_id][i]);
+							CHKRET(clReleaseEvent(simple_queue_event_kernels[num_device][dest_image_id][i]), "Error in clReleaseEvent");
 						}
 						else
 						{
 							transferEvents[nTransferEvents++] = simple_queue_event_kernels[num_device][dest_image_id][i];
 						}
 						simple_queue_event_kernels[num_device][dest_image_id][i] = 0;
+					}
+					else if (Config->PipelinedOperation && finishData->running && i != j)
+					{
+						transferEvents[nTransferEvents++] = ((finishStructOpenCL*) finishData)->EndMarker[num_device][i];
+						freeTransferEvents = false;
 					}
 				}
 			}
@@ -1953,7 +1967,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			if (Config->VerboseTiming)
 			{
-				clFinish(ocl_command_queues[num_device][j]);
+				CHKRET(clFinish(ocl_command_queues[num_device][j]), "Error in clFinish");
 				Timers.CounterCopyTo.Stop();
 			}
 		}
@@ -1980,7 +1994,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 			//printf("DEBUG: BBuffer device %d buffer %d blockn %d wait for %d kernels\n", num_device, j, (int) blockn, nTransferEvents);
 			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : NULL), "Error copying B");
-			for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event B");
+			if (freeTransferEvents) for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event B");
 			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
 
 			if (arg_transpose || KernelSettings.texture_buffers)
@@ -2015,7 +2029,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		ocl_conversion_events_use[num_device][1] = 1;
-		if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
+		if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][j]), "Error in clFinish");
 	}
 
 	if (Config->GPU_C && Config->DstMemory == 'g')
@@ -2026,12 +2040,12 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 		CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], ocl_cbuffers[num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, NULL), "Error copying C");
-		clFlush(ocl_command_queues[num_device][j]);
+		CHKRET(clFlush(ocl_command_queues[num_device][j]), "Error in clFlush");
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}
 	if (Config->VerboseTiming && Config->GPU_C == 1)
 	{
-		clFinish(ocl_command_queues[num_device][j]);
+		CHKRET(clFinish(ocl_command_queues[num_device][j]), "Error in clFinish");
 		Timers.CounterCopyTo.Stop();
 	}
 
@@ -2046,47 +2060,47 @@ int caldgemm_opencl::ExitDevices()
 	{
 		for (int j = 0;j < ibuffercount;j++)
 		{
-			clReleaseMemObject(ocl_abuffers[i][j]);
+			CHKRET(clReleaseMemObject(ocl_abuffers[i][j]), "Error in clReleaseMemObject");
 		}
 		for (int j = 0;j < obuffercount;j++)
 		{
-			if (Config->DstMemory == 'g') clReleaseMemObject(ocl_cbuffers[i][j]);
+			if (Config->DstMemory == 'g') CHKRET(clReleaseMemObject(ocl_cbuffers[i][j]), "Error in clReleaseMemObject");
 			if (Config->GPU_C == 0)
 			{
-				clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_cbuffers[i][j], ocl_tmp_cbuffers_ptr[i][j], 0, NULL, NULL);
-				clFinish(ocl_command_queues[i][0]);
-				clReleaseMemObject(ocl_tmp_cbuffers[i][j]);
+				CHKRET(clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_cbuffers[i][j], ocl_tmp_cbuffers_ptr[i][j], 0, NULL, NULL), "Error in clEnqueueUnmapMemObject");
+				CHKRET(clFinish(ocl_command_queues[i][0]), "Error in clFinish");
+				CHKRET(clReleaseMemObject(ocl_tmp_cbuffers[i][j]), "Error in clReleaseMemObject");
 			}
 		}
 		for (int j = 0;j < (Config->GPU_C ? obuffercount : ibuffercount);j++)
 		{
 			if (Config->GPU_C == 0)
 			{
-				clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_abuffers[i][j], ocl_tmp_abuffers_ptr[i][j], 0, NULL, NULL);
-				clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_bbuffers[i][j], ocl_tmp_bbuffers_ptr[i][j], 0, NULL, NULL);
-				clFinish(ocl_command_queues[i][0]);
-				clReleaseMemObject(ocl_tmp_bbuffers[i][j]);
+				CHKRET(clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_abuffers[i][j], ocl_tmp_abuffers_ptr[i][j], 0, NULL, NULL), "Error in clEnqueueUnmapMemObject");
+				CHKRET(clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_bbuffers[i][j], ocl_tmp_bbuffers_ptr[i][j], 0, NULL, NULL), "Error in clEnqueueUnmapMemObject");
+				CHKRET(clFinish(ocl_command_queues[i][0]), "Error in clFinish");
+				CHKRET(clReleaseMemObject(ocl_tmp_bbuffers[i][j]), "Error in clReleaseMemObject");
 			}
-			clReleaseMemObject(ocl_tmp_abuffers[i][j]);
+			CHKRET(clReleaseMemObject(ocl_tmp_abuffers[i][j]), "Error in clReleaseMemObject");
 		}
 		for (int j = 0;j < bbuffers[i];j++)
 		{
-			clReleaseMemObject(ocl_bbuffers[i][j]);
+			CHKRET(clReleaseMemObject(ocl_bbuffers[i][j]), "Error in clReleaseMemObject");
 		}
 		for (int j = 0;j < 3 + 1 + (Config->GPU_C ? 1 : 0);j++)
 		{
-			clReleaseKernel(ocl_kernel[i][j]);
-			if (Config->AsyncSideQueue && j < 2 + (Config->AsyncDTRSM ? 2 : 0)) clReleaseKernel(ocl_async_kernel[i][j]);
-			if (config_backend->kernelLib == NULL && i == nDevices - 1) clReleaseProgram(ocl_program[j]);
+			CHKRET(clReleaseKernel(ocl_kernel[i][j]), "Error in clReleaseKernel");
+			if (Config->AsyncSideQueue && j < 2 + (Config->AsyncDTRSM ? 2 : 0)) CHKRET(clReleaseKernel(ocl_async_kernel[i][j]), "Error in clReleaseKernel");
+			if (config_backend->kernelLib == NULL && i == nDevices - 1) CHKRET(clReleaseProgram(ocl_program[j]), "Error in clReleaseProgram");
 		}
 
 		if (Config->AsyncSideQueue)
 		{
-			clReleaseCommandQueue(ocl_async_queue[i]);
+			CHKRET(clReleaseCommandQueue(ocl_async_queue[i]), "Error in clReleaseCommandQueue");
 
 			for (int j = 0;j < 4;j++)
 			{
-				clReleaseMemObject(ocl_async_buffers[i][j]);
+				CHKRET(clReleaseMemObject(ocl_async_buffers[i][j]), "Error in clReleaseMemObject");
 			}
 		}
 	}
@@ -2097,17 +2111,18 @@ int caldgemm_opencl::UseOutputPthreads() {return(!Config->GPU_C);}
 int caldgemm_opencl::UseInputPthreads() {return(!Config->GPU_C);}
 int caldgemm_opencl::UseMutexPerDevice() {return(0);}
 
-void caldgemm_opencl::CheckAlternateTilesRemainingSimpleQuieing()
+int caldgemm_opencl::CheckAlternateTilesRemainingSimpleQuieing()
 {
 	if (AlternateLookaheadTilesFull)
 	{
-		clWaitForEvents(AlternateLookaheadTilesFull, AlternateLookaheadTilesRemaining_events);
+		CHKRET(clWaitForEvents(AlternateLookaheadTilesFull, AlternateLookaheadTilesRemaining_events), "Error waiting for alternate lookahead tiles events");
 		for (int i = 0;i < AlternateLookaheadTilesFull;i++)
 		{
-			clReleaseEvent(AlternateLookaheadTilesRemaining_events[i]);
+			CHKRET(clReleaseEvent(AlternateLookaheadTilesRemaining_events[i]), "Error releasing alternate lookahead tiles event");
 		}
 	}
 	AlternateLookaheadDoneMutex.Unlock();
+	return(0);
 }
 
 void caldgemm_opencl::Preallocate()
@@ -2240,7 +2255,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 
 				for (int k = 0;k < (int) (j ? nb : mb);k++)
 				{
-					if (simple_queue_events[i][j][k].event != NULL) clReleaseEvent(simple_queue_events[i][j][k].event);
+					if (simple_queue_events[i][j][k].event != NULL) CHKRET(clReleaseEvent(simple_queue_events[i][j][k].event), "Error in clReleaseEvent");
 				}
 			}
 		}
@@ -2250,12 +2265,16 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 			{
 				if (Config->PipelinedOperation && !CPUOnlyRun)
 				{
-					if (Config->PipelinedMidMarker && MidMarker[i][j] == 0) CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &MidMarker[i][j]), "Error enqueuing OpenCL marker");
+					if (Config->PipelinedMidMarker && MidMarker[i][j] == 0)
+					{
+						CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &MidMarker[i][j]), "Error enqueuing OpenCL marker");
+						if (Config->Debug) fprintf(STD_OUT, "Enqueueing Fake Mid Marker at end (Device %d Queue %d) (Event %lld)\n", i, j, (long long int) MidMarker[i][j]);
+					}
 					CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &EndMarker[i][j]), "Error enqueuing OpenCL marker");
 				}
 				else
 				{
-					clFinish(ocl_command_queues[i][j]);
+					CHKRET(clFinish(ocl_command_queues[i][j]), "Error in clFinish");
 				}
 			}
 		}
@@ -2268,12 +2287,12 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 			{
 				if (ocl_conversion_events_use[i][j])
 				{
-					clReleaseEvent(ocl_conversion_events[i][j]);
+					CHKRET(clReleaseEvent(ocl_conversion_events[i][j]), "Error in clReleaseEvent");
 				}
 			}
 			if (Config->NoConcurrentKernels && last_device_kernel[i] != 0 && (Config->DstMemory == 'g' && (Config->GPU_C || Config->ImplicitDriverSync)))
 			{
-				clReleaseEvent(last_device_kernel[i]);
+				CHKRET(clReleaseEvent(last_device_kernel[i]), "Error in clReleaseEvent");
 			}
 		}
 	}
@@ -2302,9 +2321,9 @@ int caldgemm_opencl::RunCALDGEMM_Finish()
 			cl_ulong start, end;
 			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL), "Error getting event profiling info");
 			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
-			clReleaseEvent(((finishStructOpenCL*) finishData)->StartMarker[i][j]);
-			clReleaseEvent(((finishStructOpenCL*) finishData)->EndMarker[i][j]);
-			if (Config->PipelinedMidMarker) clReleaseEvent(((finishStructOpenCL*) finishData)->MidMarker[i][j]);
+			CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->StartMarker[i][j]), "Error in clReleaseEvent");
+			CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->EndMarker[i][j]), "Error in clReleaseEvent");
+			if (Config->PipelinedMidMarker) CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->MidMarker[i][j]), "Error in clReleaseEvent");
 			if (start < minstart) minstart = start;
 			if (end > maxend) maxend = end;
 		}
@@ -2325,31 +2344,37 @@ int caldgemm_opencl::CheckParams()
     return(0);
 }
 
-void caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
+int caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
 {
 	if (Config->PipelinedOperation && finishData->running)
 	{
-		if (((finishStructOpenCL*) finishData)->EndMarkerDone) return;
+		if (((finishStructOpenCL*) finishData)->EndMarkerDone) return(0);
 		if (n < Config->PipelinedMidMarker)
 		{
-			if (((finishStructOpenCL*) finishData)->MidMarkerDone) return;
-			fprintf(STD_OUT, "Waiting for Mid Marked (Need %lld, marker %lld)\n", (long long int) n, (long long int) Config->PipelinedMidMarker);
+			if (((finishStructOpenCL*) finishData)->MidMarkerDone)
+			{
+				if (Config->Debug) fprintf(STD_OUT, "Wait for Mid Marker (already done, Need %lld, marker %lld)\n", (long long int) n, (long long int) Config->PipelinedMidMarker);
+				return(0);
+			}
+			fprintf(STD_OUT, "Waiting for Mid Marker (Need %lld, marker %lld) ", (long long int) n, (long long int) Config->PipelinedMidMarker);
 			for (int i = 0;i < nDevices;i++)
 			{
-				clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->MidMarker[i]);;
+				if (Config->Debug) for (int j = 0;j < obuffercount;j++) fprintf(STD_OUT, "%lld ", (long long int) ((finishStructOpenCL*) finishData)->MidMarker[i][j]);
+				CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->MidMarker[i]), "Error waiting for MidMarker");
 			}
-			fprintf(STD_OUT, "Mid Marker Reached\n");
+			fprintf(STD_OUT, "\nMid Marker Reached\n");
 			((finishStructOpenCL*) finishData)->MidMarkerDone = true;
-			return;
+			return(0);
 		}
-		fprintf(STD_OUT, "Waiting for End Marked (Need %lld, marker %lld)\n", (long long int) n, (long long int) gpu_n);
+		fprintf(STD_OUT, "Waiting for End Marker (Need %lld, marker %lld)\n", (long long int) n, (long long int) gpu_n);
 		for (int i = 0;i < nDevices;i++)
 		{
-			clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]);;
+			CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]), "Error waiting for EndMarker");
 		}
 		fprintf(STD_OUT, "End Marker Reached\n");
 		((finishStructOpenCL*) finishData)->EndMarkerDone = true;
 	}
+	return(0);
 }
 
 #define MAX_GPU_MEM_COUNT 64
@@ -2452,7 +2477,7 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 	}
 }
 
-void caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
+int caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
 {
 	if (gpuaccessible && Config->GPU_C)
 	{
@@ -2462,18 +2487,18 @@ void caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
 			{
 				for (int j = 0;j < nDevices;j++)
 				{
-					clEnqueueUnmapMemObject(ocl_command_queues[j][0], gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL);
-					clFinish(ocl_command_queues[j][0]);
+					CHKRET(clEnqueueUnmapMemObject(ocl_command_queues[j][0], gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL), "Error in clEnqueueUnmapMemObject");
+					CHKRET(clFinish(ocl_command_queues[j][0]), "Error in clFinish");
 				}
 				//clEnqueueUnmapMemObject(ocl_command_queue_cpu, gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL); //see above
-				clFinish(ocl_command_queue_cpu);
-				clReleaseMemObject(gpu_mem[i].mem_obj);
+				//CHKRET(clFinish(ocl_command_queue_cpu), "Error in clFinish");
+				CHKRET(clReleaseMemObject(gpu_mem[i].mem_obj), "Error in clReleaseMemObject");
 				gpu_mem[i] = gpu_mem[--nGPUMEM];
-				return;
+				return(0);
 			}
 		}
 	}
-	caldgemm::FreeMemory(ptr);
+	return(caldgemm::FreeMemory(ptr));
 }
 
 int caldgemm_opencl::CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, int nDevices)

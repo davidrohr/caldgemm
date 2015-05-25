@@ -545,9 +545,9 @@ int caldgemm::CheckParams()
 	return(0);
 }
 
-void caldgemm::WaitForCALDGEMMProgress(size_t n)
+int caldgemm::WaitForCALDGEMMProgress(size_t n)
 {
-	return;	//Default backend does not support pipelined mode, so we do not have to bother.
+	return(0);	//Default backend does not support pipelined mode, so we do not have to bother.
 }
 
 int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
@@ -1753,8 +1753,9 @@ void caldgemm::WaitForLASWP(size_t blockm)
 	}
 }
 
-void caldgemm::CheckAlternateTilesRemainingSimpleQuieing()
+int caldgemm::CheckAlternateTilesRemainingSimpleQuieing()
 {
+	return(0);
 }
 
 void caldgemm::CheckAlternateTilesRemaining(size_t m)
@@ -3358,7 +3359,7 @@ double* caldgemm::AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages
 #endif
 }
 
-void caldgemm::FreeMemory(double* ptr, bool gpuaccessible)
+int caldgemm::FreeMemory(double* ptr, bool gpuaccessible)
 {
 #ifndef USE_OLD_HUGE_MALLOC
 	qmalloc::qFree(ptr);
@@ -3384,6 +3385,7 @@ void caldgemm::FreeMemory(double* ptr, bool gpuaccessible)
 	delete[] ptr;
 #endif
 #endif
+	return(0);
 }
 
 void caldgemm::displayMatrixTiming(const char* name)
