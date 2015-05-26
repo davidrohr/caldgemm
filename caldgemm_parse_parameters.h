@@ -248,6 +248,11 @@ for (unsigned int x = 1; x < argc; ++x)
 		{
 			Config->AsyncSideQueue = true;
 		}
+		else if (argv[x][2] == 'r')
+		{
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->AsyncDGEMMThreshold);
+		}
 		else if (argv[x][2] == 'd')
 		{
 			Config->AsyncDTRSM = true;

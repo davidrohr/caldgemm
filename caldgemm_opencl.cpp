@@ -531,7 +531,7 @@ int caldgemm_opencl::ValidateRuntime()
 		kernelLibQuerySettings = (void (*) (int*, int*, bool*, bool*, bool*, int*, int*, int*, int*)) GetProcAddress(kernelLib, "kernelLibQuerySettings");
 		kernelLibTerminate = (void (*) ()) GetProcAddress(kernelLib, "kernelLibTerminate");
 		kernelLibSuggestedMaxHeight = (size_t (*) ())  GetProcAddress(kernelLib, "suggestedMaxHeight");
-		kernelLibGetAutoHeight = (size_t (*) (size_t, size_t, int)) GetProcAddress(kernelLib, "getAutoHeight");
+		kernelLibGetAutoHeight = (size_t (*) (size_t, size_t, int, size_t)) GetProcAddress(kernelLib, "getAutoHeight");
 		kernelLibModHeight = (void (*) (size_t, size_t)) GetProcAddress(kernelLib, "modHeight");
 		kernelLibInitialize = (int (*) (cl_platform_id)) GetProcAddress(kernelLib, "kernelLibInitialize");
 #else
@@ -539,7 +539,7 @@ int caldgemm_opencl::ValidateRuntime()
 		kernelLibQuerySettings = (void (*) (int*, int*, bool*, bool*, bool*, int*, int*, int*, int*)) dlsym(kernelLib, "kernelLibQuerySettings");
 		kernelLibTerminate = (void (*) ()) dlsym(kernelLib, "kernelLibTerminate");
 		kernelLibSuggestedMaxHeight = (size_t (*) ()) dlsym(kernelLib, "suggestedMaxHeight");
-		kernelLibGetAutoHeight = (size_t (*) (size_t, size_t, int)) dlsym(kernelLib, "getAutoHeight");
+		kernelLibGetAutoHeight = (size_t (*) (size_t, size_t, int, size_t)) dlsym(kernelLib, "getAutoHeight");
 		kernelLibModHeight = (void (*) (size_t, size_t)) dlsym(kernelLib, "modHeight");
 		kernelLibInitialize = (int (*) (cl_platform_id)) dlsym(kernelLib, "kernelLibInitialize");
 #endif
@@ -1403,7 +1403,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			useCPU = 1;
 		}
 		
-		if (m < 192 || n < 192 || k < 192) //Does not make sense for too small matrices
+		if (m < (size_t) Config->AsyncDGEMMThreshold || n < (size_t) Config->AsyncDGEMMThreshold || k < (size_t) Config->AsyncDGEMMThreshold) //Does not make sense for too small matrices
 		{
 			cblas_dgemm(orderColMajor ? CblasColMajor : CblasRowMajor, TransA ? CblasTrans : CblasNoTrans, TransB ? CblasTrans : CblasNoTrans, m, n, k, alpha, (double*) A, Apitch, (double*) B, Bpitch, beta, C, Cpitch);
 			useCPU = 1;
@@ -2506,7 +2506,7 @@ int caldgemm_opencl::CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, in
 {
 	if (config_backend->kernelLib != NULL)
 	{
-		Config->Height = kernelLibGetAutoHeight(MaxGpuM, MaxGpuN, nDevices);
+		Config->Height = kernelLibGetAutoHeight(MaxGpuM, MaxGpuN, nDevices, Config->Width);
 		return(1);
 	}
 	else

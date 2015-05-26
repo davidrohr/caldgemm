@@ -164,7 +164,7 @@ private:
 	void (*kernelLibQuerySettings) (int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y, int* min_tile_size, int* min_k);
 	void (*kernelLibTerminate) ();
 	size_t (*kernelLibSuggestedMaxHeight) ();
-	size_t (*kernelLibGetAutoHeight) (size_t MaxGpuM, size_t MaxGpuN, int nDevices);
+	size_t (*kernelLibGetAutoHeight) (size_t MaxGpuM, size_t MaxGpuN, int nDevices, size_t Width);
 	void (*kernelLibModHeight) (size_t MOD_OVER, size_t MOD_GPU);
 	int (*kernelLibInitialize) (cl_platform_id platform);
 	
