@@ -2506,7 +2506,7 @@ int caldgemm_opencl::CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, in
 {
 	if (config_backend->kernelLib != NULL)
 	{
-		kernelLibGetAutoHeight(MaxGpuM, MaxGpuN, nDevices);
+		Config->Height = kernelLibGetAutoHeight(MaxGpuM, MaxGpuN, nDevices);
 		return(1);
 	}
 	else
