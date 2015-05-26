@@ -437,11 +437,11 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 		{
 #ifdef CL_VERSION_2_0
 			cl_queue_properties flags[] = {CL_QUEUE_PROPERTIES, 0, 0};
-			if (Config->VerboseTiming || Config->PipelinedOperation) flags[1] |= CL_QUEUE_PROFILING_ENABLE;
+			if (Config->VerboseTiming || (Config->PipelinedOperation && CALDGEMM_OPENCL_PROFILED_PIPELINE)) flags[1] |= CL_QUEUE_PROFILING_ENABLE;
 			ocl_command_queues[i][j] = clCreateCommandQueueWithProperties(ocl_context, ocl_devices[i], flags, &ocl_error);
 #else
 			cl_command_queue_properties flags = 0;
-			if (Config->VerboseTiming || Config->PipelinedOperation) flags |= CL_QUEUE_PROFILING_ENABLE;
+			if (Config->VerboseTiming || (Config->PipelinedOperation && CALDGEMM_OPENCL_PROFILED_PIPELINE)) flags |= CL_QUEUE_PROFILING_ENABLE;
 			ocl_command_queues[i][j] = clCreateCommandQueue(ocl_context, ocl_devices[i], flags, &ocl_error);
 #endif
 			CHKRET(ocl_error, "Error creating OpenCL command queue");
@@ -2318,24 +2318,27 @@ int caldgemm_opencl::RunCALDGEMM_Finish()
 		cl_ulong minstart = ~0, maxend = 0; 
 		for (int j = 0;j < obuffercount;j++)
 		{
-			cl_ulong start, end;
-			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL), "Error getting event profiling info");
-			CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
+			if (CALDGEMM_OPENCL_PROFILED_PIPELINE)
+			{
+				cl_ulong start, end;
+				CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL), "Error getting event profiling info");
+				CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
+				if (start < minstart) minstart = start;
+				if (end > maxend) maxend = end;
+			}
 			CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->StartMarker[i][j]), "Error in clReleaseEvent");
 			CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->EndMarker[i][j]), "Error in clReleaseEvent");
 			if (Config->PipelinedMidMarker) CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->MidMarker[i][j]), "Error in clReleaseEvent");
-			if (start < minstart) minstart = start;
-			if (end > maxend) maxend = end;
 		}
 		if (maxend - minstart > gputime) gputime = maxend - minstart;
 	}
-	if (gputime == 0)
+	if (CALDGEMM_OPENCL_PROFILED_PIPELINE && gputime == 0)
 	{
 		fprintf(STD_OUT, "Error obtaining times from OpenCL runtime\n");
 		return(1);
 	}
 	//if ((double) gputime * 1e-9 > finishData->GPUTimer)
-	finishData->GPUTimer = (double) gputime * 1e-9;
+	if (gputime > 0) finishData->GPUTimer = (double) gputime * 1e-9;
 	if (finishData->GPUTimer > finishData->System) finishData->System = finishData->GPUTimer;
 	return(0);
 }
