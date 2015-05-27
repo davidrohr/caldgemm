@@ -59,7 +59,9 @@ for (unsigned int x = 1; x < argc; ++x)
 					else Config->ExcludeCPUCores = (int*) realloc(Config->ExcludeCPUCores, Config->nExcludeCPUCores * sizeof(int));
 					ptr[i] = 0;
 					sscanf(&ptr[j], "%d", &Config->ExcludeCPUCores[Config->nExcludeCPUCores - 1]);
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 					fprintf(STD_OUT, "Excluding CPU Core %d\n", Config->ExcludeCPUCores[Config->nExcludeCPUCores - 1]);
+#endif
 					j = i + 1;
 				}
 			}
@@ -82,11 +84,13 @@ for (unsigned int x = 1; x < argc; ++x)
 					int tmpval;
 					ptr[i] = 0;
 					sscanf(&ptr[j], "%d", &tmpval);
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 					fprintf(STD_OUT, "GPU device %d ID %d\n", devnum, tmpval);
+#endif
 					j = i + 1;
 					if (devnum >= (signed) max_devices)
 					{
-						fprintf(STD_OUT, "Please increase max_devices\n");
+						fprintf(STD_OUT, "ERROR, Please increase max_devices\n");
 						return(1);
 					}
 					Config->DeviceNums[devnum] = tmpval;
@@ -306,7 +310,7 @@ for (unsigned int x = 1; x < argc; ++x)
 		Config->DstMemory = argv[x][0];
 		if (Config->DstMemory != 'c' && Config->DstMemory != 'g')
 		{
-			fprintf(STD_OUT, "Invalid destination memory type\n");
+			fprintf(STD_OUT, "ERROR, Invalid destination memory type\n");
 			return(1);
 		}
 		break;
@@ -352,11 +356,13 @@ for (unsigned int x = 1; x < argc; ++x)
 		sscanf(&argv[x++][2], "%d", &gpuid);
 		if ((unsigned) gpuid >= sizeof(Config->GPUMapping) / sizeof(Config->GPUMapping[0]))
 		{
-			fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+			fprintf(STD_OUT, "ERROR, Invalid GPU ID (%d)\n", gpuid);
 			break;
 		}
 		sscanf(argv[x], "%d", &Config->GPUMapping[gpuid]);
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 		printf("Set CPU core for GPU %d to %d\n", gpuid, Config->GPUMapping[gpuid]);
+#endif
 		break;
 	case 'U':
 		if (x + 1 >= argc) return(1);
@@ -365,33 +371,39 @@ for (unsigned int x = 1; x < argc; ++x)
 			sscanf(&argv[x++][3], "%d", &gpuid);
 			if ((unsigned) gpuid >= sizeof(Config->AllocMapping) / sizeof(Config->AllocMapping[0]))
 			{
-				fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+				fprintf(STD_OUT, "ERROR; Invalid GPU ID (%d)\n", gpuid);
 				break;
 			}
 			sscanf(argv[x], "%d", &Config->AllocMapping[gpuid]);
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			printf("Allocating memory for GPU %d on core %d\n", gpuid, Config->AllocMapping[gpuid]);
+#endif
 		}
 		else if (argv[x][2] == 'B')
 		{
 			sscanf(&argv[x++][3], "%d", &gpuid);
 			if ((unsigned) gpuid >= sizeof(Config->DMAMapping) / sizeof(Config->DMAMapping[0]))
 			{
-				fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+				fprintf(STD_OUT, "ERROR, Invalid GPU ID (%d)\n", gpuid);
 				break;
 			}
 			sscanf(argv[x], "%d", &Config->DMAMapping[gpuid]);
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			printf("DMA Mapping for GPU %d: core %d\n", gpuid, Config->DMAMapping[gpuid]);
+#endif
 		}
 		else
 		{
 			sscanf(&argv[x++][2], "%d", &gpuid);
 			if ((unsigned) gpuid >= sizeof(Config->PostprocessMapping) / sizeof(Config->PostprocessMapping[0]))
 			{
-				fprintf(STD_OUT, "Invalid GPU ID (%d)\n", gpuid);
+				fprintf(STD_OUT, "ERROR, Invalid GPU ID (%d)\n", gpuid);
 				break;
 			}
 			sscanf(argv[x], "%d", &Config->PostprocessMapping[gpuid]);
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			printf("Set CPU core for postprocessing of GPU %d to %d\n", gpuid, Config->PostprocessMapping[gpuid]);
+#endif
 		}
 		break;
 	case 'h':
@@ -448,7 +460,9 @@ for (unsigned int x = 1; x < argc; ++x)
 		else
 		{
 			sscanf(argv[x], "%lf", &Config->GPURatio);
+#ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			fprintf(STD_OUT, "Using GPU Ratio %lf\n", Config->GPURatio);
+#endif
 		}
 		break;
 #ifdef CALDGEMM_PARAMETERS_BENCHMARK
