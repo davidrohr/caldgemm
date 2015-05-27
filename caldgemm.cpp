@@ -3614,7 +3614,12 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DI
 			const int buffer_pos = next_buffer_A[num_device] % (buffersSufficiant ? bbuffers[num_device] : ibuffercount);
 			if (buffersMinor[num_device][next_buffer_A[num_device] % bbuffers[num_device]] != -1)
 			{
-				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockm %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], (int) blockm, buffer_pos);
+				static bool bbuffer_warning_shown = false;
+				if (Config->Debug || !(Config->NoPerformanceWarnings || bbuffer_warning_shown))
+				{
+					bbuffer_warning_shown = true;
+					fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockm %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], (int) blockm, buffer_pos);
+				}
 				buffer_pointers_A[num_device][buffersMinor[num_device][buffer_pos]] = -1;
 				
 			}
@@ -3632,7 +3637,12 @@ int caldgemm::DGEMM_prepare(size_t k, int j, unsigned int num_device CALDGEMM_DI
 			const int buffer_pos = next_buffer_B[num_device] % (buffersSufficiant ? bbuffers[num_device] : ibuffercount);
 			if (buffersMinor[num_device][buffer_pos] != -1)
 			{
-				if (Config->Debug) fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockn %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], (int) blockn, buffer_pos);
+				static bool bbuffer_warning_shown = false;
+				if (Config->Debug || !(Config->NoPerformanceWarnings || bbuffer_warning_shown))
+				{
+					bbuffer_warning_shown = true;
+					fprintf(STD_OUT, "WARNING: Insufficient BBuffers, replacing blockn %d by %d in buffer %d\n", buffersMinor[num_device][buffer_pos], (int) blockn, buffer_pos);
+				}
 				buffer_pointers_B[num_device][buffersMinor[num_device][buffer_pos]] = -1;
 			}
 			buffersMinor[num_device][buffer_pos] = blockn;
