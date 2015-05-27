@@ -82,7 +82,7 @@ class caldgemm
 	static void* merge_wrapper(void* arg);
 	static void* divide_wrapper(void* arg);
 	static void* cblas_wrapper(void* arg);
-	static void* linpack_wrapper(void* arg);
+	static void* linpack_broadcast_wrapper(void* arg);
 public:
 	static const unsigned int max_devices = 8;
 
@@ -558,7 +558,7 @@ protected:
 	void* merge_wrapper_a(mergeParameters* par);
 	void* divide_wrapper_a(divideParameters* par);
 	void* cblas_wrapper_a(cblasParameters* par);
-	void* linpack_wrapper_a();
+	void* linpack_broadcast_wrapper_a();
 
 	pthread_mutex_t globalDriverLock;
 

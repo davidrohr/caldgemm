@@ -803,7 +803,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		linpackParameters.terminate = false;
 		linpackParameters.linpackMutex[1].Lock();
 		pthread_t thr;
-		pthread_create(&thr, NULL, linpack_wrapper, this);
+		pthread_create(&thr, NULL, linpack_broadcast_wrapper, this);
 		if (Config->Debug) fprintf(STD_OUT, "Waiting for linpack slave to start\n");
 		while (linpackParameters.linpackMutex[0].Trylock() != EBUSY) linpackParameters.linpackMutex[0].Unlock();
 		pthread_mutex_init(&scheduleMutex, NULL);
@@ -1074,15 +1074,15 @@ void caldgemm::DMA_wrapper(caldgemm::clsDMAParam* par)
 	if (Config->Debug) fprintf(STD_OUT, "DMA wrapper thread %d terminating\n", par->threadNum);
 }
 
-void* caldgemm::linpack_wrapper(void* arg)
+void* caldgemm::linpack_broadcast_wrapper(void* arg)
 {
-	return ((caldgemm*) arg)->linpack_wrapper_a();
+	return ((caldgemm*) arg)->linpack_broadcast_wrapper_a();
 }
 
-void* caldgemm::linpack_wrapper_a()
+void* caldgemm::linpack_broadcast_wrapper_a()
 {
-	setThreadName("Linpack Wrapper");
-	if (Config->Debug) fprintf(STD_OUT, "Linpack helper thread started\n");
+	setThreadName("Linpack Broadcast Wrapper");
+	if (Config->Debug) fprintf(STD_OUT, "Linpack broadcast helper thread started\n");
 
 	cpu_set_t linpack_mask;
 	CPU_ZERO(&linpack_mask);
