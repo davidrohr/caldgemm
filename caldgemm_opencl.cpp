@@ -2360,22 +2360,23 @@ int caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
 				if (Config->Debug) fprintf(STD_OUT, "Wait for Mid Marker (already done, Need %lld, marker %lld)\n", (long long int) n, (long long int) Config->PipelinedMidMarker);
 				return(0);
 			}
-			fprintf(STD_OUT, "Waiting for Mid Marker (Need %lld, marker %lld) ", (long long int) n, (long long int) Config->PipelinedMidMarker);
+			if (Config->Debug) fprintf(stderr, "Waiting for Mid Marker (Need %lld, marker %lld) ", (long long int) n, (long long int) Config->PipelinedMidMarker);
 			for (int i = 0;i < nDevices;i++)
 			{
-				if (Config->Debug) for (int j = 0;j < obuffercount;j++) fprintf(STD_OUT, "%lld ", (long long int) ((finishStructOpenCL*) finishData)->MidMarker[i][j]);
+				if (Config->Debug) fprintf(stderr, "Dev %d ", i);
+				for (int j = 0;j < obuffercount;j++) fprintf(stderr, "%lld ", (long long int) ((finishStructOpenCL*) finishData)->MidMarker[i][j]);
 				CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->MidMarker[i]), "Error waiting for MidMarker");
 			}
-			fprintf(STD_OUT, "\nMid Marker Reached\n");
+			if (Config->Debug) fprintf(STD_OUT, "\nMid Marker Reached\n");
 			((finishStructOpenCL*) finishData)->MidMarkerDone = true;
 			return(0);
 		}
-		fprintf(STD_OUT, "Waiting for End Marker (Need %lld, marker %lld)\n", (long long int) n, (long long int) gpu_n);
+		if (Config->Debug) fprintf(STD_OUT, "Waiting for End Marker (Need %lld, marker %lld)\n", (long long int) n, (long long int) gpu_n);
 		for (int i = 0;i < nDevices;i++)
 		{
 			CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]), "Error waiting for EndMarker");
 		}
-		fprintf(STD_OUT, "End Marker Reached\n");
+		if (Config->Debug) fprintf(STD_OUT, "End Marker Reached\n");
 		((finishStructOpenCL*) finishData)->EndMarkerDone = true;
 	}
 	return(0);
