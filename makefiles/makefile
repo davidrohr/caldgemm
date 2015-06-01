@@ -70,19 +70,19 @@ CLANGFLAGSUSE					= $(CLANGFLAGSOPT)
 NVCCFLAGSUSE					= $(NVCCFLAGSOPT)
 endif
 
+MKDIR							= $(HIDEECHOB) mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'`
+
+ALLDEP							+= makefiles/makefile $(CONFIGFILE) makefiles/$(ARCHFILE) config.mak
+include							makefiles/$(ARCHFILE)
+GCCFLAGSARCH					+= $(GCCARCHA)
 ifeq ($(CONFIG_CPP11), 1)
 GCCFLAGSCOMMON						+= -std=c++11
 endif
 ifeq ($(CONFIG_OPENMP), 1)
 GCCFLAGSCOMMON						+= -fopenmp
 CLANGFLAGSCOMMON					+= -openmp
+GCCLINK							+= -fopenmp
 endif
-
-MKDIR							= $(HIDEECHOB) mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'`
-
-ALLDEP							+= makefiles/makefile $(CONFIGFILE) makefiles/$(ARCHFILE) config.mak
-include							makefiles/$(ARCHFILE)
-GCCFLAGSARCH					+= $(GCCARCHA)
 
 ifeq ($(TARGETPATH), )
 COPIED_EXECUTABLE				= $(EXECUTABLE)
