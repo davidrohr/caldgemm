@@ -2324,7 +2324,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 
 int caldgemm_opencl::RunCALDGEMM_Exit()
 {
-	if (AlternateLookaheadTilesFull)
+	if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesFull)
 	{
 		for (int i = 0;i < AlternateLookaheadTilesFull;i++)
 		{
