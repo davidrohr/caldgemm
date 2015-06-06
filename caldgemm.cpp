@@ -200,6 +200,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	ImprovedScheduler = false;
 	ImprovedSchedulerBalance = 1;
 	SimpleGPUQueuing = false;
+	AlternateSimpleQueuing = false;
 	NumDevices = max_devices;
 	max_bbuffers = 0;
 	OpenCLPlatform = 0;
