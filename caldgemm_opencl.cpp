@@ -979,7 +979,10 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		}
 		if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
 		{
-			simple_queue_event[wait_num_events++] = alternateSimpleQueueCopyCEvent[Task.device];
+			if (alternateSimpleQueueCopyCEvent[Task.device] != 0)
+			{
+				simple_queue_event[wait_num_events++] = alternateSimpleQueueCopyCEvent[Task.device];
+			}
 			if (alternateSimpleQueueCBuffferEvent[Task.device][Task.j].event != 0)
 			{
 				simple_queue_event[wait_num_events++] = alternateSimpleQueueCBuffferEvent[Task.device][Task.j].event;
@@ -1080,7 +1083,10 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		Timers.device_kernel += end - start;
 		Timers.CounterCopyFrom.Start();
 	}
-	if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g') CHKRET(clReleaseEvent(alternateSimpleQueueCopyCEvent[Task.device]), "Error releasing Event");
+	if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g' && alternateSimpleQueueCopyCEvent[Task.device] != 0)
+	{
+		CHKRET(clReleaseEvent(alternateSimpleQueueCopyCEvent[Task.device]), "Error releasing Event");
+	}
 	
 	if (need_retain_kernel_event)
 	{
@@ -2301,6 +2307,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
 		{
 			memset(alternateSimpleQueueCBuffferEvent, 0, nDevices * obuffercount * sizeof(alternateSimpleQueueCBuffferEventStruct));
+			memset(alternateSimpleQueueCopyCEvent, 0, nDevices);
 		}
 	}
 	
@@ -2335,7 +2342,14 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 	if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && Config->SimpleGPUQueuing && Config->UseCPU) AlternateLookaheadDoneMutex.Lock();
 	if (Config->SimpleGPUQueuing)
 	{
-		if (!(Config->AlternateSimpleQueuing && Config->DstMemory == 'g'))
+		if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
+		{
+			for (int i = 0;i < nDevices;i++)
+			{
+				if (alternateSimpleQueueCopyCEvent[i] != 0) CHKRET(clReleaseEvent(alternateSimpleQueueCopyCEvent[i]), "Error releasing event");
+			}
+		}
+		else
 		{
 			for (int i = 0;i < nDevices;i++)
 			{
