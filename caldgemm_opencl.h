@@ -140,15 +140,15 @@ private:
 	int* simple_queue_event_requested[max_devices][obuffercount][2];
 	cl_event simple_queue_event_kernels[max_devices][ibuffercount][obuffercount];
 	
-	cl_event alternateSimpleQueueCopyCEvent[max_devices];
-	
 	struct alternateSimpleQueueCBuffferEventStruct
 	{
 		cl_event event;
 		bool must_release;
 	};
 	
+	cl_event alternateSimpleQueueCopyCEvent[max_devices][obuffercount];
 	alternateSimpleQueueCBuffferEventStruct alternateSimpleQueueCBuffferEvent[max_devices][obuffercount];
+	alternateSimpleQueueCBuffferEventStruct alternateSimpleQueueCInputBuffferEvent[max_devices][obuffercount];
 	
 	cl_event* AlternateLookaheadTilesRemaining_events;
 	virtual int CheckAlternateTilesRemainingSimpleQuieing();
