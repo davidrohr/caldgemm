@@ -980,10 +980,6 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
 		{
 			simple_queue_event[wait_num_events++] = alternateSimpleQueueCopyCEvent[Task.device][Task.j];
-			if (alternateSimpleQueueCBuffferEvent[Task.device][Task.j].event != 0)
-			{
-				simple_queue_event[wait_num_events++] = alternateSimpleQueueCBuffferEvent[Task.device][Task.j].event;
-			}
 		}
 		else
 		{
@@ -2117,7 +2113,18 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		region[1] = HeightM;
 		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-		CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], ocl_cbuffers[num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, Config->AlternateSimpleQueuing ? &alternateSimpleQueueCopyCEvent[num_device][j] : NULL), "Error copying C");
+	
+		if (Config->AlternateSimpleQueuing && alternateSimpleQueueCBuffferEvent[num_device][j].event != 0)
+		{
+			nTransferEvents = 1;
+			transferEvents[0] = alternateSimpleQueueCBuffferEvent[num_device][j].event;
+		}
+		else
+		{
+			nTransferEvents = 0;
+		}
+
+		CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], ocl_cbuffers[num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, nTransferEvents, nTransferEvents ? transferEvents : NULL, Config->AlternateSimpleQueuing ? &alternateSimpleQueueCopyCEvent[num_device][j] : NULL), "Error copying C");
 		CHKRET(clFlush(ocl_command_queues[num_device][use_queue]), "Error in clFlush");
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}
