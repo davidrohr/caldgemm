@@ -645,14 +645,9 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		gpu_available = false;
 	}
 
-	if (Config->PinDeviceRuntimeThreads != -2 && 0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
-	{
-		fprintf(STD_OUT, "Error setting CPU affinity\n");
-		return(1);
-	}
-	
 	if (!gpu_available)
 	{
+		if (!AllowCPUFallback()) return(1);
 		if (!Config->Quiet && Config->UseGPU) fprintf(STD_OUT, "No GPU available, falling back to CPU\n");
 		nDevices = 0;
 		Config->UseGPU = 0;
@@ -660,6 +655,12 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->KeepBuffersMapped = 0;
 	}
 
+	if (Config->PinDeviceRuntimeThreads != -2 && 0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
+	{
+		fprintf(STD_OUT, "Error setting CPU affinity\n");
+		return(1);
+	}
+	
 	if (Config->ParallelDMA && Config->GroupParallelDMA)
 	{
 		for (int i = 0;i < nDevices;i++)
@@ -3841,6 +3842,11 @@ int caldgemm::ParseParameters(char* params, caldgemm_config* Config)
 	delete[] argv;
 	retVal |= Config->InitializeBackendOptions();
 	return(retVal);
+}
+
+int caldgemm::AllowCPUFallback()
+{
+	return(1);
 }
 
 #ifndef USE_GOTO_BLAS

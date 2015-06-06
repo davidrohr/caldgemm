@@ -2185,6 +2185,8 @@ int caldgemm_opencl::ExitDevices()
 int caldgemm_opencl::UseOutputPthreads() {return(!Config->GPU_C);}
 int caldgemm_opencl::UseInputPthreads() {return(!Config->GPU_C);}
 int caldgemm_opencl::UseMutexPerDevice() {return(0);}
+int caldgemm_opencl::AllowCPUFallback() {return(0);}
+
 
 int caldgemm_opencl::CheckAlternateTilesRemainingSimpleQuieing()
 {

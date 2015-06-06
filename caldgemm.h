@@ -322,6 +322,7 @@ protected:
 
 	virtual int UseOutputPthreads() = 0;
 	virtual int UseInputPthreads() = 0;
+	virtual int AllowCPUFallback();
 	virtual int UseMutexPerDevice() = 0;
 
 	virtual int ValidateRuntime() = 0;
