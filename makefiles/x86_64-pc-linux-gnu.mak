@@ -90,7 +90,7 @@ EXECUTABLE						= $(TARGET)
 endif
 LIBGLIBC						=
 
-LIBSUSE							+= $(LIBGLIBC) -lrt -ldl
+LIBSUSE							+= $(LIBGLIBC) -lrt -ldl -lpthread
 
 ifeq ($(CC_x86_64-pc-linux-gnu), ICC)
 CC								= $(ICC)
