@@ -265,6 +265,10 @@ for (unsigned int x = 1; x < argc; ++x)
 		{
 			Config->SimpleGPUQueuing = true;
 		}
+		else if (argv[x][2] == 'Q')
+		{
+			Config->AlternateSimpleQueuing = true;
+		}
 		else if (argv[x][2] == 'p')
 		{
 			if (++x >= argc) return(1);

@@ -953,13 +953,15 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d offset %lld\n", height1, height2, width, Alpha, Beta, pitch, (long long int) offset);
 	cl_event* kernel_event;
 	int need_retain_kernel_event = 0;
+	int need_release_kernel_event_after_transfer = 0;
 	cl_event tmp_event;
 	int wait_num_events = 0;
 	cl_event* wait_event = NULL;
-	cl_event simple_queue_event[2];
+	cl_event simple_queue_event[3]; //2 for M and N, 3rd for C with AlternateSimpleQueuing
 
 	cl_event* simple_queue_lookahead_event = NULL;
 
+	int use_queue = Config->AlternateSimpleQueuing ? 2 : Task.j;
 	if (Config->SimpleGPUQueuing)
 	{
 		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesRemaining && blockm < AlternateLookaheadBlocksM)
@@ -975,15 +977,19 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		{
 			kernel_event = simple_queue_lookahead_event;
 		}
-		if (Task.j != simple_queue_events[Task.device][0][blockm].num_queue && simple_queue_event_requested[Task.device][Task.j][0][blockm] == 0)
+		if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][0][blockm].num_queue) && simple_queue_event_requested[Task.device][use_queue][0][blockm] == 0)
 		{
 			simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][0][blockm].event;
 			simple_queue_event_requested[Task.device][Task.j][0][blockm] = 1;
 		}
-		if (Task.j != simple_queue_events[Task.device][1][blockn].num_queue && simple_queue_event_requested[Task.device][Task.j][1][blockn] == 0)
+		if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][1][blockn].num_queue) && simple_queue_event_requested[Task.device][use_queue][1][blockn] == 0)
 		{
 			simple_queue_event_requested[Task.device][Task.j][1][blockn] = 1;
 			simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][1][blockn].event;
+		}
+		if (Config->AlternateSimpleQueuing)
+		{
+			simple_queue_event[wait_num_events++] = alternateSimpleQueueCopyCEvent;
 		}
 		if (wait_num_events) wait_event = simple_queue_event;
 		
@@ -1046,12 +1052,20 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	{
 		CHKRET(clFinish(ocl_command_queues[Task.device][Task.j]), "Error in clFinish");
 		Timers.Kernel.Start();
-		if (kernel_event == NULL) kernel_event = &tmp_event;
 	}
-	CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[Task.device][Task.j], ocl_kernel[Task.device][Task.kernel_num], 2, NULL, &global_size[0], &local_size[0], wait_num_events, wait_event, kernel_event), "Error starting MM Kernel");
+	if (Config->VerboseTiming || (Config->AlternateSimpleQueuing && Config->DstMemory == 'g'))
+	{
+		if (kernel_event == NULL)
+		{
+			kernel_event = &tmp_event;
+			need_release_kernel_event_after_transfer = 1;
+		}		
+	}
+	
+	CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[Task.device][use_queue], ocl_kernel[Task.device][Task.kernel_num], 2, NULL, &global_size[0], &local_size[0], wait_num_events, wait_event, kernel_event), "Error starting MM Kernel");
 	if (Config->VerboseTiming)
 	{
-		CHKRET(clFinish(ocl_command_queues[Task.device][Task.j]), "Error in clFinish");
+		CHKRET(clFinish(ocl_command_queues[Task.device][use_queue]), "Error in clFinish");
 		Timers.Kernel.Stop();
 		cl_ulong start, end;
 		CHKRET(clGetEventProfilingInfo(*kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start, NULL), "Error getting kernel profiling info");
@@ -1083,7 +1097,19 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			size_t region[3] = {(size_t) height1 * sizeof(double), (size_t) height2, 1};
 			if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-			CHKRET(clEnqueueReadBufferRectUse(ocl_command_queues[Task.device][Task.j], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, Config->SimpleGPUQueuing ? simple_queue_lookahead_event : &ocl_events[Task.device][Task.j]), "Error retrieving C");
+			if (Config->AlternateSimpleQueuing)
+			{
+				CHKRET(clFlush(ocl_command_queues[Task.device][use_queue]), "Error in clFlush");
+				use_queue = 1;
+				wait_num_events = 1;
+				wait_event = kernel_event;
+			}
+			else
+			{
+				wait_num_events = 0;
+				wait_event = NULL;
+			}
+			CHKRET(clEnqueueReadBufferRectUse(ocl_command_queues[Task.device][use_queue], ocl_cbuffers[Task.device][Task.j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, wait_num_events, wait_event, Config->SimpleGPUQueuing ? simple_queue_lookahead_event : &ocl_events[Task.device][Task.j]), "Error retrieving C");
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		else if (Config->ImplicitDriverSync)
@@ -1091,16 +1117,17 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			if (FetchResult(Task.device, Task.j, blockm, blockn)) {fprintf(STD_OUT, "Error copying from GPU\n"); return(1);}
 		}
 	}
-	if (Config->PipelinedMidMarker && blockm * Config->Height >= Config->PipelinedMidMarker && MidMarker[Task.device][Task.j] == 0)
+	if (need_release_kernel_event_after_transfer) CHKRET(clReleaseEvent(*kernel_event), "Error releasing event");
+	if (Config->PipelinedMidMarker && blockm * Config->Height >= Config->PipelinedMidMarker && MidMarker[Task.device][use_queue] == 0)
 	{
-		CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[Task.device][Task.j], 0, NULL, &MidMarker[Task.device][Task.j]), "Error enqueuing OpenCL mid marker");
+		CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[Task.device][use_queue], 0, NULL, &MidMarker[Task.device][Task.j]), "Error enqueuing OpenCL mid marker");
 		if (Config->Debug) fprintf(STD_OUT, "Mid Marker Device %d queue %d block %d (Event %lld)\n", Task.device, Task.j, (int) blockm, (long long int) MidMarker[Task.device][Task.j]);
 	}
 
-	CHKRET(clFlush(ocl_command_queues[Task.device][Task.j]), "Error in clFlush");
+	CHKRET(clFlush(ocl_command_queues[Task.device][use_queue]), "Error in clFlush");
 	if (Config->VerboseTiming)
 	{
-		CHKRET(clFinish(ocl_command_queues[Task.device][Task.j]), "Error in clFinish");
+		CHKRET(clFinish(ocl_command_queues[Task.device][use_queue]), "Error in clFinish");
 		Timers.CounterCopyFrom.Stop();
 	}
 
@@ -1784,6 +1811,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		}
 
 		const int arg_transpose = TransposeA ^ KernelSettings.transposeA;
+		int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
 
 		if (Config->GPU_C == 0)
 		{
@@ -1831,6 +1859,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (arg_transpose == 0 && KernelSettings.texture_buffers == false) dest_buffer_tmp = *dest_image;
 
 			cl_event* ev;
+			cl_event ev2;
 			if (Config->SimpleGPUQueuing)
 			{
 				ev = &simple_queue_events[num_device][0][blockm].event;
@@ -1841,9 +1870,9 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				ev = &ocl_conversion_events[num_device][0];
 			}
 			//printf("DEBUG: ABuffer device %d buffer %d blockm %d wait for %d kernels\n", num_device, j, (int) blockm, nTransferEvents);
-			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : NULL), "Error copying A");
+			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : (Config->AlternateSimpleQueuing ? &ev2 : NULL)), "Error copying A");
 			if (freeTransferEvents) for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event A");
-			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
+			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][use_queue]);
 			if (arg_transpose || KernelSettings.texture_buffers)
 			{
 				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, A, 0");
@@ -1871,12 +1900,13 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				}
 
 				if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", arg_width, arg_height, arg_transpose);
-				CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, ev), "Error starting conversion kernel for A");
+				if (Config->AlternateSimpleQueuing) use_queue = 2;
+				CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][use_queue], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], Config->AlternateSimpleQueuing ? 1 : 0, Config->AlternateSimpleQueuing ? &ev2 : NULL, ev), "Error starting conversion kernel for A");
 			}
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		ocl_conversion_events_use[num_device][0] = 1;
-		if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][j]), "Error in clFinish");
+		if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 	}
 
 	if (!Config->SimpleGPUQueuing && ocl_conversion_events_use[num_device][1])
@@ -1934,6 +1964,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		}
 
 		const int arg_transpose = TransposeB ^ KernelSettings.transposeB;
+		int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
 
 		if (Config->GPU_C == 0)
 		{
@@ -1982,6 +2013,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (arg_transpose == 0 && KernelSettings.texture_buffers == false) dest_buffer_tmp = *dest_image;
 
 			cl_event* ev;
+			cl_event ev2;
 			if (Config->SimpleGPUQueuing)
 			{
 				ev = &simple_queue_events[num_device][1][blockn].event;
@@ -1993,9 +2025,9 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			}
 
 			//printf("DEBUG: BBuffer device %d buffer %d blockn %d wait for %d kernels\n", num_device, j, (int) blockn, nTransferEvents);
-			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : NULL), "Error copying B");
+			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : (Config->AlternateSimpleQueuing ? &ev2 : NULL)), "Error copying B");
 			if (freeTransferEvents) for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event B");
-			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][j]);
+			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][use_queue]);
 
 			if (arg_transpose || KernelSettings.texture_buffers)
 			{
@@ -2024,14 +2056,16 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				}
 				if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
 
-				CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][j], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], 0, NULL, ev), "Error starting conversion kernel for B");
+				if (Config->AlternateSimpleQueuing) use_queue = 2;
+				CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][use_queue], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], Config->AlternateSimpleQueuing ? 1 : 0, Config->AlternateSimpleQueuing ? &ev2 : NULL, ev), "Error starting conversion kernel for B");
 			}
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
 		ocl_conversion_events_use[num_device][1] = 1;
-		if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][j]), "Error in clFinish");
+		if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 	}
 
+	int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
 	if (Config->GPU_C && Config->DstMemory == 'g')
 	{
 		Timers.divideC++;
@@ -2039,13 +2073,13 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		region[1] = HeightM;
 		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-		CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][j], ocl_cbuffers[num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, NULL), "Error copying C");
-		CHKRET(clFlush(ocl_command_queues[num_device][j]), "Error in clFlush");
+		CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], ocl_cbuffers[num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, 0, NULL, Config->AlternateSimpleQueuing ? &alternateSimpleQueueCopyCEvent : NULL), "Error copying C");
+		CHKRET(clFlush(ocl_command_queues[num_device][use_queue]), "Error in clFlush");
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}
 	if (Config->VerboseTiming && Config->GPU_C == 1)
 	{
-		CHKRET(clFinish(ocl_command_queues[num_device][j]), "Error in clFinish");
+		CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 		Timers.CounterCopyTo.Stop();
 	}
 

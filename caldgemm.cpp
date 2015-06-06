@@ -598,13 +598,14 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->DynamicSched = false;
 		Config->SmallTiles = 1;
 	}
+	if (Config->AlternateSimpleQueuing) Config->SimpleGPUQueuing = true;
 	if (!Config->SimpleGPUQueuing) Config->PipelinedOperation = false;
 	if (!Config->PipelinedOperation) Config->PipelinedMidMarker = 0;
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
 	if (Config->ParallelDMA || Config->SimpleGPUQueuing) Config->ImprovedScheduler = true;
-	if (Config->AsyncSideQueue && (Config->GPU_C == 0 || UseInputPthreads() || UseOutputPthreads()))
+	if ((Config->AsyncSideQueue || Config->SimpleGPUQueuing) && (Config->GPU_C == 0 || UseInputPthreads() || UseOutputPthreads()))
 	{
-		fprintf(STD_OUT, "ASYNC Side queue can only work with GPU_C\n");
+		fprintf(STD_OUT, "ASYNC Side queue / Simple GPU Queuing can only work with GPU_C\n");
 		Config->AsyncSideQueue = false;
 	}
 	if (!Config->AsyncSideQueue) Config->AsyncDTRSM = false;
@@ -3681,6 +3682,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(ImprovedScheduler);
 	PRINT_CONFIG_INT(ImprovedSchedulerBalance);
 	PRINT_CONFIG_INT(SimpleGPUQueuing);
+	PRINT_CONFIG_INT(AlternateSimpleQueuing);
 	PRINT_CONFIG_INT(ParallelDMA);
 	PRINT_CONFIG_INT(GroupParallelDMA);
 	PRINT_CONFIG_DOUBLE(GPURatio);

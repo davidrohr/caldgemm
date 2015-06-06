@@ -179,6 +179,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Ol lib   Set library name used to obtain OpenCL DGEMM kernel\n");
 	fprintf(STD_OUT, "\t-Oe       Do not allow multiple concurrent OpenCL kernels\n");
 	fprintf(STD_OUT, "\t-Oq       Use simple GPU Queuing\n");
+	fprintf(STD_OUT, "\t-OQ       Use alternate simple GPU Queuing\n");
 	fprintf(STD_OUT, "\t-Op <int> Preallocate buffers for at max <int> blocks (nb/mb)\n");
 	fprintf(STD_OUT, "\t-Oa       Create async side queues and use such a queue to test a single-tile dgemm\n");
 	fprintf(STD_OUT, "\t-Or <int> Threshold for using GPU for async DGEMM\n");
