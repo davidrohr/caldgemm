@@ -1086,6 +1086,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g' && alternateSimpleQueueCopyCEvent[Task.device] != 0)
 	{
 		CHKRET(clReleaseEvent(alternateSimpleQueueCopyCEvent[Task.device]), "Error releasing Event");
+		alternateSimpleQueueCopyCEvent[Task.device] = 0;
 	}
 	
 	if (need_retain_kernel_event)
@@ -2307,7 +2308,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
 		{
 			memset(alternateSimpleQueueCBuffferEvent, 0, nDevices * obuffercount * sizeof(alternateSimpleQueueCBuffferEventStruct));
-			memset(alternateSimpleQueueCopyCEvent, 0, nDevices);
+			memset(alternateSimpleQueueCopyCEvent, 0, nDevices * sizeof(cl_event));
 		}
 	}
 	
