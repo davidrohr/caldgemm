@@ -1015,7 +1015,11 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			}
 			if (num < ibuffercount)
 			{
-				cl_event* ev = &simple_queue_event_kernels[Task.device][DGEMM_favor_m ? (buffer_pointers_A[Task.device][blockm] % ibuffercount) : (buffer_pointers_B[Task.device][blockn] % ibuffercount)][Task.j];
+				cl_event* ev = &simple_queue_event_kernels[Task.device][DGEMM_favor_m ? (buffer_pointers_A[Task.device][blockm] % ibuffercount) : (buffer_pointers_B[Task.device][blockn] % ibuffercount)][use_queue];
+				if (Config->AlternateSimpleQueuing && *ev != NULL)
+				{
+					CHKRET(clReleaseEvent(*ev), "Error releasing event");
+				}
 				if (kernel_event == NULL)
 				{
 					kernel_event = ev;
@@ -1814,10 +1818,11 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			{
 				for (int i = 0;i < obuffercount;i++)
 				{
+					if (Config->AlternateSimpleQueuing) i = 2;
 					if (simple_queue_event_kernels[num_device][dest_image_id][i] != NULL)
 					{
 						//printf("DEBUG: ABuffer blockm %d Need to wait for device %d Buffer %d Context %d\n", (int) blockm, num_device, dest_image_id, i);
-						if (i == j)
+						if (!Config->AlternateSimpleQueuing && i == j)
 						{
 							CHKRET(clReleaseEvent(simple_queue_event_kernels[num_device][dest_image_id][i]), "Error in clReleaseEvent");
 						}
@@ -1972,7 +1977,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 					if (simple_queue_event_kernels[num_device][dest_image_id][i] != NULL)
 					{
 						//printf("DEBUG: ABuffer blockn %d Need to wait for device %d Buffer %d Context %d\n", (int) blockn, num_device, dest_image_id, i);
-						if (i == j)
+						if (!Config->AlternateSimpleQueuing && i == j)
 						{
 							CHKRET(clReleaseEvent(simple_queue_event_kernels[num_device][dest_image_id][i]), "Error in clReleaseEvent");
 						}
