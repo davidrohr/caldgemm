@@ -150,6 +150,9 @@ private:
 	alternateSimpleQueueCBuffferEventStruct alternateSimpleQueueCBuffferEvent[max_devices][obuffercount];
 	cl_event alternateSimpleQueueEvent_tmp_abuffers[max_devices][obuffercount];
 	cl_event alternateSimpleQueueEvent_tmp_bbuffers[max_devices][obuffercount];
+	
+	bool pipelinedModeStartBarrierDone[max_devices][obuffercount];
+	void pipelinedModeSetStartBarriers(unsigned int num_device, int j, int &nTransferEvents, cl_event* transferEvents, bool &freeTransferEvents);
 
 	cl_event* AlternateLookaheadTilesRemaining_events;
 	virtual int CheckAlternateTilesRemainingSimpleQuieing();

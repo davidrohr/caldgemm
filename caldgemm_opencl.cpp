@@ -1775,6 +1775,25 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 	return(0);
 }
 
+inline void caldgemm_opencl::pipelinedModeSetStartBarriers(unsigned int num_device, int j, int &nTransferEvents, cl_event* transferEvents, bool &freeTransferEvents)
+{
+	if (Config->PipelinedOperation && finishData->running && nTransferEvents == 0 && pipelinedModeStartBarrierDone[num_device][Config->AlternateSimpleQueuing ? 0 : j] == 0)
+	{
+		for (int i = 0;i < obuffercount;i++)
+		{
+			if (Config->AlternateSimpleQueuing) i = Config->DstMemory == 'g' ? 1 : 2;
+			if (Config->AlternateSimpleQueuing || i != j)
+			{
+				transferEvents[nTransferEvents++] = ((finishStructOpenCL*) finishData)->EndMarker[num_device][i];
+				freeTransferEvents = false;
+			}
+			if (Config->AlternateSimpleQueuing) break;
+		}
+		pipelinedModeStartBarrierDone[num_device][Config->AlternateSimpleQueuing ? 0 : j] = 1;
+	}
+}
+
+
 int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device, bool prepareM, bool prepareN, bool buffersSufficiant, bool buffersSufficiant0 CALDGEMM_DIVBUFA)
 {
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL DGEMM_prepare k=%lld j=%d device=%d\n", (long long int) k, j, num_device);
@@ -1797,7 +1816,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 	}
 	
 	int nTransferEvents;
-	cl_event transferEvents[obuffercount];
+	cl_event transferEvents[obuffercount + 1];
 	bool freeTransferEvents;
 	int forceFreeTransferEvent = -1;
 	
@@ -1841,14 +1860,11 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 						}
 						simple_queue_event_kernels[num_device][dest_image_id][i] = 0;
 					}
-					else if (Config->PipelinedOperation && finishData->running && i != j)
-					{
-						transferEvents[nTransferEvents++] = ((finishStructOpenCL*) finishData)->EndMarker[num_device][i];
-						freeTransferEvents = false;
-					}
 				}
 			}
 		}
+		
+		pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
 		
 		const int arg_transpose = TransposeA ^ KernelSettings.transposeA;
 		int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
@@ -2020,11 +2036,6 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 						}
 						simple_queue_event_kernels[num_device][dest_image_id][i] = 0;
 					}
-					else if (Config->PipelinedOperation && finishData->running && i != j)
-					{
-						transferEvents[nTransferEvents++] = ((finishStructOpenCL*) finishData)->EndMarker[num_device][i];
-						freeTransferEvents = false;
-					}
 				}
 			}
 		}
@@ -2033,6 +2044,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			dest_image_id = buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % ibuffercount);
 			dest_image = &ocl_bbuffers[num_device][dest_image_id];
 		}
+
+		pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
 
 		const int arg_transpose = TransposeB ^ KernelSettings.transposeB;
 		int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
@@ -2184,6 +2197,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		{
 			nTransferEvents = 0;
 		}
+
+		pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
 
 		CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], ocl_cbuffers[num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, nTransferEvents, nTransferEvents ? transferEvents : NULL, Config->AlternateSimpleQueuing ? &alternateSimpleQueueCopyCEvent[num_device][j] : NULL), "Error copying C");
 		CHKRET(clFlush(ocl_command_queues[num_device][use_queue]), "Error in clFlush");
