@@ -1,16 +1,18 @@
+#define GET_BOOLEAN(default) ((x + 1 < argc && argv[x + 1][0] != '-') ? (atoi(argv[++x]) > 0) : (default))
+
 for (unsigned int x = 1; x < argc; ++x)
 {
 	//fprintf(STD_OUT, "Parsing option %s\n", argv[x]);
 	switch(argv[x][1])
 	{
 	case 'q':
-		Config->Quiet = true;
+		Config->Quiet = GET_BOOLEAN(true);
 		break;
 	case 'e':
-		Config->Verify = true;
+		Config->Verify = GET_BOOLEAN(true);
 		break;
 	case 'p':
-		Config->MemPolicy = true;
+		Config->MemPolicy = GET_BOOLEAN(true);
 		break;
 	case 'b':
 		if (argv[x][2] == 'b')
@@ -21,7 +23,7 @@ for (unsigned int x = 1; x < argc; ++x)
 		else
 		{
 #ifdef CALDGEMM_PARAMETERS_BENCHMARK
-			benchmark = true;
+			benchmark = GET_BOOLEAN(true);
 #else
 			fprintf(STD_OUT, "Option %s only supported in DGEMM bench\n", argv[x]);
 			return(1);
@@ -29,7 +31,7 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		break;
 	case 'u':
-		Config->DumpMatrix = true;
+		Config->DumpMatrix = GET_BOOLEAN(true);
 		break;
 	case '*':
 		if (++x >= argc) return(1);
@@ -101,13 +103,13 @@ for (unsigned int x = 1; x < argc; ++x)
 		break;
 	}
 	case 'a':
-		Config->Disassemble = true;
+		Config->Disassemble = GET_BOOLEAN(true);
 		break;
 	case '9':
-		Config->TabularTiming = true;
+		Config->TabularTiming = GET_BOOLEAN(true);
 		break;
 	case '0':
-		Config->DivideToGPU = true;
+		Config->DivideToGPU = GET_BOOLEAN(true);
 		break;
 	case 'X':
 		if (argv[x][2] == 'b')
@@ -117,13 +119,13 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		else
 		{
-			Config->ImprovedScheduler = true;
+			Config->ImprovedScheduler = GET_BOOLEAN(true);
 		}
 		break;
 	case 'A':
 		if (argv[x][2] == 'p')
 		{
-			Config->PipelinedOperation = true;
+			Config->PipelinedOperation = GET_BOOLEAN(true);
 		}
 		else if (argv[x][2] == 'q')
 		{
@@ -132,17 +134,17 @@ for (unsigned int x = 1; x < argc; ++x)
 		}		
 		else
 		{
-			Config->AsyncDMA = true;
+			Config->AsyncDMA = GET_BOOLEAN(true);
 		}
 		break;
 	case '.':
-		Config->RepinDuringActiveWaitForEvent = true;
+		Config->RepinDuringActiveWaitForEvent = GET_BOOLEAN(true);
 		break;
 	case '~':
-		Config->RepinMainThreadAlways = true;
+		Config->RepinMainThreadAlways = GET_BOOLEAN(true);
 		break;
 	case ':':
-		Config->NumaPinning = true;
+		Config->NumaPinning = GET_BOOLEAN(true);
 		break;
 	case ',':
 		if (++x >= argc) return(1);
@@ -153,10 +155,10 @@ for (unsigned int x = 1; x < argc; ++x)
 		sscanf(argv[x], "%d", (int*) &Config->SmallTiles);
 		break;
 	case 'B':
-		Config->KeepBuffersMapped = true;
+		Config->KeepBuffersMapped = GET_BOOLEAN(true);
 		break;
 	case '%':
-		Config->SkipCPUProcessing = true;
+		Config->SkipCPUProcessing = GET_BOOLEAN(true);
 		break;
 	case 'C':
 		if (argv[x][2] == 'a')
@@ -195,29 +197,29 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		else
 		{
-			Config->PrintILKernel = true;
+			Config->PrintILKernel = GET_BOOLEAN(true);
 		}
 		break;
 	case 'c':
-		Config->UseCPU = true;
+		Config->UseCPU = GET_BOOLEAN(true);
 		break;
 	case 'l':
-		Config->AutoHeight = true;
+		Config->AutoHeight = GET_BOOLEAN(true);
 		break;
 	case 's':
-		Config->DynamicSched = true;
+		Config->DynamicSched = GET_BOOLEAN(true);
 		break;
 	case 'M':
-		Config->ThirdPhaseDynamicRuns = false;
+		Config->ThirdPhaseDynamicRuns = !GET_BOOLEAN(true);
 		break;
 	case 'N':
-		Config->SecondPhaseDynamicRuns = false;
+		Config->SecondPhaseDynamicRuns = !GET_BOOLEAN(true);
 		break;
 	case 'S':
-		Config->SlowCPU = true;
+		Config->SlowCPU = GET_BOOLEAN(true);
 		break;
 	case 'g':
-		Config->UseGPU = true;
+		Config->UseGPU = GET_BOOLEAN(true);
 		break;
 	case 'I':
 		if (++x >= argc) return(1);
@@ -246,11 +248,11 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		else if (argv[x][2] == 'e')
 		{
-			Config->NoConcurrentKernels = 1;
+			Config->NoConcurrentKernels = GET_BOOLEAN(true);
 		}
 		else if (argv[x][2] == 'a')
 		{
-			Config->AsyncSideQueue = true;
+			Config->AsyncSideQueue = GET_BOOLEAN(true);
 		}
 		else if (argv[x][2] == 'r')
 		{
@@ -259,15 +261,15 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		else if (argv[x][2] == 'd')
 		{
-			Config->AsyncDTRSM = true;
+			Config->AsyncDTRSM = GET_BOOLEAN(true);
 		}
 		else if (argv[x][2] == 'q')
 		{
-			Config->SimpleGPUQueuing = true;
+			Config->SimpleGPUQueuing = GET_BOOLEAN(true);
 		}
 		else if (argv[x][2] == 'Q')
 		{
-			Config->AlternateSimpleQueuing = true;
+			Config->AlternateSimpleQueuing = GET_BOOLEAN(true);
 		}
 		else if (argv[x][2] == 'p')
 		{
@@ -276,11 +278,11 @@ for (unsigned int x = 1; x < argc; ++x)
 		}
 		else if (argv[x][2] == 'x')
 		{
-			Config->CPUInContext = false;
+			Config->CPUInContext = !GET_BOOLEAN(true);
 		}
 		else if (argv[x][2] == 't')
 		{
-			Config->Use3rdPartyTranspose = true;
+			Config->Use3rdPartyTranspose = GET_BOOLEAN(true);
 		}
 		else
 		{
@@ -297,9 +299,10 @@ for (unsigned int x = 1; x < argc; ++x)
 		if (argv[x][2] == 'c')
 		{
 #ifdef CALDGEMM_PARAMETERS_BACKEND
-			allowCPUDevice = true;
+			allowCPUDevice = GET_BOOLEAN(true);
 #else
 			Config->AddBackendArgv(argv[x]);
+			if (x + 1 < argc && argv[x + 1][0] != '-') Config->AddBackendArgv(argv[++x]);
 #endif
 
 		}
@@ -325,11 +328,11 @@ for (unsigned int x = 1; x < argc; ++x)
 	case 't':
 		if (argv[x][2] == 's')
 		{
-			Config->ShowThreadPinning = 1;
+			Config->ShowThreadPinning = GET_BOOLEAN(true);
 		}
 		else if (argv[x][2] == 'c')
 		{
-			Config->ShowConfig = 1;
+			Config->ShowConfig = GET_BOOLEAN(true);
 		}
 		else if (argv[x][2] == 'r')
 		{
@@ -415,28 +418,28 @@ for (unsigned int x = 1; x < argc; ++x)
 		sscanf(argv[x], "%lld", (long long int*) &Config->Height);
 		break;
 	case 'v':
-		Config->VerboseTiming = true;
+		Config->VerboseTiming = GET_BOOLEAN(true);
 		break;
 	case 'V':
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%d", &Config->ThreadSaveDriver);
 		break;
 	case 'k':
-		Config->AsyncTiming = true;
+		Config->AsyncTiming = GET_BOOLEAN(true);
 		break;
 	case 'd':
-		Config->Debug = true;
+		Config->Debug = GET_BOOLEAN(true);
 		break;
 	case 'z':
-		Config->MultiThread = true;
+		Config->MultiThread = GET_BOOLEAN(true);
 		break;
 	case 'Z':
-		Config->MultiThreadDivide = true;
+		Config->MultiThreadDivide = GET_BOOLEAN(true);
 		break;
 	case 'r':
 		if (argv[x][2] == 'r')
 		{
-			Config->RereserveLinpackCPU = true;
+			Config->RereserveLinpackCPU = GET_BOOLEAN(true);
 		}
 		else
 		{
@@ -474,26 +477,26 @@ for (unsigned int x = 1; x < argc; ++x)
 		PrintUsage();
 		return(1);
 	case 'Q':
-		wait_key = true;
+		wait_key = GET_BOOLEAN(true);
 		break;
 	case '!':
-		mem_page_lock = false;
+		mem_page_lock = !GET_BOOLEAN(true);
 		break;
 	case '_':
-		mem_gpu_access = true;
+		mem_gpu_access = GET_BOOLEAN(true);
 		break;
 	case ']':
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%d", &MaxGPUTemperature);
 		break;
 	case '1':
-		transa = true;
+		transa = GET_BOOLEAN(true);
 		break;
 	case '2':
-		transb = true;
+		transb = GET_BOOLEAN(true);
 		break;
 	case 'L':
-		linpackmemory = true;
+		linpackmemory = GET_BOOLEAN(true);
 		break;
 	case 'P':
 		if (++x >= argc) return(1);
@@ -521,13 +524,13 @@ for (unsigned int x = 1; x < argc; ++x)
 		iterations = torture;
 		break;
 	case 'T':
-		mem_huge_table = true;
+		mem_huge_table = GET_BOOLEAN(true);
 		break;
 	case '8':
-		initialrun = false;
+		initialrun = !GET_BOOLEAN(true);
 		break;
 	case '7':
-		verifylarge = true;
+		verifylarge = GET_BOOLEAN(true);
 		break;
 	case '6':
 		fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (matrix_m = matrix_n = Config->Height * atoi(argv[++x])));
@@ -538,20 +541,20 @@ for (unsigned int x = 1; x < argc; ++x)
 		fprintf(STD_OUT, "Set m and n to %lld\n", (long long int) (matrix_n = matrix_m));
 		break;
 	case '5':
-		quietbench = true;
+		quietbench = GET_BOOLEAN(true);
 		break;
 	case '3':
-		alphaone = true;
+		alphaone = GET_BOOLEAN(true);
 		break;
 	case '#':
-		betazero = true;
+		betazero = GET_BOOLEAN(true);
 		break;
 	case 'E':
 		if (++x >= argc) return(1);
 		sscanf(argv[x], "%d", &random_seed);
 		break;
 	case 'f':
-		fastinit = true;
+		fastinit = GET_BOOLEAN(true);
 		break;
 	case 'W':
 		if (++x >= argc) return(1);
