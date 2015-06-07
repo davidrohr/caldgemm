@@ -2302,16 +2302,16 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		}
 
 		SetupSimpleQueue(mb, nb);
-		if (!(Config->AlternateSimpleQueuing && Config->DstMemory == 'g'))
+		if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
+		{
+			memset(alternateSimpleQueueCBuffferEvent, 0, nDevices * obuffercount * sizeof(alternateSimpleQueueCBuffferEventStruct));
+		}
+		else
 		{
 			memset(simple_queue_events[0][0], 0, nDevices * (mb + nb) * sizeof(caldgemm_opencl_simple_queue_event));
 			memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(int));
 		}
 		memset(&simple_queue_event_kernels[0][0][0], 0, nDevices * ibuffercount * obuffercount * sizeof(cl_event));
-		if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
-		{
-			memset(alternateSimpleQueueCBuffferEvent, 0, nDevices * obuffercount * sizeof(alternateSimpleQueueCBuffferEventStruct));
-		}
 	}
 	
 	if (Config->PipelinedOperation && !CPUOnlyRun && pipelinedRun)
