@@ -2413,6 +2413,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		{
 			memset(MidMarker, 0, sizeof(MidMarker));
 		}
+		if (Config->PipelinedOperation && finishData->running) memset(pipelinedModeStartBarrierDone, 0, sizeof(pipelinedModeStartBarrierDone));
 	}
 	return(0);
 }
