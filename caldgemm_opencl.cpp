@@ -686,10 +686,14 @@ int caldgemm_opencl::InitDevices()
 			ocl_tmp_abuffers[i][j] = clCreateBuffer(ocl_context, tmp_flags, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
 			CHKRET(ocl_error, "Error allocating device memory (A tmp - Width: %lld Height: %lld)", (long long int) BufferWidth, (long long int) BufferHeight);
 
-			if (Config->GPU_C == 0)
+			if (Config->GPU_C == 0 || Config->AlternateSimpleQueuing)
 			{
 				ocl_tmp_bbuffers[i][j] = clCreateBuffer(ocl_context, tmp_flags, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
 				CHKRET(ocl_error, "Error allocating device memory (B tmp)");
+			}
+
+			if (Config->GPU_C == 0)
+			{
 
 				ocl_tmp_abuffers_ptr[i][j] = (double*) clEnqueueMapBuffer(ocl_command_queues[i][0], ocl_tmp_abuffers[i][j], CL_TRUE, CL_MAP_WRITE, 0, BufferWidth * BufferHeight * sizeof(double), 0, NULL, NULL, &ocl_error);
 				CHKRET(ocl_error, "Error mapping buffer (A)");
@@ -701,6 +705,10 @@ int caldgemm_opencl::InitDevices()
 		if (Config->GPU_C)
 		{
 			CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], obuffercount, &ocl_tmp_abuffers[i][0], 0, 0, NULL, NULL), "Error migrating mem object");
+			if (Config->AlternateSimpleQueuing)
+			{
+				CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], obuffercount, &ocl_tmp_bbuffers[i][0], 0, 0, NULL, NULL), "Error migrating mem object");
+			}
 		}
 
 		for (int j = 0;j < num_bbuffers;j++)
@@ -2047,7 +2055,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			region[0] = (TransposeB ? Config->Width : HeightN) * sizeof(double);
 			region[1] = (TransposeB ? HeightN : Config->Width);
 			int arg_width = region[0] / sizeof(double), arg_height = region[1];
-			cl_mem dest_buffer_tmp = ocl_tmp_abuffers[num_device][j];
+			cl_mem dest_buffer_tmp = Config->AlternateSimpleQueuing ? ocl_tmp_bbuffers[num_device][j] : ocl_tmp_abuffers[num_device][j];
 			if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 			if (arg_transpose == 0 && KernelSettings.texture_buffers == false) dest_buffer_tmp = *dest_image;
 
@@ -2171,6 +2179,10 @@ int caldgemm_opencl::ExitDevices()
 				CHKRET(clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_abuffers[i][j], ocl_tmp_abuffers_ptr[i][j], 0, NULL, NULL), "Error in clEnqueueUnmapMemObject");
 				CHKRET(clEnqueueUnmapMemObject(ocl_command_queues[i][0], ocl_tmp_bbuffers[i][j], ocl_tmp_bbuffers_ptr[i][j], 0, NULL, NULL), "Error in clEnqueueUnmapMemObject");
 				CHKRET(clFinish(ocl_command_queues[i][0]), "Error in clFinish");
+			}
+			
+			if (Config->GPU_C == 0 || Config->AlternateSimpleQueuing)
+			{
 				CHKRET(clReleaseMemObject(ocl_tmp_bbuffers[i][j]), "Error in clReleaseMemObject");
 			}
 			CHKRET(clReleaseMemObject(ocl_tmp_abuffers[i][j]), "Error in clReleaseMemObject");
