@@ -2584,8 +2584,11 @@ int caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
 			if (Config->Debug) fprintf(stderr, "Waiting for Mid Marker (Need %lld, marker %lld) ", (long long int) n, (long long int) Config->PipelinedMidMarker);
 			for (int i = 0;i < nDevices;i++)
 			{
-				if (Config->Debug) fprintf(stderr, "Dev %d ", i);
-				for (int j = 0;j < obuffercount;j++) fprintf(stderr, "%lld ", (long long int) ((finishStructOpenCL*) finishData)->MidMarker[i][j]);
+				if (Config->Debug)
+				{
+					fprintf(stderr, "Dev %d ", i);
+					for (int j = 0;j < obuffercount;j++) fprintf(stderr, "%lld ", (long long int) ((finishStructOpenCL*) finishData)->MidMarker[i][j]);
+				}
 				if (!Config->AlternateSimpleQueuing)
 				{
 					CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->MidMarker[i]), "Error waiting for MidMarker");
