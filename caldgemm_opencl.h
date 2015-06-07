@@ -148,7 +148,9 @@ private:
 	
 	cl_event alternateSimpleQueueCopyCEvent[max_devices][obuffercount];
 	alternateSimpleQueueCBuffferEventStruct alternateSimpleQueueCBuffferEvent[max_devices][obuffercount];
-	
+	cl_event alternateSimpleQueueEvent_tmp_abuffers[max_devices][obuffercount];
+	cl_event alternateSimpleQueueEvent_tmp_bbuffers[max_devices][obuffercount];
+
 	cl_event* AlternateLookaheadTilesRemaining_events;
 	virtual int CheckAlternateTilesRemainingSimpleQuieing();
 	qSem AlternateLookaheadDoneMutex;
