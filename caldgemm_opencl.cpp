@@ -1908,9 +1908,9 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				ev = &ocl_conversion_events[num_device][0];
 			}
 			//printf("DEBUG: ABuffer device %d buffer %d blockm %d wait for %d kernels\n", num_device, j, (int) blockm, nTransferEvents);
-			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : (Config->AlternateSimpleQueuing ? &ev2 : NULL)), "Error copying A");
+			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, (arg_transpose == 0 && KernelSettings.texture_buffers == false) ? ev : (Config->AlternateSimpleQueuing ? &ev2 : NULL)), "Error copying A");
 			if (freeTransferEvents) for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event A");
-			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][use_queue]);
+			if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 			if (arg_transpose || KernelSettings.texture_buffers)
 			{
 				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, A, 0");
@@ -1940,6 +1940,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", arg_width, arg_height, arg_transpose);
 				if (Config->AlternateSimpleQueuing) use_queue = 2;
 				CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][use_queue], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], Config->AlternateSimpleQueuing ? 1 : 0, Config->AlternateSimpleQueuing ? &ev2 : NULL, ev), "Error starting conversion kernel for A");
+				if (Config->AlternateSimpleQueuing) CHKRET(clReleaseEvent(ev2), "Error releasing event");
 			}
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
@@ -2070,9 +2071,9 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			}
 
 			//printf("DEBUG: BBuffer device %d buffer %d blockn %d wait for %d kernels\n", num_device, j, (int) blockn, nTransferEvents);
-			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, arg_transpose == 0 && KernelSettings.texture_buffers == false ? ev : (Config->AlternateSimpleQueuing ? &ev2 : NULL)), "Error copying B");
+			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, (arg_transpose == 0 && KernelSettings.texture_buffers == false) ? ev : (Config->AlternateSimpleQueuing ? &ev2 : NULL)), "Error copying B");
 			if (freeTransferEvents) for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event B");
-			if (Config->Debug && Config->VerboseTiming) clFinish(ocl_command_queues[num_device][use_queue]);
+			if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 
 			if (arg_transpose || KernelSettings.texture_buffers)
 			{
@@ -2103,6 +2104,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 				if (Config->AlternateSimpleQueuing) use_queue = 2;
 				CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][use_queue], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], Config->AlternateSimpleQueuing ? 1 : 0, Config->AlternateSimpleQueuing ? &ev2 : NULL, ev), "Error starting conversion kernel for B");
+				if (Config->AlternateSimpleQueuing) CHKRET(clReleaseEvent(ev2), "Error releasing event");
 			}
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
@@ -2386,6 +2388,10 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 				if (Config->AlternateSimpleQueuing && alternateSimpleQueueCBuffferEvent[i][j].must_release)
 				{
 					CHKRET(clReleaseEvent(alternateSimpleQueueCBuffferEvent[i][j].event), "Error releasing event");
+				}
+				for (int k = 0;k < ibuffercount;k++)
+				{
+					if (simple_queue_event_kernels[i][k][j] != 0) CHKRET(clReleaseEvent(simple_queue_event_kernels[i][k][j]), "Error releasing event");
 				}
 			}
 		}
