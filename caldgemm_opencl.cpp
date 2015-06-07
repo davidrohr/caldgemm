@@ -2450,18 +2450,21 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 		{
 			for (int j = 0;j < obuffercount;j++)
 			{
-				if (Config->PipelinedOperation && !CPUOnlyRun && pipelinedRun)
+				if (!Config->AlternateSimpleQueuing || j == (Config->DstMemory == 'g' ? 1 : 2))
 				{
-					if (Config->PipelinedMidMarker && MidMarker[i][j] == 0)
+					if (Config->PipelinedOperation && !CPUOnlyRun && pipelinedRun)
 					{
-						CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &MidMarker[i][j]), "Error enqueuing OpenCL marker");
-						if (Config->Debug) fprintf(STD_OUT, "Enqueueing Fake Mid Marker at end (Device %d Queue %d) (Event %lld)\n", i, j, (long long int) MidMarker[i][j]);
+						if (Config->PipelinedMidMarker && MidMarker[i][j] == 0)
+						{
+							CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &MidMarker[i][j]), "Error enqueuing OpenCL marker");
+							if (Config->Debug) fprintf(STD_OUT, "Enqueueing Fake Mid Marker at end (Device %d Queue %d) (Event %lld)\n", i, j, (long long int) MidMarker[i][j]);
+						}
+						CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &EndMarker[i][j]), "Error enqueuing OpenCL marker");
 					}
-					CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &EndMarker[i][j]), "Error enqueuing OpenCL marker");
-				}
-				else
-				{
-					CHKRET(clFinish(ocl_command_queues[i][j]), "Error in clFinish");
+					else
+					{
+						CHKRET(clFinish(ocl_command_queues[i][j]), "Error in clFinish");
+					}
 				}
 				if (Config->AlternateSimpleQueuing && alternateSimpleQueueCBuffferEvent[i][j].must_release)
 				{
@@ -2517,21 +2520,32 @@ int caldgemm_opencl::RunCALDGEMM_Finish()
 	cl_ulong gputime = 0;
 	for (int i = 0;i < nDevices;i++)
 	{
-		CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]), "Error waiting to finish DGEMM (%d)", i);
+		if (!Config->AlternateSimpleQueuing)
+		{
+			CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]), "Error waiting to finish DGEMM (%d)", i);
+		}
+		else
+		{
+			CHKRET(clWaitForEvents(1, &((finishStructOpenCL*) finishData)->EndMarker[i][Config->DstMemory == 'g' ? 1 : 2]), "Error waiting to finish DGEMM (%d)", i);
+		}
+
 		cl_ulong minstart = ~0, maxend = 0; 
 		for (int j = 0;j < obuffercount;j++)
 		{
-			if (CALDGEMM_OPENCL_PROFILED_PIPELINE)
+			if (!Config->AlternateSimpleQueuing || j == (Config->DstMemory == 'g' ? 1 : 2))
 			{
-				cl_ulong start, end;
-				CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL), "Error getting event profiling info");
-				CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
-				if (start < minstart) minstart = start;
-				if (end > maxend) maxend = end;
+				if (CALDGEMM_OPENCL_PROFILED_PIPELINE)
+				{
+					cl_ulong start, end;
+					CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->EndMarker[i][j], CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL), "Error getting event profiling info");
+					CHKRET(clGetEventProfilingInfo(((finishStructOpenCL*) finishData)->StartMarker[i][j], CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL), "Error getting event profiling info");
+					if (start < minstart) minstart = start;
+					if (end > maxend) maxend = end;
+				}
+				CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->StartMarker[i][j]), "Error in clReleaseEvent");
+				CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->EndMarker[i][j]), "Error in clReleaseEvent");
+				if (Config->PipelinedMidMarker) CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->MidMarker[i][j]), "Error in clReleaseEvent");
 			}
-			CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->StartMarker[i][j]), "Error in clReleaseEvent");
-			CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->EndMarker[i][j]), "Error in clReleaseEvent");
-			if (Config->PipelinedMidMarker) CHKRET(clReleaseEvent(((finishStructOpenCL*) finishData)->MidMarker[i][j]), "Error in clReleaseEvent");
 		}
 		if (maxend - minstart > gputime) gputime = maxend - minstart;
 	}
@@ -2568,7 +2582,14 @@ int caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
 			{
 				if (Config->Debug) fprintf(stderr, "Dev %d ", i);
 				for (int j = 0;j < obuffercount;j++) fprintf(stderr, "%lld ", (long long int) ((finishStructOpenCL*) finishData)->MidMarker[i][j]);
-				CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->MidMarker[i]), "Error waiting for MidMarker");
+				if (!Config->AlternateSimpleQueuing)
+				{
+					CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->MidMarker[i]), "Error waiting for MidMarker");
+				}
+				else
+				{
+					CHKRET(clWaitForEvents(1, &((finishStructOpenCL*) finishData)->MidMarker[i][Config->DstMemory == 'g' ? 1 : 2]), "Error waiting for MidMarker");
+				}
 			}
 			if (Config->Debug) fprintf(STD_OUT, "\nMid Marker Reached\n");
 			((finishStructOpenCL*) finishData)->MidMarkerDone = true;
@@ -2577,7 +2598,14 @@ int caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
 		if (Config->Debug) fprintf(STD_OUT, "Waiting for End Marker (Need %lld, marker %lld)\n", (long long int) n, (long long int) gpu_n);
 		for (int i = 0;i < nDevices;i++)
 		{
-			CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]), "Error waiting for EndMarker");
+			if (!Config->AlternateSimpleQueuing)
+			{
+				CHKRET(clWaitForEvents(obuffercount, ((finishStructOpenCL*) finishData)->EndMarker[i]), "Error waiting for EndMarker");
+			}
+			else
+			{
+				CHKRET(clWaitForEvents(1, &((finishStructOpenCL*) finishData)->EndMarker[i][Config->DstMemory == 'g' ? 1 : 2]), "Error waiting for EndMarker");
+			}
 		}
 		if (Config->Debug) fprintf(STD_OUT, "End Marker Reached\n");
 		((finishStructOpenCL*) finishData)->EndMarkerDone = true;
