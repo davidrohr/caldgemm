@@ -960,7 +960,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d offset %lld\n", height1, height2, width, Alpha, Beta, pitch, (long long int) offset);
 	cl_event* kernel_event;
-	int need_retain_kernel_event = 0;
+	cl_event* need_retain_kernel_event = NULL;
 	int need_release_kernel_event_after_transfer = 0;
 	cl_event tmp_event;
 	int wait_num_events = 0;
@@ -1034,8 +1034,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 				}
 				else
 				{
-					*ev = *kernel_event;
-					need_retain_kernel_event = 1;
+					need_retain_kernel_event = ev;
 				}
 			}
 		}
@@ -1096,6 +1095,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	if (need_retain_kernel_event)
 	{
 		CHKRET(clRetainEvent(*kernel_event), "Error in clRetainEvent");
+		*need_retain_kernel_event = *kernel_event;
 	}
 
 	if (Config->NoConcurrentKernels)
@@ -2426,15 +2426,18 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 
 int caldgemm_opencl::RunCALDGEMM_Exit()
 {
-	if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesFull)
+	if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && Config->SimpleGPUQueuing)
 	{
-		for (int i = 0;i < AlternateLookaheadTilesFull;i++)
+		AlternateLookaheadDoneMutex.Lock();
+		if (AlternateLookaheadTilesFull)
 		{
-			CHKRET(clReleaseEvent(AlternateLookaheadTilesRemaining_events[i]), "Error releasing alternate lookahead tiles event");
+			for (int i = 0;i < AlternateLookaheadTilesFull;i++)
+			{
+				CHKRET(clReleaseEvent(AlternateLookaheadTilesRemaining_events[i]), "Error releasing alternate lookahead tiles event");
+			}
 		}
 	}
 
-	if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && Config->SimpleGPUQueuing && Config->UseCPU) AlternateLookaheadDoneMutex.Lock();
 	if (Config->SimpleGPUQueuing)
 	{
 		if (!(Config->AlternateSimpleQueuing && Config->DstMemory == 'g'))
