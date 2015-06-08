@@ -26,11 +26,11 @@ BUILDSCRIPT						= build.sh
 endif
 
 #GCC Compiler Options
-GCCFLAGSOPT						= -O3 $(GCCFLAGSARCH) -fweb -frename-registers -minline-all-stringops -mfpmath=sse -ftracer -funroll-loops -fpeel-loops -fprefetch-loop-arrays -ffast-math -fno-stack-protector -ggdb
-CLANGFLAGSOPT					= -O3 $(GCCFLAGSARCH) -minline-all-stringops -mfpmath=sse -funroll-loops -ffast-math -fno-stack-protector -ggdb $(EXTRAFLAGSCLANG)
+GCCFLAGSOPT						= -O3 $(GCCFLAGSARCH) -fweb -frename-registers -minline-all-stringops -mfpmath=sse -ftracer -funroll-loops -fpeel-loops -fprefetch-loop-arrays -ffast-math -fno-stack-protector
+CLANGFLAGSOPT					= -O3 $(GCCFLAGSARCH) -minline-all-stringops -mfpmath=sse -funroll-loops -ffast-math -fno-stack-protector $(EXTRAFLAGSCLANG)
 CLANGFLAGSDBG					= $(GCCFLAGSDBG) $(EXTRAFLAGSCLANG)
 #-fgcse-sm -fgcse-las -fmodulo-sched -fipa-pta -floop-interchange -floop-block 
-GCCFLAGSDBG						= -O0 $(GCCFLAGSARCH) -ggdb
+GCCFLAGSDBG						= -O0 $(GCCFLAGSARCH)
 GCCFLAGSCOMMON					= $(MULTITHREADGCC) -pipe -DGCC_RUNTIME $(GCCPROF) $(EXTRAFLAGSGCC) -Wall -Wno-write-strings
 CLANGFLAGSCOMMON				= $(MULTITHREADGCC) -pipe -DGCC_RUNTIME -DCLANG_RUNTIME $(GCCPROF) $(EXTRAFLAGSGCC) -Wall -Wno-write-strings
 GCCFLAGS32						= -m32
@@ -137,6 +137,12 @@ endif
 OBJFILES						+= $(CPPFILES_MSCC) $(CPPFILES_GCC) $(CPPFILES_CLANG)
 else
 OBJFILES						+= $(CPPFILES_ICC) $(CPPFILES_MSCC) $(CPPFILES_GCC) $(CPPFILES_CLANG)
+endif
+
+ifneq ($(CONFIG_GDB), 0)
+GCCFLAGSOPT					+= -ggdb
+GCCFLAGSDBG					+= -ggdb
+CLANGFLAGSOPT					+= -ggdb
 endif
 
 ifeq ($(CONFIG_CUDA_DC), 1)

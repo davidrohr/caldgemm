@@ -41,9 +41,12 @@ endif
 endif
 
 #GCC link flags
-LINKFLAGSCOMMON					= -Wall -ggdb
+LINKFLAGSCOMMON					= -Wall
 ifeq ($(CONFIG_STATIC), 1)
 LINKFLAGSCOMMON					+= -static
+endif
+ifneq ($(CONFIG_GDB), 0)
+LINKFLAGSCOMMON					+= -ggdb
 endif
 LINKFLAGS32						= -m32 $(LINKFLAGSCOMMON)
 LINKFLAGS64						= -m64 $(LINKFLAGSCOMMON)
