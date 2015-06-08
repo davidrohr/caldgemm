@@ -1,6 +1,6 @@
 	.global FILENAMEMOD
 	.global FILENAMEMOD_size
-	.section .rodata
+	.section .data
 FILENAMEMOD:
 	.incbin "FILENAMENORMAL"
 1:
