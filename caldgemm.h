@@ -518,6 +518,7 @@ protected:
 		size_t dynamic_run2;
 		
 		bool running;
+		size_t MidMarkerPos;
 	};
 	finishStruct* finishData;
 

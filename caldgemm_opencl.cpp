@@ -2577,14 +2577,14 @@ int caldgemm_opencl::WaitForCALDGEMMProgress(size_t n)
 	if (Config->PipelinedOperation && finishData->running)
 	{
 		if (((finishStructOpenCL*) finishData)->EndMarkerDone) return(0);
-		if (n && n < Config->PipelinedMidMarker)
+		if (n && n < finishData->MidMarkerPos)
 		{
 			if (((finishStructOpenCL*) finishData)->MidMarkerDone)
 			{
-				if (Config->Debug) fprintf(STD_OUT, "Wait for Mid Marker (already done, Need %lld, marker %lld)\n", (long long int) n, (long long int) Config->PipelinedMidMarker);
+				if (Config->Debug) fprintf(STD_OUT, "Wait for Mid Marker (already done, Need %lld, marker %lld)\n", (long long int) n, (long long int) finishData->MidMarkerPos);
 				return(0);
 			}
-			if (Config->Debug) fprintf(stderr, "Waiting for Mid Marker (Need %lld, marker %lld) ", (long long int) n, (long long int) Config->PipelinedMidMarker);
+			if (Config->Debug) fprintf(stderr, "Waiting for Mid Marker (Need %lld, marker %lld) ", (long long int) n, (long long int) finishData->MidMarkerPos);
 			for (int i = 0;i < nDevices;i++)
 			{
 				if (Config->Debug)

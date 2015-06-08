@@ -2964,6 +2964,7 @@ recalculate_ratio:
 	finishData->dynamic_size = cParam.dynamic_size;
 	finishData->cpu_k = cParam.cpu_k;
 	finishData->dynamic_run2 = cParam.dynamic_run2;
+	finishData->MidMarkerPos = Config->PipelinedMidMarker;
 	FinishDataFill();
 
 	if (Config->PipelinedOperation && !CPUOnlyRun && pipelinedRun)
