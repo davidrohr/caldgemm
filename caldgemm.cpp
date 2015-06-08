@@ -270,6 +270,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	PreallocData = 0;
 	AsyncSideQueue = false;
 	AsyncDGEMMThreshold = 480;
+	AsyncDTRSMThreshold = 192;
 	AsyncDTRSM = false;
 	Use3rdPartyTranspose = false;
 	CPUInContext = 1;
@@ -3737,6 +3738,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(AlternateLookahead);
 	PRINT_CONFIG_INT(AsyncSideQueue);
 	PRINT_CONFIG_INT(AsyncDGEMMThreshold);
+	PRINT_CONFIG_INT(AsyncDTRSMThreshold);
 	PRINT_CONFIG_INT(AsyncDTRSM);
 	PRINT_CONFIG_INT(Use3rdPartyTranspose);
 

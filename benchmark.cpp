@@ -183,6 +183,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Op <int> Preallocate buffers for at max <int> blocks (nb/mb)\n");
 	fprintf(STD_OUT, "\t-Oa       Create async side queues and use such a queue to test a single-tile dgemm\n");
 	fprintf(STD_OUT, "\t-Or <int> Threshold for using GPU for async DGEMM\n");
+	fprintf(STD_OUT, "\t-Os <int> Threshold for using GPU for async DTRSM\n");
 	fprintf(STD_OUT, "\t-Od       Use async side queue to offload DTRSM as well\n");
 	fprintf(STD_OUT, "\t-Ox       Do not put the CPU in the OpenCL context\n");
 	fprintf(STD_OUT, "\t-Ot       Use 3rdPartyTranspose kernel\n");

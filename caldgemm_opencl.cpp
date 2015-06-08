@@ -1357,7 +1357,7 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 	size_t BufferSize = std::max<size_t>(BufferWidth, BufferHeight);
 	const unsigned int K = (Side == CblasRight ? N : M);
 	const unsigned int L = (Side == CblasRight ? M : N) & ~31;
-	if (M < 192 || N < 192 || Order != CblasColMajor || Uplo != CblasUpper || ((Side != CblasLeft) ^ (TransA != CblasTrans)) || Diag != CblasUnit || K > BufferSize || K & 31)
+	if (M < (size_t) Config->AsyncDTRSMThreshold || N < (size_t) Config->AsyncDTRSMThreshold || Order != CblasColMajor || Uplo != CblasUpper || ((Side != CblasLeft) ^ (TransA != CblasTrans)) || Diag != CblasUnit || K > BufferSize || K & 31)
 	{
 		cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M, N, alpha, (double*) A, lda, B, ldb);
 		return(0);

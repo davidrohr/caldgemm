@@ -184,6 +184,7 @@ public:
 		unsigned int AlternateLookahead;		//Alternate Lookahead implementation optimized for saving CPU cycles, set to an integer, AlternateLookahead is used as soon as n (since HPL is col major) is smaller than this value, 0 for disable
 		bool AsyncSideQueue;					//Create an asynchronous side queue to run small DGEMMs (without tiling) in parallel to a large DGEMM
 		int AsyncDGEMMThreshold;				//Min size where GPU is used for async DGEMM
+		int AsyncDTRSMThreshold;				//Same for DTRSM
 		bool AsyncDTRSM;					//Allow side-queue to run DTRSM as well
 		bool Use3rdPartyTranspose;					//Use transpose kernel fro 3rd party lib
 		

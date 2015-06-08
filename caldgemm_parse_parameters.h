@@ -259,6 +259,11 @@ for (unsigned int x = 1; x < argc; ++x)
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", &Config->AsyncDGEMMThreshold);
 		}
+		else if (argv[x][2] == 's')
+		{
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->AsyncDTRSMThreshold);
+		}
 		else if (argv[x][2] == 'd')
 		{
 			Config->AsyncDTRSM = GET_BOOLEAN(true);
