@@ -16,6 +16,7 @@ CC_i686-pc-cygwin			= ICC
 
 EXTRAFLAGSGCC				= -Weffc++
 EXTRAOBJFILES				= objfile.obj
+EXTRAFLAGSLINK				= 
 EXTRADEPS					= non_obj_file_required.dat
 
 INCLUDEPATHS				= include subdir/include
