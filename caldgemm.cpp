@@ -3825,7 +3825,7 @@ int caldgemm::ParseParameters(unsigned int argc, char** argv, caldgemm_config* C
 
 int caldgemm::ParseParameters(char* params, caldgemm_config* Config)
 {
-	fprintf(stderr, "Parsing CALDGEMM Parameters: '%s'\n", params);
+	if (Config->Debug) fprintf(STD_OUT, "Parsing CALDGEMM Parameters: '%s'\n", params);
 	char* tmpParams = new char[strlen(params) + 1]; //This memory will be leaked, in case of string parameters we need to keep a copy, and we do not know how long params will live.
 	strcpy(tmpParams, params);
 	int argc = 1;
