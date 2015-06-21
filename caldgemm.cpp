@@ -703,11 +703,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	{
 		if (nDevices)
 		{
-			fprintf(STD_OUT, "Running on %d devices with %d bbuffers\n", nDevices, min_bbuffers);
+			fprintf(STD_OUT, "Running on %d devices with %d bbuffers (%s)\n", nDevices, min_bbuffers, hostname);
 		}
 		else
 		{
-			fprintf(STD_OUT, "Running on CPU only\n");
+			fprintf(STD_OUT, "Running on CPU only (%s)\n", hostname);
 		}
 	}
 
