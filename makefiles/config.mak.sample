@@ -2,6 +2,8 @@
 #VERBOSE=1 //Do not hide command lines
 #CHECK_DEPENDENCIES=0 //Do not perform dependency file creation
 
+include config_options.mak  #will be autocreated by config_options.sample
+
 INTELARCH					= Host
 GCCARCH						= native
 MSVCFAVOR					= INTEL64
@@ -30,7 +32,7 @@ CONFIG_DIRECTX				= 1
 CONFIG_OPENCL				= 1
 CONFIG_OPENGL				= 0
 CONFIG_OPENMP				= 0
-CONFIG_GDB				= 1 #by default
+CONFIG_GDB					= 1 #by default
 CONFIG_CAL					= 0
 #CONFIG_X11					=
 CONFIG_CUDA					= 0
