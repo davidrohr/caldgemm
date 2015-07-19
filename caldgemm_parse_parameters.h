@@ -461,17 +461,18 @@ for (unsigned int x = 1; x < argc; ++x)
 		sscanf(argv[x], "%u", &Config->NumDevices);
 		break;
 	case 'j':
-		if (++x >= argc) return(1);
-		if (argv[x][2] == 'f') sscanf(argv[x], "%lf", &Config->GPURatioDuringFact);
-		else if (argv[x][2] == 'm') sscanf(argv[x], "%lf", &Config->GPURatioMax);
-		else if (argv[x][2] == 't') sscanf(argv[x], "%lf", &Config->GPURatioMarginTime);
-		else if (argv[x][2] == 's') sscanf(argv[x], "%lf", &Config->GPURatioMarginTimeDuringFact);
-		else if (argv[x][2] == 'l') sscanf(argv[x], "%lf", &Config->GPURatioLookaheadSizeMod);
-		else if (argv[x][2] == 'p') sscanf(argv[x], "%d", &Config->GPURatioPenalties);
-		else if (argv[x][2] == 'q') sscanf(argv[x], "%lf", &Config->GPURatioPenaltyFactor);
+		if (x + 1 >= argc) return(1);
+		printf("AAAAA %s %s\n", argv[x], argv[x + 1]);
+		if (argv[x][2] == 'f') sscanf(argv[++x], "%lf", &Config->GPURatioDuringFact);
+		else if (argv[x][2] == 'm') sscanf(argv[++x], "%lf", &Config->GPURatioMax);
+		else if (argv[x][2] == 't') sscanf(argv[++x], "%lf", &Config->GPURatioMarginTime);
+		else if (argv[x][2] == 's') sscanf(argv[++x], "%lf", &Config->GPURatioMarginTimeDuringFact);
+		else if (argv[x][2] == 'l') sscanf(argv[++x], "%lf", &Config->GPURatioLookaheadSizeMod);
+		else if (argv[x][2] == 'p') sscanf(argv[++x], "%d", &Config->GPURatioPenalties);
+		else if (argv[x][2] == 'q') sscanf(argv[++x], "%lf", &Config->GPURatioPenaltyFactor);
 		else
 		{
-			sscanf(argv[x], "%lf", &Config->GPURatio);
+			sscanf(argv[++x], "%lf", &Config->GPURatio);
 #ifdef CALDGEMM_PARAMETERS_BENCHMARK
 			fprintf(STD_OUT, "Using GPU Ratio %lf\n", Config->GPURatio);
 #endif
