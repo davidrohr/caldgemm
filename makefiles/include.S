@@ -1,6 +1,6 @@
 	.global FILENAMEMOD
 	.global FILENAMEMOD_size
-	.section .data
+	.section .READONLYTYPE
 FILENAMEMOD:
 	.incbin "FILENAMENORMAL"
 1:
