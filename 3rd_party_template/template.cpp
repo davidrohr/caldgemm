@@ -19,10 +19,18 @@
 		return(0); \
 	}
 
-//We must export two functions, kernelLibCreate to return the kernel object, kernelLibQuerySettings to return some parameters
+#define quit(arg) {fprintf(stderr, arg "\n");exit(1);}
+
+//We must export several functions, kernelLibCreate to return the kernel object, kernelLibQuerySettings to return some parameters.
+//Initialize is called after loading the library at very first, it can return 1 in case of error, terminate is used to clean up.
+//The others are used to provide some insight in good matrix sizes to caldgemm.
 extern "C" DLL_EXPORT cl_kernel kernelLibCreate(cl_context* context, int nDevices, cl_device_id* devices, int kernelType, int k, int betazero); 
 extern "C" DLL_EXPORT void kernelLibQuerySettings(int* tiling_x, int* tiling_y, bool* transposeA, bool* transposeB, bool* texture_buffers, int* group_size_x, int* group_size_y, int* min_tile_size, int* min_k);
 extern "C" DLL_EXPORT void kernelLibTerminate();
+extern "C" DLL_EXPORT size_t suggestedMaxHeight();
+extern "C" DLL_EXPORT size_t getAutoHeight(size_t MaxGpuM, size_t MaxGpuN, int nDevices, size_t Width);
+extern "C" DLL_EXPORT void modHeight(size_t MOD_OVER, size_t MOD_GPU);
+extern "C" DLL_EXPORT int kernelLibInitialize(cl_platform_id platform);
 
 //The kernels can be subject to some optimizations, depending on the parameters:
 //betazero indicates that beta can be assumed zero, regardless of other parameters
@@ -149,4 +157,25 @@ void kernelLibQuerySettings(int* tiling_x, int* tiling_y, bool* transposeA, bool
 	*transposeB = false;
 	*min_tile_size = 32;
 	*min_k = 4;
+}
+
+int kernelLibInitialize(cl_platform_id platform)
+{
+	return(0);
+}
+
+size_t suggestedMaxHeight()
+{
+	return(4096);
+}
+
+//Suggest different height parameters depending on Matrix Size
+size_t getAutoHeight(size_t MaxGpuM, size_t MaxGpuN, int nDevices, size_t Width)
+{
+	//Do not provide standard values for other GPU types, we rely on caldgemm defaults by returning 0
+	return 0;
+}
+
+void modHeight(size_t MOD_OVER, size_t MOD_GPU)
+{
 }
