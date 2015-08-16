@@ -46,7 +46,9 @@ MULTITHREADLIBS					= /nodefaultlib:libc.lib
 NVCCFLAGSOPT					= --use_fast_math --maxrregcount $(CUDAREGS) -O4 -Xptxas -v -Xptxas -O4 -m$(ARCHBITS) $(NVCCARCHS)
 NVCCFLAGSDBG					= --maxrregcount $(CUDAREGS) -Xptxas -v -Xptxas -O0 -O0 -m$(ARCHBITS) $(NVCCARCHS)
 
+#Default settings
 TARGETTYPE						= EXECUTABLE
+CONFIG_RO_RESOURCE					= 1
 
 WORKPATHSUFFIX					= $(TARGETTYPE)_$(TARGET)
 include							$(CONFIGFILE)
@@ -68,6 +70,12 @@ VSNETFLAGSUSE					= $(VSNETFLAGSOPT)
 GCCFLAGSUSE						= $(GCCFLAGSOPT)
 CLANGFLAGSUSE					= $(CLANGFLAGSOPT)
 NVCCFLAGSUSE					= $(NVCCFLAGSOPT)
+endif
+
+ifeq ($(CONFIG_RO_RESOURCE), 1)
+CONFIG_RO_RESOURCE				= rodata
+else
+CONFIG_RO_RESOURCE				= data
 endif
 
 MKDIR							= $(HIDEECHOB) mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'`
@@ -241,11 +249,11 @@ $(WORKPATH)/cl/%.clbin:			%.cl $(WORKPATH)/_makefiles_support_opencl.exe $(ALLDE
 
 $(WORKPATH)/cl/%.$(OBJ):		$(WORKPATH)/cl/%.clbin $(ALLDEP)
 								@echo $<
-								$(HIDEECHOA) sed -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_makefile_opencl_program_`echo $< | sed -e "s&$(WORKPATH)/cl/&&g" -e "s&\.clbin&\.cl&g" -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
+								$(HIDEECHOA) sed -e "s&READONLYTYPE&$(CONFIG_RO_RESOURCE)&" -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_makefile_opencl_program_`echo $< | sed -e "s&$(WORKPATH)/cl/&&g" -e "s&\.clbin&\.cl&g" -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
 $(WORKPATH)/res/%.$(OBJ):		% $(ALLDEP)
 								@echo $<
 								$(MKDIR)
-								$(HIDEECHOA) sed -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_resource_`echo $< | sed -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
+								$(HIDEECHOA) sed -e "s&READONLYTYPE&$(CONFIG_RO_RESOURCE)&" -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_resource_`echo $< | sed -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
 
 
 
