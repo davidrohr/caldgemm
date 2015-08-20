@@ -269,6 +269,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	ForceKernelVariant = -1;
 	PreallocData = 0;
 	AsyncSideQueue = false;
+	AsyncSideQueueBalance = 0;
 	AsyncDGEMMThreshold = 480;
 	AsyncDTRSMThreshold = 192;
 	AsyncDTRSM = false;
@@ -3738,6 +3739,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(NumaPinning);
 	PRINT_CONFIG_INT(AlternateLookahead);
 	PRINT_CONFIG_INT(AsyncSideQueue);
+	PRINT_CONFIG_INT(AsyncSideQueueBalance);
 	PRINT_CONFIG_INT(AsyncDGEMMThreshold);
 	PRINT_CONFIG_INT(AsyncDTRSMThreshold);
 	PRINT_CONFIG_INT(AsyncDTRSM);

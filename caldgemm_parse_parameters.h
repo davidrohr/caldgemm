@@ -254,6 +254,10 @@ for (unsigned int x = 1; x < argc; ++x)
 		{
 			Config->AsyncSideQueue = GET_BOOLEAN(true);
 		}
+		else if (argv[x][2] == 'b')
+		{
+			Config->AsyncSideQueueBalance = (int) GET_BOOLEAN(true);
+		}
 		else if (argv[x][2] == 'r')
 		{
 			if (++x >= argc) return(1);

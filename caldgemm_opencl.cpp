@@ -1368,7 +1368,18 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 	const unsigned int TmpM = M & ~31;
 	const unsigned int TmpN = N & ~31;
 	unsigned int tmpL = (BufferSize / K) & ~31;
-	const unsigned int nTiles = (L + tmpL - 1) / tmpL;
+	unsigned int nTiles = (L + tmpL - 1) / tmpL;
+	if (Config->AsyncSideQueueBalance)
+	{
+		int overlap = nTiles % nDevicesInitialized;
+		if (overlap)
+		{
+			nTiles += nDevicesInitialized - overlap;
+			tmpL = (L / nTiles);
+			if ((tmpL & 31)) tmpL = (tmpL + 32) & ~31;
+			nTiles = (L + tmpL - 1) / tmpL;
+		}
+	}
 	const size_t origin[3] = {0, 0, 0};
 	size_t region[3];
 	region[2] = 1;

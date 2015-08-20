@@ -185,6 +185,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Or <int> Threshold for using GPU for async DGEMM\n");
 	fprintf(STD_OUT, "\t-Os <int> Threshold for using GPU for async DTRSM\n");
 	fprintf(STD_OUT, "\t-Od       Use async side queue to offload DTRSM as well\n");
+	fprintf(STD_OUT, "\t-Ob       Balance workload of ASYNC Side Queue among GPUs\n");
 	fprintf(STD_OUT, "\t-Ox       Do not put the CPU in the OpenCL context\n");
 	fprintf(STD_OUT, "\t-Ot       Use 3rdPartyTranspose kernel\n");
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n");
