@@ -2944,7 +2944,7 @@ recalculate_ratio:
 	
 	if (finishData->running)
 	{
-			fprintf(STD_OUT, "Waiting for previous pipelined DGEMM iteration to finish\n");
+			if (!Config->Quiet) fprintf(STD_OUT, "Waiting for previous pipelined DGEMM iteration to finish\n");
 			int retVal = FinishCALDGEMM();
 			if (retVal) return(retVal);
 	}
