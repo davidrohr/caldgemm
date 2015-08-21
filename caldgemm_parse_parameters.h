@@ -254,6 +254,10 @@ for (unsigned int x = 1; x < argc; ++x)
 		{
 			Config->AsyncSideQueue = GET_BOOLEAN(true);
 		}
+		else if (argv[x][2] == 'b')
+		{
+			Config->AsyncSideQueueBalance = (int) GET_BOOLEAN(true);
+		}
 		else if (argv[x][2] == 'r')
 		{
 			if (++x >= argc) return(1);
@@ -462,7 +466,6 @@ for (unsigned int x = 1; x < argc; ++x)
 		break;
 	case 'j':
 		if (x + 1 >= argc) return(1);
-		printf("AAAAA %s %s\n", argv[x], argv[x + 1]);
 		if (argv[x][2] == 'f') sscanf(argv[++x], "%lf", &Config->GPURatioDuringFact);
 		else if (argv[x][2] == 'm') sscanf(argv[++x], "%lf", &Config->GPURatioMax);
 		else if (argv[x][2] == 't') sscanf(argv[++x], "%lf", &Config->GPURatioMarginTime);

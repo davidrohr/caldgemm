@@ -269,6 +269,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	ForceKernelVariant = -1;
 	PreallocData = 0;
 	AsyncSideQueue = false;
+	AsyncSideQueueBalance = 0;
 	AsyncDGEMMThreshold = 480;
 	AsyncDTRSMThreshold = 192;
 	AsyncDTRSM = false;
@@ -703,11 +704,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	{
 		if (nDevices)
 		{
-			fprintf(STD_OUT, "Running on %d devices with %d bbuffers\n", nDevices, min_bbuffers);
+			fprintf(STD_OUT, "Running on %d devices with %d bbuffers (%s)\n", nDevices, min_bbuffers, hostname);
 		}
 		else
 		{
-			fprintf(STD_OUT, "Running on CPU only\n");
+			fprintf(STD_OUT, "Running on CPU only (%s)\n", hostname);
 		}
 	}
 
@@ -2943,7 +2944,7 @@ recalculate_ratio:
 	
 	if (finishData->running)
 	{
-			fprintf(STD_OUT, "Waiting for previous pipelined DGEMM iteration to finish\n");
+			if (!Config->Quiet) fprintf(STD_OUT, "Waiting for previous pipelined DGEMM iteration to finish\n");
 			int retVal = FinishCALDGEMM();
 			if (retVal) return(retVal);
 	}
@@ -3738,6 +3739,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(NumaPinning);
 	PRINT_CONFIG_INT(AlternateLookahead);
 	PRINT_CONFIG_INT(AsyncSideQueue);
+	PRINT_CONFIG_INT(AsyncSideQueueBalance);
 	PRINT_CONFIG_INT(AsyncDGEMMThreshold);
 	PRINT_CONFIG_INT(AsyncDTRSMThreshold);
 	PRINT_CONFIG_INT(AsyncDTRSM);
@@ -3825,7 +3827,7 @@ int caldgemm::ParseParameters(unsigned int argc, char** argv, caldgemm_config* C
 
 int caldgemm::ParseParameters(char* params, caldgemm_config* Config)
 {
-	fprintf(stderr, "Parsing CALDGEMM Parameters: '%s'\n", params);
+	if (Config->Debug) fprintf(STD_OUT, "Parsing CALDGEMM Parameters: '%s'\n", params);
 	char* tmpParams = new char[strlen(params) + 1]; //This memory will be leaked, in case of string parameters we need to keep a copy, and we do not know how long params will live.
 	strcpy(tmpParams, params);
 	int argc = 1;

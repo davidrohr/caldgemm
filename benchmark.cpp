@@ -162,7 +162,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-t  <int> Pin GPU thread to core n\n");
 	fprintf(STD_OUT, "\t-ts       Show thread pinning\n");
 	fprintf(STD_OUT, "\t-tc       Show CALDGEMM config\n");
-	fprintf(STD_OUT, "\t-tr <int> Pin device runtime threads to code <int>, set -1 for all cores");
+	fprintf(STD_OUT, "\t-tr <int> Pin device runtime threads to code <int>, set -1 for all cores\n");
 	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread to core n\n");
 	fprintf(STD_OUT, "\t-Kb <int> Pin Broadcast thread to core n\n");
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n");
@@ -185,6 +185,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-Or <int> Threshold for using GPU for async DGEMM\n");
 	fprintf(STD_OUT, "\t-Os <int> Threshold for using GPU for async DTRSM\n");
 	fprintf(STD_OUT, "\t-Od       Use async side queue to offload DTRSM as well\n");
+	fprintf(STD_OUT, "\t-Ob       Balance workload of ASYNC Side Queue among GPUs\n");
 	fprintf(STD_OUT, "\t-Ox       Do not put the CPU in the OpenCL context\n");
 	fprintf(STD_OUT, "\t-Ot       Use 3rdPartyTranspose kernel\n");
 	fprintf(STD_OUT, "\t-F <int>  OpenCL Platform ID to use\n");
