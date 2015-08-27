@@ -141,10 +141,19 @@ extern pthread_mutex_t global_vt_mutex;
 
 #define PRINT_CONFIG_LOOP_INT(name, loopvar) \
 	{ \
-		for (int i = 0;i < loopvar;i++) \
-		{ \
-			PRINT_CONFIG_BASE_WRAP(name[%d], name[i], PASS_ARG(COMMA) i, "%5d", int, myConfig) \
-		} \
+                if (oldConfig->name) { \
+                        for (int i = 0;i < loopvar;i++) \
+                        { \
+                                PRINT_CONFIG_BASE_WRAP(name[%d], name[i], PASS_ARG(COMMA) i, "%5d", int, myConfig) \
+                        } \
+                } else { \
+                        for (int i = 0;i < loopvar;i++) \
+                        { \
+                                char tmpBuffer[256]; \
+                                sprintf(tmpBuffer, #name  "[%d]", i); \
+                                PRINT_CONFIG_BASE(tmpBuffer, "%5d", int, -1, myConfig->name[i], myConfig->name[i], COMPARE_GENERAL) \
+                        } \
+                } \
 	}
 
 #endif
