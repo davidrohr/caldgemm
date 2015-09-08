@@ -1,4 +1,5 @@
 #define GET_BOOLEAN(default) ((x + 1 < argc && argv[x + 1][0] != '-') ? (atoi(argv[++x]) > 0) : (default))
+#define GET_INT(default) ((x + 1 < argc && argv[x + 1][0] != '-') ? (atoi(argv[++x])) : (default))
 
 for (unsigned int x = 1; x < argc; ++x)
 {
@@ -144,7 +145,7 @@ for (unsigned int x = 1; x < argc; ++x)
 		Config->RepinMainThreadAlways = GET_BOOLEAN(true);
 		break;
 	case ':':
-		Config->NumaPinning = GET_BOOLEAN(true);
+		Config->NumaPinning = GET_INT(true);
 		break;
 	case ',':
 		if (++x >= argc) return(1);
