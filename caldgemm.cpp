@@ -430,8 +430,9 @@ void caldgemm::ensure_omp_thread_pinning()
 		cpu_order[0] = 0;
 		int cpu_num = 1;
 		
-		int divider = conf_numprocs / 2;
 		int old_divider = conf_numprocs;
+		if (Config->NumaPinning >= 2) old_divider /= 2;
+		int divider = old_divider / 2;
 		do
 		{
 			int cpu_num_end = cpu_num;
@@ -452,6 +453,13 @@ void caldgemm::ensure_omp_thread_pinning()
 			old_divider = divider;
 			divider = (divider % 2 == 0 && divider % 4 != 0 && divider > 2) ? 2 : divider / 2;
 		} while (divider > 0);
+		if (Config->NumaPinning >= 2)
+		{
+			for (int i = 0;i < conf_numprocs / 2;i++)
+			{
+				cpu_order[i + conf_numprocs / 2] = cpu_order[i] + conf_numprocs / 2;
+			}
+		}
 		if (Config->Debug)
 		{
 			for (int i = 0;i < conf_numprocs;i++) fprintf(STD_OUT, "Numa ID %d Core %d\n", i, cpu_order[i]);
