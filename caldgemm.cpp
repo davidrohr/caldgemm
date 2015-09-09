@@ -3717,7 +3717,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(OpenCLPlatform);
 	PRINT_CONFIG_INT(DeviceNum);
 	PRINT_CONFIG_INT(NumDevices);
-	PRINT_CONFIG_LOOP_INT(DeviceNums, myConfig->NumDevices);
+	PRINT_CONFIG_LOOP_INT(DeviceNums, NumDevices);
 	PRINT_CONFIG_INT(max_bbuffers);
 	PRINT_CONFIG_INT(PreallocData);
 	PRINT_CONFIG_INT(CPUInContext);
@@ -3729,10 +3729,10 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(SkipCPUProcessing);
 	PRINT_CONFIG_INT(ForceKernelVariant);
 
-	PRINT_CONFIG_LOOP_INT(GPUMapping, myConfig->NumDevices);
-	PRINT_CONFIG_LOOP_INT(PostprocessMapping, myConfig->NumDevices);
-	PRINT_CONFIG_LOOP_INT(AllocMapping, myConfig->NumDevices);
-	PRINT_CONFIG_LOOP_INT(DMAMapping, myConfig->NumDevices);
+	PRINT_CONFIG_LOOP_INT(GPUMapping, NumDevices);
+	PRINT_CONFIG_LOOP_INT(PostprocessMapping, NumDevices);
+	PRINT_CONFIG_LOOP_INT(AllocMapping, NumDevices);
+	PRINT_CONFIG_LOOP_INT(DMAMapping, NumDevices);
 
 	PRINT_CONFIG_INT(PinMainThread);
 	PRINT_CONFIG_INT(PinDeviceRuntimeThreads);
@@ -3775,7 +3775,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 
 	PRINT_CONFIG_INT(HPLFactorizeRestrictCPUs);
 	PRINT_CONFIG_INT(LASWPSleep);
-	PRINT_CONFIG_LOOP_INT(ExcludeCPUCores, myConfig->nExcludeCPUCores);
+	PRINT_CONFIG_LOOP_INT(ExcludeCPUCores, nExcludeCPUCores);
 	PRINT_CONFIG_INT(ShowConfig);
 	PRINT_CONFIG_INT(ShowThreadPinning);
 
