@@ -1479,7 +1479,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			useCPU = 1;
 		}
 		
-		if (m < (size_t) Config->AsyncDGEMMThreshold || n < (size_t) Config->AsyncDGEMMThreshold || k < (size_t) Config->AsyncDGEMMThreshold) //Does not make sense for too small matrices
+		if (useCPU || m < (size_t) Config->AsyncDGEMMThreshold || n < (size_t) Config->AsyncDGEMMThreshold || k < (size_t) Config->AsyncDGEMMThreshold) //Does not make sense for too small matrices
 		{
 			cblas_dgemm(orderColMajor ? CblasColMajor : CblasRowMajor, TransA ? CblasTrans : CblasNoTrans, TransB ? CblasTrans : CblasNoTrans, m, n, k, alpha, (double*) A, Apitch, (double*) B, Bpitch, beta, C, Cpitch);
 			useCPU = 1;
