@@ -771,8 +771,9 @@ int caldgemm_opencl::InitDevices()
 				ocl_async_buffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, std::max<size_t>(BufferWidth, BufferHeight) * std::max<size_t>(BufferWidth, BufferHeight) * sizeof(double), NULL, &ocl_error);
 				CHKRET(ocl_error, "Error allocating async device memory %d/%d", i, j);
 			}
-			CHKRET(clEnqueueMigrateMemObjects(ocl_async_queue[i], 4, &ocl_async_buffers[i][0], 0, 0, NULL, NULL), "Error migrating async mem object");
+			CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], 4, &ocl_async_buffers[i][0], 0, 0, NULL, NULL), "Error migrating async mem object");
 		}
+		clFinish(ocl_command_queues[i][0]); //Finish migrating memory objects
 	}
 
 	sched_setaffinity(0, sizeof(oldtmpmask), &oldtmpmask);
