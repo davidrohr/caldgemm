@@ -446,6 +446,16 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 #endif
 			CHKRET(ocl_error, "Error creating OpenCL command queue");
 		}
+		
+		if (Config->AsyncSideQueue)
+		{
+#ifdef CL_VERSION_2_0
+			ocl_async_queue[i] = clCreateCommandQueueWithProperties(ocl_context, ocl_devices[i], NULL, &ocl_error);
+#else
+			ocl_async_queue[i] = clCreateCommandQueue(ocl_context, ocl_devices[i], 0, &ocl_error);
+#endif
+			CHKRET(ocl_error, "Error creating async OpenCL command queue");
+		}
 	}
 
 	if (Config->CPUInContext)
@@ -759,13 +769,6 @@ int caldgemm_opencl::InitDevices()
 
 		if (Config->AsyncSideQueue)
 		{
-#ifdef CL_VERSION_2_0
-			ocl_async_queue[i] = clCreateCommandQueueWithProperties(ocl_context, ocl_devices[i], NULL, &ocl_error);
-#else
-			ocl_async_queue[i] = clCreateCommandQueue(ocl_context, ocl_devices[i], 0, &ocl_error);
-#endif
-			CHKRET(ocl_error, "Error creating async OpenCL command queue");
-
 			for (int j = 0;j < 4;j++)
 			{
 				ocl_async_buffers[i][j] = clCreateBuffer(ocl_context, CL_MEM_READ_WRITE, std::max<size_t>(BufferWidth, BufferHeight) * std::max<size_t>(BufferWidth, BufferHeight) * sizeof(double), NULL, &ocl_error);
