@@ -1720,9 +1720,16 @@ int caldgemm_cal::InitDevices()
 		sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 		
 		int num_bbuffers;
-		if (Config->DstMemory == 'g') num_bbuffers =  max_bbuffers_g;
+		if (Config->max_bbuffers) num_bbuffers = Config->max_bbuffers;
+		else if (Config->DstMemory == 'g') num_bbuffers =  max_bbuffers_g;
 		else num_bbuffers = max_bbuffers;
-		if (Config->max_bbuffers && Config->max_bbuffers < num_bbuffers) num_bbuffers = Config->max_bbuffers;
+		
+		if (num_bbuffers > max_bbuffers)
+		{
+			fprintf(STD_OUT, "Requested number of bbuffers (%d) larger than max_bbuffers constant (%d)!", num_bbuffers, max_bbuffers);
+			return(1);
+		}
+
 		for (int i = 0;i < num_bbuffers;i++)
 		{
 			if (i < 1)

@@ -616,9 +616,15 @@ int caldgemm_opencl::InitDevices()
 	cl_int ocl_error;
 
 	int num_bbuffers;
-	if (Config->DstMemory == 'g') num_bbuffers =  max_bbuffers_g;
+	if (Config->max_bbuffers) num_bbuffers = Config->max_bbuffers;
+	else if (Config->DstMemory == 'g') num_bbuffers =  max_bbuffers_g;
 	else num_bbuffers = max_bbuffers;
-	if (Config->max_bbuffers && Config->max_bbuffers < num_bbuffers) num_bbuffers = Config->max_bbuffers;
+	
+	if (num_bbuffers > max_bbuffers)
+	{
+		fprintf(STD_OUT, "Requested number of bbuffers (%d) larger than max_bbuffers constant (%d)!", num_bbuffers, max_bbuffers);
+		return(1);
+	}
 
 	SetupBufferSizes();
 
