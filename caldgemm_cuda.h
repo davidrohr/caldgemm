@@ -27,7 +27,7 @@
 
 #include <cuda.h>
 #include <cuda_runtime_api.h>
-
+#include <cublas_v2.h>
 #include "caldgemm.h"
 
 class caldgemm_cuda : public caldgemm
@@ -69,7 +69,7 @@ private:
 	void* cuda_tmp_abuffers[max_devices][obuffercount];
 	void* cuda_tmp_bbuffers[max_devices][obuffercount];
 	cudaEvent_t cuda_events[max_devices][obuffercount];
-
+        cublasHandle_t cublas_handles[max_devices];
 	cudaEvent_t cuda_conversion_events[max_devices][2];
 	int cuda_conversion_events_use[max_devices][2];
 
