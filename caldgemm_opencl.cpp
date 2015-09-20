@@ -1373,6 +1373,21 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 		return(0);
 	}
 	
+	static int useDevice = 0;
+	int useDeviceOffset, nAsyncDevices;
+	if (nDevices < nDevicesInitialized && Config->AsyncSideQueueUseInactiveDeviceSet)
+	{
+		useDeviceOffset = nDevices;
+		nAsyncDevices = nDevicesInitialized - nDevices;
+	}
+	else
+	{
+		useDeviceOffset = 0;
+		nAsyncDevices = nDevicesInitialized;
+	}
+	if (useDevice >= nAsyncDevices) useDevice = 0;
+	int useDeviceStart = useDevice;
+
 	BufferSize *= BufferSize;
 	
 	const unsigned int TmpM = M & ~31;
@@ -1381,10 +1396,10 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 	unsigned int nTiles = (L + tmpL - 1) / tmpL;
 	if (Config->AsyncSideQueueBalance)
 	{
-		int overlap = nTiles % nDevicesInitialized;
+		int overlap = nTiles % nAsyncDevices;
 		if (overlap)
 		{
-			nTiles += nDevicesInitialized - overlap;
+			nTiles += nAsyncDevices - overlap;
 			tmpL = (L / nTiles);
 			if ((tmpL & 31)) tmpL = (tmpL + 32) & ~31;
 			nTiles = (L + tmpL - 1) / tmpL;
@@ -1394,18 +1409,16 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 	size_t region[3];
 	region[2] = 1;
 	
-	static int useDevice = 0;
-	int useDeviceStart = useDevice;
 	
 	for (unsigned int i = 0;i < nTiles;i++)
 	{
 		if (i == nTiles - 1) tmpL = L - i * tmpL;
-		if (i < (unsigned int) nDevicesInitialized)
+		if (i < (unsigned int) nAsyncDevices)
 		{
 			region[0] = K * sizeof(double);
 			region[1] = K;
 			if (Config->Debug) fprintf(STD_OUT, "ASYNC Copying A to GPU, width: %lld, height: %lld\n", (long long int) region[0] / sizeof(double), (long long int) region[1]);
-			CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][0], CL_FALSE, origin, origin, region, 0, 0, lda * sizeof(double), 0, A, 0, NULL, NULL), "Error copying async A");
+			CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_buffers[useDeviceOffset + useDevice][0], CL_FALSE, origin, origin, region, 0, 0, lda * sizeof(double), 0, A, 0, NULL, NULL), "Error copying async A");
 		}
 
 		if (Side == CblasRight)
@@ -1419,24 +1432,24 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 			region[1] = tmpL;
 		}
 		if (Config->Debug) fprintf(STD_OUT, "ASYNC Copying B to GPU, width: %lld, height: %lld\n", (long long int) region[0] / sizeof(double), (long long int) region[1]);
-		CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][1], CL_FALSE, origin, origin, region, 0, 0, ldb * sizeof(double), 0, B, 0, NULL, NULL), "Error copying async B");
+		CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_buffers[useDeviceOffset + useDevice][1], CL_FALSE, origin, origin, region, 0, 0, ldb * sizeof(double), 0, B, 0, NULL, NULL), "Error copying async B");
 
 		int kernelNum = Side == CblasRight ? 2 : 3;
-		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][kernelNum], 0, sizeof(cl_uint), Side == CblasRight ? &tmpL : &TmpM), "Error setting kernel arg, 0");
-		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][kernelNum], 1, sizeof(cl_uint), Side == CblasRight ? &TmpN : &tmpL), "Error setting kernel arg, 1");
-		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][kernelNum], 2, sizeof(cl_double), &alpha), "Error setting kernel arg, 2");
-		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][kernelNum], 3, sizeof(cl_mem), &ocl_async_buffers[useDevice][0]), "Error setting kernel arg, 3");
-		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][kernelNum], 4, sizeof(cl_uint), &K), "Error setting kernel arg, 4");
-		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][kernelNum], 5, sizeof(cl_mem), &ocl_async_buffers[useDevice][1]), "Error setting kernel arg, 5");
-		CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][kernelNum], 6, sizeof(cl_uint), Side == CblasRight ? &tmpL : &TmpM), "Error setting kernel arg, 6");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][kernelNum], 0, sizeof(cl_uint), Side == CblasRight ? &tmpL : &TmpM), "Error setting kernel arg, 0");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][kernelNum], 1, sizeof(cl_uint), Side == CblasRight ? &TmpN : &tmpL), "Error setting kernel arg, 1");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][kernelNum], 2, sizeof(cl_double), &alpha), "Error setting kernel arg, 2");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][kernelNum], 3, sizeof(cl_mem), &ocl_async_buffers[useDeviceOffset + useDevice][0]), "Error setting kernel arg, 3");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][kernelNum], 4, sizeof(cl_uint), &K), "Error setting kernel arg, 4");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][kernelNum], 5, sizeof(cl_mem), &ocl_async_buffers[useDeviceOffset + useDevice][1]), "Error setting kernel arg, 5");
+		CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][kernelNum], 6, sizeof(cl_uint), Side == CblasRight ? &tmpL : &TmpM), "Error setting kernel arg, 6");
 		
 		size_t globalThreads[1] = {2 * tmpL};
 		size_t localThreads[1]  = {64};
-		CHKRET(clEnqueueNDRangeKernel(ocl_async_queue[useDevice], ocl_async_kernel[useDevice][kernelNum], 1, NULL, globalThreads, localThreads, 0, NULL, NULL), "Error starting DTRSM Kernel");
+		CHKRET(clEnqueueNDRangeKernel(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_kernel[useDeviceOffset + useDevice][kernelNum], 1, NULL, globalThreads, localThreads, 0, NULL, NULL), "Error starting DTRSM Kernel");
 		
-		CHKRET(clEnqueueReadBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][1], CL_FALSE, origin, origin, region, 0, 0, ldb * sizeof(double), 0, B, 0, NULL, NULL), "Error retrieving async B");
+		CHKRET(clEnqueueReadBufferRectUse(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_buffers[useDeviceOffset + useDevice][1], CL_FALSE, origin, origin, region, 0, 0, ldb * sizeof(double), 0, B, 0, NULL, NULL), "Error retrieving async B");
 
-		useDevice = (useDevice + 1) % nDevicesInitialized;
+		useDevice = (useDevice + 1) % nAsyncDevices;
 		
 		if (Side == CblasRight)
 		{
@@ -1457,10 +1470,10 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 		if (N & 31) cblas_dtrsm(Order, Side, Uplo, TransA, Diag, M, N & 31, alpha, (double*) A, lda, B, ldb);
 	}
 	
-	for (int i = 0;i < std::min<int>(nTiles, nDevicesInitialized);i++)
+	for (int i = 0;i < std::min<int>(nTiles, nAsyncDevices);i++)
 	{
-		CHKRET(clFinish(ocl_async_queue[useDeviceStart]), "Error in clFinish");
-		useDeviceStart = (useDeviceStart + 1) % nDevicesInitialized;
+		CHKRET(clFinish(ocl_async_queue[useDeviceOffset + useDeviceStart]), "Error in clFinish");
+		useDeviceStart = (useDeviceStart + 1) % nAsyncDevices;
 	}
 	
 	return(0);
@@ -1565,6 +1578,18 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 		if (Config->Debug) fprintf(STD_OUT, "Running ASYNC DGEMM\n");
 
 		static int useDevice = 0;
+		int useDeviceOffset, nAsyncDevices;
+		if (nDevices < nDevicesInitialized && Config->AsyncSideQueueUseInactiveDeviceSet)
+		{
+			useDeviceOffset = nDevices;
+			nAsyncDevices = nDevicesInitialized - nDevices;
+		}
+		else
+		{
+			useDeviceOffset = 0;
+			nAsyncDevices = nDevicesInitialized;
+		}
+		if (useDevice >= nAsyncDevices) useDevice = 0;
 		int useDeviceStart = useDevice;
 
 		const size_t origin[3] = {0, 0, 0};
@@ -1606,13 +1631,13 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 				global_size[1] = local_size[1] * GROUP_COUNT_Y;
 			}
 			
-			if (i < nDevicesInitialized || tile_m)
+			if (i < nAsyncDevices || tile_m)
 			{
 				region[0] = (TransA ? g_m : k) * sizeof(double);
 				region[1] = (TransA ? k : g_m);
 				if (Config->Debug) fprintf(STD_OUT, "ASYNC Copying A to GPU, width: %lld, height: %lld\n", (long long int) region[0] / sizeof(double), (long long int) region[1]);
 				int arg_transpose = TransA ^ KernelSettings.transposeA;
-				CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][arg_transpose || KernelSettings.texture_buffers ? 0 : 1], CL_FALSE, origin, origin, region, 0, 0, Apitch * sizeof(double), 0, g_A, 0, NULL, NULL), "Error copying async A");
+				CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_buffers[useDeviceOffset + useDevice][arg_transpose || KernelSettings.texture_buffers ? 0 : 1], CL_FALSE, origin, origin, region, 0, 0, Apitch * sizeof(double), 0, g_A, 0, NULL, NULL), "Error copying async A");
 
 				if (arg_transpose || KernelSettings.texture_buffers)
 				{
@@ -1620,11 +1645,11 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 					int arg_height = region[1];
 					size_t local_size[2] = {GROUP_SIZE_X, GROUP_SIZE_Y};
 					size_t global_size[2] = {GROUP_SIZE_X * GROUP_COUNT_X, GROUP_SIZE_Y * GROUP_COUNT_Y};
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 0, sizeof(cl_mem), &ocl_async_buffers[useDevice][0]), "Error setting kernel arg, A, 0");
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 1, sizeof(cl_mem), &ocl_async_buffers[useDevice][1]), "Error setting kernel arg, A, 1");
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 2, sizeof(int), &arg_width), "Error setting kernel arg, A, 2");
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 3, sizeof(int), &arg_height), "Error setting kernel arg, A, 3");
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 4, sizeof(int), &arg_transpose), "Error setting kernel arg, A, 4");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][1], 0, sizeof(cl_mem), &ocl_async_buffers[useDeviceOffset + useDevice][0]), "Error setting kernel arg, A, 0");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][1], 1, sizeof(cl_mem), &ocl_async_buffers[useDeviceOffset + useDevice][1]), "Error setting kernel arg, A, 1");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][1], 2, sizeof(int), &arg_width), "Error setting kernel arg, A, 2");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][1], 3, sizeof(int), &arg_height), "Error setting kernel arg, A, 3");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][1], 4, sizeof(int), &arg_transpose), "Error setting kernel arg, A, 4");
 					if (Config->Debug) fprintf(STD_OUT, "ASYNC Running conversion kernel for A: transpose %d, width %d, height %d\n", arg_transpose, arg_width, arg_height);
 					if (Config->Use3rdPartyTranspose)
 					{
@@ -1633,27 +1658,27 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 						global_size[0] = arg_width / 4;
 						global_size[1] = arg_height / 4;
 					}
-					CHKRET(clEnqueueNDRangeKernel(ocl_async_queue[useDevice], ocl_async_kernel[useDevice][1], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting conversion kernel for async A");
+					CHKRET(clEnqueueNDRangeKernel(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_kernel[useDeviceOffset + useDevice][1], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting conversion kernel for async A");
 				}
 			}
 
-			if (i < nDevicesInitialized || !tile_m)
+			if (i < nAsyncDevices || !tile_m)
 			{
 				region[0] = (TransB ? k : g_n) * sizeof(double);
 				region[1] = (TransB ? g_n : k);
 				if (Config->Debug) fprintf(STD_OUT, "ASYNC Copying B to GPU, width: %lld, height: %lld\n", (long long int) region[0] / sizeof(double), (long long int) region[1]);
 				int arg_transpose = TransB ^ KernelSettings.transposeB;
-				CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][arg_transpose || KernelSettings.texture_buffers ? 0 : 2], CL_FALSE, origin, origin, region, 0, 0, Bpitch * sizeof(double), 0, g_B, 0, NULL, NULL), "Error copying async B");
+				CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_buffers[useDeviceOffset + useDevice][arg_transpose || KernelSettings.texture_buffers ? 0 : 2], CL_FALSE, origin, origin, region, 0, 0, Bpitch * sizeof(double), 0, g_B, 0, NULL, NULL), "Error copying async B");
 
 				if (arg_transpose || KernelSettings.texture_buffers)
 				{
 					int arg_width = region[0] / sizeof(double);
 					int arg_height = region[1];
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 0, sizeof(cl_mem), &ocl_async_buffers[useDevice][0]), "Error setting kernel arg, A, 0");
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 1, sizeof(cl_mem), &ocl_async_buffers[useDevice][2]), "Error setting kernel arg, A, 1");
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 2, sizeof(int), &arg_width), "Error setting kernel arg, A, 2");
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 3, sizeof(int), &arg_height), "Error setting kernel arg, A, 3");
-					CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][1], 4, sizeof(int), &arg_transpose), "Error setting kernel arg, A, 4");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][1], 0, sizeof(cl_mem), &ocl_async_buffers[useDeviceOffset + useDevice][0]), "Error setting kernel arg, A, 0");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][1], 1, sizeof(cl_mem), &ocl_async_buffers[useDeviceOffset + useDevice][2]), "Error setting kernel arg, A, 1");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][1], 2, sizeof(int), &arg_width), "Error setting kernel arg, A, 2");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][1], 3, sizeof(int), &arg_height), "Error setting kernel arg, A, 3");
+					CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][1], 4, sizeof(int), &arg_transpose), "Error setting kernel arg, A, 4");
 					if (Config->Debug) fprintf(STD_OUT, "ASYNC Running conversion kernel for B: transpose %d, width %d, height %d\n", arg_transpose, arg_width, arg_height);
 					if (Config->Use3rdPartyTranspose)
 					{
@@ -1662,7 +1687,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 						global_size[0] = arg_width / 4;
 						global_size[1] = arg_height / 4;
 					}
-					CHKRET(clEnqueueNDRangeKernel(ocl_async_queue[useDevice], ocl_async_kernel[useDevice][1], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting conversion kernel for async B");
+					CHKRET(clEnqueueNDRangeKernel(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_kernel[useDeviceOffset + useDevice][1], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting conversion kernel for async B");
 				}
 			}
 
@@ -1671,9 +1696,9 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			{
 				region[0] = g_n * sizeof(double);
 				region[1] = g_m;
-				CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][3], CL_FALSE, origin, origin, region, 0, 0, Cpitch * sizeof(double), 0, g_C, 0, NULL, NULL), "Error copying async C");
+				CHKRET(clEnqueueWriteBufferRectUse(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_buffers[useDeviceOffset + useDevice][3], CL_FALSE, origin, origin, region, 0, 0, Cpitch * sizeof(double), 0, g_C, 0, NULL, NULL), "Error copying async C");
 
-				CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 0, sizeof(cl_mem), &ocl_async_buffers[useDevice][3]), "Error setting kernel memory C");
+				CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][0], 0, sizeof(cl_mem), &ocl_async_buffers[useDeviceOffset + useDevice][3]), "Error setting kernel memory C");
 			}
 			else
 			{
@@ -1686,37 +1711,37 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 				offset /= sizeof(double);
 				if (Config->Debug) fprintf(STD_OUT, "C Memory pointer offset: %lld\n", (long long int) offset);
 				
-				CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 0, sizeof(cl_mem), &pmem), "Error setting kernel memory C");
+				CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][0], 0, sizeof(cl_mem), &pmem), "Error setting kernel memory C");
 			}
 
-			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 1, sizeof(cl_mem), &ocl_async_buffers[useDevice][1]), "Error setting kernel memory A");
-			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 2, sizeof(cl_mem), &ocl_async_buffers[useDevice][2]), "Error setting kernel memory B");
+			CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][0], 1, sizeof(cl_mem), &ocl_async_buffers[useDeviceOffset + useDevice][1]), "Error setting kernel memory A");
+			CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][0], 2, sizeof(cl_mem), &ocl_async_buffers[useDeviceOffset + useDevice][2]), "Error setting kernel memory B");
 
 			int arg_m = g_m, arg_n = g_n, arg_k = k;
-			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 3, sizeof(int), &arg_n), "Error setting kernel arg height1");
-			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 4, sizeof(int), &arg_m), "Error setting kernel arg height2");
-			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 5, sizeof(int), &arg_k), "Error setting kernel arg width");
+			CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][0], 3, sizeof(int), &arg_n), "Error setting kernel arg height1");
+			CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][0], 4, sizeof(int), &arg_m), "Error setting kernel arg height2");
+			CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][0], 5, sizeof(int), &arg_k), "Error setting kernel arg width");
 
-			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 6, sizeof(double), &alpha), "Error setting kernel arg alpha");
-			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 7, sizeof(double), &beta), "Error setting kernel arg beta");
+			CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][0], 6, sizeof(double), &alpha), "Error setting kernel arg alpha");
+			CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][0], 7, sizeof(double), &beta), "Error setting kernel arg beta");
 
 			size_t pitch = Config->DstMemory == 'g' ? arg_n : Cpitch;
-			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 8, sizeof(int), &pitch), "Error setting kernel arg pitch");
-			CHKRET(clSetKernelArg(ocl_async_kernel[useDevice][0], 9, sizeof(cl_ulong), &offset), "Error setting kernel arg offset");
+			CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][0], 8, sizeof(int), &pitch), "Error setting kernel arg pitch");
+			CHKRET(clSetKernelArg(ocl_async_kernel[useDeviceOffset + useDevice][0], 9, sizeof(cl_ulong), &offset), "Error setting kernel arg offset");
 
 			local_size[0] = (size_t) KernelSettings.group_size_x;
 			local_size[1] = (size_t) KernelSettings.group_size_y;
 			global_size[0] = (size_t) g_n / KernelSettings.tiling_x;
 			global_size[1] = (size_t) g_m / KernelSettings.tiling_y;
 
-			CHKRET(clEnqueueNDRangeKernel(ocl_async_queue[useDevice], ocl_async_kernel[useDevice][0], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting MM Kernel");
+			CHKRET(clEnqueueNDRangeKernel(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_kernel[useDeviceOffset + useDevice][0], 2, NULL, &global_size[0], &local_size[0], 0, NULL, NULL), "Error starting MM Kernel");
 
 			if (Config->DstMemory == 'g')
 			{
-				CHKRET(clEnqueueReadBufferRectUse(ocl_async_queue[useDevice], ocl_async_buffers[useDevice][3], CL_FALSE, origin, origin, region, 0, 0, Cpitch * sizeof(double), 0, g_C, 0, NULL, NULL), "Error retrieving async C");
+				CHKRET(clEnqueueReadBufferRectUse(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_buffers[useDeviceOffset + useDevice][3], CL_FALSE, origin, origin, region, 0, 0, Cpitch * sizeof(double), 0, g_C, 0, NULL, NULL), "Error retrieving async C");
 			}
 
-			useDevice = (useDevice + 1) % nDevicesInitialized;
+			useDevice = (useDevice + 1) % nAsyncDevices;
 		}
 		
 		
@@ -1736,10 +1761,10 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 			    C + (n - n % KernelSettings.min_tile_size), Cpitch);
 		}
 
-		for (int i = 0;i < std::min<int>(nTiles, nDevicesInitialized);i++)
+		for (int i = 0;i < std::min<int>(nTiles, nAsyncDevices);i++)
 		{
-			CHKRET(clFinish(ocl_async_queue[useDeviceStart]), "Error in clFinish");
-			useDeviceStart = (useDeviceStart + 1) % nDevicesInitialized;
+			CHKRET(clFinish(ocl_async_queue[useDeviceOffset + useDeviceStart]), "Error in clFinish");
+			useDeviceStart = (useDeviceStart + 1) % nAsyncDevices;
 		}
 
 		if (Config->Verify)
@@ -2717,7 +2742,7 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 		{
 			//mlock(gpu_mem[nGPUMEM].ptr, nDoubles * sizeof(double));
 		}
-		for (int i = 0;i < nDevices;i++)
+		for (int i = 0;i < nDevicesInitialized;i++)
 		{
 			fprintf(stderr, "%d", i);
 			void* tmp_ptr = clEnqueueMapBuffer(ocl_command_queues[i][0], gpu_mem[nGPUMEM].mem_obj, CL_TRUE, 0, 0, nDoubles * sizeof(double), 0, NULL, NULL, &ocl_error);
@@ -2752,7 +2777,7 @@ int caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
 		{
 			if (gpu_mem[i].ptr == (void*) ptr)
 			{
-				for (int j = 0;j < nDevices;j++)
+				for (int j = 0;j < nDevicesInitialized;j++)
 				{
 					CHKRET(clEnqueueUnmapMemObject(ocl_command_queues[j][0], gpu_mem[i].mem_obj, gpu_mem[i].ptr, 0, NULL, NULL), "Error in clEnqueueUnmapMemObject");
 					CHKRET(clFinish(ocl_command_queues[j][0]), "Error in clFinish");

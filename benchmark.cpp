@@ -114,6 +114,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-R  <int> Number of iterations to run the program (seperate caldgemm calls)\n");
 	fprintf(STD_OUT, "\t-y  <int> Force Device ID (-1 = all devices)\n");
 	fprintf(STD_OUT, "\t-Y  <int> Use n devices\n");
+	fprintf(STD_OUT, "\t-Ya <int> Use only n devices as active devices\n");
+	fprintf(STD_OUT, "\t-Yu       Use inactive devices for async side queue\n");
 	fprintf(STD_OUT, "\t-bb <int> Maxumum number of allowed bbuffers\n");
 	fprintf(STD_OUT, "\t-d        Enable Debug Mode\n");
 	fprintf(STD_OUT, "\t-z        Enable Multithreading\n");

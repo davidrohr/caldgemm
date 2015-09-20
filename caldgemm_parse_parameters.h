@@ -462,8 +462,20 @@ for (unsigned int x = 1; x < argc; ++x)
 		sscanf(argv[x], "%u", &Config->DeviceNum);
 		break;
 	case 'Y':
-		if (++x >= argc) return(1);
-		sscanf(argv[x], "%u", &Config->NumDevices);
+		if (argv[x][2] == 'a')
+		{
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%u", &Config->NumActiveDevices);
+		}
+		else if (argv[x][2] == 'u')
+		{
+			Config->AsyncSideQueueUseInactiveDeviceSet = GET_BOOLEAN(true);
+		}
+		else
+		{
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%u", &Config->NumDevices);
+		}
 		break;
 	case 'j':
 		if (x + 1 >= argc) return(1);

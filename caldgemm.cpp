@@ -949,6 +949,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	finishData->running = false;
 
 	nDevicesInitialized = nDevices;
+	if (Config->NumActiveDevices > 0 && Config->NumActiveDevices < nDevices) nDevices = Config->NumActiveDevices;
 
 	caldgemm_initialized = true;
 	

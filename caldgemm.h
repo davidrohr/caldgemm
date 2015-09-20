@@ -154,6 +154,7 @@ public:
 		int OpenCLPlatform;						//OpenCL Platform ID to use
 		int DeviceNum;							//CAL Device to use (-1 for all devices)
 		int NumDevices;							//Number of devices to use in parallel at max
+		int NumActiveDevices;						//Initialize NumDevices but use ony NumActiveDevices for main queue.
 		int DeviceNums[max_devices];			//Array of CAL devices to use (replaces DeviceNum for multiple devices). This translation is applied first, all other setting like GPU mappings are applied on top of this.
 		int max_bbuffers;						//Limit the number of bbuffers
 		int PreallocData;						//Preallocate buffers, set Prealloc to the maximum number of (mb/nb) blocks expected!
@@ -184,6 +185,7 @@ public:
 		unsigned int AlternateLookahead;		//Alternate Lookahead implementation optimized for saving CPU cycles, set to an integer, AlternateLookahead is used as soon as n (since HPL is col major) is smaller than this value, 0 for disable
 		bool AsyncSideQueue;					//Create an asynchronous side queue to run small DGEMMs (without tiling) in parallel to a large DGEMM
 		int AsyncSideQueueBalance;				//Balance workload of ASYNC Side queue among GPUs
+		int AsyncSideQueueUseInactiveDeviceSet;			//If GPUs were disabled via SetNumberDevices for the main queue, the async side queue will use these disabled devices
 		int AsyncDGEMMThreshold;				//Min size where GPU is used for async DGEMM
 		int AsyncDTRSMThreshold;				//Same for DTRSM
 		bool AsyncDTRSM;					//Allow side-queue to run DTRSM as well
