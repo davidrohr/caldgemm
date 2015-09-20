@@ -77,6 +77,8 @@ extern "C" {
 extern int get_num_procs();
 int get_num_procs()
 {
+	char* omp_threads = getenv("OMP_NUM_THREADS");
+	if (omp_threads != NULL) return(atoi(omp_threads));
 	return(get_number_of_cpu_cores());
 }
 }
@@ -143,7 +145,15 @@ caldgemm::caldgemm()
 	avggflops = 0;
 	avgngflops = 0;
 	
-	conf_numprocs = get_number_of_cpu_cores();
+	char* omp_threads = getenv("OMP_NUM_THREADS");
+	if (omp_threads != NULL)
+	{
+		conf_numprocs = atoi(omp_threads);
+	}
+	else
+	{
+		conf_numprocs = get_number_of_cpu_cores();
+	}
 	
 	FILE* fp;
 	fp = fopen("/proc/cpuinfo", "r");
