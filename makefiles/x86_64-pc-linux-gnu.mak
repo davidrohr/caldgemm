@@ -115,7 +115,10 @@ COMMONINCLUDEPATHS				=
 LIBPATHSUSE						=
 
 ifneq ($(CUFILES), )
-LIBSUSE							+= -lcublas -lcudart -lcuda
+LIBSUSE							+= -lcudart -lcuda
+ifeq ($(CONFIG_CUBLAS), 1)
+LIBSUSE							+= -lcublas
+endif
 ifeq ($(CONFIG_CUDA_DC), 1)
 LIBSUSE							+= -lcudadevrt
 endif
