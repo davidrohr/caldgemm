@@ -1449,6 +1449,7 @@ int caldgemm_opencl::RunAsyncSingleTileDTRSM(const CBLAS_ORDER Order, const CBLA
 		
 		CHKRET(clEnqueueReadBufferRectUse(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_buffers[useDeviceOffset + useDevice][1], CL_FALSE, origin, origin, region, 0, 0, ldb * sizeof(double), 0, B, 0, NULL, NULL), "Error retrieving async B");
 
+		CHKRET(clFlush(ocl_async_queue[useDeviceOffset + useDevice]), "Error in clFlush");
 		useDevice = (useDevice + 1) % nAsyncDevices;
 		
 		if (Side == CblasRight)
@@ -1741,6 +1742,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 				CHKRET(clEnqueueReadBufferRectUse(ocl_async_queue[useDeviceOffset + useDevice], ocl_async_buffers[useDeviceOffset + useDevice][3], CL_FALSE, origin, origin, region, 0, 0, Cpitch * sizeof(double), 0, g_C, 0, NULL, NULL), "Error retrieving async C");
 			}
 
+			CHKRET(clFlush(ocl_async_queue[useDeviceOffset + useDevice]), "Error in clFlush");
 			useDevice = (useDevice + 1) % nAsyncDevices;
 		}
 		
@@ -1866,6 +1868,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 	bool freeTransferEvents;
 	int forceFreeTransferEvent = -1;
 	
+	bool flushKernel = false;
+	
 	if (prepareM)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
@@ -1987,6 +1991,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			}
 			//printf("DEBUG: ABuffer device %d buffer %d blockm %d wait for %d kernels\n", num_device, j, (int) blockm, nTransferEvents);
 			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, (arg_transpose == 0 && KernelSettings.texture_buffers == false) ? ev : (Config->AlternateSimpleQueuing ? &ev2 : NULL)), "Error copying A");
+			
 			if (freeTransferEvents) for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event A");
 			if (forceFreeTransferEvent >= 0) CHKRET(clReleaseEvent(transferEvents[forceFreeTransferEvent]), "Error releasing event A");
 			if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
@@ -2031,6 +2036,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 					}
 				}
 				CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][use_queue], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], Config->AlternateSimpleQueuing ? 1 : 0, Config->AlternateSimpleQueuing ? &ev2 : NULL, ev), "Error starting conversion kernel for A");
+				flushKernel = true;
 				if (retain_ev)
 				{
 					alternateSimpleQueueEvent_tmp_abuffers[num_device][j] = *ev;
@@ -2218,6 +2224,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 					}
 				}
 				CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][use_queue], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], Config->AlternateSimpleQueuing ? 1 : 0, Config->AlternateSimpleQueuing ? &ev2 : NULL, ev), "Error starting conversion kernel for B");
+				flushKernel = true;
 				if (retain_ev)
 				{
 					alternateSimpleQueueEvent_tmp_bbuffers[num_device][j] = *ev;
@@ -2230,7 +2237,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		ocl_conversion_events_use[num_device][1] = 1;
 		if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 	}
-
+	
 	int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
 	if (Config->GPU_C && Config->DstMemory == 'g')
 	{
@@ -2253,9 +2260,19 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
 
 		CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], ocl_cbuffers[num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, nTransferEvents, nTransferEvents ? transferEvents : NULL, Config->AlternateSimpleQueuing ? &alternateSimpleQueueCopyCEvent[num_device][j] : NULL), "Error copying C");
-		CHKRET(clFlush(ocl_command_queues[num_device][use_queue]), "Error in clFlush");
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}
+	
+	if (Config->AlternateSimpleQueuing)
+	{
+		if (prepareM || prepareN || (Config->GPU_C && Config->DstMemory == 'g')) CHKRET(clFlush(ocl_command_queues[num_device][0]), "Error in clFlush");
+		if (flushKernel) CHKRET(clFlush(ocl_command_queues[num_device][2]), "Error in clFlush");
+	}
+	else
+	{
+		if (prepareM || prepareN || (Config->GPU_C && Config->DstMemory == 'g')) CHKRET(clFlush(ocl_command_queues[num_device][j]), "Error in clFlush");
+	}
+
 	if (Config->VerboseTiming && Config->GPU_C == 1)
 	{
 		CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
