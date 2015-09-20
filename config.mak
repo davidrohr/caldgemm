@@ -1,8 +1,8 @@
 include config_options.mak
 
 INTELARCH					= SSE4.2
-CUDAVERSION					= 20
-CUDAREGS					= 64
+CUDAVERSION					= 35
+CUDAREGS					= 255
 ARCHBITS					= 64
 
 HIDEECHO					= @
