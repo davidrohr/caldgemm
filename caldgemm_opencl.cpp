@@ -2772,13 +2772,14 @@ int caldgemm_opencl::CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, in
 {
 	if (config_backend->kernelLib != NULL)
 	{
-		Config->Height = kernelLibGetAutoHeight(MaxGpuM, MaxGpuN, nDevices, Config->Width);
-		return(1);
+		size_t tmpHeight = kernelLibGetAutoHeight(MaxGpuM, MaxGpuN, nDevices, Config->Width);
+		if (tmpHeight)
+		{
+			Config->Height = tmpHeight;
+			return(1);
+		}
 	}
-	else
-	{
-		return(0);
-	}
+	return(0);
 }
 int caldgemm_opencl::CaldgemmCustomModHeight(size_t MOD_OVER, size_t MOD_GPU)
 {
