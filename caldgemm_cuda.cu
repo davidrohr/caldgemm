@@ -134,7 +134,9 @@ int caldgemm_cuda::Initialize(bool nocalinit)
 		{
 			CHKRET(cudaStreamCreate(&cuda_command_queues[i][j]), "Creating CUDA Stream");
 		}
+#ifdef CALDGEMM_CUDA_CUBLAS		
                 CHKRET((cudaError_t)cublasCreate(&cublas_handles[i]),"Initializing Cublas library");
+#endif
 	}
 
 	return(0);
