@@ -212,6 +212,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	SimpleGPUQueuing = false;
 	AlternateSimpleQueuing = false;
 	NumDevices = max_devices;
+	NumActiveDevices = 0;
 	max_bbuffers = 0;
 	OpenCLPlatform = 0;
 	Width = 1024;
@@ -247,6 +248,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	KeepBuffersMapped = true;
 	NoPerformanceWarnings = false;
 	PinCPU = -1;
+	ForceNumCPUThreads = 0;
 	PinMainThread = -1;
 	PinDeviceRuntimeThreads = -2;
 	SlowCPU = false;
@@ -283,6 +285,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	AsyncDGEMMThreshold = 480;
 	AsyncDTRSMThreshold = 192;
 	AsyncDTRSM = false;
+	AsyncSideQueueUseInactiveDeviceSet = 0;
 	Use3rdPartyTranspose = false;
 	CPUInContext = 1;
 	PipelinedOperation = false;
@@ -577,6 +580,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	setThreadName("Main");
 	Config = pInfo;
 	
+	if (Config->ForceNumCPUThreads) conf_numprocs = Config->ForceNumCPUThreads;
+#if defined(USE_GOTO_BLAS) & !defined(_WIN32)
+	else conf_numprocs = get_num_procs();
+#endif
+	
 #ifdef USE_GOTO_BLAS
 	if (!Config->Quiet) fprintf(STD_OUT, "Initializing GotoBLAS\n");
 	gotoblas_init();
@@ -738,7 +746,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (Config->UseCPU)
 	{
 		main_blas_core = 0;
-		while (cpuUsed(main_blas_core) && main_blas_core < get_num_procs() - 1) main_blas_core++;
+		while (cpuUsed(main_blas_core) && main_blas_core < conf_numprocs - 1) main_blas_core++;
 	}
 	else
 	{
@@ -1334,7 +1342,7 @@ void* caldgemm::cblas_wrapper_a(cblasParameters* par)
 		const CBLAS_TRANSPOSE TransposeB = this->TransposeB ? CblasTrans : CblasNoTrans;
 		if (!Config->Quiet) fprintf(STD_OUT, "\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld (%lld), dynamic: %lld/%lld, cpu_k: %lld)\n", (long long int) matrix_m, (long long int) matrix_n, (long long int) par->cblas_size, (long long int) Config->Height, (long long int) par->dynamic_run, (long long int) par->dynamic_size, (long long int) par->cpu_k);
 
-		int old_goto_threads = get_num_procs();
+		int old_goto_threads = conf_numprocs;
 
 		int require_threads_base = reserve_cpu_cores();
 		
@@ -3728,6 +3736,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(OpenCLPlatform);
 	PRINT_CONFIG_INT(DeviceNum);
 	PRINT_CONFIG_INT(NumDevices);
+	PRINT_CONFIG_INT(NumActiveDevices);
 	PRINT_CONFIG_LOOP_INT(DeviceNums, NumDevices);
 	PRINT_CONFIG_INT(max_bbuffers);
 	PRINT_CONFIG_INT(PreallocData);
@@ -3753,6 +3762,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(SleepDuringActiveWait);
 	PRINT_CONFIG_INT(ThreadSaveDriver);
 	PRINT_CONFIG_INT(PinCPU);
+	PRINT_CONFIG_INT(ForceNumCPUThreads);
 	PRINT_CONFIG_INT(SlowCPU);
 	PRINT_CONFIG_INT(OutputThreads);
 	PRINT_CONFIG_INT(NumaPinning);
@@ -3762,6 +3772,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(AsyncDGEMMThreshold);
 	PRINT_CONFIG_INT(AsyncDTRSMThreshold);
 	PRINT_CONFIG_INT(AsyncDTRSM);
+	PRINT_CONFIG_INT(AsyncSideQueueUseInactiveDeviceSet);
 	PRINT_CONFIG_INT(Use3rdPartyTranspose);
 
 	PRINT_CONFIG_INT(Height);

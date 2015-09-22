@@ -361,6 +361,11 @@ for (unsigned int x = 1; x < argc; ++x)
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", &Config->PinBroadcastThread);
 		}
+		else if (argv[x][2] == 'N')
+		{
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->ForceNumCPUThreads);
+		}
 		else
 		{
 			if (++x >= argc) return(1);

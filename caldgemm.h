@@ -179,6 +179,7 @@ public:
 		int SleepDuringActiveWait;				//Sleep for n usec between queries for GPU event, -1 disable
 		int ThreadSaveDriver;					//Assume GPU driver to be thread save
 		int PinCPU;								//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
+		int ForceNumCPUThreads;						//Limit the number of CPU threads to use
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
 		int OutputThreads;						//Number of output threads
 		int NumaPinning;						//Rotate pinning over NUMA nodes, better die utilization but perhaps worse L3 cache utilization.
