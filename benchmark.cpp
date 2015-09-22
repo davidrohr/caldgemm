@@ -168,6 +168,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread to core n\n");
 	fprintf(STD_OUT, "\t-Kb <int> Pin Broadcast thread to core n\n");
 	fprintf(STD_OUT, "\t-KN <int> Set number of CPU cores used to N\n");
+	fprintf(STD_OUT, "\t-KG <int> Spawn GPU thread instead of cblas thread. (-2: disabled, -1: enabled, >=0: set caller core pinning\n");
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n");
 	fprintf(STD_OUT, "\t-Ux <int> Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping\n");
 	fprintf(STD_OUT, "\t-UAx <int>Allocate memory for GPU x for die <int>, -1 = default mapping\n");

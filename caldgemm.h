@@ -176,6 +176,7 @@ public:
 		int PinBroadcastThread;					//CPU core to pin broadcast thread to
 		bool RepinDuringActiveWaitForEvent;		//Repin the Main CPU core that does the active wait for the event to the allocmapping of the GPU it waits for
 		bool RepinMainThreadAlways;				//Superseedes the above setting. The main thread is always repinned to the allocmapping core of each GPU when working for this GPU
+		int SpawnGPUThread;						//Spawn a GPU thread instead of a cblas thread, and perform cblas calls from calling thread. -2: disabled (default), -1: enabled, >= 0: define the CPU core to pin the caller thread to (PinMainThread will affect the GPU thread!)
 		int SleepDuringActiveWait;				//Sleep for n usec between queries for GPU event, -1 disable
 		int ThreadSaveDriver;					//Assume GPU driver to be thread save
 		int PinCPU;								//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
@@ -563,9 +564,12 @@ protected:
 	qThreadClsArray<caldgemm, clsDMAParam> DMAThreads;
 	void DMA_wrapper(clsDMAParam* param);
 
+	int caldgemm_part_cpu();
+	int caldgemm_part_gpu();
+
 	void* merge_wrapper_a(mergeParameters* par);
 	void* divide_wrapper_a(divideParameters* par);
-	void* cblas_wrapper_a(cblasParameters* par);
+	void* cblas_wrapper_a(bool thread = false);
 	void* linpack_broadcast_wrapper_a();
 
 	pthread_mutex_t globalDriverLock;
