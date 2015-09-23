@@ -145,6 +145,7 @@ caldgemm::caldgemm()
 	avggflops = 0;
 	avgngflops = 0;
 	
+	conf_numprocs_real = get_number_of_cpu_cores();
 	char* omp_threads = getenv("OMP_NUM_THREADS");
 	if (omp_threads != NULL)
 	{
@@ -152,7 +153,7 @@ caldgemm::caldgemm()
 	}
 	else
 	{
-		conf_numprocs = get_number_of_cpu_cores();
+		conf_numprocs = conf_numprocs_real;
 	}
 	
 	FILE* fp;
@@ -1126,7 +1127,7 @@ void* caldgemm::linpack_broadcast_wrapper_a()
 	if (Config->Debug) fprintf(STD_OUT, "Linpack broadcast helper thread started\n");
 
 	int linpackCPU = broadcast_cpu_core;
-	if (linpackCPU >= conf_numprocs) linpackCPU = 0;
+	if (linpackCPU >= conf_numprocs_real) linpackCPU = 0;
 	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, core %d\n", linpackCPU);
 	sched_setaffinity_set_core(linpackCPU);
 
@@ -1879,7 +1880,7 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		merge_core = Config->PostprocessMapping[par->num_device] + par->nMergeThread;
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Merge Thread %d, core %d\n", par->nMergeThread, merge_core);
-	sched_setaffinity_set_core(merge_core % conf_numprocs);
+	sched_setaffinity_set_core(merge_core % conf_numprocs_real);
 
 	//HighResTimer mergeTimer;
 

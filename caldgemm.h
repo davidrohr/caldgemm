@@ -590,7 +590,7 @@ protected:
 
 	char hostname[256];							//Store hostname of node for host dependant debug code
 	
-	int conf_numprocs, conf_cpufreq, conf_numgpus, conf_gpufreq, conf_gpushaders;
+	int conf_numprocs, conf_numprocs_real, conf_cpufreq, conf_numgpus, conf_gpufreq, conf_gpushaders;
 
 	struct dma_fetch_queue_task
 	{
