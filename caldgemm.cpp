@@ -632,7 +632,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (!Config->SimpleGPUQueuing) Config->PipelinedOperation = false;
 	if (!Config->PipelinedOperation) Config->PipelinedMidMarker = 0;
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
-	if (Config->MultiThread == false) Config->SpawnGPUThread = -2;
+	if (Config->MultiThread == false || !Config->UseCPU) Config->SpawnGPUThread = -2;
 	if (Config->ParallelDMA || Config->SimpleGPUQueuing) Config->ImprovedScheduler = true;
 	if ((Config->AsyncSideQueue || Config->SimpleGPUQueuing) && (Config->GPU_C == 0 || UseInputPthreads() || UseOutputPthreads()))
 	{
