@@ -1723,7 +1723,7 @@ void* caldgemm::cblas_wrapper_a(bool thread)
 {
 	if (thread)
 	{
-		setThreadName((char*) (Config->SpawnGPUThread != -2 ? "GPU Wrapper" : "CBLAS Wrapper"));
+		setThreadName(Config->SpawnGPUThread != -2 ? "GPU Wrapper" : "CBLAS Wrapper");
 		if (Config->Debug) fprintf(STD_OUT, "Cblas helper thread started\n");
 		if (Config->SpawnGPUThread == -2)
 		{

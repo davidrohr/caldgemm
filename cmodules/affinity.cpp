@@ -52,7 +52,7 @@ public:
 
 static lockClass lockedVector;
 
-void setThreadName(char* name)
+void setThreadName(const char* name)
 {
 	threadNameStruct tmp;
 	tmp.thread_id = gettid();

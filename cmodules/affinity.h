@@ -10,7 +10,7 @@ extern "C"
 {
 #endif
 
-void setThreadName(char* name);
+void setThreadName(const char* name);
 #ifdef __cplusplus
 const char* getThreadName(int tid = -1, const char* defaultval = "Unknown Thread");
 #else
