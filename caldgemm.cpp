@@ -662,7 +662,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		CPU_ZERO(&affinity);
 		if (Config->PinDeviceRuntimeThreads == -1) for (int i = 0;i < conf_numprocs;i++) CPU_SET(i, &affinity);
 		else CPU_SET(Config->PinDeviceRuntimeThreads, &affinity);
-		sched_setaffinity(0, sizeof(affinity), &affinity);
 		if (0 != sched_setaffinity(0, sizeof(affinity), &affinity))
 		{
 			fprintf(STD_OUT, "Error setting CPU affinity\n");
@@ -828,10 +827,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		}
 	}
 
-	cpu_set_t tmpmask;
-	CPU_ZERO(&tmpmask);
-	CPU_SET(Config->PinMainThread, &tmpmask);
-	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+	sched_setaffinity(0, sizeof(gpumask), &gpumask);
 	
 #ifdef CALDGEMM_DIVIDE_STATIC_BUFFER
 	divide_tmpBuffer = allocDivideBuffer();
@@ -894,7 +890,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 
 	if (Config->Debug) fprintf(STD_OUT, "Using %d CPU cores at %d MHz, %d GPUs of %d shaders at %d MHz\n", conf_numprocs, conf_cpufreq, nDevices, conf_gpushaders, conf_gpufreq);
-	ensure_omp_thread_pinning(Config->SpawnGPUThread ? NULL : "Main");
+	ensure_omp_thread_pinning(Config->SpawnGPUThread != -2 ? NULL : "Main");
 
 	if (Config->UseCPU)
 	{
@@ -1713,8 +1709,11 @@ int caldgemm::caldgemm_part_gpu()
 		Timers.ATime.Start();
 	}
 
-	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&oldcpumask));
-	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
+	if (Config->SpawnGPUThread == -2)
+	{
+		if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&oldcpumask));
+		sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
+	}
 
 	return(0);
 }
@@ -1725,9 +1724,16 @@ void* caldgemm::cblas_wrapper_a(bool thread)
 	{
 		setThreadName((char*) (Config->SpawnGPUThread != -2 ? "GPU Wrapper" : "CBLAS Wrapper"));
 		if (Config->Debug) fprintf(STD_OUT, "Cblas helper thread started\n");
-		ensure_omp_thread_pinning("CBLAS");
+		if (Config->SpawnGPUThread == -2)
+		{
+			ensure_omp_thread_pinning("CBLAS");
+		}
 
-		if (Config->GPUMapping[0] + outputthreads * nDevices + 1 >= conf_numprocs)
+		if (Config->SpawnGPUThread != -2)
+		{
+			sched_setaffinity(0, sizeof(gpumask), &gpumask);
+		}
+		else if (Config->GPUMapping[0] + outputthreads * nDevices + 1 >= conf_numprocs)
 		{
 			cpu_set_t tmp_mask;
 			CPU_ZERO(&tmp_mask);
@@ -2483,10 +2489,7 @@ endimprovedphase:
 		}
 		if (currentPinning != Config->PinMainThread)
 		{
-			cpu_set_t tmpmask;
-			CPU_ZERO(&tmpmask);
-			CPU_SET(Config->PinMainThread, &tmpmask);
-			sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+			sched_setaffinity(0, sizeof(gpumask), &gpumask);
 		}
 	}
 	if (Config->MultiThreadDivide && parallelDevice == -1 && UseInputPthreads())
@@ -2768,8 +2771,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			outputthreads = mymin(CALDGEMM_OUTPUT_THREADS_SLOW, outputthreads + CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK);
 		}
 
-		if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&gpumask));
-		sched_setaffinity(0, sizeof(cpu_set_t), &gpumask);
+		if (Config->SpawnGPUThread == -2)
+		{
+			if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&gpumask));
+			sched_setaffinity(0, sizeof(cpu_set_t), &gpumask);
+		}
 
 		if (forceReinit)
 		{
