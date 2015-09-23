@@ -578,7 +578,6 @@ int caldgemm::WaitForCALDGEMMProgress(size_t n)
 
 int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 {
-	setThreadName("Main");
 	Config = pInfo;
 	
 	if (Config->ForceNumCPUThreads) conf_numprocs = Config->ForceNumCPUThreads;
@@ -640,6 +639,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->AsyncSideQueue = false;
 	}
 	if (!Config->AsyncSideQueue) Config->AsyncDTRSM = false;
+
+	setThreadName(Config->SpawnGPUThread == -2 ? "Main (GPU)" : "Main (CPU)");
 
 #ifndef USE_GOTO_BLAS
 	if (Config->ParallelDMA && Config->linpack_broadcast_function && (Config->ParallelDMA > Config->AlternateLookahead || Config->DynamicSched))
