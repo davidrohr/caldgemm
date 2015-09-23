@@ -744,11 +744,40 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	setUnknownAffinity(1, &thread);
 	setUnknownNames("Device Runtime");
 
+	if (Config->PinBroadcastThread == -1)
+	{
+		int linpackCPU = 0;
+		while (linpackCPU < conf_numprocs)
+		{
+			if (cpuUsed(linpackCPU) == false) break;
+			linpackCPU++;
+		}
+		if (linpackCPU >= conf_numprocs) linpackCPU = 0;
+		broadcast_cpu_core = linpackCPU;
+	}
+	else
+	{
+		broadcast_cpu_core = Config->PinBroadcastThread;
+	}
+	if (Config->Debug) fprintf(STD_OUT, "Broadcast CPU core set to %d\n", broadcast_cpu_core);
+
 #ifndef USE_GOTO_BLAS		//If we do not use GotoBLAS thread pinning determine main blas thread only after determining GPU devices to avoid collisions. Store the thread afterward as for GotoBLAS.
 	if (Config->UseCPU)
 	{
-		main_blas_core = 0;
-		while (cpuUsed(main_blas_core) && main_blas_core < conf_numprocs - 1) main_blas_core++;
+		if (Config->SpawnGPUThread >= 0)
+		{
+			main_blas_core = Config->SpawnGPUThread;
+			if (Config->PinBroadcastThread == -1 && main_blas_core == broadcast_cpu_core)
+			{
+				fprintf(STD_OUT, "Your pinning of the Main CPU thread (Config->SpawnGPUThread) collides with autoselected linpack blas core, please set Config->PinBroadcastThread!");
+				return(1);
+			}
+		}
+		else
+		{
+			main_blas_core = 0;
+			while ((cpuUsed(main_blas_core) || broadcast_cpu_core == main_blas_core) && main_blas_core < conf_numprocs - 1) main_blas_core++;
+		}
 	}
 	else
 	{
@@ -807,23 +836,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 #ifdef CALDGEMM_DIVIDE_STATIC_BUFFER
 	divide_tmpBuffer = allocDivideBuffer();
 #endif
-
-	if (Config->PinBroadcastThread == -1)
-	{
-		int linpackCPU = 0;
-		while (linpackCPU < conf_numprocs)
-		{
-			if (cpuUsed(linpackCPU) == false && linpackCPU != main_blas_core) break;
-			linpackCPU++;
-		}
-		if (linpackCPU >= conf_numprocs) linpackCPU = 0;
-		broadcast_cpu_core = linpackCPU;
-	}
-	else
-	{
-		broadcast_cpu_core = Config->PinBroadcastThread;
-	}
-	if (Config->Debug) fprintf(STD_OUT, "Broadcast CPU core set to %d\n", broadcast_cpu_core);
 
 	if (Config->AlternateLookahead)
 	{
