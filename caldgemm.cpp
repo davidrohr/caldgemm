@@ -434,7 +434,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 	fprintf(STD_OUT, "Done\n");
 }
 
-void caldgemm::ensure_omp_thread_pinning()
+void caldgemm::ensure_omp_thread_pinning(const char* baseName)
 {
 #ifndef USE_GOTO_BLAS
 	if (Config->Debug) fprintf(STD_OUT, "Performing OpenMP Blas Thread Pinning\n");
@@ -503,7 +503,7 @@ void caldgemm::ensure_omp_thread_pinning()
 		if (getThreadName(-1, NULL) == NULL)
 		{
 			char tmp[128];
-			sprintf(tmp, "OpenMP Init %d Thread %d", nInitialization, thread_id);
+			sprintf(tmp, "OpenMP Init %d %s%s%s Thread %d", nInitialization, baseName ? "(" : "", baseName ? baseName : "", baseName ? ")" : "", thread_id);
 			setThreadName(tmp);
 		}
 		int localcore = thread_id * 2;
@@ -882,7 +882,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 
 	if (Config->Debug) fprintf(STD_OUT, "Using %d CPU cores at %d MHz, %d GPUs of %d shaders at %d MHz\n", conf_numprocs, conf_cpufreq, nDevices, conf_gpushaders, conf_gpufreq);
-	ensure_omp_thread_pinning();
+	ensure_omp_thread_pinning(Config->SpawnGPUThread ? NULL : "Main");
 
 	if (Config->UseCPU)
 	{
@@ -1713,7 +1713,7 @@ void* caldgemm::cblas_wrapper_a(bool thread)
 	{
 		setThreadName((char*) (Config->SpawnGPUThread != -2 ? "GPU Wrapper" : "CBLAS Wrapper"));
 		if (Config->Debug) fprintf(STD_OUT, "Cblas helper thread started\n");
-		ensure_omp_thread_pinning();
+		ensure_omp_thread_pinning("CBLAS");
 
 		if (Config->GPUMapping[0] + outputthreads * nDevices + 1 >= conf_numprocs)
 		{

@@ -412,7 +412,7 @@ protected:
 	int getcpumask(cpu_set_t* set);
 	int broadcast_cpu_core;
 	int main_blas_core;
-	void ensure_omp_thread_pinning();
+	void ensure_omp_thread_pinning(const char* baseName);
 
 	struct mergeParameters
 	{
