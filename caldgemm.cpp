@@ -500,13 +500,12 @@ void caldgemm::ensure_omp_thread_pinning()
 	{
 		int thread_id = omp_get_thread_num();
 		
-		if (gettid() != getpid())
+		if (getThreadName(-1, NULL) == NULL)
 		{
 			char tmp[128];
 			sprintf(tmp, "OpenMP Init %d Thread %d", nInitialization, thread_id);
 			setThreadName(tmp);
 		}
-		cpu_set_t localset;
 		int localcore = thread_id * 2;
 
 #pragma omp critical
@@ -549,6 +548,7 @@ void caldgemm::ensure_omp_thread_pinning()
 			}
 		}
 
+		cpu_set_t localset;
 		CPU_ZERO(&localset);
 		CPU_SET(localcore, &localset);
 		sched_setaffinity(0, sizeof(localset), &localset);
@@ -1692,14 +1692,14 @@ int caldgemm::caldgemm_part_gpu()
 		}
 
 		if(Config->Verify && i < Config->Iterations - 1) AnalyzeResults();
-
-		if (Config->MultiThread && Config->UseCPU)
-		{
-			Timers.ATime.Reset();
-			Timers.ATime.Start();
-		}
 	}
 	Timers.GPUTimer.Stop();
+
+	if (Config->MultiThread && Config->UseCPU)
+	{
+		Timers.ATime.Reset();
+		Timers.ATime.Start();
+	}
 
 	if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&oldcpumask));
 	sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);

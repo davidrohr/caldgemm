@@ -11,6 +11,7 @@ extern "C"
 #endif
 
 void setThreadName(char* name);
+const char* getThreadName(int tid = -1, const char* defaultval = "Unknown Thread");
 void printThreadPinning();
 void setUnknownNames(char* name);
 void setUnknownAffinity(int count, int* cores);
