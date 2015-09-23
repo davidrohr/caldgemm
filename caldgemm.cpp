@@ -1014,60 +1014,63 @@ int caldgemm::reserve_cpu_cores()
 {
 	int nthreads = 0;
 	int mainfound = 0;
-	for (int i = 0;i < nDevices;i++)
+	if (UseOutputPthreads() || UseInputPthreads() || Config->ParallelDMA || Config->GroupParallelDMA)
 	{
-		int offset = 0;
-		for (int j = 0;j < i;j++)
+		for (int i = 0;i < nDevices;i++)
 		{
-			if (Config->GPUMapping[i] == Config->GPUMapping[j] && Config->PostprocessMapping[j] != -1) offset++;
-		}
-		if (matrix_n >= Config->ParallelDMA && Config->ParallelDMA != 0)
-		{
-			if (matrix_n < Config->GroupParallelDMA)
+			int offset = 0;
+			for (int j = 0;j < i;j++)
 			{
-				if (Config->AllocMapping[i] != Config->PinMainThread)
+				if (Config->GPUMapping[i] == Config->GPUMapping[j] && Config->PostprocessMapping[j] != -1) offset++;
+			}
+			if (matrix_n >= Config->ParallelDMA && Config->ParallelDMA != 0)
+			{
+				if (matrix_n < Config->GroupParallelDMA)
 				{
-					bool found = false;
-					for (int j = 0;j < i;j++)
+					if (Config->AllocMapping[i] != Config->PinMainThread)
 					{
-						if (Config->AllocMapping[j] == Config->AllocMapping[i])
+						bool found = false;
+						for (int j = 0;j < i;j++)
 						{
-							found = true;
-							break;
+							if (Config->AllocMapping[j] == Config->AllocMapping[i])
+							{
+								found = true;
+								break;
+							}
+						}
+						if (!found)
+						{
+							caldgemm_goto_reserve_cpu(Config->AllocMapping[i], 1);
+							if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for Grouped DMA Thread\n", Config->AllocMapping[i]);
+							nthreads++;
 						}
 					}
-					if (!found)
-					{
-						caldgemm_goto_reserve_cpu(Config->AllocMapping[i], 1);
-						if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for Grouped DMA Thread\n", Config->AllocMapping[i]);
-						nthreads++;
-					}
+				}
+				else if (i)
+				{
+					caldgemm_goto_reserve_cpu(Config->DMAMapping[i], 1);
+					if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DMA Thread\n", Config->DMAMapping[i]);
+					nthreads++;
 				}
 			}
-			else if (i)
+			else if (offset == 0 && Config->MultiThreadDivide && UseInputPthreads())
 			{
-				caldgemm_goto_reserve_cpu(Config->DMAMapping[i], 1);
-				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DMA Thread\n", Config->DMAMapping[i]);
+				caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
+				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
 				nthreads++;
+				if (Config->GPUMapping[i] == Config->PinMainThread) mainfound = 1;
 			}
-		}
-		else if (offset == 0 && Config->MultiThreadDivide && UseInputPthreads())
-		{
-			caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
-			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
-			nthreads++;
-			if (Config->GPUMapping[i] == Config->PinMainThread) mainfound = 1;
-		}
 
-		if (UseOutputPthreads())
-		{
-			for (int j = 0;j < outputthreads;j++)
+			if (UseOutputPthreads())
 			{
-				const int merge_core = Config->PostprocessMapping[i] == -1 ? (Config->GPUMapping[i] + 1 + offset * outputthreads + j) : (Config->PostprocessMapping[i] + j);
-				caldgemm_goto_reserve_cpu(merge_core, 1);
-				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", merge_core);
+				for (int j = 0;j < outputthreads;j++)
+				{
+					const int merge_core = Config->PostprocessMapping[i] == -1 ? (Config->GPUMapping[i] + 1 + offset * outputthreads + j) : (Config->PostprocessMapping[i] + j);
+					caldgemm_goto_reserve_cpu(merge_core, 1);
+					if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", merge_core);
+				}
+				nthreads += outputthreads;
 			}
-			nthreads += outputthreads;
 		}
 	}
 
@@ -1075,7 +1078,7 @@ int caldgemm::reserve_cpu_cores()
 	{
 		caldgemm_goto_reserve_cpu(Config->PinMainThread, 1);
 		if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for Main Thread\n", Config->PinMainThread);
-		nthreads++;
+		if (Config->ForceNumCPUThreads == 0 || Config->PinMainThread < Config->ForceNumCPUThreads) nthreads++;
 	}
 
 	for (int i = 0;i < Config->nExcludeCPUCores;i++)
@@ -1083,11 +1086,12 @@ int caldgemm::reserve_cpu_cores()
 		caldgemm_goto_reserve_cpu(Config->ExcludeCPUCores[i], 1);
 		if (Config->Debug) fprintf(STD_OUT, "Excluding Core %d\n", Config->ExcludeCPUCores[i]);
 	}
-	nthreads += Config->nExcludeCPUCores;
+	if (Config->ForceNumCPUThreads) nthreads += Config->nExcludeCPUCores;
 
 	if (Config->PinDeviceRuntimeThreads >= 0)
 	{
 		caldgemm_goto_reserve_cpu(Config->PinDeviceRuntimeThreads, 1);
+		if (Config->ForceNumCPUThreads == 0 || Config->PinDeviceRuntimeThreads < Config->ForceNumCPUThreads) nthreads++;
 		nthreads++;
 	}
 
@@ -1293,7 +1297,7 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int& require_thread
 		if (Config->MultiThread)
 		{
 			caldgemm_goto_reserve_cpu(broadcast_cpu_core, 1);
-			require_threads++;
+			if (Config->ForceNumCPUThreads == 0 || broadcast_cpu_core < Config->ForceNumCPUThreads) require_threads++;
 
 			linpackParameters.linpackMutex[0].Unlock();
 		}
