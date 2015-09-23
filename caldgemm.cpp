@@ -548,10 +548,7 @@ void caldgemm::ensure_omp_thread_pinning(const char* baseName)
 			}
 		}
 
-		cpu_set_t localset;
-		CPU_ZERO(&localset);
-		CPU_SET(localcore, &localset);
-		sched_setaffinity(0, sizeof(localset), &localset);
+		sched_setaffinity_set_core(localcore);
 		if (Config->Debug) fprintf(STD_OUT, "OpenMP BLAS thread %d pinned to core %d\n", thread_id, localcore);
 	}
 	setUnknownNames("Unknown OMP Thread");
@@ -784,10 +781,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		main_blas_core = Config->PinMainThread;
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Pinning Main OpenMP BLAS thread to core %d\n", main_blas_core);
-	cpu_set_t blasset;
-	CPU_ZERO(&blasset);
-	CPU_SET(main_blas_core, &blasset);
-	sched_setaffinity(0, sizeof(blasset), &blasset);
+	sched_setaffinity_set_core(main_blas_core);
 
 	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);		//As for GotoBLAS above, store pinning here
 #else	//Set main blas core for GotoBLAS
@@ -1127,14 +1121,10 @@ void* caldgemm::linpack_broadcast_wrapper_a()
 	setThreadName("Linpack Broadcast Wrapper");
 	if (Config->Debug) fprintf(STD_OUT, "Linpack broadcast helper thread started\n");
 
-	cpu_set_t linpack_mask;
-	CPU_ZERO(&linpack_mask);
-	
 	int linpackCPU = broadcast_cpu_core;
 	if (linpackCPU >= conf_numprocs) linpackCPU = 0;
-	CPU_SET(linpackCPU, &linpack_mask);
-	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", getcpumask(&linpack_mask));
-	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
+	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, core %d\n", linpackCPU);
+	sched_setaffinity_set_core(linpackCPU);
 
 	linpackParameters.linpackMutex[0].Lock();
 	while (linpackParameters.linpackMutex[0].Lock() == 0 && linpackParameters.terminate == false)
@@ -1736,10 +1726,7 @@ void* caldgemm::cblas_wrapper_a(bool thread)
 		}
 		else if (Config->GPUMapping[0] + outputthreads * nDevices + 1 >= conf_numprocs)
 		{
-			cpu_set_t tmp_mask;
-			CPU_ZERO(&tmp_mask);
-			CPU_SET(0, &tmp_mask);
-			sched_setaffinity(0, sizeof(tmp_mask), &tmp_mask);
+			sched_setaffinity_set_core(0);
 		}
 		else
 		{
@@ -1788,10 +1775,7 @@ void* caldgemm::divide_wrapper_a(divideParameters* par)
 		sprintf(tmp, "Divide %d", par->nThread);
 		setThreadName(tmp);
 	}
-	cpu_set_t divide_mask;
-	CPU_ZERO(&divide_mask);
-	CPU_SET(par->CPUCore, &divide_mask);
-	sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
+	sched_setaffinity_set_core(par->CPUCore);
 	
 	par->curDevice = -1;
 	for (int i = 0;i < nDevices;i++)
@@ -1876,8 +1860,6 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 
 	if (Config->Debug) fprintf(STD_OUT, "Merger Thread %d started\n", par->nMergeThread);
 
-	cpu_set_t merge_mask;
-	CPU_ZERO(&merge_mask);
 	int merge_core;
 	
 	if (Config->PostprocessMapping[par->num_device] == -1)
@@ -1892,9 +1874,8 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 	{
 		merge_core = Config->PostprocessMapping[par->num_device] + par->nMergeThread;
 	}
-	CPU_SET(merge_core % conf_numprocs, &merge_mask);
-	if (Config->Debug) fprintf(STD_OUT, "Merge Thread %d, setting CPU mask %X\n", par->nMergeThread, getcpumask(&merge_mask));
-	sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
+	if (Config->Debug) fprintf(STD_OUT, "Merge Thread %d, core %d\n", par->nMergeThread, merge_core);
+	sched_setaffinity_set_core(merge_core % conf_numprocs);
 
 	//HighResTimer mergeTimer;
 
@@ -2256,10 +2237,7 @@ endimprovedphase:
 
 			if (Config->RepinMainThreadAlways && currentPinning != Config->AllocMapping[use_device])
 			{
-				cpu_set_t tmpmask;
-				CPU_ZERO(&tmpmask);
-				CPU_SET(Config->AllocMapping[use_device], &tmpmask);
-				sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+				sched_setaffinity_set_core(Config->AllocMapping[use_device]);
 				if (Config->Debug) fprintf(STD_OUT, "Repinning to %d\n", Config->AllocMapping[use_device]);
 				currentPinning = Config->AllocMapping[use_device];
 			}

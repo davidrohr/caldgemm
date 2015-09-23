@@ -20,6 +20,14 @@ void printThreadPinning();
 void setUnknownNames(char* name);
 void setUnknownAffinity(int count, int* cores);
 
+inline int sched_setaffinity_set_core(int core)
+{
+	cpu_set_t set;
+	CPU_ZERO(&set);
+	CPU_SET(core, &set);
+	return sched_setaffinity(0, sizeof(set), &set);
+}
+
 pid_t gettid();
 #ifdef _WIN32
 pid_t getpid();
