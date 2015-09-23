@@ -522,8 +522,11 @@ void caldgemm::ensure_omp_thread_pinning(const char* baseName)
 					nFreeCores++;
 				}
 			}
-			if (thread_id == nFreeCores) localcore = broadcast_cpu_core;
-			nFreeCores++;
+			if ((Config->ForceNumCPUThreads == 0 || broadcast_cpu_core < Config->ForceNumCPUThreads) && thread_id == nFreeCores)
+			{
+				localcore = broadcast_cpu_core;
+				nFreeCores++;
+			}
 
 			for (int j = 0;j < 2;j++)
 			{
