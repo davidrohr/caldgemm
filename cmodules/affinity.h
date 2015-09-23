@@ -3,6 +3,9 @@
 
 #ifdef _WIN32
 typedef HANDLE pid_t;
+#include "sched_affinity_win32_wrapper.h"
+#else
+#include <sched.h>
 #endif
 
 #ifdef __cplusplus
