@@ -330,6 +330,10 @@ int caldgemm_cuda::ExitRuntime()
 		{
 			CHKRET(cudaStreamDestroy(cuda_command_queues[i][j]), "Destroying CUDA Stream");
 		}
+#ifdef CALDGEMM_CUDA_CUBLAS             
+		CHKRET((cudaError_t)cublasDestroy(cublas_handles[i]),"Destroying Cublas Handles");
+#endif
+		CHKRET(cudaThreadExit(),"Destroying Cuda Context %d \n",i);
 	}
 
 	return(0);
