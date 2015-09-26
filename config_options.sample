@@ -5,6 +5,7 @@ BLAS_BACKEND				= MKL
 INCLUDE_OPENCL				= 1
 INCLUDE_CAL				= 1
 INCLUDE_CUDA				= 1
+INCLUDE_CUBLAS				= 1
 
 #Other Config options
 #Use link time optimization

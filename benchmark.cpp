@@ -114,6 +114,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-R  <int> Number of iterations to run the program (seperate caldgemm calls)\n");
 	fprintf(STD_OUT, "\t-y  <int> Force Device ID (-1 = all devices)\n");
 	fprintf(STD_OUT, "\t-Y  <int> Use n devices\n");
+	fprintf(STD_OUT, "\t-Ya <int> Use only n devices as active devices\n");
+	fprintf(STD_OUT, "\t-Yu       Use inactive devices for async side queue\n");
 	fprintf(STD_OUT, "\t-bb <int> Maxumum number of allowed bbuffers\n");
 	fprintf(STD_OUT, "\t-d        Enable Debug Mode\n");
 	fprintf(STD_OUT, "\t-z        Enable Multithreading\n");
@@ -165,6 +167,8 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-tr <int> Pin device runtime threads to code <int>, set -1 for all cores\n");
 	fprintf(STD_OUT, "\t-K  <int> Pin GPU main thread to core n\n");
 	fprintf(STD_OUT, "\t-Kb <int> Pin Broadcast thread to core n\n");
+	fprintf(STD_OUT, "\t-KN <int> Set number of CPU cores used to N\n");
+	fprintf(STD_OUT, "\t-KG <int> Spawn GPU thread instead of cblas thread. (-2: disabled, -1: enabled, >=0: set caller core pinning\n");
 	fprintf(STD_OUT, "\t-Gx <int> Pin CPU threads of GPU x to same die as the CPU core id provided\n");
 	fprintf(STD_OUT, "\t-Ux <int> Pin CPU postprocessing threads of GPU x to CPU core <int>, -1 = default mapping\n");
 	fprintf(STD_OUT, "\t-UAx <int>Allocate memory for GPU x for die <int>, -1 = default mapping\n");

@@ -52,7 +52,7 @@ public:
 
 static lockClass lockedVector;
 
-void setThreadName(char* name)
+void setThreadName(const char* name)
 {
 	threadNameStruct tmp;
 	tmp.thread_id = gettid();
@@ -60,6 +60,19 @@ void setThreadName(char* name)
 	pthread_mutex_lock(&lockedVector.lock);
 	lockedVector.threadNames.push_back(tmp);
 	pthread_mutex_unlock(&lockedVector.lock);
+}
+
+const char* getThreadName(int tid, const char* defaultval)
+{
+	if (tid == -1) tid = gettid();
+	for (size_t i = 0;i < lockedVector.threadNames.size();i++)
+	{
+		if (lockedVector.threadNames[i].thread_id == tid)
+		{
+			return(lockedVector.threadNames[i].name.c_str());
+		}
+	}
+	return(defaultval);
 }
 
 void setUnknownNames(char* name)
@@ -171,17 +184,8 @@ void printThreadPinning()
 					}
 				}
 				fprintf(STD_OUT, " - ");
-				bool found = false;
-				for (size_t i = 0;i < lockedVector.threadNames.size();i++)
-				{
-					if (lockedVector.threadNames[i].thread_id == tid)
-					{
-						fprintf(STD_OUT, "%s", lockedVector.threadNames[i].name.c_str());
-						found = true;
-						break;
-					}
-				}
-				if (found == false) fprintf(STD_OUT, "Unknown Thread");
+				const char* name = getThreadName(tid);
+				fprintf(STD_OUT, "%s", name);
 				if (CPU_COUNT(&threadmask) == 1)
 				{
 					for (int i = 0;i < get_number_of_cpu_cores();i++)

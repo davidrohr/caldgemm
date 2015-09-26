@@ -154,6 +154,7 @@ public:
 		int OpenCLPlatform;						//OpenCL Platform ID to use
 		int DeviceNum;							//CAL Device to use (-1 for all devices)
 		int NumDevices;							//Number of devices to use in parallel at max
+		int NumActiveDevices;						//Initialize NumDevices but use ony NumActiveDevices for main queue.
 		int DeviceNums[max_devices];			//Array of CAL devices to use (replaces DeviceNum for multiple devices). This translation is applied first, all other setting like GPU mappings are applied on top of this.
 		int max_bbuffers;						//Limit the number of bbuffers
 		int PreallocData;						//Preallocate buffers, set Prealloc to the maximum number of (mb/nb) blocks expected!
@@ -175,15 +176,18 @@ public:
 		int PinBroadcastThread;					//CPU core to pin broadcast thread to
 		bool RepinDuringActiveWaitForEvent;		//Repin the Main CPU core that does the active wait for the event to the allocmapping of the GPU it waits for
 		bool RepinMainThreadAlways;				//Superseedes the above setting. The main thread is always repinned to the allocmapping core of each GPU when working for this GPU
+		int SpawnGPUThread;						//Spawn a GPU thread instead of a cblas thread, and perform cblas calls from calling thread. -2: disabled (default), -1: enabled, >= 0: define the CPU core to pin the caller thread to (PinMainThread will affect the GPU thread!)
 		int SleepDuringActiveWait;				//Sleep for n usec between queries for GPU event, -1 disable
 		int ThreadSaveDriver;					//Assume GPU driver to be thread save
 		int PinCPU;								//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
+		int ForceNumCPUThreads;						//Limit the number of CPU threads to use
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
 		int OutputThreads;						//Number of output threads
 		int NumaPinning;						//Rotate pinning over NUMA nodes, better die utilization but perhaps worse L3 cache utilization.
 		unsigned int AlternateLookahead;		//Alternate Lookahead implementation optimized for saving CPU cycles, set to an integer, AlternateLookahead is used as soon as n (since HPL is col major) is smaller than this value, 0 for disable
 		bool AsyncSideQueue;					//Create an asynchronous side queue to run small DGEMMs (without tiling) in parallel to a large DGEMM
 		int AsyncSideQueueBalance;				//Balance workload of ASYNC Side queue among GPUs
+		int AsyncSideQueueUseInactiveDeviceSet;			//If GPUs were disabled via SetNumberDevices for the main queue, the async side queue will use these disabled devices
 		int AsyncDGEMMThreshold;				//Min size where GPU is used for async DGEMM
 		int AsyncDTRSMThreshold;				//Same for DTRSM
 		bool AsyncDTRSM;					//Allow side-queue to run DTRSM as well
@@ -408,7 +412,7 @@ protected:
 	int getcpumask(cpu_set_t* set);
 	int broadcast_cpu_core;
 	int main_blas_core;
-	void ensure_omp_thread_pinning();
+	void ensure_omp_thread_pinning(const char* baseName);
 
 	struct mergeParameters
 	{
@@ -560,9 +564,12 @@ protected:
 	qThreadClsArray<caldgemm, clsDMAParam> DMAThreads;
 	void DMA_wrapper(clsDMAParam* param);
 
+	int caldgemm_part_cpu();
+	int caldgemm_part_gpu();
+
 	void* merge_wrapper_a(mergeParameters* par);
 	void* divide_wrapper_a(divideParameters* par);
-	void* cblas_wrapper_a(cblasParameters* par);
+	void* cblas_wrapper_a(bool thread = false);
 	void* linpack_broadcast_wrapper_a();
 
 	pthread_mutex_t globalDriverLock;
@@ -583,7 +590,7 @@ protected:
 
 	char hostname[256];							//Store hostname of node for host dependant debug code
 	
-	int conf_numprocs, conf_cpufreq, conf_numgpus, conf_gpufreq, conf_gpushaders;
+	int conf_numprocs, conf_numprocs_real, conf_cpufreq, conf_numgpus, conf_gpufreq, conf_gpushaders;
 
 	struct dma_fetch_queue_task
 	{

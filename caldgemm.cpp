@@ -77,6 +77,8 @@ extern "C" {
 extern int get_num_procs();
 int get_num_procs()
 {
+	char* omp_threads = getenv("OMP_NUM_THREADS");
+	if (omp_threads != NULL) return(atoi(omp_threads));
 	return(get_number_of_cpu_cores());
 }
 }
@@ -143,7 +145,16 @@ caldgemm::caldgemm()
 	avggflops = 0;
 	avgngflops = 0;
 	
-	conf_numprocs = get_number_of_cpu_cores();
+	conf_numprocs_real = get_number_of_cpu_cores();
+	char* omp_threads = getenv("OMP_NUM_THREADS");
+	if (omp_threads != NULL)
+	{
+		conf_numprocs = atoi(omp_threads);
+	}
+	else
+	{
+		conf_numprocs = conf_numprocs_real;
+	}
 	
 	FILE* fp;
 	fp = fopen("/proc/cpuinfo", "r");
@@ -202,6 +213,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	SimpleGPUQueuing = false;
 	AlternateSimpleQueuing = false;
 	NumDevices = max_devices;
+	NumActiveDevices = 0;
 	max_bbuffers = 0;
 	OpenCLPlatform = 0;
 	Width = 1024;
@@ -237,7 +249,9 @@ caldgemm::caldgemm_config::caldgemm_config()
 	KeepBuffersMapped = true;
 	NoPerformanceWarnings = false;
 	PinCPU = -1;
+	ForceNumCPUThreads = 0;
 	PinMainThread = -1;
+	SpawnGPUThread = -2;
 	PinDeviceRuntimeThreads = -2;
 	SlowCPU = false;
 	LinpackNodes = 0;
@@ -273,6 +287,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	AsyncDGEMMThreshold = 480;
 	AsyncDTRSMThreshold = 192;
 	AsyncDTRSM = false;
+	AsyncSideQueueUseInactiveDeviceSet = 0;
 	Use3rdPartyTranspose = false;
 	CPUInContext = 1;
 	PipelinedOperation = false;
@@ -420,7 +435,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 	fprintf(STD_OUT, "Done\n");
 }
 
-void caldgemm::ensure_omp_thread_pinning()
+void caldgemm::ensure_omp_thread_pinning(const char* baseName)
 {
 #ifndef USE_GOTO_BLAS
 	if (Config->Debug) fprintf(STD_OUT, "Performing OpenMP Blas Thread Pinning\n");
@@ -486,13 +501,12 @@ void caldgemm::ensure_omp_thread_pinning()
 	{
 		int thread_id = omp_get_thread_num();
 		
-		if (gettid() != getpid())
+		if (getThreadName(-1, NULL) == NULL)
 		{
 			char tmp[128];
-			sprintf(tmp, "OpenMP Init %d Thread %d", nInitialization, thread_id);
+			sprintf(tmp, "OpenMP Init %d %s%s%s Thread %d", nInitialization, baseName ? "(" : "", baseName ? baseName : "", baseName ? ")" : "", thread_id);
 			setThreadName(tmp);
 		}
-		cpu_set_t localset;
 		int localcore = thread_id * 2;
 
 #pragma omp critical
@@ -508,8 +522,11 @@ void caldgemm::ensure_omp_thread_pinning()
 					nFreeCores++;
 				}
 			}
-			if (thread_id == nFreeCores) localcore = broadcast_cpu_core;
-			nFreeCores++;
+			if ((Config->ForceNumCPUThreads == 0 || broadcast_cpu_core < Config->ForceNumCPUThreads) && thread_id == nFreeCores)
+			{
+				localcore = broadcast_cpu_core;
+				nFreeCores++;
+			}
 
 			for (int j = 0;j < 2;j++)
 			{
@@ -535,9 +552,7 @@ void caldgemm::ensure_omp_thread_pinning()
 			}
 		}
 
-		CPU_ZERO(&localset);
-		CPU_SET(localcore, &localset);
-		sched_setaffinity(0, sizeof(localset), &localset);
+		sched_setaffinity_set_core(localcore);
 		if (Config->Debug) fprintf(STD_OUT, "OpenMP BLAS thread %d pinned to core %d\n", thread_id, localcore);
 	}
 	setUnknownNames("Unknown OMP Thread");
@@ -564,8 +579,12 @@ int caldgemm::WaitForCALDGEMMProgress(size_t n)
 
 int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 {
-	setThreadName("Main");
 	Config = pInfo;
+	
+	if (Config->ForceNumCPUThreads) conf_numprocs = Config->ForceNumCPUThreads;
+#if defined(USE_GOTO_BLAS) & !defined(_WIN32)
+	else conf_numprocs = get_num_procs();
+#endif
 	
 #ifdef USE_GOTO_BLAS
 	if (!Config->Quiet) fprintf(STD_OUT, "Initializing GotoBLAS\n");
@@ -613,6 +632,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (!Config->SimpleGPUQueuing) Config->PipelinedOperation = false;
 	if (!Config->PipelinedOperation) Config->PipelinedMidMarker = 0;
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
+	if (Config->MultiThread == false || !Config->UseCPU) Config->SpawnGPUThread = -2;
 	if (Config->ParallelDMA || Config->SimpleGPUQueuing) Config->ImprovedScheduler = true;
 	if ((Config->AsyncSideQueue || Config->SimpleGPUQueuing) && (Config->GPU_C == 0 || UseInputPthreads() || UseOutputPthreads()))
 	{
@@ -620,6 +640,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->AsyncSideQueue = false;
 	}
 	if (!Config->AsyncSideQueue) Config->AsyncDTRSM = false;
+
+	setThreadName(Config->SpawnGPUThread == -2 ? "Main (GPU)" : "Main (CPU)");
 
 #ifndef USE_GOTO_BLAS
 	if (Config->ParallelDMA && Config->linpack_broadcast_function && (Config->ParallelDMA > Config->AlternateLookahead || Config->DynamicSched))
@@ -642,7 +664,6 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		CPU_ZERO(&affinity);
 		if (Config->PinDeviceRuntimeThreads == -1) for (int i = 0;i < conf_numprocs;i++) CPU_SET(i, &affinity);
 		else CPU_SET(Config->PinDeviceRuntimeThreads, &affinity);
-		sched_setaffinity(0, sizeof(affinity), &affinity);
 		if (0 != sched_setaffinity(0, sizeof(affinity), &affinity))
 		{
 			fprintf(STD_OUT, "Error setting CPU affinity\n");
@@ -724,21 +745,47 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	setUnknownAffinity(1, &thread);
 	setUnknownNames("Device Runtime");
 
+	if (Config->PinBroadcastThread == -1)
+	{
+		int linpackCPU = 0;
+		while (linpackCPU < conf_numprocs)
+		{
+			if (cpuUsed(linpackCPU) == false) break;
+			linpackCPU++;
+		}
+		if (linpackCPU >= conf_numprocs) linpackCPU = 0;
+		broadcast_cpu_core = linpackCPU;
+	}
+	else
+	{
+		broadcast_cpu_core = Config->PinBroadcastThread;
+	}
+	if (Config->Debug) fprintf(STD_OUT, "Broadcast CPU core set to %d\n", broadcast_cpu_core);
+
 #ifndef USE_GOTO_BLAS		//If we do not use GotoBLAS thread pinning determine main blas thread only after determining GPU devices to avoid collisions. Store the thread afterward as for GotoBLAS.
 	if (Config->UseCPU)
 	{
-		main_blas_core = 0;
-		while (cpuUsed(main_blas_core) && main_blas_core < get_num_procs() - 1) main_blas_core++;
+		if (Config->SpawnGPUThread >= 0)
+		{
+			main_blas_core = Config->SpawnGPUThread;
+			if (Config->PinBroadcastThread == -1 && main_blas_core == broadcast_cpu_core)
+			{
+				fprintf(STD_OUT, "Your pinning of the Main CPU thread (Config->SpawnGPUThread) collides with autoselected linpack blas core, please set Config->PinBroadcastThread!");
+				return(1);
+			}
+		}
+		else
+		{
+			main_blas_core = 0;
+			while ((cpuUsed(main_blas_core) || broadcast_cpu_core == main_blas_core) && main_blas_core < conf_numprocs - 1) main_blas_core++;
+		}
 	}
 	else
 	{
 		main_blas_core = Config->PinMainThread;
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Pinning Main OpenMP BLAS thread to core %d\n", main_blas_core);
-	cpu_set_t blasset;
-	CPU_ZERO(&blasset);
-	CPU_SET(main_blas_core, &blasset);
-	sched_setaffinity(0, sizeof(blasset), &blasset);
+	sched_setaffinity_set_core(main_blas_core);
 
 	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);		//As for GotoBLAS above, store pinning here
 #else	//Set main blas core for GotoBLAS
@@ -779,31 +826,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		}
 	}
 
-	cpu_set_t tmpmask;
-	CPU_ZERO(&tmpmask);
-	CPU_SET(Config->PinMainThread, &tmpmask);
-	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+	sched_setaffinity(0, sizeof(gpumask), &gpumask);
 	
 #ifdef CALDGEMM_DIVIDE_STATIC_BUFFER
 	divide_tmpBuffer = allocDivideBuffer();
 #endif
-
-	if (Config->PinBroadcastThread == -1)
-	{
-		int linpackCPU = 0;
-		while (linpackCPU < conf_numprocs)
-		{
-			if (cpuUsed(linpackCPU) == false && linpackCPU != main_blas_core) break;
-			linpackCPU++;
-		}
-		if (linpackCPU >= conf_numprocs) linpackCPU = 0;
-		broadcast_cpu_core = linpackCPU;
-	}
-	else
-	{
-		broadcast_cpu_core = Config->PinBroadcastThread;
-	}
-	if (Config->Debug) fprintf(STD_OUT, "Broadcast CPU core set to %d\n", broadcast_cpu_core);
 
 	if (Config->AlternateLookahead)
 	{
@@ -862,7 +889,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	}
 
 	if (Config->Debug) fprintf(STD_OUT, "Using %d CPU cores at %d MHz, %d GPUs of %d shaders at %d MHz\n", conf_numprocs, conf_cpufreq, nDevices, conf_gpushaders, conf_gpufreq);
-	ensure_omp_thread_pinning();
+	ensure_omp_thread_pinning(Config->SpawnGPUThread != -2 ? NULL : "Main");
 
 	if (Config->UseCPU)
 	{
@@ -939,6 +966,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	finishData->running = false;
 
 	nDevicesInitialized = nDevices;
+	if (Config->NumActiveDevices > 0 && Config->NumActiveDevices < nDevices) nDevices = Config->NumActiveDevices;
 
 	caldgemm_initialized = true;
 	
@@ -990,60 +1018,63 @@ int caldgemm::reserve_cpu_cores()
 {
 	int nthreads = 0;
 	int mainfound = 0;
-	for (int i = 0;i < nDevices;i++)
+	if (UseOutputPthreads() || UseInputPthreads() || Config->ParallelDMA || Config->GroupParallelDMA)
 	{
-		int offset = 0;
-		for (int j = 0;j < i;j++)
+		for (int i = 0;i < nDevices;i++)
 		{
-			if (Config->GPUMapping[i] == Config->GPUMapping[j] && Config->PostprocessMapping[j] != -1) offset++;
-		}
-		if (matrix_n >= Config->ParallelDMA && Config->ParallelDMA != 0)
-		{
-			if (matrix_n < Config->GroupParallelDMA)
+			int offset = 0;
+			for (int j = 0;j < i;j++)
 			{
-				if (Config->AllocMapping[i] != Config->PinMainThread)
+				if (Config->GPUMapping[i] == Config->GPUMapping[j] && Config->PostprocessMapping[j] != -1) offset++;
+			}
+			if (matrix_n >= Config->ParallelDMA && Config->ParallelDMA != 0)
+			{
+				if (matrix_n < Config->GroupParallelDMA)
 				{
-					bool found = false;
-					for (int j = 0;j < i;j++)
+					if (Config->AllocMapping[i] != Config->PinMainThread)
 					{
-						if (Config->AllocMapping[j] == Config->AllocMapping[i])
+						bool found = false;
+						for (int j = 0;j < i;j++)
 						{
-							found = true;
-							break;
+							if (Config->AllocMapping[j] == Config->AllocMapping[i])
+							{
+								found = true;
+								break;
+							}
+						}
+						if (!found)
+						{
+							caldgemm_goto_reserve_cpu(Config->AllocMapping[i], 1);
+							if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for Grouped DMA Thread\n", Config->AllocMapping[i]);
+							nthreads++;
 						}
 					}
-					if (!found)
-					{
-						caldgemm_goto_reserve_cpu(Config->AllocMapping[i], 1);
-						if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for Grouped DMA Thread\n", Config->AllocMapping[i]);
-						nthreads++;
-					}
+				}
+				else if (i)
+				{
+					caldgemm_goto_reserve_cpu(Config->DMAMapping[i], 1);
+					if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DMA Thread\n", Config->DMAMapping[i]);
+					nthreads++;
 				}
 			}
-			else if (i)
+			else if (offset == 0 && Config->MultiThreadDivide && UseInputPthreads())
 			{
-				caldgemm_goto_reserve_cpu(Config->DMAMapping[i], 1);
-				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DMA Thread\n", Config->DMAMapping[i]);
+				caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
+				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
 				nthreads++;
+				if (Config->GPUMapping[i] == Config->PinMainThread) mainfound = 1;
 			}
-		}
-		else if (offset == 0 && Config->MultiThreadDivide && UseInputPthreads())
-		{
-			caldgemm_goto_reserve_cpu(Config->GPUMapping[i], 1);
-			if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for DivideBuffer\n", Config->GPUMapping[i]);
-			nthreads++;
-			if (Config->GPUMapping[i] == Config->PinMainThread) mainfound = 1;
-		}
 
-		if (UseOutputPthreads())
-		{
-			for (int j = 0;j < outputthreads;j++)
+			if (UseOutputPthreads())
 			{
-				const int merge_core = Config->PostprocessMapping[i] == -1 ? (Config->GPUMapping[i] + 1 + offset * outputthreads + j) : (Config->PostprocessMapping[i] + j);
-				caldgemm_goto_reserve_cpu(merge_core, 1);
-				if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", merge_core);
+				for (int j = 0;j < outputthreads;j++)
+				{
+					const int merge_core = Config->PostprocessMapping[i] == -1 ? (Config->GPUMapping[i] + 1 + offset * outputthreads + j) : (Config->PostprocessMapping[i] + j);
+					caldgemm_goto_reserve_cpu(merge_core, 1);
+					if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for MergeBuffer\n", merge_core);
+				}
+				nthreads += outputthreads;
 			}
-			nthreads += outputthreads;
 		}
 	}
 
@@ -1051,7 +1082,7 @@ int caldgemm::reserve_cpu_cores()
 	{
 		caldgemm_goto_reserve_cpu(Config->PinMainThread, 1);
 		if (Config->Debug) fprintf(STD_OUT, "Reserving Core %d for Main Thread\n", Config->PinMainThread);
-		nthreads++;
+		if (Config->ForceNumCPUThreads == 0 || Config->PinMainThread < Config->ForceNumCPUThreads) nthreads++;
 	}
 
 	for (int i = 0;i < Config->nExcludeCPUCores;i++)
@@ -1059,11 +1090,12 @@ int caldgemm::reserve_cpu_cores()
 		caldgemm_goto_reserve_cpu(Config->ExcludeCPUCores[i], 1);
 		if (Config->Debug) fprintf(STD_OUT, "Excluding Core %d\n", Config->ExcludeCPUCores[i]);
 	}
-	nthreads += Config->nExcludeCPUCores;
+	if (Config->ForceNumCPUThreads) nthreads += Config->nExcludeCPUCores;
 
 	if (Config->PinDeviceRuntimeThreads >= 0)
 	{
 		caldgemm_goto_reserve_cpu(Config->PinDeviceRuntimeThreads, 1);
+		if (Config->ForceNumCPUThreads == 0 || Config->PinDeviceRuntimeThreads < Config->ForceNumCPUThreads) nthreads++;
 		nthreads++;
 	}
 
@@ -1097,14 +1129,10 @@ void* caldgemm::linpack_broadcast_wrapper_a()
 	setThreadName("Linpack Broadcast Wrapper");
 	if (Config->Debug) fprintf(STD_OUT, "Linpack broadcast helper thread started\n");
 
-	cpu_set_t linpack_mask;
-	CPU_ZERO(&linpack_mask);
-	
 	int linpackCPU = broadcast_cpu_core;
-	if (linpackCPU >= conf_numprocs) linpackCPU = 0;
-	CPU_SET(linpackCPU, &linpack_mask);
-	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, setting CPU mask %X\n", getcpumask(&linpack_mask));
-	sched_setaffinity(0, sizeof(cpu_set_t), &linpack_mask);
+	if (linpackCPU >= conf_numprocs_real) linpackCPU = 0;
+	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, core %d\n", linpackCPU);
+	sched_setaffinity_set_core(linpackCPU);
 
 	linpackParameters.linpackMutex[0].Lock();
 	while (linpackParameters.linpackMutex[0].Lock() == 0 && linpackParameters.terminate == false)
@@ -1273,7 +1301,7 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int& require_thread
 		if (Config->MultiThread)
 		{
 			caldgemm_goto_reserve_cpu(broadcast_cpu_core, 1);
-			require_threads++;
+			if (Config->ForceNumCPUThreads == 0 || broadcast_cpu_core < Config->ForceNumCPUThreads) require_threads++;
 
 			linpackParameters.linpackMutex[0].Unlock();
 		}
@@ -1289,260 +1317,453 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int& require_thread
 
 void* caldgemm::cblas_wrapper(void* arg)
 {
-	return ((cblasParameters*) arg)->cls->cblas_wrapper_a((cblasParameters*) arg);
+	return ((cblasParameters*) arg)->cls->cblas_wrapper_a(true);
 }
 
-void* caldgemm::cblas_wrapper_a(cblasParameters* par)
+int caldgemm::caldgemm_part_cpu()
 {
-	setThreadName("CBLAS Wrapper");
+	const size_t A_pitch_use = (TransposeA ? 1 : A_pitch);
+	const size_t B_pitch_use = (TransposeB ? B_pitch : 1);
+	const CBLAS_TRANSPOSE TransposeA = this->TransposeA ? CblasTrans : CblasNoTrans;
+	const CBLAS_TRANSPOSE TransposeB = this->TransposeB ? CblasTrans : CblasNoTrans;
+	if (!Config->Quiet) fprintf(STD_OUT, "\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld (%lld), dynamic: %lld/%lld, cpu_k: %lld)\n", (long long int) matrix_m, (long long int) matrix_n, (long long int) cParam.cblas_size, (long long int) Config->Height, (long long int) cParam.dynamic_run, (long long int) cParam.dynamic_size, (long long int) cParam.cpu_k);
 
-	if (Config->Debug) fprintf(STD_OUT, "Cblas helper thread started\n");
+	int old_goto_threads = conf_numprocs;
 
-	ensure_omp_thread_pinning();
-
-	if (Config->Debug) fprintf(STD_OUT, "Cblas thread Thread, setting CPU mask %X\n", getcpumask(&oldcpumask));
-	
-	if (Config->GPUMapping[0] + outputthreads * nDevices + 1 >= conf_numprocs)
+	int require_threads_base = reserve_cpu_cores();
+		
+	if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu \n", require_threads_base);
+	if (old_goto_threads > require_threads_base)
 	{
-		cpu_set_t tmp_mask;
-		CPU_ZERO(&tmp_mask);
-		CPU_SET(0, &tmp_mask);
-		sched_setaffinity(0, sizeof(tmp_mask), &tmp_mask);
+		goto_set_num_threads(old_goto_threads - require_threads_base);
 	}
 	else
 	{
-		sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
+		goto_set_num_threads(1);
+		caldgemm_goto_reserve_cpus(0);
 	}
-	
-	if (Config->MultiThread) cParam.cblasMutex[1].Lock();
-	while (cParam.cblasMutex[1].Lock() == 0 && par->terminate == false)
+
+	Timers.TotalCPUTimer.Start();
+	Timers.LinpackTimer3.Start();
+	bool cpus_restricted = false;
+	if (Config->HPLFactorizeRestrictCPUs >= 2 && (Config->LinpackSwapN != NULL || (ExecLinpack && Config->AlternateLookahead <= matrix_n)))
 	{
-		const size_t A_pitch_use = (TransposeA ? 1 : A_pitch);
-		const size_t B_pitch_use = (TransposeB ? B_pitch : 1);
-		const CBLAS_TRANSPOSE TransposeA = this->TransposeA ? CblasTrans : CblasNoTrans;
-		const CBLAS_TRANSPOSE TransposeB = this->TransposeB ? CblasTrans : CblasNoTrans;
-		if (!Config->Quiet) fprintf(STD_OUT, "\t\tSlave thread starting cblas (m: %lld, n: %lld, cblas_size: %lld (%lld), dynamic: %lld/%lld, cpu_k: %lld)\n", (long long int) matrix_m, (long long int) matrix_n, (long long int) par->cblas_size, (long long int) Config->Height, (long long int) par->dynamic_run, (long long int) par->dynamic_size, (long long int) par->cpu_k);
+		caldgemm_goto_restrict_cpus(Config->HPLFactorizeRestrictCPUs);
+		cpus_restricted = true;
+	}
+	if (Config->LinpackSwapN != NULL)
+	{
+		Config->linpack_swap_function();
+	}
+	Timers.LinpackTimer3.Stop();
 
-		int old_goto_threads = get_num_procs();
+	if (Config->HPLFactorizeRestrictCallback != NULL) require_threads_base += Config->HPLFactorizeRestrictCallback(matrix_n);
+	int require_threads = require_threads_base;
 
-		int require_threads_base = reserve_cpu_cores();
+	if ((ExecLinpack && Config->AlternateLookahead <= matrix_n) || ExecLinpack == 1)
+	{
+		RunLinpackFactorization(old_goto_threads, require_threads);
+	}
 		
-		if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu \n", require_threads_base);
-		if (old_goto_threads > require_threads_base)
+	if (cpus_restricted)
+	{
+		caldgemm_goto_restrict_cpus(0);
+		if (old_goto_threads > require_threads)
 		{
-			goto_set_num_threads(old_goto_threads - require_threads_base);
+			goto_set_num_threads(old_goto_threads - require_threads);
 		}
 		else
 		{
 			goto_set_num_threads(1);
-			caldgemm_goto_reserve_cpus(0);
 		}
+	}
 
-		Timers.TotalCPUTimer.Start();
-		Timers.LinpackTimer3.Start();
-		bool cpus_restricted = false;
-		if (Config->HPLFactorizeRestrictCPUs >= 2 && (Config->LinpackSwapN != NULL || (ExecLinpack && Config->AlternateLookahead <= matrix_n)))
-		{
-			caldgemm_goto_restrict_cpus(Config->HPLFactorizeRestrictCPUs);
-			cpus_restricted = true;
-		}
-		if (Config->LinpackSwapN != NULL)
-		{
-			Config->linpack_swap_function();
-		}
-		Timers.LinpackTimer3.Stop();
 
-		if (Config->HPLFactorizeRestrictCallback != NULL) require_threads_base += Config->HPLFactorizeRestrictCallback(matrix_n);
-		int require_threads = require_threads_base;
-
-		if ((ExecLinpack && Config->AlternateLookahead <= matrix_n) || ExecLinpack == 1)
+	Timers.CPUTimer.Start();
+	bool linpackfinished = false;
+	do
+	{
+		if (cParam.dynamic_run2)
 		{
-			RunLinpackFactorization(old_goto_threads, require_threads);
+			size_t blockm, blockn;
+			DGEMM_getblocks(cParam.cpu_k, blockm, blockn);
+			VT_USER_START_A("CPU DGEMM Phase 3");
+			cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, blockm == gpu_m / Config->Height ? (gpu_m % Config->Height) : Config->Height, blockn == gpu_n / Config->Height ? (gpu_n % Config->Height) : Config->Height, Config->Width, Alpha, A + blockm * Config->Height * A_pitch_use, A_pitch, B + blockn * Config->Height * B_pitch_use, B_pitch, Beta, C + blockm * Config->Height * C_pitch + blockn * Config->Height, C_pitch);
+			VT_USER_END_A("CPU DGEMM Phase 3");
 		}
-		
-		if (cpus_restricted)
+		else
 		{
-			caldgemm_goto_restrict_cpus(0);
-			if (old_goto_threads > require_threads)
+			if (cParam.dynamic_run)
 			{
-				goto_set_num_threads(old_goto_threads - require_threads);
-			}
-			else
-			{
-				goto_set_num_threads(1);
-			}
-		}
-
-
-		Timers.CPUTimer.Start();
-		bool linpackfinished = false;
-		do
-		{
-			if (par->dynamic_run2)
-			{
-				size_t blockm, blockn;
-				DGEMM_getblocks(par->cpu_k, blockm, blockn);
-				VT_USER_START_A("CPU DGEMM Phase 3");
-				cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, blockm == gpu_m / Config->Height ? (gpu_m % Config->Height) : Config->Height, blockn == gpu_n / Config->Height ? (gpu_n % Config->Height) : Config->Height, Config->Width, Alpha, A + blockm * Config->Height * A_pitch_use, A_pitch, B + blockn * Config->Height * B_pitch_use, B_pitch, Beta, C + blockm * Config->Height * C_pitch + blockn * Config->Height, C_pitch);
-				VT_USER_END_A("CPU DGEMM Phase 3");
-			}
-			else
-			{
-				if (par->dynamic_run)
+				VT_USER_START_A("CPU DGEMM Phase 2");
+				if (DGEMM_favor_m)
 				{
-					VT_USER_START_A("CPU DGEMM Phase 2");
-					if (DGEMM_favor_m)
-					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_run, par->dynamic_size, Config->Width, Alpha, A + (gpu_m - par->dynamic_run) * A_pitch_use, A_pitch, B + (gpu_n - par->dynamic_size) * B_pitch_use, B_pitch, Beta, C + (gpu_m - par->dynamic_run) * C_pitch + gpu_n - par->dynamic_size, C_pitch);
-					}
-					else
-					{
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->dynamic_size, par->dynamic_run, Config->Width, Alpha, A + (gpu_m - par->dynamic_size) * A_pitch_use, A_pitch, B + (gpu_n - par->dynamic_run) * B_pitch_use, B_pitch, Beta, C + (gpu_m - par->dynamic_size) * C_pitch + gpu_n - par->dynamic_run, C_pitch);
-					}
-					VT_USER_END_A("CPU DGEMM Phase 2");
+					cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, cParam.dynamic_run, cParam.dynamic_size, Config->Width, Alpha, A + (gpu_m - cParam.dynamic_run) * A_pitch_use, A_pitch, B + (gpu_n - cParam.dynamic_size) * B_pitch_use, B_pitch, Beta, C + (gpu_m - cParam.dynamic_run) * C_pitch + gpu_n - cParam.dynamic_size, C_pitch);
 				}
-
-				size_t cblas2;
-				if (Config->RereserveLinpackCPU)
+				else
 				{
-					if (ExecLinpack && Config->LinpackNodes > 1 && Config->MultiThread && (((double) matrix_m * (double) matrix_n) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackCPUDGEMMTime[ExecLinpack] - linpackBcastTime[ExecLinpack] > 5.0)
-					{
-						cblas2 = (double) (DGEMM_split_m ? matrix_n : matrix_m) * (linpackBcastTime[ExecLinpack] + 3.0) / linpackCPUDGEMMTime[ExecLinpack];
-						if (!Config->Quiet) fprintf(STD_OUT, "Splitting CPU DGEMM for later enabling additional cores, cblas2=%lld\n", (long long int) cblas2);
-					}
-					else
-					{
-						cblas2 = 0;
-					}
-					if (cblas2 % 8) cblas2 += 8 - cblas2 % 8;
+					cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, cParam.dynamic_size, cParam.dynamic_run, Config->Width, Alpha, A + (gpu_m - cParam.dynamic_size) * A_pitch_use, A_pitch, B + (gpu_n - cParam.dynamic_run) * B_pitch_use, B_pitch, Beta, C + (gpu_m - cParam.dynamic_size) * C_pitch + gpu_n - cParam.dynamic_run, C_pitch);
+				}
+				VT_USER_END_A("CPU DGEMM Phase 2");
+			}
+
+			size_t cblas2;
+			if (Config->RereserveLinpackCPU)
+			{
+				if (ExecLinpack && Config->LinpackNodes > 1 && Config->MultiThread && (((double) matrix_m * (double) matrix_n) - linpack_last_mn[ExecLinpack]) / linpack_last_mn[ExecLinpack] < 0.3 && linpackCPUDGEMMTime[ExecLinpack] - linpackBcastTime[ExecLinpack] > 5.0)
+				{
+					cblas2 = (double) (DGEMM_split_m ? matrix_n : matrix_m) * (linpackBcastTime[ExecLinpack] + 3.0) / linpackCPUDGEMMTime[ExecLinpack];
+					if (!Config->Quiet) fprintf(STD_OUT, "Splitting CPU DGEMM for later enabling additional cores, cblas2=%lld\n", (long long int) cblas2);
 				}
 				else
 				{
 					cblas2 = 0;
 				}
+				if (cblas2 % 8) cblas2 += 8 - cblas2 % 8;
+			}
+			else
+			{
+				cblas2 = 0;
+			}
 
-				if (DGEMM_split_m)	//favor splitting m because of consecutive memory
+			if (DGEMM_split_m)	//favor splitting m because of consecutive memory
+			{
+				if (matrix_n != gpu_n && cParam.borders_done == false)
 				{
-					if (matrix_n != gpu_n && par->borders_done == false)
-					{
-						VT_USER_START_A("CPU DGEMM Borders");
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - par->cblas_size, matrix_n - gpu_n, Config->Width, Alpha, A, A_pitch, B + gpu_n * B_pitch_use, B_pitch, Beta, C + gpu_n, C_pitch);
-						VT_USER_END_A("CPU DGEMM Borders");
-					}
+					VT_USER_START_A("CPU DGEMM Borders");
+					cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - cParam.cblas_size, matrix_n - gpu_n, Config->Width, Alpha, A, A_pitch, B + gpu_n * B_pitch_use, B_pitch, Beta, C + gpu_n, C_pitch);
+					VT_USER_END_A("CPU DGEMM Borders");
+				}
 					
-					if (ExecLinpack >= 2 && par->borders_done == false && Config->AlternateLookahead > matrix_n)
-					{
-						Timers.CPUTimer.Stop();
-						RunLinpackFactorization(old_goto_threads, require_threads);
-						Timers.CPUTimer.Start();
-					}
+				if (ExecLinpack >= 2 && cParam.borders_done == false && Config->AlternateLookahead > matrix_n)
+				{
+					Timers.CPUTimer.Stop();
+					RunLinpackFactorization(old_goto_threads, require_threads);
+					Timers.CPUTimer.Start();
+				}
 					
-					if (par->dynamic_run == 0)
+				if (cParam.dynamic_run == 0)
+				{
+					VT_USER_START_A("CPU DGEMM Phase 1");
+					if (cblas2)
 					{
-						VT_USER_START_A("CPU DGEMM Phase 1");
-						if (cblas2)
-						{
-							cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, cblas2, Config->Width, Alpha, A + (matrix_m - par->cblas_size) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (matrix_m - par->cblas_size) * C_pitch, C_pitch);
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, cParam.cblas_size, cblas2, Config->Width, Alpha, A + (matrix_m - cParam.cblas_size) * A_pitch_use, A_pitch, B, B_pitch, Beta, C + (matrix_m - cParam.cblas_size) * C_pitch, C_pitch);
 
-							if (linpackParameters.linpackMutex[1].Trylock() == EBUSY)
+						if (linpackParameters.linpackMutex[1].Trylock() == EBUSY)
+						{
+							if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
+						}
+						else
+						{
+							Timers.BcastTimer.Stop();
+							if (!Config->NoPerformanceWarnings && Timers.BcastTimer.GetElapsedTime() > 1.0) fprintf(STD_OUT, "Bcast core idle for %2.4f seconds\n", Timers.BcastTimer.GetElapsedTime());
+
+							int require_threads_new = require_threads_base;
+							if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
+							if (old_goto_threads > require_threads_new)
 							{
-								if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING: Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
+								goto_set_num_threads(old_goto_threads - require_threads_new);
+								caldgemm_goto_reserve_cpu(broadcast_cpu_core, 0);
 							}
 							else
 							{
-								Timers.BcastTimer.Stop();
-								if (!Config->NoPerformanceWarnings && Timers.BcastTimer.GetElapsedTime() > 1.0) fprintf(STD_OUT, "Bcast core idle for %2.4f seconds\n", Timers.BcastTimer.GetElapsedTime());
-
-								int require_threads_new = require_threads_base;
-								if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
-								if (old_goto_threads > require_threads_new)
-								{
-									goto_set_num_threads(old_goto_threads - require_threads_new);
-									caldgemm_goto_reserve_cpu(broadcast_cpu_core, 0);
-								}
-								else
-								{
-									goto_set_num_threads(1);
-									caldgemm_goto_reserve_cpus(0);
-								}
-								linpackfinished = true;
+								goto_set_num_threads(1);
+								caldgemm_goto_reserve_cpus(0);
 							}
+							linpackfinished = true;
 						}
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, par->cblas_size, matrix_n - cblas2, Config->Width, Alpha, A + (matrix_m - par->cblas_size) * A_pitch_use, A_pitch, B + cblas2 * B_pitch_use, B_pitch, Beta, C + (matrix_m - par->cblas_size) * C_pitch + cblas2, C_pitch);
-						VT_USER_END_A("CPU DGEMM Phase 1");
+					}
+					cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, cParam.cblas_size, matrix_n - cblas2, Config->Width, Alpha, A + (matrix_m - cParam.cblas_size) * A_pitch_use, A_pitch, B + cblas2 * B_pitch_use, B_pitch, Beta, C + (matrix_m - cParam.cblas_size) * C_pitch + cblas2, C_pitch);
+					VT_USER_END_A("CPU DGEMM Phase 1");
+				}
+			}
+			else
+			{
+				if (cParam.dynamic_run == 0)
+				{
+					VT_USER_START_A("CPU DGEMM Phase 1");
+					if (cblas2)
+					{
+						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, cblas2, cParam.cblas_size, Config->Width, Alpha, A, A_pitch, B + (matrix_n - cParam.cblas_size) * B_pitch_use, B_pitch, Beta, C + matrix_n - cParam.cblas_size, C_pitch);
+							
+						if (linpackParameters.linpackMutex[1].Trylock() == EBUSY)
+						{
+							if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
+						}
+						else
+						{
+							int require_threads_new = require_threads_base;
+							if (old_goto_threads > require_threads_new)
+							{
+								if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
+								goto_set_num_threads(old_goto_threads - require_threads_new);
+								caldgemm_goto_reserve_cpu(broadcast_cpu_core, 0);
+							}
+							else
+							{
+								goto_set_num_threads(1);
+								caldgemm_goto_reserve_cpus(0);
+							}
+							linpackfinished = true;
+						}
+					}
+					cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - cblas2, cParam.cblas_size, Config->Width, Alpha, A + cblas2 * A_pitch_use, A_pitch, B + (matrix_n - cParam.cblas_size) * B_pitch_use, B_pitch, Beta, C + cblas2 * C_pitch + matrix_n - cParam.cblas_size, C_pitch);
+					VT_USER_END_A("CPU DGEMM Phase 1");
+				}
+
+				if (ExecLinpack >= 2 && cParam.borders_done == false && Config->AlternateLookahead > matrix_n)
+				{
+					Timers.CPUTimer.Stop();
+					RunLinpackFactorization(old_goto_threads, require_threads);
+					Timers.CPUTimer.Start();
+				}
+					
+				if (matrix_m != gpu_m && cParam.borders_done == false)
+				{
+					VT_USER_START_A("CPU DGEMM Borders");
+					cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - gpu_m, matrix_n - cParam.cblas_size, Config->Width, Alpha, A + gpu_m * A_pitch_use, A_pitch, B, B_pitch, Beta, C + gpu_m * C_pitch, C_pitch);
+					VT_USER_END_A("CPU DGEMM Borders");
+				}
+			}
+		}
+
+		cParam.borders_done = true;
+		if (Config->Debug) fprintf(STD_OUT, "cblas run completed\n");
+	} while (cpuScheduler());
+	Timers.CPUTimer.Stop();
+
+	if (linpackfinished == false && ExecLinpack && Config->MultiThread && Config->LinpackNodes > 1)
+	{
+		linpackParameters.linpackMutex[1].Lock();
+	}
+	Timers.TotalCPUTimer.Stop();
+	goto_set_num_threads(old_goto_threads);
+	caldgemm_goto_reserve_cpus(0);
+
+	return(0);
+}
+
+int caldgemm::caldgemm_part_gpu()
+{
+	const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
+	const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
+	const size_t nBlocks = mb * nb;
+
+	if (Config->Debug)
+	{
+		if (DGEMM_favor_m)
+		{
+			fprintf(STD_OUT, "Favoring m direction, %lld blocks (%lld x %lld) (mb x nb)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
+		}
+		else
+		{
+			fprintf(STD_OUT, "Not favoring m direction, %lld blocks (%lld x %lld) (mb x nb)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
+		}
+	}
+
+	if (!Config->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > (size_t) (bbuffers[0] * nDevices)) fprintf(STD_OUT, "WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
+
+	Timers.GPUTimer.Start();
+
+	for (unsigned int i = 0; i < Config->Iterations; ++i)
+	{
+		AlternateLookaheadBlocksM = (std::min<size_t>(Config->Width, gpu_m) - 1) / Config->Height + 1;
+		AlternateLookaheadTilesRemaining = AlternateLookaheadTilesFull = nb * AlternateLookaheadBlocksM;
+
+		if (Config->ImprovedScheduler)
+		{
+			if (!Config->PreallocData) tileDistribution = new int[nBlocks];
+			for (int l = 0;l < nDevices;l++) first_device_k[l] = -1;
+				
+			size_t block_correction_factor = 0;
+			if (Config->Height > CALDGEMM_MIN_CORRECTION_SIZE && Config->SmallTiles && Config->ImprovedSchedulerBalance == 1)
+			{
+				size_t undersize;
+				size_t scaler;
+				if (DGEMM_favor_m)
+				{
+					undersize = gpu_n % Config->Height;
+					scaler = mb;
+				}
+				else
+				{
+					undersize = gpu_m % Config->Height;
+					scaler = nb;
+				}
+				if (undersize)
+				{
+					if (undersize < CALDGEMM_MIN_CORRECTION_SIZE) undersize = CALDGEMM_MIN_CORRECTION_SIZE;
+					block_correction_factor = (Config->Height - undersize) * scaler / Config->Height;
+				}
+			}
+			bool balance2 = Config->ImprovedSchedulerBalance == 2 && (DGEMM_favor_m ? gpu_n : gpu_m) % Config->Height;
+			int mb_use, nb_use, nBlocks_use;
+			if (balance2)
+			{
+				mb_use = DGEMM_favor_m ? mb : (mb - 1);
+				nb_use = DGEMM_favor_m ? (nb - 1) : nb;
+				nBlocks_use = mb_use * nb_use;
+			}
+			else
+			{
+				mb_use = mb;
+				nb_use = nb;
+				nBlocks_use = nBlocks;
+			}
+			//size_t numt[4] = {0,0,0,0}, sizet[4] = {0,0,0,0};
+			for (size_t l = 0;l < nBlocks;l++)
+			{
+				size_t blockn, blockm;
+				int k;
+				if (DGEMM_favor_m)
+				{
+					blockn = l % nb;
+					blockm = l / nb;
+					if (balance2 && blockn == nb - 1)
+					{
+						tileDistribution[l] = nDevices - 1 - nDevices * blockm / mb;
+					}
+					else
+					{
+						k = blockn * mb_use + blockm;
+						tileDistribution[l] = std::min<int>(nDevices * k / (nBlocks_use - block_correction_factor), nDevices - 1);
 					}
 				}
 				else
 				{
-					if (par->dynamic_run == 0)
+					blockm = l % mb;
+					blockn = l / mb;
+					if (balance2 && blockm == mb - 1)
 					{
-						VT_USER_START_A("CPU DGEMM Phase 1");
-						if (cblas2)
-						{
-							cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, cblas2, par->cblas_size, Config->Width, Alpha, A, A_pitch, B + (matrix_n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + matrix_n - par->cblas_size, C_pitch);
-							
-							if (linpackParameters.linpackMutex[1].Trylock() == EBUSY)
-							{
-								if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "Linpack broadcast was not finished at predicted time, running CPU DGEMM with reduced core count\n");
-							}
-							else
-							{
-								int require_threads_new = require_threads_base;
-								if (old_goto_threads > require_threads_new)
-								{
-									if (Config->Debug) fprintf(STD_OUT, "Reserving %d threads for gpu during second cpu run\n", require_threads_new);
-									goto_set_num_threads(old_goto_threads - require_threads_new);
-									caldgemm_goto_reserve_cpu(broadcast_cpu_core, 0);
-								}
-								else
-								{
-									goto_set_num_threads(1);
-									caldgemm_goto_reserve_cpus(0);
-								}
-								linpackfinished = true;
-							}
-						}
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - cblas2, par->cblas_size, Config->Width, Alpha, A + cblas2 * A_pitch_use, A_pitch, B + (matrix_n - par->cblas_size) * B_pitch_use, B_pitch, Beta, C + cblas2 * C_pitch + matrix_n - par->cblas_size, C_pitch);
-						VT_USER_END_A("CPU DGEMM Phase 1");
+						tileDistribution[l] = nDevices - 1 - nDevices * blockn / nb;
 					}
-
-					if (ExecLinpack >= 2 && par->borders_done == false && Config->AlternateLookahead > matrix_n)
+					else
 					{
-						Timers.CPUTimer.Stop();
-						RunLinpackFactorization(old_goto_threads, require_threads);
-						Timers.CPUTimer.Start();
-					}
-					
-					if (matrix_m != gpu_m && par->borders_done == false)
-					{
-						VT_USER_START_A("CPU DGEMM Borders");
-						cblas_dgemm(CblasRowMajor, TransposeA, TransposeB, matrix_m - gpu_m, matrix_n - par->cblas_size, Config->Width, Alpha, A + gpu_m * A_pitch_use, A_pitch, B, B_pitch, Beta, C + gpu_m * C_pitch, C_pitch);
-						VT_USER_END_A("CPU DGEMM Borders");
+						k = blockn + blockm * nb_use;
+						tileDistribution[l] = std::min<int>(nDevices * k / (nBlocks_use - block_correction_factor), nDevices - 1);
 					}
 				}
+				/*numt[tileDistribution[l]]++;
+				size_t height1 = (int) (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height);
+				size_t height2 = (int) (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);
+				sizet[tileDistribution[l]] += height1 * height2;*/
+				if (first_device_k[tileDistribution[l]] == -1) first_device_k[tileDistribution[l]] = l;
+
+				//if (Config->Debug) fprintf(STD_OUT, "Tile %lld (%lld / %lld) processed by device %d\n", (long long int) l, (long long int) blockm, (long long int) blockn, tileDistribution[l]);
 			}
-
-			par->borders_done = true;
-			if (Config->Debug) fprintf(STD_OUT, "cblas run completed\n");
-		} while (cpuScheduler());
-		Timers.CPUTimer.Stop();
-
-		if (linpackfinished == false && ExecLinpack && Config->MultiThread && Config->LinpackNodes > 1)
-		{
-			linpackParameters.linpackMutex[1].Lock();
+				
+			//for (int l = 0;l < 4;l++) fprintf(STD_OUT, "TILESTAT %d: %3lld - %lld\n", l, (long long int) numt[l], (long long int) sizet[l]);
+			//fprintf(STD_OUT, "TILESIZE %lld (factor %lld - miss %lld)\n", (long long int) (Config->Height * Config->Height), (long long int) block_correction_factor, (long long int) ((sizet[2] - sizet[3]) / (Config->Height * Config->Height)));
+				
+			if (Config->Debug)
+			{
+				for (size_t l = 0;l < nBlocks;l++)
+				{
+					fprintf(STD_OUT, "%d ", tileDistribution[l]);
+					if ((l + 1) % (DGEMM_favor_m ? nb : mb) == 0) fprintf(STD_OUT, "\n");
+				}
+			}
 		}
-		Timers.TotalCPUTimer.Stop();
-		goto_set_num_threads(old_goto_threads);
-		caldgemm_goto_reserve_cpus(0);
+
+		for (int ii = 0;ii < nDevices;ii++)
+		{
+			buffersMajor[ii] = -1;
+			for (int j = 0;j < bbuffers[ii];j++) buffersMinor[ii][j] = -1;
+			next_buffer_A[ii] = 0;
+			next_buffer_B[ii] = 0;
+		}
+
+		if (Config->PreallocData && ((int) mb > Config->PreallocData || (int) nb > Config->PreallocData))
+		{
+			fprintf(STD_OUT, "Value of PreallocData too small for current block count! (mb %d nb %d pre %d)", (int) mb, (int) nb, Config->PreallocData);
+			return(1);
+		}
+
+		if (RunCALDGEMM_Init()) return(1);
+
+		if (Config->ParallelDMA != 0 && matrix_n >= Config->ParallelDMA)
+		{
+			DMAThreads.Start();
+			RunCALDGEMMMain(0);
+			DMAThreads.Sync();
+		}
+		else
+		{
+			if (RunCALDGEMMMain()) return(1);
+		}
+		if (RunCALDGEMM_Exit()) return(0);
+
+		if (Config->ImprovedScheduler)
+		{
+			if (!Config->PreallocData) delete[] tileDistribution;
+		}
+
+		if(Config->Verify && i < Config->Iterations - 1) AnalyzeResults();
+	}
+	Timers.GPUTimer.Stop();
+
+	if (Config->MultiThread && Config->UseCPU)
+	{
+		Timers.ATime.Reset();
+		Timers.ATime.Start();
+	}
+
+	if (Config->SpawnGPUThread == -2)
+	{
+		if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&oldcpumask));
+		sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
+	}
+
+	return(0);
+}
+
+void* caldgemm::cblas_wrapper_a(bool thread)
+{
+	if (thread)
+	{
+		setThreadName(Config->SpawnGPUThread != -2 ? "GPU Wrapper" : "CBLAS Wrapper");
+		if (Config->Debug) fprintf(STD_OUT, "Cblas helper thread started\n");
+		if (Config->SpawnGPUThread == -2)
+		{
+			ensure_omp_thread_pinning("CBLAS");
+		}
+
+		if (Config->SpawnGPUThread != -2)
+		{
+			sched_setaffinity(0, sizeof(gpumask), &gpumask);
+		}
+		else if (Config->GPUMapping[0] + outputthreads * nDevices + 1 >= conf_numprocs)
+		{
+			sched_setaffinity_set_core(0);
+		}
+		else
+		{
+			if (Config->Debug) fprintf(STD_OUT, "Cblas thread Thread, setting CPU mask %X\n", getcpumask(&oldcpumask));
+			sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
+		}
+		cParam.cblasMutex[1].Lock();
+	}
+
+	while (cParam.cblasMutex[1].Lock() == 0 && cParam.terminate == false)
+	{
+		if (Config->SpawnGPUThread != -2)
+		{
+			caldgemm_part_gpu();
+		}
+		else
+		{
+			caldgemm_part_cpu();
+		}
 
 		if (Config->Debug) fprintf(STD_OUT, "\t\tUnlocking cblasmutex 0\n");
 		cParam.cblasMutex[0].Unlock();
-		if (!Config->MultiThread) break;
+		if (!thread) break;
 	}
-	if (Config->Debug) fprintf(STD_OUT, "blas slave terminating\n");
 
-	if (Config->MultiThread)
+	if (thread)
 	{
+		if (Config->Debug) fprintf(STD_OUT, "blas slave terminating\n");
+
 		cParam.cblasMutex[0].Unlock();
 		pthread_exit(NULL);
 	}
@@ -1562,10 +1783,7 @@ void* caldgemm::divide_wrapper_a(divideParameters* par)
 		sprintf(tmp, "Divide %d", par->nThread);
 		setThreadName(tmp);
 	}
-	cpu_set_t divide_mask;
-	CPU_ZERO(&divide_mask);
-	CPU_SET(par->CPUCore, &divide_mask);
-	sched_setaffinity(0, sizeof(cpu_set_t), &divide_mask);
+	sched_setaffinity_set_core(par->CPUCore);
 	
 	par->curDevice = -1;
 	for (int i = 0;i < nDevices;i++)
@@ -1650,8 +1868,6 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 
 	if (Config->Debug) fprintf(STD_OUT, "Merger Thread %d started\n", par->nMergeThread);
 
-	cpu_set_t merge_mask;
-	CPU_ZERO(&merge_mask);
 	int merge_core;
 	
 	if (Config->PostprocessMapping[par->num_device] == -1)
@@ -1666,9 +1882,8 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 	{
 		merge_core = Config->PostprocessMapping[par->num_device] + par->nMergeThread;
 	}
-	CPU_SET(merge_core % conf_numprocs, &merge_mask);
-	if (Config->Debug) fprintf(STD_OUT, "Merge Thread %d, setting CPU mask %X\n", par->nMergeThread, getcpumask(&merge_mask));
-	sched_setaffinity(0, sizeof(cpu_set_t), &merge_mask);
+	if (Config->Debug) fprintf(STD_OUT, "Merge Thread %d, core %d\n", par->nMergeThread, merge_core);
+	sched_setaffinity_set_core(merge_core % conf_numprocs_real);
 
 	//HighResTimer mergeTimer;
 
@@ -2030,10 +2245,7 @@ endimprovedphase:
 
 			if (Config->RepinMainThreadAlways && currentPinning != Config->AllocMapping[use_device])
 			{
-				cpu_set_t tmpmask;
-				CPU_ZERO(&tmpmask);
-				CPU_SET(Config->AllocMapping[use_device], &tmpmask);
-				sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+				sched_setaffinity_set_core(Config->AllocMapping[use_device]);
 				if (Config->Debug) fprintf(STD_OUT, "Repinning to %d\n", Config->AllocMapping[use_device]);
 				currentPinning = Config->AllocMapping[use_device];
 			}
@@ -2264,10 +2476,7 @@ endimprovedphase:
 		}
 		if (currentPinning != Config->PinMainThread)
 		{
-			cpu_set_t tmpmask;
-			CPU_ZERO(&tmpmask);
-			CPU_SET(Config->PinMainThread, &tmpmask);
-			sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
+			sched_setaffinity(0, sizeof(gpumask), &gpumask);
 		}
 	}
 	if (Config->MultiThreadDivide && parallelDevice == -1 && UseInputPthreads())
@@ -2549,11 +2758,11 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 			outputthreads = mymin(CALDGEMM_OUTPUT_THREADS_SLOW, outputthreads + CALDGEMM_EXTRA_OUTPUT_THREADS_LINPACK);
 		}
 
-		cpu_set_t main_mask;
-		CPU_ZERO(&main_mask);
-		CPU_SET(Config->PinMainThread, &main_mask);
-		if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&main_mask));
-		sched_setaffinity(0, sizeof(cpu_set_t), &main_mask);
+		if (Config->SpawnGPUThread == -2)
+		{
+			if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&gpumask));
+			sched_setaffinity(0, sizeof(cpu_set_t), &gpumask);
+		}
 
 		if (forceReinit)
 		{
@@ -2754,7 +2963,7 @@ recalculate_ratio:
 		{
 			if (!Config->MultiThread)
 			{
-				cblas_wrapper((void*) &cParam);
+				cblas_wrapper_a();
 			}
 			cParam.cblasMutex[1].Unlock();
 		}
@@ -2764,169 +2973,17 @@ recalculate_ratio:
 			Config->linpack_swap_function();
 		}
 
-		if (Config->Debug)
+		if (Config->SpawnGPUThread != -2)
 		{
-			if (DGEMM_favor_m)
-			{
-				fprintf(STD_OUT, "Favoring m direction, %lld blocks (%lld x %lld) (mb x nb)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
-			}
-			else
-			{
-				fprintf(STD_OUT, "Not favoring m direction, %lld blocks (%lld x %lld) (mb x nb)\n", (long long int) nBlocks, (long long int) mb, (long long int) nb);
-			}
+			caldgemm_part_cpu();
 		}
-
-		if (!Config->NoPerformanceWarnings && (buffersSwitchable ? mymin(nb, mb) : nb) > (size_t) (bbuffers[0] * nDevices)) fprintf(STD_OUT, "WARNING: Insufficient buffers for Input Matrices, retransfer required\n");
-
-		Timers.GPUTimer.Start();
-
-		for (unsigned int i = 0; i < Config->Iterations; ++i)
+		else
 		{
-			AlternateLookaheadBlocksM = (std::min<size_t>(Config->Width, gpu_m) - 1) / Config->Height + 1;
-			AlternateLookaheadTilesRemaining = AlternateLookaheadTilesFull = nb * AlternateLookaheadBlocksM;
-
-			if (Config->ImprovedScheduler)
-			{
-				if (!Config->PreallocData) tileDistribution = new int[nBlocks];
-				for (int l = 0;l < nDevices;l++) first_device_k[l] = -1;
-				
-				size_t block_correction_factor = 0;
-				if (Config->Height > CALDGEMM_MIN_CORRECTION_SIZE && Config->SmallTiles && Config->ImprovedSchedulerBalance == 1)
-				{
-					size_t undersize;
-					size_t scaler;
-					if (DGEMM_favor_m)
-					{
-						undersize = gpu_n % Config->Height;
-						scaler = mb;
-					}
-					else
-					{
-						undersize = gpu_m % Config->Height;
-						scaler = nb;
-					}
-					if (undersize)
-					{
-						if (undersize < CALDGEMM_MIN_CORRECTION_SIZE) undersize = CALDGEMM_MIN_CORRECTION_SIZE;
-						block_correction_factor = (Config->Height - undersize) * scaler / Config->Height;
-					}
-				}
-				bool balance2 = Config->ImprovedSchedulerBalance == 2 && (DGEMM_favor_m ? gpu_n : gpu_m) % Config->Height;
-				int mb_use, nb_use, nBlocks_use;
-				if (balance2)
-				{
-					mb_use = DGEMM_favor_m ? mb : (mb - 1);
-					nb_use = DGEMM_favor_m ? (nb - 1) : nb;
-					nBlocks_use = mb_use * nb_use;
-				}
-				else
-				{
-					mb_use = mb;
-					nb_use = nb;
-					nBlocks_use = nBlocks;
-				}
-				//size_t numt[4] = {0,0,0,0}, sizet[4] = {0,0,0,0};
-				for (size_t l = 0;l < nBlocks;l++)
-				{
-					size_t blockn, blockm;
-					int k;
-					if (DGEMM_favor_m)
-					{
-						blockn = l % nb;
-						blockm = l / nb;
-						if (balance2 && blockn == nb - 1)
-						{
-							tileDistribution[l] = nDevices - 1 - nDevices * blockm / mb;
-						}
-						else
-						{
-							k = blockn * mb_use + blockm;
-							tileDistribution[l] = std::min<int>(nDevices * k / (nBlocks_use - block_correction_factor), nDevices - 1);
-						}
-					}
-					else
-					{
-						blockm = l % mb;
-						blockn = l / mb;
-						if (balance2 && blockm == mb - 1)
-						{
-							tileDistribution[l] = nDevices - 1 - nDevices * blockn / nb;
-						}
-						else
-						{
-							k = blockn + blockm * nb_use;
-							tileDistribution[l] = std::min<int>(nDevices * k / (nBlocks_use - block_correction_factor), nDevices - 1);
-						}
-					}
-					/*numt[tileDistribution[l]]++;
-					size_t height1 = (int) (((size_t) blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height);
-					size_t height2 = (int) (((size_t) blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);
-					sizet[tileDistribution[l]] += height1 * height2;*/
-					if (first_device_k[tileDistribution[l]] == -1) first_device_k[tileDistribution[l]] = l;
-
-					//if (Config->Debug) fprintf(STD_OUT, "Tile %lld (%lld / %lld) processed by device %d\n", (long long int) l, (long long int) blockm, (long long int) blockn, tileDistribution[l]);
-				}
-				
-				//for (int l = 0;l < 4;l++) fprintf(STD_OUT, "TILESTAT %d: %3lld - %lld\n", l, (long long int) numt[l], (long long int) sizet[l]);
-				//fprintf(STD_OUT, "TILESIZE %lld (factor %lld - miss %lld)\n", (long long int) (Config->Height * Config->Height), (long long int) block_correction_factor, (long long int) ((sizet[2] - sizet[3]) / (Config->Height * Config->Height)));
-				
-				if (Config->Debug)
-				{
-					for (size_t l = 0;l < nBlocks;l++)
-					{
-						fprintf(STD_OUT, "%d ", tileDistribution[l]);
-						if ((l + 1) % (DGEMM_favor_m ? nb : mb) == 0) fprintf(STD_OUT, "\n");
-					}
-				}
-			}
-
-			for (int ii = 0;ii < nDevices;ii++)
-			{
-				buffersMajor[ii] = -1;
-				for (int j = 0;j < bbuffers[ii];j++) buffersMinor[ii][j] = -1;
-				next_buffer_A[ii] = 0;
-				next_buffer_B[ii] = 0;
-			}
-
-			if (Config->PreallocData && ((int) mb > Config->PreallocData || (int) nb > Config->PreallocData))
-			{
-				fprintf(STD_OUT, "Value of PreallocData too small for current block count! (mb %d nb %d pre %d)", (int) mb, (int) nb, Config->PreallocData);
-				return(1);
-			}
-
-			if (RunCALDGEMM_Init()) return(1);
-
-			if (Config->ParallelDMA != 0 && matrix_n >= Config->ParallelDMA)
-			{
-				DMAThreads.Start();
-				RunCALDGEMMMain(0);
-				DMAThreads.Sync();
-			}
-			else
-			{
-				if (RunCALDGEMMMain()) return(1);
-			}
-			if (RunCALDGEMM_Exit()) return(0);
-
-			if (Config->ImprovedScheduler)
-			{
-				if (!Config->PreallocData) delete[] tileDistribution;
-			}
-
-			if(Config->Verify && i < Config->Iterations - 1) AnalyzeResults();
+			caldgemm_part_gpu();
 		}
-		Timers.GPUTimer.Stop();
-
-		if (Config->Debug) fprintf(STD_OUT, "Caldgemm Main Thread, setting CPU mask %X\n", getcpumask(&oldcpumask));
-		sched_setaffinity(0, sizeof(oldcpumask), &oldcpumask);
 
 		if (Config->UseCPU)
 		{
-			if (Config->MultiThread)
-			{
-				Timers.ATime.Reset();
-				Timers.ATime.Start();
-			}
 			if (Config->Debug) fprintf(STD_OUT, "Waiting for CPU DGEMM to finish\n");
 			cParam.cblasMutex[0].Lock();
 			if (Config->MultiThread)
@@ -3717,6 +3774,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(OpenCLPlatform);
 	PRINT_CONFIG_INT(DeviceNum);
 	PRINT_CONFIG_INT(NumDevices);
+	PRINT_CONFIG_INT(NumActiveDevices);
 	PRINT_CONFIG_LOOP_INT(DeviceNums, NumDevices);
 	PRINT_CONFIG_INT(max_bbuffers);
 	PRINT_CONFIG_INT(PreallocData);
@@ -3739,9 +3797,11 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(PinBroadcastThread);
 	PRINT_CONFIG_INT(RepinDuringActiveWaitForEvent);
 	PRINT_CONFIG_INT(RepinMainThreadAlways);
+	PRINT_CONFIG_INT(SpawnGPUThread);
 	PRINT_CONFIG_INT(SleepDuringActiveWait);
 	PRINT_CONFIG_INT(ThreadSaveDriver);
 	PRINT_CONFIG_INT(PinCPU);
+	PRINT_CONFIG_INT(ForceNumCPUThreads);
 	PRINT_CONFIG_INT(SlowCPU);
 	PRINT_CONFIG_INT(OutputThreads);
 	PRINT_CONFIG_INT(NumaPinning);
@@ -3751,6 +3811,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(AsyncDGEMMThreshold);
 	PRINT_CONFIG_INT(AsyncDTRSMThreshold);
 	PRINT_CONFIG_INT(AsyncDTRSM);
+	PRINT_CONFIG_INT(AsyncSideQueueUseInactiveDeviceSet);
 	PRINT_CONFIG_INT(Use3rdPartyTranspose);
 
 	PRINT_CONFIG_INT(Height);

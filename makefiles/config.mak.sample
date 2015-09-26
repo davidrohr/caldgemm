@@ -34,6 +34,7 @@ CONFIG_OPENGL				= 0
 CONFIG_OPENMP				= 0
 CONFIG_GDB					= 1 #by default
 CONFIG_CAL					= 0
+CONFIG_CUBLAS					= 0
 #CONFIG_X11					=
 CONFIG_CUDA					= 0
 #CONFIG_VIDEO_EDIT			=

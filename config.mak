@@ -44,6 +44,10 @@ ifeq ($(INCLUDE_CUDA), 1)
 CONFIG_CUDA					= 1
 CUFILES						+= caldgemm_cuda.cu
 DEFINES						+= CALDGEMM_CUDA
+ifeq ($(INCLUDE_CUBLAS), 1)
+CONFIG_CUBLAS					= 1
+DEFINES						+= CALDGEMM_CUDA_CUBLAS
+endif
 endif
 
 ifeq ($(INCLUDE_OPENCL), 1)
