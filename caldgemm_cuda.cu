@@ -38,20 +38,13 @@
 #undef CALDGEMM_ALPHA1
 #undef CUDAKernelName
 
-__global__ void CUDAConversionKernel(const double* iBuffer, double* oBuffer, size_t width, size_t height, int transpose)
+__global__ void CUDAConversionKernel(const double* iBuffer, double* oBuffer, size_t width, size_t height)
 {
 	for (int j = blockIdx.y * blockDim.y + threadIdx.y;j < height;j += blockDim.y * gridDim.y)
 	{
 		for (int i = blockIdx.x * blockDim.x + threadIdx.x;i < width;i += blockDim.x * gridDim.x)
 		{
-			if (transpose)
-			{
-				oBuffer[i * height + j] = iBuffer[j * width + i];
-			}
-			else
-			{
-				oBuffer[j * width + i] = iBuffer[j * width + i];
-			}
+			oBuffer[i * height + j] = iBuffer[j * width + i];
 		}
 	}
 }
@@ -402,6 +395,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		height = (TransposeA ? Config->Width : HeightM);
 		size_t pitch = A_pitch;
 		void* src_ptr = A + blockm * Config->Height * (TransposeA ? 1 : A_pitch);
+		int arg_transpose = TransposeA ^ KernelSettings.transposeA;
 		
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{
@@ -411,21 +405,23 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		{
 			dest_image = cuda_abuffers[num_device][next_buffer_A[num_device] % ibuffercount];
 		}
+		if (arg_transpose == 0) dest_buffer_tmp == dest_image;
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer A to GPU: region %d x %d\n", (int) width, (int) height);
 		CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying A to device");
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 
-		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
-		int arg_transpose = TransposeA ^ KernelSettings.transposeA;
-		size_t arg_width = width / sizeof(double), arg_height = height;
-		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", (int) arg_width, (int) arg_height, arg_transpose);
-		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height, arg_transpose);
-		CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
-		
+		if (arg_transpose)
+		{
+			dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
+			size_t arg_width = width / sizeof(double), arg_height = height;
+			if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", (int) arg_width, (int) arg_height, arg_transpose);
+			CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height);
+			CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
+			if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
+		}
 		CHKRET(cudaEventRecord(cuda_conversion_events[num_device][0], cuda_command_queues[num_device][j]), "Recording event %d 0", num_device);
 		cuda_conversion_events_use[num_device][0] = 1;
-		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 	}
 
 	if (cuda_conversion_events_use[num_device][1])
@@ -444,6 +440,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		height = (TransposeB ? HeightN : Config->Width);
 		size_t pitch = B_pitch;
 		void* src_ptr = B + blockn * Config->Height * (TransposeB ? B_pitch : 1);
+		int arg_transpose = TransposeB ^ KernelSettings.transposeB;
 
 		if (!DGEMM_favor_m && buffersSufficiant0)
 		{
@@ -453,21 +450,23 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		{
 			dest_image = cuda_bbuffers[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % ibuffercount)];
 		}
+		if (arg_transpose == 0) dest_buffer_tmp == dest_image;
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) width, (int) height);
 		CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying B to device");
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 
-		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
-		int arg_transpose = TransposeB ^ KernelSettings.transposeB;
-		size_t arg_width = width / sizeof(double), arg_height = height;
-		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
-		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height, arg_transpose);
-		CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
-
+		if (arg_transpose)
+		{
+			dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
+			size_t arg_width = width / sizeof(double), arg_height = height;
+			if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
+			CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height);
+			CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
+			if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
+		}
 		CHKRET(cudaEventRecord(cuda_conversion_events[num_device][1], cuda_command_queues[num_device][j]), "Recording event %d 1", num_device);
 		cuda_conversion_events_use[num_device][1] = 1;
-		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 	}
 
 	if (Config->DstMemory == 'g')
