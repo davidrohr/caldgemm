@@ -38,7 +38,7 @@
 #undef CALDGEMM_ALPHA1
 #undef CUDAKernelName
 
-__global__ void CUDAConversionKernel(const double* iBuffer, double* oBuffer, size_t width, size_t height)
+__global__ void CUDAConversionKernel(const double* __restrict__ iBuffer, __restrict__ double* oBuffer, size_t width, size_t height)
 {
 	for (int j = blockIdx.y * blockDim.y + threadIdx.y;j < height;j += blockDim.y * gridDim.y)
 	{
