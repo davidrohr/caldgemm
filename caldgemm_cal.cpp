@@ -2326,9 +2326,9 @@ int caldgemm_cal::DGEMM_prepare_backend(size_t k, int j, unsigned int num_device
 		if (Config->VerboseTiming) Timers.CounterDivide.Start();
 		Timers.divideB++;
 #ifdef CALDGEMM_TRANSPOSED_B
-		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % ibuffercount] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), Config->Width, (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, BufferWidth, BufferHeight, B_pitch, dwBuffersB, TransposeB == false CALDGEMM_DIVBUFB);
+		if (divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % ibuffercount] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), Config->Width, (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, BufferWidth, BufferHeight, B_pitch, dwBuffersB, TransposeB == false CALDGEMM_DIVBUFB)) return(1);
 #else
-		divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % ibuffercount] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB CALDGEMM_DIVBUFB);
+		if (divideBuffer(Config->DivideToGPU && buffersSufficiant ? (datas[num_device][blockn] + (DGEMM_favor_m ? dwBuffersA : 0)) : (datas[num_device][next_buffer_B[num_device] % ibuffercount] + dwBuffersA), B + blockn * Config->Height * (TransposeB ? B_pitch : 1), (blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, Config->Width, BufferHeight, BufferWidth, B_pitch, dwBuffersB, TransposeB CALDGEMM_DIVBUFB)) return(1);
 #endif
 		if (Config->VerboseTiming) Timers.CounterDivide.Stop();
 		if (Config->DivideToGPU == false)
