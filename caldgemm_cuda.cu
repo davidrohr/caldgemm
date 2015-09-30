@@ -313,6 +313,7 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 #else
         cublasSetStream(cublas_handles[Task.device], cuda_command_queues[Task.device][Task.j]);
         cublasDgemm(cublas_handles[Task.device],CUBLAS_OP_T,CUBLAS_OP_N,height1,height2,width,&Alpha,bbuffer,width,abuffer,width,&Beta,cbuffer,pitch);
+		cublasDgemm(cublas_handles[Task.device],CUBLAS_OP_N,CUBLAS_OP_T,height1,height2,width,&Alpha,bbuffer,height1,abuffer,height2,&Beta,cbuffer,pitch);
 #endif
 	CHKRET(cudaGetLastError(), "CUDA Kernel Execution");
 
