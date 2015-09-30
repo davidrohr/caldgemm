@@ -154,8 +154,20 @@ int caldgemm_cuda::ValidateRuntime()
 	if (Config->Debug) fprintf(STD_OUT, "%d CUDA devices found for this platform\n", nDevices);
 
 	SetDefaultKernelSettings();
+#ifdef CALDGEMM_CUDA_CUBLAS
+	KernelSettings.transposeA = false;
+	KernelSettings.transposeB = true;
+#else
+	KernelSettings.transposeA = false;
+	KernelSettings.transposeB = true;
+#endif
+	KernelSettings.texture_buffers = false;
+	KernelSettings.tiling_x = 1;
+	KernelSettings.tiling_y = 1;
 	KernelSettings.group_size_x = GROUP_SIZE_X;
 	KernelSettings.group_size_y = GROUP_SIZE_Y;
+	KernelSettings.min_tile_size = 32;
+	KernelSettings.min_k = 4;
 
 	return(0);
 }
@@ -404,7 +416,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 
 		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
-		int arg_transpose = TransposeA;
+		int arg_transpose = TransposeA ^ KernelSettings.transposeA;
 		size_t arg_width = width / sizeof(double), arg_height = height;
 		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", (int) arg_width, (int) arg_height, arg_transpose);
 		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height, arg_transpose);
@@ -446,7 +458,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 
 		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
-		int arg_transpose = !TransposeB;
+		int arg_transpose = TransposeB ^ KernelSettings.transposeB;
 		size_t arg_width = width / sizeof(double), arg_height = height;
 		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
 		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height, arg_transpose);
