@@ -405,7 +405,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		{
 			dest_image = cuda_abuffers[num_device][next_buffer_A[num_device] % ibuffercount];
 		}
-		if (arg_transpose == 0) dest_buffer_tmp == dest_image;
+		if (arg_transpose == 0) dest_buffer_tmp = dest_image;
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer A to GPU: region %d x %d\n", (int) width, (int) height);
 		CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying A to device");
@@ -450,7 +450,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		{
 			dest_image = cuda_bbuffers[num_device][buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % ibuffercount)];
 		}
-		if (arg_transpose == 0) dest_buffer_tmp == dest_image;
+		if (arg_transpose == 0) dest_buffer_tmp = dest_image;
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) width, (int) height);
 		CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying B to device");
