@@ -593,11 +593,12 @@ int caldgemm_opencl::ValidateRuntime()
 		KernelSettings.group_size_y = OCL_GROUP_SIZE_Y;
 		KernelSettings.min_tile_size = 32;
 		KernelSettings.min_k = 4;
-		if (!(KernelSettings.transposeA ^ KernelSettings.transposeB))
-		{
-			fprintf(STD_OUT, "Must set either transposed A or transposed B\n");
-			return(1);
-		}
+	}
+
+	if (!(KernelSettings.transposeA ^ KernelSettings.transposeB))
+	{
+		fprintf(STD_OUT, "Must set either transposed A or transposed B\n");
+		return(1);
 	}
 
 	return(0);
@@ -1846,396 +1847,198 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 {
 	if (Config->Debug) fprintf(STD_OUT, "OPENCL DGEMM_prepare k=%lld j=%d device=%d\n", (long long int) k, j, num_device);
 	
-	size_t blockm, blockn;
-	DGEMM_getblocks(k, blockm, blockn);
+	CALDGEMM_PREPARE_BACKEND_VARS1;
 
 	const size_t origin[3] = {0, 0, 0};
 	size_t region[3];
 	region[2] = 1;
-	const size_t HeightM = ((blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height);
-	const size_t HeightN = ((blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height);
 
 	if (Config->VerboseTiming && Config->GPU_C == 1) Timers.CounterCopyTo.Start();
 
-	if (!Config->SimpleGPUQueuing && ocl_conversion_events_use[num_device][0])
-	{
-		WaitForEventAndRelease(&ocl_conversion_events[num_device][0]);
-		ocl_conversion_events_use[num_device][0] = 0;
-	}
-	
 	int nTransferEvents;
 	cl_event transferEvents[obuffercount + 1];
 	bool freeTransferEvents;
-	int forceFreeTransferEvent = -1;
 	
 	bool flushKernel = false;
 	
-	if (prepareM)
+	for (int iMat = 0;iMat < 2;iMat++)
 	{
-		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
-		Timers.divideA++;
-		nTransferEvents = 0;
-		freeTransferEvents = true;
-
-		int dest_image_id;
-		cl_mem *dest_image;
-		size_t pitch = A_pitch;
-		void* src_ptr = A + blockm * Config->Height * (TransposeA ? 1 : A_pitch);
-		
-		if (!DGEMM_favor_m && buffersSufficiant0)
+		if (!Config->SimpleGPUQueuing && ocl_conversion_events_use[num_device][iMat])
 		{
-			dest_image_id = buffer_pointers_A[num_device][blockm] % (buffersSufficiant ? bbuffers[num_device] : ibuffercount);
-			dest_image = &ocl_bbuffers[num_device][dest_image_id];
+			WaitForEventAndRelease(&ocl_conversion_events[num_device][iMat]);
+			ocl_conversion_events_use[num_device][iMat] = 0;
 		}
-		else
+		if (iMat ? prepareN : prepareM)
 		{
-			dest_image_id = next_buffer_A[num_device] % ibuffercount;
-			dest_image = &ocl_abuffers[num_device][dest_image_id];
+			CALDGEMM_PREPARE_BACKEND_VARS2;
+			cl_event* my_alternateSimpleQueueEvent_tmp_buffers = iMat ? alternateSimpleQueueEvent_tmp_bbuffers[num_device] : alternateSimpleQueueEvent_tmp_abuffers[num_device];
+			double** my_ocl_tmp_buffers_ptr = iMat ? ocl_tmp_bbuffers_ptr[num_device] : ocl_tmp_abuffers_ptr[num_device];
 			
-			if (Config->SimpleGPUQueuing)
+			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of %c to GPU (k = %lld, m = %lld, n = %lld)\n", myMat, (long long int) k, (long long int) blockm, (long long int) blockn);
+			nTransferEvents = 0;
+			freeTransferEvents = true;
+			int forceFreeTransferEvent = -1;
+
+			if (!access_bbuffers)
 			{
-				for (int i = 0;i < obuffercount;i++)
+				if (Config->SimpleGPUQueuing)
 				{
-					if (Config->AlternateSimpleQueuing) i = 2;
-					if (simple_queue_event_kernels[num_device][dest_image_id][i] != NULL)
+					for (int i = 0;i < obuffercount;i++)
 					{
-						//printf("DEBUG: ABuffer blockm %d Need to wait for device %d Buffer %d Context %d\n", (int) blockm, num_device, dest_image_id, i);
-						if (!Config->AlternateSimpleQueuing && i == j)
+						if (Config->AlternateSimpleQueuing && iMat == 0) i = 2;
+						if (simple_queue_event_kernels[num_device][destbuffer][i] != NULL)
 						{
-							CHKRET(clReleaseEvent(simple_queue_event_kernels[num_device][dest_image_id][i]), "Error in clReleaseEvent");
+							//printf("DEBUG: %cBuffer block%c %d Need to wait for device %d Buffer %d Context %d\n", myMat, iMat ? 'n' : 'm', (int) myblock, num_device, destbuffer, i);
+							if (!Config->AlternateSimpleQueuing && i == j)
+							{
+								CHKRET(clReleaseEvent(simple_queue_event_kernels[num_device][destbuffer][i]), "Error in clReleaseEvent");
+							}
+							else
+							{
+								transferEvents[nTransferEvents++] = simple_queue_event_kernels[num_device][destbuffer][i];
+							}
+							simple_queue_event_kernels[num_device][destbuffer][i] = 0;
 						}
-						else
-						{
-							transferEvents[nTransferEvents++] = simple_queue_event_kernels[num_device][dest_image_id][i];
-						}
-						simple_queue_event_kernels[num_device][dest_image_id][i] = 0;
 					}
 				}
 			}
-		}
-		
-		pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
-		
-		const int arg_transpose = TransposeA ^ KernelSettings.transposeA;
-		int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
-
-		if (Config->AlternateSimpleQueuing && (arg_transpose || KernelSettings.texture_buffers) && alternateSimpleQueueEvent_tmp_abuffers[num_device][j] != 0)
-		{
-			if (!freeTransferEvents) forceFreeTransferEvent = nTransferEvents;
-			transferEvents[nTransferEvents++] = alternateSimpleQueueEvent_tmp_abuffers[num_device][j];
-			alternateSimpleQueueEvent_tmp_abuffers[num_device][j] = 0;
-		}
-
-		if (Config->GPU_C == 0)
-		{
-			if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer A (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d, transpose = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, arg_transpose);
-			if (Config->VerboseTiming) Timers.CounterDivide.Start();
-			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], TransposeA ? Config->Width : HeightM, TransposeA ? HeightM : Config->Width, arg_transpose)) return(1);
-			if (Config->VerboseTiming) Timers.CounterDivide.Stop();
-			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of A to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_A[num_device] % ibuffercount, dest_image_id);
-			if (KernelSettings.transposeA)
-			{
-				region[0] = Config->Width / 2;
-				region[1] = HeightM;
-			}
-			else //must be transposeB
-			{
-				region[0] = HeightM / 2;
-				region[1] = Config->Width;
-			}
-
-			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
-			if (!KernelSettings.texture_buffers)
-			{
-				CHKRET(clEnqueueWriteBuffer(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, 0, Config->Width * HeightM * sizeof(double), ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
-			}
-			else
-			{
-				CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_abuffers_ptr[num_device][next_buffer_A[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][0]), "Error copying A");
-			}
-			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
-			if (Config->VerboseTiming)
-			{
-				CHKRET(clFinish(ocl_command_queues[num_device][j]), "Error in clFinish");
-				Timers.CounterCopyTo.Stop();
-			}
-		}
-		else
-		{
-			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-			region[0] = (TransposeA ? HeightM : Config->Width) * sizeof(double);
-			region[1] = (TransposeA ? Config->Width : HeightM);
-			int arg_width = region[0] / sizeof(double), arg_height = region[1];
-			cl_mem dest_buffer_tmp = ocl_tmp_abuffers[num_device][j];
-			if (Config->Debug) fprintf(STD_OUT, "Transfer A to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
-			if (arg_transpose == 0 && KernelSettings.texture_buffers == false) dest_buffer_tmp = *dest_image;
-
-			cl_event* ev;
-			cl_event ev2;
-			if (Config->SimpleGPUQueuing)
-			{
-				if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
-				{
-					ev = NULL;
-				}
-				else
-				{
-					ev = &simple_queue_events[num_device][0][blockm].event;
-					simple_queue_events[num_device][0][blockm].num_queue = j;
-				}
-			}
-			else
-			{
-				ev = &ocl_conversion_events[num_device][0];
-			}
-			//printf("DEBUG: ABuffer device %d buffer %d blockm %d wait for %d kernels\n", num_device, j, (int) blockm, nTransferEvents);
-			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, (arg_transpose == 0 && KernelSettings.texture_buffers == false) ? ev : (Config->AlternateSimpleQueuing ? &ev2 : NULL)), "Error copying A");
+			cl_mem* dest_image = access_bbuffers ? ocl_bbuffers[destbuffer] : ocl_abuffers[destbuffer];
 			
-			if (freeTransferEvents) for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event A");
-			if (forceFreeTransferEvent >= 0) CHKRET(clReleaseEvent(transferEvents[forceFreeTransferEvent]), "Error releasing event A");
-			if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
-			if (arg_transpose || KernelSettings.texture_buffers)
-			{
-				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, A, 0");
-				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, A, 1");
-				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &arg_width), "Error setting kernel arg, A, 2");
-				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &arg_height), "Error setting kernel arg, A, 3");
-		
-				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 4, sizeof(int), &arg_transpose), "Error setting kernel arg, A, 4");
+			pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
+			
+			int arg_transpose = myTranspose ^ myKernelTranspose;
+			int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
 
-				size_t local_size[2];
-				size_t global_size[2];
-				if (!Config->Use3rdPartyTranspose)
+			if (Config->AlternateSimpleQueuing && (arg_transpose || KernelSettings.texture_buffers) && my_alternateSimpleQueueEvent_tmp_buffers[j] != 0)
+			{
+				if (!freeTransferEvents) forceFreeTransferEvent = nTransferEvents;
+				transferEvents[nTransferEvents++] = my_alternateSimpleQueueEvent_tmp_buffers[j];
+				my_alternateSimpleQueueEvent_tmp_buffers[j] = 0;
+			}
+
+			if (Config->GPU_C == 0)
+			{
+				if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer %c (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d, transpose = %d)\n", myMat, num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, my_next_buffer % ibuffercount, arg_transpose);
+				if (Config->VerboseTiming) Timers.CounterDivide.Start();
+
+				if (divideBuffer((double*) src_ptr, pitch, my_ocl_tmp_buffers_ptr[my_next_buffer % ibuffercount], TransposeA ? Config->Width : myHeight, TransposeA ? myHeight : Config->Width, arg_transpose)) return(1);
+				if (Config->VerboseTiming) Timers.CounterDivide.Stop();
+				if (Config->Debug) fprintf(STD_OUT, "\tCopying part of %c to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", myMat, num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, my_next_buffer % ibuffercount, destbuffer);
+				if (KernelSettings.transposeA) //must be transposed A and not transposed b
 				{
-					local_size[0] = GROUP_SIZE_X;
-					local_size[1] = GROUP_SIZE_Y;
-					global_size[0] = local_size[0] * GROUP_COUNT_X;
-					global_size[1] = local_size[1] * GROUP_COUNT_Y;
+					region[0] = Config->Width / 2;
+					region[1] = myHeight;
+				}
+				else //must be transposeB and not transposed a
+				{
+					region[0] = myHeight / 2;
+					region[1] = Config->Width;
+				}
+
+				if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
+				if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
+				if (!KernelSettings.texture_buffers)
+				{
+					CHKRET(clEnqueueWriteBuffer(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, 0, Config->Width * myHeight * sizeof(double), my_ocl_tmp_buffers_ptr[my_next_buffer % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][iMat]), "Error copying %c", myMat);
 				}
 				else
 				{
-					local_size[0] = 16;
-					local_size[1] = 16;
-					global_size[0] = arg_width / 4;
-					global_size[1] = arg_height / 4;
+					CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, my_ocl_tmp_buffers_ptr[my_next_buffer % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][iMat]), "Error copying %c", myMat);
 				}
-
-				if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", arg_width, arg_height, arg_transpose);
-				if (Config->AlternateSimpleQueuing) use_queue = 2;
-				int retain_ev = 0;
-				if (Config->AlternateSimpleQueuing)
+				if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
+				if (Config->VerboseTiming)
 				{
-					if (ev == NULL)
+					CHKRET(clFinish(ocl_command_queues[num_device][j]), "Error in clFinish");
+					Timers.CounterCopyTo.Stop();
+				}
+			}
+			else
+			{
+				if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
+				region[0] = (TransposeA ? myHeight : Config->Width) * sizeof(double); //It is either transposeA or transposeB !
+				region[1] = (TransposeA ? Config->Width : myHeight);
+				int arg_width = region[0] / sizeof(double), arg_height = region[1];
+				cl_mem dest_buffer_tmp = iMat && Config->AlternateSimpleQueuing ? ocl_tmp_bbuffers[num_device][j] : ocl_tmp_abuffers[num_device][j];
+				if (Config->Debug) fprintf(STD_OUT, "Transfer %c to GPU: region %d x %d\n", myMat, (int) region[0], (int) region[1]);
+				if (arg_transpose == 0 && KernelSettings.texture_buffers == false) dest_buffer_tmp = *dest_image;
+
+				cl_event* ev;
+				cl_event ev2;
+				if (Config->SimpleGPUQueuing)
+				{
+					if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
 					{
-						ev = &alternateSimpleQueueEvent_tmp_abuffers[num_device][j];
+						ev = NULL;
 					}
 					else
 					{
-						retain_ev = 1;
+						ev = &simple_queue_events[num_device][iMat][myblock].event;
+						simple_queue_events[num_device][iMat][myblock].num_queue = j;
 					}
-				}
-				CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][use_queue], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], Config->AlternateSimpleQueuing ? 1 : 0, Config->AlternateSimpleQueuing ? &ev2 : NULL, ev), "Error starting conversion kernel for A");
-				flushKernel = true;
-				if (retain_ev)
-				{
-					alternateSimpleQueueEvent_tmp_abuffers[num_device][j] = *ev;
-					clRetainEvent(*ev);
-				}
-				if (Config->AlternateSimpleQueuing) CHKRET(clReleaseEvent(ev2), "Error releasing event");
-			}
-			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
-		}
-		ocl_conversion_events_use[num_device][0] = 1;
-		if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
-	}
-
-	if (!Config->SimpleGPUQueuing && ocl_conversion_events_use[num_device][1])
-	{
-		WaitForEventAndRelease(&ocl_conversion_events[num_device][1]);
-		ocl_conversion_events_use[num_device][1] = 0;
-	}
-	if (prepareN)
-	{
-		nTransferEvents = 0;
-		freeTransferEvents = true;
-		forceFreeTransferEvent = -1;
-		if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (k = %lld, m = %lld, n = %lld)\n", (long long int) k, (long long int) blockm, (long long int) blockn);
-		Timers.divideB++;
-
-		int dest_image_id;
-		cl_mem *dest_image;
-		
-		size_t pitch = B_pitch;
-		void* src_ptr = B + blockn * Config->Height * (TransposeB ? B_pitch : 1);
-
-		if (!DGEMM_favor_m && buffersSufficiant0)
-		{
-			dest_image_id = next_buffer_B[num_device] % ibuffercount;
-			dest_image = &ocl_abuffers[num_device][dest_image_id];
-			
-			if (Config->SimpleGPUQueuing)
-			{
-				for (int i = 0;i < obuffercount;i++)
-				{
-					if (simple_queue_event_kernels[num_device][dest_image_id][i] != NULL)
-					{
-						//printf("DEBUG: ABuffer blockn %d Need to wait for device %d Buffer %d Context %d\n", (int) blockn, num_device, dest_image_id, i);
-						if (!Config->AlternateSimpleQueuing && i == j)
-						{
-							CHKRET(clReleaseEvent(simple_queue_event_kernels[num_device][dest_image_id][i]), "Error in clReleaseEvent");
-						}
-						else
-						{
-							transferEvents[nTransferEvents++] = simple_queue_event_kernels[num_device][dest_image_id][i];
-						}
-						simple_queue_event_kernels[num_device][dest_image_id][i] = 0;
-					}
-				}
-			}
-		}
-		else
-		{
-			dest_image_id = buffersSufficiant ? (buffer_pointers_B[num_device][blockn] % bbuffers[num_device]) : (next_buffer_B[num_device] % ibuffercount);
-			dest_image = &ocl_bbuffers[num_device][dest_image_id];
-		}
-
-		pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
-
-		const int arg_transpose = TransposeB ^ KernelSettings.transposeB;
-		int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
-
-		if (Config->AlternateSimpleQueuing && (arg_transpose || KernelSettings.texture_buffers) && alternateSimpleQueueEvent_tmp_bbuffers[num_device][j] != 0)
-		{
-			if (!freeTransferEvents) forceFreeTransferEvent = nTransferEvents;
-			transferEvents[nTransferEvents++] = alternateSimpleQueueEvent_tmp_bbuffers[num_device][j];
-			alternateSimpleQueueEvent_tmp_bbuffers[num_device][j] = 0;
-		}
-
-		if (Config->GPU_C == 0)
-		{
-			if (Config->Debug) fprintf(STD_OUT, "\tDividing Buffer B (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer = %d, transpose = %d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount, arg_transpose);
-			if (Config->VerboseTiming) Timers.CounterDivide.Start();
-
-			if (divideBuffer((double*) src_ptr, pitch, ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], TransposeB ? HeightN : Config->Width, TransposeB ? Config->Width : HeightN, arg_transpose)) return(1);
-			if (Config->VerboseTiming) Timers.CounterDivide.Stop();
-			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of B to GPU (device = %d, k = %lld, context = %d, m = %lld, n = %lld, buffer: %d->%d)\n", num_device, (long long int) k, j, (long long int) blockm, (long long int) blockn, next_buffer_B[num_device] % ibuffercount, dest_image_id);
-
-			if (KernelSettings.transposeB)
-			{
-				region[0] = HeightN / 2;
-				region[1] = Config->Width;
-			}
-			else //must be transposeA
-			{
-				region[0] = Config->Width / 2;
-				region[1] = HeightN;
-			}
-			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-			if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
-			if (!KernelSettings.texture_buffers)
-			{
-				CHKRET(clEnqueueWriteBuffer(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, 0, Config->Width * HeightN * sizeof(double), ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
-			}
-			else
-			{
-				CHKRET(clEnqueueWriteImage(ocl_command_queues[num_device][j], *dest_image, CL_FALSE, origin, region, 0, 0, ocl_tmp_bbuffers_ptr[num_device][next_buffer_B[num_device] % ibuffercount], 0, NULL, &ocl_conversion_events[num_device][1]), "Error copying B");
-			}
-			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
-			if (Config->VerboseTiming)
-			{
-				CHKRET(clFinish(ocl_command_queues[num_device][j]), "Error in clFinish");
-				Timers.CounterCopyTo.Stop();
-			}
-		}
-		else
-		{
-			if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-			region[0] = (TransposeB ? Config->Width : HeightN) * sizeof(double);
-			region[1] = (TransposeB ? HeightN : Config->Width);
-			int arg_width = region[0] / sizeof(double), arg_height = region[1];
-			cl_mem dest_buffer_tmp = Config->AlternateSimpleQueuing ? ocl_tmp_bbuffers[num_device][j] : ocl_tmp_abuffers[num_device][j];
-			if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
-			if (arg_transpose == 0 && KernelSettings.texture_buffers == false) dest_buffer_tmp = *dest_image;
-
-			cl_event* ev;
-			cl_event ev2;
-			if (Config->SimpleGPUQueuing)
-			{
-				if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
-				{
-					ev = NULL;
 				}
 				else
 				{
-					ev = &simple_queue_events[num_device][1][blockn].event;
-					simple_queue_events[num_device][1][blockn].num_queue = j;
+					ev = &ocl_conversion_events[num_device][iMat];
 				}
-			}
-			else
-			{
-				ev = &ocl_conversion_events[num_device][1];
-			}
+				//printf("DEBUG: %cBuffer device %d buffer %d block%c %d wait for %d kernels\n", myMat, num_device, j, iMat ? 'n' : 'm', (int) myblock, nTransferEvents);
 
-			//printf("DEBUG: BBuffer device %d buffer %d blockn %d wait for %d kernels\n", num_device, j, (int) blockn, nTransferEvents);
-			CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, (arg_transpose == 0 && KernelSettings.texture_buffers == false) ? ev : (Config->AlternateSimpleQueuing ? &ev2 : NULL)), "Error copying B");
-			if (freeTransferEvents) for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event B");
-			if (forceFreeTransferEvent >= 0) CHKRET(clReleaseEvent(transferEvents[forceFreeTransferEvent]), "Error releasing event B");
-			if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
-
-			if (arg_transpose || KernelSettings.texture_buffers)
-			{
-				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, B, 0");
-				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, B, 1");
-				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &arg_width), "Error setting kernel arg, B, 2");
-				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &arg_height), "Error setting kernel arg, B, 3");
-
-				CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 4, sizeof(int), &arg_transpose), "Error setting kernel arg, B, 4");
-
-				size_t local_size[2];
-				size_t global_size[2];
-				if (!Config->Use3rdPartyTranspose)
+				CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], dest_buffer_tmp, CL_FALSE, origin, origin, region, 0, 0, pitch * sizeof(double), 0, src_ptr, nTransferEvents, nTransferEvents ? transferEvents : NULL, (arg_transpose == 0 && KernelSettings.texture_buffers == false) ? ev : (Config->AlternateSimpleQueuing ? &ev2 : NULL)), "Error copying %c", myMat);
+				if (freeTransferEvents) for (int i = 0;i < nTransferEvents;i++) CHKRET(clReleaseEvent(transferEvents[i]), "Error releasing event %c", myMat);
+				if (forceFreeTransferEvent >= 0) CHKRET(clReleaseEvent(transferEvents[forceFreeTransferEvent]), "Error releasing event %c", myMat);
+				if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
+				if (arg_transpose || KernelSettings.texture_buffers)
 				{
-					local_size[0] = GROUP_SIZE_X;
-					local_size[1] = GROUP_SIZE_Y;
-					global_size[0] = local_size[0] * GROUP_COUNT_X;
-					global_size[1] = local_size[1] * GROUP_COUNT_Y;
-				}
-				else
-				{
-					local_size[0] = 16;
-					local_size[1] = 16;
-					global_size[0] = arg_width / 4;
-					global_size[1] = arg_height / 4;
-				}
-				if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
+					CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, %c, 0", myMat);
+					CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, %c, 1", myMat);
+					CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &arg_width), "Error setting kernel arg, %c, 2", myMat);
+					CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &arg_height), "Error setting kernel arg, %c, 3", myMat);
+					CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 4, sizeof(int), &arg_transpose), "Error setting kernel arg, %c, 4", myMat);
 
-				if (Config->AlternateSimpleQueuing) use_queue = 2;
-				int retain_ev = 0;
-				if (Config->AlternateSimpleQueuing)
-				{
-					if (ev == NULL)
+					size_t local_size[2];
+					size_t global_size[2];
+					if (!Config->Use3rdPartyTranspose)
 					{
-						ev = &alternateSimpleQueueEvent_tmp_bbuffers[num_device][j];
+						local_size[0] = GROUP_SIZE_X;
+						local_size[1] = GROUP_SIZE_Y;
+						global_size[0] = local_size[0] * GROUP_COUNT_X;
+						global_size[1] = local_size[1] * GROUP_COUNT_Y;
 					}
 					else
 					{
-						retain_ev = 1;
+						local_size[0] = 16;
+						local_size[1] = 16;
+						global_size[0] = arg_width / 4;
+						global_size[1] = arg_height / 4;
 					}
+
+					if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel %c: x %d y %d\n", myMat, (int) arg_width, (int) arg_height);
+					if (Config->AlternateSimpleQueuing) use_queue = 2;
+					int retain_ev = 0;
+					if (Config->AlternateSimpleQueuing)
+					{
+						if (ev == NULL)
+						{
+							ev = &my_alternateSimpleQueueEvent_tmp_buffers[j];
+						}
+						else
+						{
+							retain_ev = 1;
+						}
+					}
+					CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][use_queue], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], Config->AlternateSimpleQueuing ? 1 : 0, Config->AlternateSimpleQueuing ? &ev2 : NULL, ev), "Error starting conversion kernel for %c", myMat);
+					flushKernel = true;
+					if (retain_ev)
+					{
+						my_alternateSimpleQueueEvent_tmp_buffers[j] = *ev;
+						clRetainEvent(*ev);
+					}
+					if (Config->AlternateSimpleQueuing) CHKRET(clReleaseEvent(ev2), "Error releasing event");
 				}
-				CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][use_queue], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], Config->AlternateSimpleQueuing ? 1 : 0, Config->AlternateSimpleQueuing ? &ev2 : NULL, ev), "Error starting conversion kernel for B");
-				flushKernel = true;
-				if (retain_ev)
-				{
-					alternateSimpleQueueEvent_tmp_bbuffers[num_device][j] = *ev;
-					clRetainEvent(*ev);
-				}
-				if (Config->AlternateSimpleQueuing) CHKRET(clReleaseEvent(ev2), "Error releasing event");
+				if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			}
-			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
+			ocl_conversion_events_use[num_device][iMat] = 1;
+			if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 		}
-		ocl_conversion_events_use[num_device][1] = 1;
-		if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 	}
 	
 	int use_queue = Config->AlternateSimpleQueuing ? 0 : j;

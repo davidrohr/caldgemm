@@ -146,5 +146,30 @@ extern pthread_mutex_t global_vt_mutex;
 			PRINT_CONFIG_BASE_WRAP(name[%d], name[i], PASS_ARG(COMMA) i, "%5d", int, myConfig, oldConfig && oldConfig->loopvar <= i, newConfig->loopvar <= i, -1, -1) \
 		} \
 	}
+	
+#define CALDGEMM_PREPARE_BACKEND_VARS1 \
+	size_t blockm, blockn; \
+	DGEMM_getblocks(k, blockm, blockn); \
+	const size_t HeightM = ((blockm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height); \
+	const size_t HeightN = ((blockn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height);
+
+#define CALDGEMM_PREPARE_BACKEND_VARS2 \
+	char myMat                = iMat ? 'B'                           : 'A'; \
+	int& my_next_buffer       = iMat ? next_buffer_B[num_device]     : next_buffer_A[num_device]; \
+	int*& my_buffer_pointers  = iMat ? buffer_pointers_B[num_device] : buffer_pointers_A[num_device]; \
+	size_t& myblock           = iMat ? blockn : blockm; \
+	bool& myTranspose         = iMat ? TransposeB : TransposeA; \
+	const bool myKernelTranspose = iMat ? KernelSettings.transposeB : KernelSettings.transposeA; \
+	const size_t& myHeight    = iMat ? HeightN : HeightM; \
+	const size_t pitch        = iMat ? B_pitch : A_pitch; \
+	double* src_ptr           = iMat ? \
+		(B + blockn * Config->Height * (myTranspose ? B_pitch : 1)) : \
+		(A + blockm * Config->Height * (myTranspose ? 1 : A_pitch)); \
+	const bool access_bbuffers = (bool) (!DGEMM_favor_m && buffersSufficiant0) ^ (bool) iMat; \
+	const int destbuffer       = access_bbuffers ? \
+		((!iMat || buffersSufficiant) ? (my_buffer_pointers[myblock] % ((iMat || buffersSufficiant) ? bbuffers[num_device] : ibuffercount)) : (my_next_buffer % ibuffercount)) : \
+		my_next_buffer % ibuffercount; \
+	if (iMat) Timers.divideB++; else Timers.divideA++;
+
 
 #endif
