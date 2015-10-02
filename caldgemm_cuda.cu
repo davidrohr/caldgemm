@@ -38,20 +38,13 @@
 #undef CALDGEMM_ALPHA1
 #undef CUDAKernelName
 
-__global__ void CUDAConversionKernel(const double* iBuffer, double* oBuffer, size_t width, size_t height, int transpose)
+__global__ void CUDAConversionKernel(const double* __restrict__ iBuffer, double* __restrict__ oBuffer, size_t width, size_t height)
 {
 	for (int j = blockIdx.y * blockDim.y + threadIdx.y;j < height;j += blockDim.y * gridDim.y)
 	{
 		for (int i = blockIdx.x * blockDim.x + threadIdx.x;i < width;i += blockDim.x * gridDim.x)
 		{
-			if (transpose)
-			{
-				oBuffer[i * height + j] = iBuffer[j * width + i];
-			}
-			else
-			{
-				oBuffer[j * width + i] = iBuffer[j * width + i];
-			}
+			oBuffer[i * height + j] = iBuffer[j * width + i];
 		}
 	}
 }
@@ -133,6 +126,7 @@ int caldgemm_cuda::Initialize(bool nocalinit)
 		for (int j = 0;j < obuffercount;j++)
 		{
 			CHKRET(cudaStreamCreate(&cuda_command_queues[i][j]), "Creating CUDA Stream");
+                        CHKRET(cudaStreamCreate(&cuda_CpyH2D_command_queues[i][j]),"Creating H2D Stream");
 		}
 #ifdef CALDGEMM_CUDA_CUBLAS		
                 CHKRET((cudaError_t)cublasCreate(&cublas_handles[i]),"Initializing Cublas library");
@@ -222,7 +216,10 @@ int caldgemm_cuda::InitDevices()
 		for (int j = 0;j < obuffercount;j++)
 		{
 			CHKRET(cudaEventCreate(&cuda_events[i][j]), "Creating Event 1 %d %d\n", i, j);
+                        CHKRET(cudaEventCreateWithFlags(&cuda_kernel_done_event[i][j],cudaEventDisableTiming), "Creating kernel done event %d on dev %d",j,i);
+                        CHKRET(cudaEventCreateWithFlags(&cuda_CpyD2H_done_event[i][j],cudaEventDisableTiming), "Creating CpyD2H done event %d on dev %d",j,i);
 		}
+		CHKRET(cudaEventCreateWithFlags(&cuda_CpyH2D_done_event[i],cudaEventDisableTiming), "Creating CpyH2D done event on dev %d",i);
 		for (int j = 0;j < 2;j++)
 		{
 			CHKRET(cudaEventCreate(&cuda_conversion_events[i][j]), "Creating Event 1 %d %d\n", i, j);
@@ -300,9 +297,11 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 	CUDAKernel <<<blocks, threads, 0, cuda_command_queues[Task.device][Task.j]>>> (cbuffer, abuffer, bbuffer, height1, height2, width, Alpha, Beta, pitch);
 #else
         cublasSetStream(cublas_handles[Task.device], cuda_command_queues[Task.device][Task.j]);
-        cublasDgemm(cublas_handles[Task.device],CUBLAS_OP_T,CUBLAS_OP_N,height1,height2,width,&Alpha,bbuffer,width,abuffer,width,&Beta,cbuffer,pitch);
+        cublasDgemm(cublas_handles[Task.device],CUBLAS_OP_N,CUBLAS_OP_T,height1,height2,width,&Alpha,bbuffer,height1,abuffer,height2,&Beta,cbuffer,pitch);
 #endif
 	CHKRET(cudaGetLastError(), "CUDA Kernel Execution");
+        CHKRET(cudaEventRecord(cuda_kernel_done_event[Task.device][Task.j],cuda_command_queues[Task.device][Task.j]),"record kernel done event %d %d",Task.device,Task.j);
+        CHKRET(cudaStreamWaitEvent(cuda_CpyH2D_command_queues[Task.device][Task.j], cuda_kernel_done_event[Task.device][Task.j],0),"enforce copyH2D wait kernel");
 
 	if (Config->VerboseTiming)
 	{
@@ -315,6 +314,7 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 	{
 		if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) (height1 * sizeof(double)), (int) height2);
 		CHKRET(cudaMemcpy2DAsync(C + blockn * Config->Height + blockm * Config->Height * C_pitch, C_pitch * sizeof(double), cuda_cbuffers[Task.device][Task.j], height1 * sizeof(double), height1 * sizeof(double), height2, cudaMemcpyDeviceToHost, cuda_command_queues[Task.device][Task.j]), "Fetching result");
+                CHKRET(cudaEventRecord(cuda_CpyD2H_done_event[Task.device][Task.j],cuda_command_queues[Task.device][Task.j]),"record CpyD2H done event %d %d",Task.device,Task.j);
 	}
 
 	if (Config->VerboseTiming)
@@ -336,7 +336,12 @@ int caldgemm_cuda::ExitRuntime()
 		for (int j = 0;j < obuffercount;j++)
 		{
 			CHKRET(cudaStreamDestroy(cuda_command_queues[i][j]), "Destroying CUDA Stream");
+			CHKRET(cudaStreamDestroy(cuda_CpyH2D_command_queues[i][j]), "Destorying CpyH2D CUDA Stream");
 		}
+#ifdef CALDGEMM_CUDA_CUBLAS             
+		CHKRET((cudaError_t)cublasDestroy(cublas_handles[i]),"Destroying Cublas Handles");
+#endif
+		CHKRET(cudaThreadExit(),"Destroying Cuda Context %d \n",i);
 	}
 
 	return(0);
@@ -400,16 +405,28 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		}
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer A to GPU: region %d x %d\n", (int) width, (int) height);
-		CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying A to device");
+#ifndef CALDGEMM_CUDA_CUBLAS
+                int arg_transpose = TransposeA;
+#else
+                int arg_transpose = !TransposeA;
+#endif
+                if(arg_transpose){
+                        CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_CpyH2D_command_queues[num_device][j]), "Copying A to device");
+                }else{
+                        CHKRET(cudaMemcpy2DAsync(dest_image     , width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_CpyH2D_command_queues[num_device][j]), "Copying A to device");
+                }
+                CHKRET(cudaEventRecord(cuda_CpyH2D_done_event[num_device],cuda_CpyH2D_command_queues[num_device][j]),"record CpyH2D done event");
+                CHKRET(cudaStreamWaitEvent(cuda_command_queues[num_device][j], cuda_CpyH2D_done_event[num_device],0),"enforce kernel wait CpyH2D done");
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 
-		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
-		int arg_transpose = TransposeA;
-		size_t arg_width = width / sizeof(double), arg_height = height;
-		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", (int) arg_width, (int) arg_height, arg_transpose);
-		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height, arg_transpose);
-		CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
-		
+                if(arg_transpose){
+			dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
+			size_t arg_width = width / sizeof(double), arg_height = height;
+			if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel A: x %d y %d (t: %d)\n", (int) arg_width, (int) arg_height, arg_transpose);
+			CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height);
+			CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
+                }
+                
 		CHKRET(cudaEventRecord(cuda_conversion_events[num_device][0], cuda_command_queues[num_device][j]), "Recording event %d 0", num_device);
 		cuda_conversion_events_use[num_device][0] = 1;
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
@@ -442,29 +459,44 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		}
 
 		if (Config->Debug) fprintf(STD_OUT, "Transfer B to GPU: region %d x %d\n", (int) width, (int) height);
-		CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying B to device");
+#ifndef CALDGEMM_CUDA_CUBLAS
+                int arg_transpose = !TransposeB;
+#else
+                int arg_transpose = TransposeB;
+#endif
+                if(arg_transpose){
+                        CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_CpyH2D_command_queues[num_device][j]), "Copying B to device");
+                }else{
+                        CHKRET(cudaMemcpy2DAsync(dest_image     , width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_CpyH2D_command_queues[num_device][j]), "Copying B to device");
+                }
+                CHKRET(cudaEventRecord(cuda_CpyH2D_done_event[num_device],cuda_CpyH2D_command_queues[num_device][j]),"record CpyH2D done event");
+                CHKRET(cudaStreamWaitEvent(cuda_command_queues[num_device][j], cuda_CpyH2D_done_event[num_device],0),"enforce kernel wait CpyH2D done");
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 
-		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
-		int arg_transpose = !TransposeB;
-		size_t arg_width = width / sizeof(double), arg_height = height;
-		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
-		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height, arg_transpose);
-		CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
-
+                if(arg_transpose){
+			dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
+			size_t arg_width = width / sizeof(double), arg_height = height;
+			if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel B: x %d y %d\n", (int) arg_width, (int) arg_height);
+			CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height);
+			CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
+                }
+                
 		CHKRET(cudaEventRecord(cuda_conversion_events[num_device][1], cuda_command_queues[num_device][j]), "Recording event %d 1", num_device);
 		cuda_conversion_events_use[num_device][1] = 1;
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 	}
 
-	if (Config->DstMemory == 'g')
-	{
-		width = HeightN * sizeof(double);
-		height = HeightM;
-		Timers.divideC++;
-		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) width, (int) height);
-		CHKRET(cudaMemcpy2DAsync(cuda_cbuffers[num_device][j], width, C + blockn * Config->Height + blockm * Config->Height * C_pitch, C_pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying C to device");
-	}
+        if (Config->DstMemory == 'g')
+        {
+                width = HeightN * sizeof(double);
+                height = HeightM;
+                Timers.divideC++;
+                if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) width, (int) height);
+                CHKRET(cudaStreamWaitEvent(cuda_CpyH2D_command_queues[num_device][j], cuda_CpyD2H_done_event[num_device][j],0),"enforce copyH2D wait copyD2H");
+                CHKRET(cudaMemcpy2DAsync(cuda_cbuffers[num_device][j], width, C + blockn * Config->Height + blockm * Config->Height * C_pitch, C_pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_CpyH2D_command_queues[num_device][j]), "Copying C to device");
+                CHKRET(cudaEventRecord(cuda_CpyH2D_done_event[num_device],cuda_CpyH2D_command_queues[num_device][j]),"record CpyH2D done event");
+                CHKRET(cudaStreamWaitEvent(cuda_command_queues[num_device][j], cuda_CpyH2D_done_event[num_device],0),"enforce kernel wait CpyH2D done");
+        }
 
 	if (Config->VerboseTiming)
 	{
@@ -502,7 +534,10 @@ int caldgemm_cuda::ExitDevices()
 		for (int j = 0;j < obuffercount;j++)
 		{
 			CHKRET(cudaEventDestroy(cuda_events[i][j]), "Destroying Event 1 %d %d\n", i, j);
+			CHKRET(cudaEventDestroy(cuda_kernel_done_event[i][j]), "Destorying kernel done event %d %d", i, j);
+                        CHKRET(cudaEventDestroy(cuda_CpyD2H_done_event[i][j]), "Destorying CpyD2H done event %d %d", i, j);
 		}
+		CHKRET(cudaEventDestroy(cuda_CpyH2D_done_event[i]),"Destorying CpyH2D done event %d",i);
 		for (int j = 0;j < 2;j++)
 		{
 			CHKRET(cudaEventDestroy(cuda_conversion_events[i][j]), "Destroying Event 1 %d %d\n", i, j);

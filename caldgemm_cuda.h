@@ -65,12 +65,16 @@ private:
 
 	int cuda_devices[max_devices];
 	cudaStream_t cuda_command_queues[max_devices][obuffercount];
+	cudaStream_t cuda_CpyH2D_command_queues[max_devices][obuffercount];
 	void* cuda_abuffers[max_devices][ibuffercount];
 	void* cuda_bbuffers[max_devices][max_bbuffers];
 	void* cuda_cbuffers[max_devices][obuffercount];
 	void* cuda_tmp_abuffers[max_devices][obuffercount];
 	void* cuda_tmp_bbuffers[max_devices][obuffercount];
 	cudaEvent_t cuda_events[max_devices][obuffercount];
+        cudaEvent_t cuda_CpyH2D_done_event[max_devices];
+        cudaEvent_t cuda_CpyD2H_done_event[max_devices][obuffercount];       
+        cudaEvent_t cuda_kernel_done_event[max_devices][obuffercount];
 #ifdef CALDGEMM_CUDA_CUBLAS
         cublasHandle_t cublas_handles[max_devices];
 #endif
