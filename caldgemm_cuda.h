@@ -72,7 +72,8 @@ private:
 	void* cuda_tmp_abuffers[max_devices][obuffercount];
 	void* cuda_tmp_bbuffers[max_devices][obuffercount];
 	cudaEvent_t cuda_events[max_devices][obuffercount];
-        cudaEvent_t cuda_copy_done_event[max_devices];
+        cudaEvent_t cuda_CpyH2D_done_event[max_devices];
+        cudaEvent_t cuda_CpyD2H_done_event[max_devices][obuffercount];       
         cudaEvent_t cuda_kernel_done_event[max_devices][obuffercount];
 #ifdef CALDGEMM_CUDA_CUBLAS
         cublasHandle_t cublas_handles[max_devices];
