@@ -1,4 +1,4 @@
-include config_options.mak
+include $(CALDGEMM_MAKE_DIR_PRE)config_options.mak
 
 ifeq ($(AMDAPPSDKROOT), )
 ifeq ($(INCLUDE_CAL), 1)
