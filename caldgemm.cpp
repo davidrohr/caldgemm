@@ -3153,7 +3153,7 @@ int caldgemm::DGEMMPrepareAndExecute(caldgemm::DGEMMPrepareAndExecuteTask& Task 
 	if (buffer_pointers_A[Task.device][blockm] < 0 || buffer_pointers_B[Task.device][blockn] < 0)
 	{
 		if (!Config->NoPerformanceWarnings) fprintf(STD_OUT, "WARNING, Buffer falsified by previous iteration, need to retransfer (ptr_a = %d, ptr_b = %d)\n", buffer_pointers_A[Task.device][blockm], buffer_pointers_B[Task.device][blockn]);
-		DGEMM_prepare(Task.k, Task.j, Task.device CALDGEMM_DIVBUFB);
+		if (DGEMM_prepare(Task.k, Task.j, Task.device CALDGEMM_DIVBUFB)) return(1);
 	}
 	if (ExecuteKernels(Task, blockm, blockn)) return(1);
 	if (Config->SimpleGPUQueuing) CheckAlternateTilesRemaining(blockm);
