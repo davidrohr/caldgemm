@@ -1955,8 +1955,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			else
 			{
 				if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-				region[0] = (TransposeA ? myHeight : Config->Width) * sizeof(double); //It is either transposeA or transposeB !
-				region[1] = (TransposeA ? Config->Width : myHeight);
+				region[0] = (((bool) iMat ^ myTranspose) ? myHeight : Config->Width) * sizeof(double); //It is either transposeA or transposeB !
+				region[1] = (((bool) iMat ^ myTranspose) ? Config->Width : myHeight);
 				int arg_width = region[0] / sizeof(double), arg_height = region[1];
 				cl_mem dest_buffer_tmp = iMat && Config->AlternateSimpleQueuing ? ocl_tmp_bbuffers[num_device][j] : ocl_tmp_abuffers[num_device][j];
 				if (Config->Debug) fprintf(STD_OUT, "Transfer %c to GPU: region %d x %d\n", myMat, (int) region[0], (int) region[1]);
