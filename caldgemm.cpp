@@ -2975,11 +2975,11 @@ recalculate_ratio:
 
 		if (Config->SpawnGPUThread != -2)
 		{
-			caldgemm_part_cpu();
+			if (caldgemm_part_cpu()) return(1);
 		}
 		else
 		{
-			caldgemm_part_gpu();
+			if (caldgemm_part_gpu()) return(1);
 		}
 
 		if (Config->UseCPU)
