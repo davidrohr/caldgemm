@@ -399,7 +399,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 			width = (((bool) iMat ^ myTranspose) ? myHeight : Config->Width) * sizeof(double);
 			height = ((bool) iMat ^ myTranspose) ? Config->Width : myHeight;
 			int arg_transpose = myTranspose ^ myKernelTranspose;
-			void* dest_image = access_bbuffers ? cuda_bbuffers[destbuffer] : cuda_abuffers[destbuffer];
+			void* dest_image = access_bbuffers ? cuda_bbuffers[num_device][destbuffer] : cuda_abuffers[num_device][destbuffer];
 			if (arg_transpose == 0) dest_buffer_tmp = dest_image;
 
 			if (Config->Debug) fprintf(STD_OUT, "Transfer %c to GPU: region %d x %d\n", myMat, (int) width, (int) height);

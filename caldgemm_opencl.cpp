@@ -1902,7 +1902,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 					}
 				}
 			}
-			cl_mem* dest_image = access_bbuffers ? ocl_bbuffers[destbuffer] : ocl_abuffers[destbuffer];
+			cl_mem* dest_image = access_bbuffers ? &ocl_bbuffers[num_device][destbuffer] : &ocl_abuffers[num_device][destbuffer];
 			
 			pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
 			
