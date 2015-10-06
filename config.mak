@@ -104,6 +104,8 @@ endif
 
 INCLUDEPATHS				+= $(OPENMPI_PATH)/include/vampirtrace
 
+else
+$(error Not configured yet, adapt config_options.mak!)
 endif
 
 caldgemm_config.h:
