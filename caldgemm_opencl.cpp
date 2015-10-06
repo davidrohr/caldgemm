@@ -1904,17 +1904,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			}
 			cl_mem* dest_image = access_bbuffers ? &ocl_bbuffers[num_device][destbuffer] : &ocl_abuffers[num_device][destbuffer];
 			
-			pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
 			
 			int arg_transpose = myTranspose ^ myKernelTranspose;
-			int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
-
-			if (Config->AlternateSimpleQueuing && (arg_transpose || KernelSettings.texture_buffers) && my_alternateSimpleQueueEvent_tmp_buffers[j] != 0)
-			{
-				if (!freeTransferEvents) forceFreeTransferEvent = nTransferEvents;
-				transferEvents[nTransferEvents++] = my_alternateSimpleQueueEvent_tmp_buffers[j];
-				my_alternateSimpleQueueEvent_tmp_buffers[j] = 0;
-			}
 
 			if (Config->GPU_C == 0)
 			{
@@ -1954,6 +1945,16 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			}
 			else
 			{
+				int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
+				pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
+				if (Config->AlternateSimpleQueuing && (arg_transpose || KernelSettings.texture_buffers) && my_alternateSimpleQueueEvent_tmp_buffers[j] != 0)
+				{
+					if (!freeTransferEvents) forceFreeTransferEvent = nTransferEvents;
+					transferEvents[nTransferEvents++] = my_alternateSimpleQueueEvent_tmp_buffers[j];
+					my_alternateSimpleQueueEvent_tmp_buffers[j] = 0;
+				}
+
+
 				if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 				region[0] = (((bool) iMat ^ myTranspose) ? myHeight : Config->Width) * sizeof(double); //It is either transposeA or transposeB !
 				region[1] = (((bool) iMat ^ myTranspose) ? Config->Width : myHeight);
@@ -2041,9 +2042,9 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		}
 	}
 	
-	int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
 	if (Config->GPU_C && Config->DstMemory == 'g')
 	{
+		int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
 		Timers.divideC++;
 		region[0] = HeightN * sizeof(double);
 		region[1] = HeightM;
@@ -2078,7 +2079,12 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 	if (Config->VerboseTiming && Config->GPU_C == 1)
 	{
-		CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
+		for (int i = 0;i < obuffercount;i++)
+		{
+			if (Config->AlternateSimpleQueuing) i = j;
+			CHKRET(clFinish(ocl_command_queues[num_device][i]), "Error in clFinish");
+			if (AlternateSimpleQueuing) break;
+		}
 		Timers.CounterCopyTo.Stop();
 	}
 
