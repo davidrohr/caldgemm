@@ -704,18 +704,13 @@ int caldgemm_opencl::InitDevices()
 				cl_int tmp_flags = Config->GPU_C ? CL_MEM_READ_ONLY : (CL_MEM_ALLOC_HOST_PTR | CL_MEM_READ_WRITE);
 				ocl_tmp_abuffers[k][i][j] = clCreateBuffer(ocl_context, tmp_flags, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
 				CHKRET(ocl_error, "Error allocating device memory (A tmp - Width: %lld Height: %lld)", (long long int) BufferWidth, (long long int) BufferHeight);
-
-				if (Config->GPU_C == 0)
-				{
-					ocl_tmp_bbuffers[k][i][j] = clCreateBuffer(ocl_context, tmp_flags, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
-					CHKRET(ocl_error, "Error allocating device memory (B tmp)");
-				}
+				ocl_tmp_bbuffers[k][i][j] = clCreateBuffer(ocl_context, tmp_flags, BufferWidth * BufferHeight * sizeof(double), NULL, &ocl_error);
+				CHKRET(ocl_error, "Error allocating device memory (B tmp)");
 
 				if (Config->GPU_C == 0 && k == 0)
 				{
 					ocl_tmp_abuffers_ptr[i][j] = (double*) clEnqueueMapBuffer(ocl_command_queues[i][0], ocl_tmp_abuffers[k][i][j], CL_TRUE, CL_MAP_WRITE, 0, BufferWidth * BufferHeight * sizeof(double), 0, NULL, NULL, &ocl_error);
 					CHKRET(ocl_error, "Error mapping buffer (A)");
-
 					ocl_tmp_bbuffers_ptr[i][j] = (double*) clEnqueueMapBuffer(ocl_command_queues[i][0], ocl_tmp_bbuffers[k][i][j], CL_TRUE, CL_MAP_WRITE, 0, BufferWidth * BufferHeight * sizeof(double), 0, NULL, NULL, &ocl_error);
 					CHKRET(ocl_error, "Error mapping buffer (B)");
 				}
@@ -2131,10 +2126,7 @@ int caldgemm_opencl::ExitDevices()
 					CHKRET(clFinish(ocl_command_queues[i][0]), "Error in clFinish");
 				}
 			
-				if (Config->GPU_C == 0 || Config->AlternateSimpleQueuing)
-				{
-					CHKRET(clReleaseMemObject(ocl_tmp_bbuffers[k][i][j]), "Error in clReleaseMemObject");
-				}
+				CHKRET(clReleaseMemObject(ocl_tmp_bbuffers[k][i][j]), "Error in clReleaseMemObject");
 				CHKRET(clReleaseMemObject(ocl_tmp_abuffers[k][i][j]), "Error in clReleaseMemObject");
 			}
 			for (int j = 0;j < bbuffers[i];j++)
