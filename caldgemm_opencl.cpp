@@ -1860,6 +1860,9 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 	bool freeTransferEvents;
 	
 	bool flushKernel = false;
+
+	conversionKernelTaskStruct convTasks[2];
+	int nConvTasks = 0;
 	
 	for (int iMat = 0;iMat < 2;iMat++)
 	{
@@ -1988,57 +1991,63 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 				if (arg_transpose || KernelSettings.texture_buffers)
 				{
-					CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &dest_buffer_tmp), "Error setting kernel arg, %c, 0", myMat);
-					CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), dest_image), "Error setting kernel arg, %c, 1", myMat);
-					CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &arg_width), "Error setting kernel arg, %c, 2", myMat);
-					CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &arg_height), "Error setting kernel arg, %c, 3", myMat);
-					CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 4, sizeof(int), &arg_transpose), "Error setting kernel arg, %c, 4", myMat);
-
-					size_t local_size[2];
-					size_t global_size[2];
-					if (!Config->Use3rdPartyTranspose)
-					{
-						local_size[0] = GROUP_SIZE_X;
-						local_size[1] = GROUP_SIZE_Y;
-						global_size[0] = local_size[0] * GROUP_COUNT_X;
-						global_size[1] = local_size[1] * GROUP_COUNT_Y;
-					}
-					else
-					{
-						local_size[0] = 16;
-						local_size[1] = 16;
-						global_size[0] = arg_width / 4;
-						global_size[1] = arg_height / 4;
-					}
-
-					if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel %c: x %d y %d\n", myMat, (int) arg_width, (int) arg_height);
-					if (Config->AlternateSimpleQueuing) use_queue = 2;
-					int retain_ev = 0;
-					if (Config->AlternateSimpleQueuing)
-					{
-						if (ev == NULL)
-						{
-							ev = &my_alternateSimpleQueueEvent_tmp_buffers[j];
-						}
-						else
-						{
-							retain_ev = 1;
-						}
-					}
-					CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][use_queue], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], Config->AlternateSimpleQueuing ? 1 : 0, Config->AlternateSimpleQueuing ? &ev2 : NULL, ev), "Error starting conversion kernel for %c", myMat);
-					flushKernel = true;
-					if (retain_ev)
-					{
-						my_alternateSimpleQueueEvent_tmp_buffers[j] = *ev;
-						clRetainEvent(*ev);
-					}
-					if (Config->AlternateSimpleQueuing) CHKRET(clReleaseEvent(ev2), "Error releasing event");
+					convTasks[nConvTasks++] = conversionKernelTaskStruct(dest_buffer_tmp, dest_image, arg_width, arg_height, arg_transpose, ev, ev2, &my_alternateSimpleQueueEvent_tmp_buffers[j], myMat);
 				}
 				if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			}
 			ocl_conversion_events_use[num_device][iMat] = 1;
 			if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 		}
+	}
+
+	for (int i = 0;i < nConvTasks;i++)
+	{
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 0, sizeof(cl_mem), &convTasks[i].dest_buffer_tmp), "Error setting kernel arg, %c, 0", convTasks[i].myMat);
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 1, sizeof(cl_mem), convTasks[i].dest_image), "Error setting kernel arg, %c, 1", convTasks[i].myMat);
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 2, sizeof(int), &convTasks[i].arg_width), "Error setting kernel arg, %c, 2", convTasks[i].myMat);
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 3, sizeof(int), &convTasks[i].arg_height), "Error setting kernel arg, %c, 3", convTasks[i].myMat);
+		CHKRET(clSetKernelArg(ocl_kernel[num_device][3], 4, sizeof(int), &convTasks[i].arg_transpose), "Error setting kernel arg, %c, 4", convTasks[i].myMat);
+
+		size_t local_size[2];
+		size_t global_size[2];
+		if (!Config->Use3rdPartyTranspose)
+		{
+			local_size[0] = GROUP_SIZE_X;
+			local_size[1] = GROUP_SIZE_Y;
+			global_size[0] = local_size[0] * GROUP_COUNT_X;
+			global_size[1] = local_size[1] * GROUP_COUNT_Y;
+		}
+		else
+		{
+			local_size[0] = 16;
+			local_size[1] = 16;
+			global_size[0] = convTasks[i].arg_width / 4;
+			global_size[1] = convTasks[i].arg_height / 4;
+		}
+
+		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel %c: x %d y %d\n", convTasks[i].myMat, (int) convTasks[i].arg_width, (int) convTasks[i].arg_height);
+		
+		int use_queue = Config->AlternateSimpleQueuing ? 2 : j;
+		int retain_ev = 0;
+		if (Config->AlternateSimpleQueuing)
+		{
+			if (convTasks[i].ev == NULL)
+			{
+				convTasks[i].ev = convTasks[i].ev3;
+			}
+			else
+			{
+				retain_ev = 1;
+			}
+		}
+		CHKRET(clEnqueueNDRangeKernel(ocl_command_queues[num_device][use_queue], ocl_kernel[num_device][3], 2, NULL, &global_size[0], &local_size[0], Config->AlternateSimpleQueuing ? 1 : 0, Config->AlternateSimpleQueuing ? &convTasks[i].ev2 : NULL, convTasks[i].ev), "Error starting conversion kernel for %c", convTasks[i].myMat);
+		flushKernel = true;
+		if (retain_ev)
+		{
+			*convTasks[i].ev3 = *convTasks[i].ev;
+			clRetainEvent(*convTasks[i].ev);
+		}
+		if (Config->AlternateSimpleQueuing) CHKRET(clReleaseEvent(convTasks[i].ev2), "Error releasing event");
 	}
 	
 	if (Config->GPU_C && Config->DstMemory == 'g')
@@ -2525,11 +2534,13 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 		}
 		if (interleave)
 		{
+#ifndef _WIN32
 			unsigned long nodemask = 0xffffff;
 			if (syscall(SYS_set_mempolicy, MPOL_INTERLEAVE, &nodemask, sizeof(nodemask) * 8) != 0)
 			{
 				fprintf(STD_OUT, "Error setting memory policy\n");
 			}
+#endif
 		}
 
 		cl_int ocl_error;
@@ -2582,10 +2593,12 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 		
 		if (interleave)
 		{
+#ifndef _WIN32
 			if (syscall(SYS_set_mempolicy, MPOL_DEFAULT, NULL) != 0)
 			{
 				fprintf(STD_OUT, "Error setting memory policy\n");
 			}
+#endif
 		}
 		return((double*) gpu_mem[nGPUMEM++].ptr);
 	}

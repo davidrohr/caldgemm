@@ -145,6 +145,21 @@ private:
 		cl_event event;
 		bool must_release;
 	};
+
+	struct conversionKernelTaskStruct
+	{
+		conversionKernelTaskStruct() {}
+		conversionKernelTaskStruct(cl_mem c1, cl_mem* c2, int c3, int c4, int c5, cl_event* c6, cl_event c7, cl_event* c8, char c9) : dest_buffer_tmp(c1), dest_image(c2), arg_width(c3), arg_height(c4), arg_transpose(c5), ev(c6), ev2(c7), ev3(c8), myMat(c9) {}
+		cl_mem dest_buffer_tmp;
+		cl_mem* dest_image;
+		int arg_width;
+		int arg_height;
+		int arg_transpose;
+		cl_event* ev;
+		cl_event ev2;
+		cl_event* ev3;
+		char myMat;
+	};
 	
 	cl_event alternateSimpleQueueCopyCEvent[max_devices][obuffercount];
 	alternateSimpleQueueCBuffferEventStruct alternateSimpleQueueCBuffferEvent[max_devices][obuffercount];

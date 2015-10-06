@@ -6,8 +6,10 @@
 #ifdef _WIN32
 #define __INTRIN_H_
 #define _Complex
+#ifndef __CUDA_ARCH__
 #ifndef __restrict__
-#define __restrict__
+#define __restrict__ __restrict
+#endif
 #endif
 #endif
 
@@ -141,7 +143,7 @@ extern pthread_mutex_t global_vt_mutex;
 
 #define PRINT_CONFIG_LOOP_INT(name, loopvar) \
 	{ \
-		for (int i = 0;i < std::max(oldConfig ? oldConfig->loopvar : 0, newConfig->loopvar);i++) \
+		for (int i = 0;i < mymax(oldConfig ? oldConfig->loopvar : 0, newConfig->loopvar);i++) \
 		{ \
 			PRINT_CONFIG_BASE_WRAP(name[%d], name[i], PASS_ARG(COMMA) i, "%5d", int, myConfig, oldConfig && oldConfig->loopvar <= i, newConfig->loopvar <= i, -1, -1) \
 		} \
