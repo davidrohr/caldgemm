@@ -64,6 +64,7 @@ void setThreadName(const char* name)
 
 const char* getThreadName(int tid, const char* defaultval)
 {
+#ifndef _WIN32
 	if (tid == -1) tid = gettid();
 	for (size_t i = 0;i < lockedVector.threadNames.size();i++)
 	{
@@ -72,6 +73,7 @@ const char* getThreadName(int tid, const char* defaultval)
 			return(lockedVector.threadNames[i].name.c_str());
 		}
 	}
+#endif
 	return(defaultval);
 }
 
