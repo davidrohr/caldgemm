@@ -128,7 +128,7 @@ int caldgemm_cuda::Initialize(bool nocalinit)
 			CHKRET(cudaStreamCreate(&cuda_command_queues[i][j]), "Creating CUDA Stream");
 		}
 #ifdef CALDGEMM_CUDA_CUBLAS		
-                CHKRET((cudaError_t)cublasCreate(&cublas_handles[i]),"Initializing Cublas library");
+		CHKRET((cudaError_t)cublasCreate(&cublas_handles[i]),"Initializing Cublas library");
 #endif
 	}
 
@@ -232,11 +232,11 @@ int caldgemm_cuda::InitDevices()
 
 		for (int j = 0;j < obuffercount;j++)
 		{
-			CHKRET(cudaEventCreate(&cuda_events[i][j]), "Creating Event 1 %d %d\n", i, j);
+			CHKRET(cudaEventCreateWithFlags(&cuda_events[i][j], cudaEventDisableTiming), "Creating Event 1 %d %d\n", i, j);
 		}
 		for (int j = 0;j < 2;j++)
 		{
-			CHKRET(cudaEventCreate(&cuda_conversion_events[i][j]), "Creating Event 1 %d %d\n", i, j);
+			CHKRET(cudaEventCreateWithFlags(&cuda_conversion_events[i][j], cudaEventDisableTiming), "Creating Event 1 %d %d\n", i, j);
 		}
 	}
 
@@ -310,9 +310,9 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 #ifndef CALDGEMM_CUDA_CUBLAS
 	CUDAKernel <<<blocks, threads, 0, cuda_command_queues[Task.device][Task.j]>>> (cbuffer, abuffer, bbuffer, height1, height2, width, Alpha, Beta, pitch);
 #else
-        cublasSetStream(cublas_handles[Task.device], cuda_command_queues[Task.device][Task.j]);
-        cublasDgemm(cublas_handles[Task.device],CUBLAS_OP_T,CUBLAS_OP_N,height1,height2,width,&Alpha,bbuffer,width,abuffer,width,&Beta,cbuffer,pitch);
-		cublasDgemm(cublas_handles[Task.device],CUBLAS_OP_N,CUBLAS_OP_T,height1,height2,width,&Alpha,bbuffer,height1,abuffer,height2,&Beta,cbuffer,pitch);
+	cublasSetStream(cublas_handles[Task.device], cuda_command_queues[Task.device][Task.j]);
+	cublasDgemm(cublas_handles[Task.device],CUBLAS_OP_T,CUBLAS_OP_N,height1,height2,width,&Alpha,bbuffer,width,abuffer,width,&Beta,cbuffer,pitch);
+	cublasDgemm(cublas_handles[Task.device],CUBLAS_OP_N,CUBLAS_OP_T,height1,height2,width,&Alpha,bbuffer,height1,abuffer,height2,&Beta,cbuffer,pitch);
 #endif
 	CHKRET(cudaGetLastError(), "CUDA Kernel Execution");
 
