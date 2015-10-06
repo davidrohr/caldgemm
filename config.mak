@@ -97,7 +97,7 @@ EXTRAOBJFILES				+= $(CBLAS_PATH)/lib/cblas_LINUX.a
 CONFIG_OPENMP				= 1
 LIBS						+= gfortran
 else
-error No valid BLAS_BACKEND selected
+$(error No valid BLAS_BACKEND selected)
 endif
 endif
 endif
