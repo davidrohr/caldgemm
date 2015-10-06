@@ -128,6 +128,10 @@ for (unsigned int x = 1; x < argc; ++x)
 		{
 			Config->PipelinedOperation = GET_BOOLEAN(true);
 		}
+		else if (argv[x][2] == 'b')
+		{
+			Config->PipelineDoubleBuffer = GET_BOOLEAN(true);
+		}
 		else if (argv[x][2] == 'q')
 		{
 			if (++x >= argc) return(1);

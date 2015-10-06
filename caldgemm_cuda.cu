@@ -394,12 +394,11 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 			
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of %c to GPU (k = %lld, m = %lld, n = %lld)\n", myMat, (long long int) k, (long long int) blockm, (long long int) blockn);
 
-			void* dest_buffer_tmp = iMat ? cuda_tmp_bbuffers[num_device][j] : cuda_tmp_abuffers[num_device][j];
 			width = (((bool) iMat ^ myTranspose) ? myHeight : Config->Width) * sizeof(double);
 			height = ((bool) iMat ^ myTranspose) ? Config->Width : myHeight;
 			int arg_transpose = myTranspose ^ myKernelTranspose;
 			void* dest_image = access_bbuffers ? cuda_bbuffers[num_device][destbuffer] : cuda_abuffers[num_device][destbuffer];
-			if (arg_transpose == 0) dest_buffer_tmp = dest_image;
+			void*& dest_buffer_tmp = arg_transpose ? (iMat ? cuda_tmp_bbuffers[num_device][j] : cuda_tmp_abuffers[num_device][j]) : dest_image;
 
 			if (Config->Debug) fprintf(STD_OUT, "Transfer %c to GPU: region %d x %d\n", myMat, (int) width, (int) height);
 			CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying %c to device", myMat);

@@ -180,6 +180,7 @@ caldgemm::caldgemm()
 	
 	matrix_m = (size_t) -1;
 	matrix_n = (size_t) -1;
+	pipelineBuffer = 0;
 	
 	cParam.dynamic_size = 0; //Make Valgrind happy
 
@@ -291,6 +292,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	Use3rdPartyTranspose = false;
 	CPUInContext = 1;
 	PipelinedOperation = false;
+	PipelineDoubleBuffer = false;
 	for (unsigned int i = 0;i < caldgemm::max_devices;i++)
 	{
 		GPUMapping[i] = 0;
@@ -639,7 +641,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		fprintf(STD_OUT, "Simple GPU Queuing requires GPU_C!\n");
 		return(1);
 	}
-	if (!Config->PipelinedOperation) Config->PipelinedMidMarker = 0;
+	if (!Config->PipelinedOperation)
+	{
+		Config->PipelinedMidMarker = 0;
+		Config->PipelineDoubleBuffer = false;
+	}
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
 	if (Config->MultiThread == false || !Config->UseCPU) Config->SpawnGPUThread = -2;
 	if (Config->ParallelDMA || Config->SimpleGPUQueuing) Config->ImprovedScheduler = true;
@@ -3042,6 +3048,8 @@ recalculate_ratio:
 	finishData->MidMarkerPos = Config->PipelinedMidMarker;
 	FinishDataFill();
 
+	if (Config->PipelineDoubleBuffer) pipelineBuffer ^= 1;
+
 	if (Config->PipelinedOperation && !CPUOnlyRun && pipelinedRun)
 	{
 		finishData->running = true;
@@ -3746,6 +3754,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(AsyncDMA);
 	PRINT_CONFIG_INT(PipelinedOperation);
 	PRINT_CONFIG_INT(PipelinedMidMarker);
+	PRINT_CONFIG_INT(PipelineDoubleBuffer);
 	PRINT_CONFIG_INT(DivideToGPU);
 	PRINT_CONFIG_CHAR(DstMemory);
 	PRINT_CONFIG_INT(ImplicitDriverSync);

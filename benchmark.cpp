@@ -152,6 +152,7 @@ void PrintUsage()
 	fprintf(STD_OUT, "\t-A        Do the DMA transfer to GPU asynchronously\n");
 	fprintf(STD_OUT, "\t-Ap       Enable pipelined CALDGEMM operation\n");
 	fprintf(STD_OUT, "\t-Aq <int> Position of middle marker of pipeline\n");
+	fprintf(STD_OUT, "\t-Ab       Enable pipeline double buffering\n");
 	fprintf(STD_OUT, "\t-L        Memory Organisation like in HPL (LINPACK)\n");
 	fprintf(STD_OUT, "\t-C        Call fake LINPACK callback functions\n");
 	fprintf(STD_OUT, "\t-Ca <int> Linpack Option: Set alternate lookahead threshold\n");

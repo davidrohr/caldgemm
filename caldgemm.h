@@ -129,19 +129,19 @@ public:
 		bool MultiThread;						//Use multiple threads
 		bool MultiThreadDivide;					//Use multiple threads for DivideBuffer as well
 		bool ImprovedScheduler;					//Tries to save bbuffers, replaces the round-robin scheduler
-		int ImprovedSchedulerBalance;				//Balancing Mode for Improved Scheduler
+		int ImprovedSchedulerBalance;			//Balancing Mode for Improved Scheduler
 		bool SimpleGPUQueuing;					//Use a simpler scheduler that performs all command queueing based on device events.
 		bool AlternateSimpleQueuing;			//Use variant of simple queuing, where always one queue is used for kernes, transfor to and from the device
 		unsigned int ParallelDMA;				//Use multiple threads to handle GPU DMA, this is incompatible with DynamicSched, acivated if n >= setting and setting != 0, DMA cores defined by DMAMapping
 		unsigned int GroupParallelDMA;			//Use in combination with ParallelDMA. Group devices with identical AllocMapping setting to one thread, at least one paralleDMA thread with that DMAMapping must exist. Activated if n < setting., make sure to have a preprocessing thread set to each CPU core used for this feature, the thread won't be used but it will ensure correct core pinning. -1 for always Grouped parallel DMA.
 		double GPURatio;						//Fraction of the matrix processed by GPU
 		double GPURatioDuringFact;				//Use modified GPU Ratio during factorization, works currently only with negative GPURatio
-		double GPURatioMax;					//Max GPU ratio to use, if autocalculation exceeds this value, it is capped. This ensures the CPU always gets a certain part. (For the auto ratio calculation, the CPU needs a small part)
+		double GPURatioMax;						//Max GPU ratio to use, if autocalculation exceeds this value, it is capped. This ensures the CPU always gets a certain part. (For the auto ratio calculation, the CPU needs a small part)
 		double GPURatioMarginTime;				//Time margin used in auto calculation to ensure GPU time exceeds CPU time
-		double GPURatioMarginTimeDuringFact;			//Same as bove dbut when Linpack Factorization is active
-		double GPURatioLookaheadSizeMod;			//Incrase the virtual size of the lookahead part of the CPU DGEMM by this factor, as it is usually not running as efficiently as full dgemm. Only relevant with alternate lookahead disabled.
+		double GPURatioMarginTimeDuringFact;	//Same as bove dbut when Linpack Factorization is active
+		double GPURatioLookaheadSizeMod;		//Incrase the virtual size of the lookahead part of the CPU DGEMM by this factor, as it is usually not running as efficiently as full dgemm. Only relevant with alternate lookahead disabled.
 		int GPURatioPenalties;					//Apply penalties to the CPU part (0 disable, 1 apply penalty when CPU took to long, 2 apply penalty as well when CPU time is short in general)
-		double GPURatioPenaltyFactor;				//Factor to apply
+		double GPURatioPenaltyFactor;			//Factor to apply
 		unsigned int MinimizeCPUPart;			//Set GPURatio to 1.0 as soon as matrix n dimension is below this value
 		int MinimizeCPUDuringFact;				//Always minimize CPU part during factorization
 		bool UseCPU;							//use CPU for DGEMM
@@ -149,12 +149,14 @@ public:
 		bool RereserveLinpackCPU;				//Use the Linpack CPU cores for DGEMM after they finished the broadcast
 		int GPU_C;								//Store the C matrix on CPU, not every option is supported by every backend, -1 = auto detect
 		int NoConcurrentKernels;				//Do not allow OpenCL to run multiple concurrent kernels in parallel.
-		bool PipelinedOperation;					//Allows to queue two caldgemm calls in a pipeline. You need to run FinishCALDGEMM() to finish the iteration.
+		bool PipelinedOperation;				//Allows to queue two caldgemm calls in a pipeline. You need to run FinishCALDGEMM() to finish the iteration.
+		bool PipelineDoubleBuffer;				//Use double buffers to better overlap pipeline steps
+		size_t PipelinedMidMarker;				//Mid marker for pipelined operation
 
 		int OpenCLPlatform;						//OpenCL Platform ID to use
 		int DeviceNum;							//CAL Device to use (-1 for all devices)
 		int NumDevices;							//Number of devices to use in parallel at max
-		int NumActiveDevices;						//Initialize NumDevices but use ony NumActiveDevices for main queue.
+		int NumActiveDevices;					//Initialize NumDevices but use ony NumActiveDevices for main queue.
 		int DeviceNums[max_devices];			//Array of CAL devices to use (replaces DeviceNum for multiple devices). This translation is applied first, all other setting like GPU mappings are applied on top of this.
 		int max_bbuffers;						//Limit the number of bbuffers
 		int PreallocData;						//Preallocate buffers, set Prealloc to the maximum number of (mb/nb) blocks expected!
@@ -180,18 +182,18 @@ public:
 		int SleepDuringActiveWait;				//Sleep for n usec between queries for GPU event, -1 disable
 		int ThreadSaveDriver;					//Assume GPU driver to be thread save
 		int PinCPU;								//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
-		int ForceNumCPUThreads;						//Limit the number of CPU threads to use
+		int ForceNumCPUThreads;					//Limit the number of CPU threads to use
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
 		int OutputThreads;						//Number of output threads
 		int NumaPinning;						//Rotate pinning over NUMA nodes, better die utilization but perhaps worse L3 cache utilization.
 		unsigned int AlternateLookahead;		//Alternate Lookahead implementation optimized for saving CPU cycles, set to an integer, AlternateLookahead is used as soon as n (since HPL is col major) is smaller than this value, 0 for disable
 		bool AsyncSideQueue;					//Create an asynchronous side queue to run small DGEMMs (without tiling) in parallel to a large DGEMM
 		int AsyncSideQueueBalance;				//Balance workload of ASYNC Side queue among GPUs
-		int AsyncSideQueueUseInactiveDeviceSet;			//If GPUs were disabled via SetNumberDevices for the main queue, the async side queue will use these disabled devices
+		int AsyncSideQueueUseInactiveDeviceSet;	//If GPUs were disabled via SetNumberDevices for the main queue, the async side queue will use these disabled devices
 		int AsyncDGEMMThreshold;				//Min size where GPU is used for async DGEMM
 		int AsyncDTRSMThreshold;				//Same for DTRSM
-		bool AsyncDTRSM;					//Allow side-queue to run DTRSM as well
-		bool Use3rdPartyTranspose;					//Use transpose kernel fro 3rd party lib
+		bool AsyncDTRSM;						//Allow side-queue to run DTRSM as well
+		bool Use3rdPartyTranspose;				//Use transpose kernel fro 3rd party lib
 		
 		size_t Height;							//height of subblock od A, width of subblock of B
 		size_t Width;							//k for matrix multiply
@@ -220,7 +222,6 @@ public:
 		void (*linpack_factorize_function)();	//Linpack callback functions
 		void (*linpack_broadcast_function)();
 		void (*linpack_swap_function)();
-		size_t PipelinedMidMarker;
 		
 		int nExcludeCPUCores;					//CPU Cores to exlude
 		int* ExcludeCPUCores;
@@ -576,6 +577,7 @@ protected:
 
 	bool CPUOnlyRun;
 	int ExecLinpack, pipelinedRun;
+	int pipelineBuffer;
 	double gpu_ratio_used;
 	double cpu_wait_time;
 

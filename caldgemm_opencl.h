@@ -102,11 +102,11 @@ private:
 	cl_context ocl_context;
 	cl_command_queue ocl_command_queues[max_devices][obuffercount > 3 ? obuffercount : 3];
 	cl_command_queue ocl_command_queue_cpu;
-	cl_mem ocl_abuffers[max_devices][ibuffercount];
-	cl_mem ocl_bbuffers[max_devices][max_bbuffers];
-	cl_mem ocl_cbuffers[max_devices][obuffercount];
-	cl_mem ocl_tmp_abuffers[max_devices][ibuffercount > obuffercount ? ibuffercount : obuffercount];
-	cl_mem ocl_tmp_bbuffers[max_devices][ibuffercount > obuffercount ? ibuffercount : obuffercount];
+	cl_mem ocl_abuffers[2][max_devices][ibuffercount];
+	cl_mem ocl_bbuffers[2][max_devices][max_bbuffers];
+	cl_mem ocl_cbuffers[2][max_devices][obuffercount];
+	cl_mem ocl_tmp_abuffers[2][max_devices][ibuffercount > obuffercount ? ibuffercount : obuffercount];
+	cl_mem ocl_tmp_bbuffers[2][max_devices][ibuffercount > obuffercount ? ibuffercount : obuffercount];
 	cl_mem ocl_tmp_cbuffers[max_devices][obuffercount];
 	cl_event ocl_events[max_devices][obuffercount];
 	cl_program ocl_program[5];
