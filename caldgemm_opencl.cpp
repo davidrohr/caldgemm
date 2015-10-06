@@ -645,7 +645,7 @@ int caldgemm_opencl::InitDevices()
 			sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 		}
 
-		for (int k = 0;k < Config->PipelineDoubleBuffer ? 2 : 1;k++)
+		for (int k = 0;k < (Config->PipelineDoubleBuffer ? 2 : 1);k++)
 		{
 			for (int j = 0;j < ibuffercount;j++)
 			{
@@ -674,7 +674,6 @@ int caldgemm_opencl::InitDevices()
 				CHKRET(ocl_error, "Error allocating device memory (A)");
 			}
 			CHKRET(clEnqueueMigrateMemObjects(ocl_command_queues[i][0], ibuffercount, &ocl_abuffers[k][i][0], 0, 0, NULL, NULL), "Error migrating mem object");
-
 			for (int j = 0;j < obuffercount;j++)
 			{
 				if (Config->DstMemory == 'g')
@@ -2101,7 +2100,7 @@ int caldgemm_opencl::ExitDevices()
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		for (int k = 0;k < Config->PipelineDoubleBuffer ? 2 : 1;k++)
+		for (int k = 0;k < (Config->PipelineDoubleBuffer ? 2 : 1);k++)
 		{
 			for (int j = 0;j < ibuffercount;j++)
 			{
