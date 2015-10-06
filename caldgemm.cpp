@@ -629,7 +629,16 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->SmallTiles = 1;
 	}
 	if (Config->AlternateSimpleQueuing) Config->SimpleGPUQueuing = true;
-	if (!Config->SimpleGPUQueuing) Config->PipelinedOperation = false;
+	if (!Config->SimpleGPUQueuing && Config->PipelinedOperation)
+	{
+		fprintf(STD_OUT, "Pipeline Operation requires SimpleGPUQueuing!\n");
+		return(1);
+	}
+	if (Config->SimpleGPUQueuing && !Config->GPU_C)
+	{
+		fprintf(STD_OUT, "Simple GPU Queuing requires GPU_C!\n");
+		return(1);
+	}
 	if (!Config->PipelinedOperation) Config->PipelinedMidMarker = 0;
 	if (Config->MultiThread == false) Config->MultiThreadDivide = false;
 	if (Config->MultiThread == false || !Config->UseCPU) Config->SpawnGPUThread = -2;
