@@ -1819,7 +1819,7 @@ int caldgemm_opencl::RunAsyncSingleTileDGEMM(const double* A, const double* B, d
 
 inline void caldgemm_opencl::pipelinedModeSetStartBarriers(unsigned int num_device, int j, int &nTransferEvents, cl_event* transferEvents, bool &freeTransferEvents)
 {
-	if (Config->PipelinedOperation && finishData->running && nTransferEvents == 0 && pipelinedModeStartBarrierDone[num_device][Config->AlternateSimpleQueuing ? 0 : j] == 0)
+	if (Config->PipelinedOperation && !Config->PipelineDoubleBuffer && finishData->running && nTransferEvents == 0 && pipelinedModeStartBarrierDone[num_device][Config->AlternateSimpleQueuing ? 0 : j] == 0)
 	{
 		for (int i = 0;i < obuffercount;i++)
 		{
