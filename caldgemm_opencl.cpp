@@ -433,7 +433,7 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		for (int j = 0;j < obuffercount;j++)
+		for (int j = 0;j < (Config->AlternateSimpleQueuing ? 3 : obuffercount);j++)
 		{
 #ifdef CL_VERSION_2_0
 			cl_queue_properties flags[] = {CL_QUEUE_PROPERTIES, 0, 0};
@@ -1075,7 +1075,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	
 	if (Config->VerboseTiming)
 	{
-		CHKRET(clFinish(ocl_command_queues[Task.device][Task.j]), "Error in clFinish");
+		CHKRET(clFinish(ocl_command_queues[Task.device][use_queue]), "Error in clFinish");
 		Timers.Kernel.Start();
 	}
 	if (Config->VerboseTiming || (Config->AlternateSimpleQueuing && Config->DstMemory == 'g'))
@@ -1189,7 +1189,7 @@ int caldgemm_opencl::ExitRuntime()
 
 	for (int i = 0;i < nDevices;i++)
 	{
-		for (int j = 0;j < obuffercount;j++)
+		for (int j = 0;j < (Config->AlternateSimpleQueuing ? 3 : obuffercount);j++)
 		{
 			CHKRET(clReleaseCommandQueue(ocl_command_queues[i][j]), "Error in clReleaseCommandQueue");
 		}
@@ -2079,9 +2079,10 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 
 	if (Config->VerboseTiming && Config->GPU_C == 1)
 	{
-		for (int i = 0;i < obuffercount;i++)
+		for (int i = 0;i < 3;i++) //Queues 0 and 2 of AlternateSimpleQueueing for WriteBuffer and ExecuteKernel
 		{
-			if (Config->AlternateSimpleQueuing) i = j;
+			if (i == 1) continue;
+			if (!Config->AlternateSimpleQueuing) i = j;
 			CHKRET(clFinish(ocl_command_queues[num_device][i]), "Error in clFinish");
 			if (AlternateSimpleQueuing) break;
 		}
@@ -2283,7 +2284,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		{
 			for (int j = 0;j < obuffercount;j++)
 			{
-				 CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &StartMarker[i][j]), "Error enqueuing OpenCL marker");
+				CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &StartMarker[i][j]), "Error enqueuing OpenCL marker");
 			}
 		}
 		
