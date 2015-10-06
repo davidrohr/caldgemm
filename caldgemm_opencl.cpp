@@ -1904,7 +1904,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			}
 			cl_mem* dest_image = access_bbuffers ? &ocl_bbuffers[num_device][destbuffer] : &ocl_abuffers[num_device][destbuffer];
 			
-			
+			int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
 			int arg_transpose = myTranspose ^ myKernelTranspose;
 
 			if (Config->GPU_C == 0)
@@ -1945,7 +1945,6 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			}
 			else
 			{
-				int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
 				pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
 				if (Config->AlternateSimpleQueuing && (arg_transpose || KernelSettings.texture_buffers) && my_alternateSimpleQueueEvent_tmp_buffers[j] != 0)
 				{
@@ -2084,7 +2083,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (i == 1) continue;
 			if (!Config->AlternateSimpleQueuing) i = j;
 			CHKRET(clFinish(ocl_command_queues[num_device][i]), "Error in clFinish");
-			if (AlternateSimpleQueuing) break;
+			if (Config->AlternateSimpleQueuing) break;
 		}
 		Timers.CounterCopyTo.Stop();
 	}
