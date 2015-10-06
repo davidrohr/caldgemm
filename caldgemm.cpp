@@ -3502,7 +3502,7 @@ void caldgemm::displayMatrixTiming(const char* name)
 		}
 
 		//const double gpu_ratio_used_new = std::min(1.0, flopsg / (flopsc * (Timers.System.GetElapsedTime() - Timers.LinpackTimer1.GetElapsedTime() - (ExecLinpack > 1 ? Config->GPURatioMarginTimeDuringFact : Config->GPURatioMarginTime) - Timers.LinpackTimer3.GetElapsedTime()) / Timers.System.GetElapsedTime() + flopsg));
-		double gpu_ratio_used_new = std::min(1.0, flopsg / (flopsc * (finishData->CPUTimer - (finishData->ExecLinpack > 1 ? Config->GPURatioMarginTimeDuringFact : Config->GPURatioMarginTime)) / finishData->TotalCPUTimer + flopsg));
+		double gpu_ratio_used_new = mymin(1.0, flopsg / (flopsc * (finishData->CPUTimer - (finishData->ExecLinpack > 1 ? Config->GPURatioMarginTimeDuringFact : Config->GPURatioMarginTime)) / finishData->TotalCPUTimer + flopsg));
 		if (gpu_ratio_used_new < 0) finishData->gpu_ratio_used = 1.;
 		
 		if (!Config->Quiet || (Config->DisplayTiming /*&& matrix_m * matrix_n >= 16 * 24 * 1024 * 1024*/))
