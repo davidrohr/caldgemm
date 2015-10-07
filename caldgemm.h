@@ -183,6 +183,7 @@ public:
 		int ThreadSaveDriver;					//Assume GPU driver to be thread save
 		int PinCPU;								//Pin the GPU pre- and postprocessing threads to a CPU core, foreces all GPUMappings to PinCPU, -1 for disable
 		int ForceNumCPUThreads;					//Limit the number of CPU threads to use
+		int CPUCoreOffset;						//Offset all cpu core pinnings by this number
 		bool SlowCPU;							//Try to put as many load as possible on the GPU as CPU is slow
 		int OutputThreads;						//Number of output threads
 		int NumaPinning;						//Rotate pinning over NUMA nodes, better die utilization but perhaps worse L3 cache utilization.
@@ -252,6 +253,7 @@ public:
 	int ParseParameters(unsigned int argc, char** argv, caldgemm_config* Config);
 	int ParseParameters(char* params, caldgemm_config* Config);
 	void ResetRatios();
+	caldgemm_config* GetConfig() {return Config;}
 	
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual int FreeMemory(double* ptr, bool gpuaccessible = false);

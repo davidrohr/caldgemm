@@ -92,14 +92,14 @@ const char* caldgemm_cal::ILConvertKernel =
 int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
 {
 	if (Config->Debug) fprintf(STD_OUT, "\tWaiting for event from device %d obuffer %d...\n", devicenr, eventnr);
-	cpu_set_t blasset, oldset;
+	cpu_set_t tmpset, oldset;
 	bool needrepin = Config->RepinDuringActiveWaitForEvent && !Config->RepinMainThreadAlways && (Config->ParallelDMA == 0 || Config->ParallelDMA > matrix_n) && Config->AllocMapping[devicenr] != -1 && Config->AllocMapping[devicenr] != Config->PinMainThread;
 	if (needrepin)
 	{
 		sched_getaffinity(0, sizeof(oldset), &oldset);
-		CPU_ZERO(&blasset);
-		CPU_SET(Config->AllocMapping[devicenr], &blasset);
-		sched_setaffinity(0, sizeof(blasset), &blasset);
+		CPU_ZERO(&tmpset);
+		CPU_SET(Config->AllocMapping[devicenr] + Config->CPUCoreOffset, &tmpset);
+		sched_setaffinity(0, sizeof(tmpset), &tmpset);
 	}
 #ifdef CALDGEMM_USE_CAL_WAIT_FOR_EVENTS
 	if (lock) pthread_mutex_lock(&device_mutex[devicenr]);
@@ -1716,7 +1716,7 @@ int caldgemm_cal::InitDevices()
 	{
 		cpu_set_t tmpmask;
 		CPU_ZERO(&tmpmask);
-		CPU_SET(Config->GPUMapping[device_num], &tmpmask);
+		CPU_SET(Config->GPUMapping[device_num] + Config->CPUCoreOffset, &tmpmask);
 		sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 		
 		int num_bbuffers;
@@ -1911,7 +1911,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 
 		cpu_set_t tmpmask;
 		CPU_ZERO(&tmpmask);
-		CPU_SET(Config->AllocMapping[num_device] == -1 ? (i >= fStop && Config->PostprocessMapping[num_device] != -1 ? Config->PostprocessMapping[num_device] : Config->GPUMapping[num_device]) : Config->AllocMapping[num_device], &tmpmask);
+		CPU_SET((Config->AllocMapping[num_device] == -1 ? (i >= fStop && Config->PostprocessMapping[num_device] != -1 ? Config->PostprocessMapping[num_device] : Config->GPUMapping[num_device]) : Config->AllocMapping[num_device]) + Config->CPUCoreOffset, &tmpmask);
 		sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 
 		unsigned int tWidth = 0;
@@ -2160,7 +2160,7 @@ int caldgemm_cal::SetupData(CALmodule *module, CALresource* &_Res, BufferPropert
 
 	cpu_set_t tmpmask;
 	CPU_ZERO(&tmpmask);
-	CPU_SET(Config->GPUMapping[num_device], &tmpmask);
+	CPU_SET(Config->GPUMapping[num_device] + Config->CPUCoreOffset, &tmpmask);
 	sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 
 	if (nContext >= 1) return(0);

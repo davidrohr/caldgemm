@@ -251,6 +251,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	NoPerformanceWarnings = false;
 	PinCPU = -1;
 	ForceNumCPUThreads = 0;
+	CPUCoreOffset = 0;
 	PinMainThread = -1;
 	SpawnGPUThread = -2;
 	PinDeviceRuntimeThreads = -2;
@@ -495,7 +496,7 @@ void caldgemm::ensure_omp_thread_pinning(const char* baseName)
 	
 	cpu_set_t noaffinity;
 	CPU_ZERO(&noaffinity);
-	for (int i = 0;i < conf_numprocs;i++) CPU_SET(i, &noaffinity);
+	for (int i = 0;i < conf_numprocs;i++) CPU_SET(i + Config->CPUCoreOffset, &noaffinity);
 	sched_setaffinity(0, sizeof(noaffinity), &noaffinity);
 
 	setUnknownNames("Unknown - Before OMP Thread Creation");
@@ -554,7 +555,7 @@ void caldgemm::ensure_omp_thread_pinning(const char* baseName)
 			}
 		}
 
-		sched_setaffinity_set_core(localcore);
+		sched_setaffinity_set_core(localcore + Config->CPUCoreOffset);
 		if (Config->Debug) fprintf(STD_OUT, "OpenMP BLAS thread %d pinned to core %d\n", thread_id, localcore);
 	}
 	setUnknownNames("Unknown OMP Thread");
@@ -616,7 +617,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	CPU_ZERO(&gpumask);
 	if (Config->PinMainThread == -1) Config->PinMainThread = Config->GPUMapping[0];
-	CPU_SET(Config->PinMainThread, &gpumask);
+	CPU_SET(Config->PinMainThread + Config->CPUCoreOffset, &gpumask);
 
 	if (Config->Debug) fprintf(STD_OUT, "Init Caldgemm, setting CPU mask %X\n", getcpumask(&gpumask));
 	if (0 != sched_setaffinity(0, sizeof(gpumask), &gpumask))
@@ -677,8 +678,8 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	{
 		cpu_set_t affinity;
 		CPU_ZERO(&affinity);
-		if (Config->PinDeviceRuntimeThreads == -1) for (int i = 0;i < conf_numprocs;i++) CPU_SET(i, &affinity);
-		else CPU_SET(Config->PinDeviceRuntimeThreads, &affinity);
+		if (Config->PinDeviceRuntimeThreads == -1) for (int i = 0;i < conf_numprocs;i++) CPU_SET(i + Config->CPUCoreOffset, &affinity);
+		else CPU_SET(Config->PinDeviceRuntimeThreads + Config->CPUCoreOffset, &affinity);
 		if (0 != sched_setaffinity(0, sizeof(affinity), &affinity))
 		{
 			fprintf(STD_OUT, "Error setting CPU affinity\n");
@@ -800,7 +801,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		main_blas_core = Config->PinMainThread;
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Pinning Main OpenMP BLAS thread to core %d\n", main_blas_core);
-	sched_setaffinity_set_core(main_blas_core);
+	sched_setaffinity_set_core(main_blas_core + Config->CPUCoreOffset);
 
 	sched_getaffinity(0, sizeof(oldcpumask), &oldcpumask);		//As for GotoBLAS above, store pinning here
 #else	//Set main blas core for GotoBLAS
@@ -1147,7 +1148,7 @@ void* caldgemm::linpack_broadcast_wrapper_a()
 	int linpackCPU = broadcast_cpu_core;
 	if (linpackCPU >= conf_numprocs_real) linpackCPU = 0;
 	if (Config->Debug) fprintf(STD_OUT, "Linpack Thread, core %d\n", linpackCPU);
-	sched_setaffinity_set_core(linpackCPU);
+	sched_setaffinity_set_core(linpackCPU + Config->CPUCoreOffset);
 
 	linpackParameters.linpackMutex[0].Lock();
 	while (linpackParameters.linpackMutex[0].Lock() == 0 && linpackParameters.terminate == false)
@@ -1749,7 +1750,7 @@ void* caldgemm::cblas_wrapper_a(bool thread)
 		}
 		else if (Config->GPUMapping[0] + outputthreads * nDevices + 1 >= conf_numprocs)
 		{
-			sched_setaffinity_set_core(0);
+			sched_setaffinity_set_core(0 + Config->CPUCoreOffset);
 		}
 		else
 		{
@@ -1798,7 +1799,7 @@ void* caldgemm::divide_wrapper_a(divideParameters* par)
 		sprintf(tmp, "Divide %d", par->nThread);
 		setThreadName(tmp);
 	}
-	sched_setaffinity_set_core(par->CPUCore);
+	sched_setaffinity_set_core(par->CPUCore + Config->CPUCoreOffset);
 	
 	par->curDevice = -1;
 	for (int i = 0;i < nDevices;i++)
@@ -1898,7 +1899,7 @@ void* caldgemm::merge_wrapper_a(mergeParameters* par)
 		merge_core = Config->PostprocessMapping[par->num_device] + par->nMergeThread;
 	}
 	if (Config->Debug) fprintf(STD_OUT, "Merge Thread %d, core %d\n", par->nMergeThread, merge_core);
-	sched_setaffinity_set_core(merge_core % conf_numprocs_real);
+	sched_setaffinity_set_core(merge_core % conf_numprocs_real + Config->CPUCoreOffset);
 
 	//HighResTimer mergeTimer;
 
@@ -2260,7 +2261,7 @@ endimprovedphase:
 
 			if (Config->RepinMainThreadAlways && currentPinning != Config->AllocMapping[use_device])
 			{
-				sched_setaffinity_set_core(Config->AllocMapping[use_device]);
+				sched_setaffinity_set_core(Config->AllocMapping[use_device] + Config->CPUCoreOffset);
 				if (Config->Debug) fprintf(STD_OUT, "Repinning to %d\n", Config->AllocMapping[use_device]);
 				currentPinning = Config->AllocMapping[use_device];
 			}
@@ -3820,6 +3821,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(ThreadSaveDriver);
 	PRINT_CONFIG_INT(PinCPU);
 	PRINT_CONFIG_INT(ForceNumCPUThreads);
+	PRINT_CONFIG_INT(CPUCoreOffset);
 	PRINT_CONFIG_INT(SlowCPU);
 	PRINT_CONFIG_INT(OutputThreads);
 	PRINT_CONFIG_INT(NumaPinning);

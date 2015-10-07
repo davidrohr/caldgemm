@@ -641,7 +641,7 @@ int caldgemm_opencl::InitDevices()
 		if (Config->AllocMapping[i] != -1)
 		{
 			CPU_ZERO(&tmpmask);
-			CPU_SET(Config->AllocMapping[i], &tmpmask);
+			CPU_SET(Config->AllocMapping[i] + Config->CPUCoreOffset, &tmpmask);
 			sched_setaffinity(0, sizeof(tmpmask), &tmpmask);
 		}
 

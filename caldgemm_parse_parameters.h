@@ -370,6 +370,11 @@ for (unsigned int x = 1; x < argc; ++x)
 			if (++x >= argc) return(1);
 			sscanf(argv[x], "%d", &Config->ForceNumCPUThreads);
 		}
+		else if (argv[x][2] == 'O')
+		{
+			if (++x >= argc) return(1);
+			sscanf(argv[x], "%d", &Config->CPUCoreOffset);
+		}
 		else if (argv[x][2] == 'G')
 		{
 			if (++x >= argc) return(1);
