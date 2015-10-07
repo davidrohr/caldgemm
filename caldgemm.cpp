@@ -757,7 +757,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		}
 	}
 
-	int thread = Config->PinDeviceRuntimeThreads >= 0 ? Config->PinDeviceRuntimeThreads : Config->PinMainThread;
+	int thread = (Config->PinDeviceRuntimeThreads >= 0 ? Config->PinDeviceRuntimeThreads : Config->PinMainThread) + Config->CPUCoreOffset;
 	setUnknownAffinity(1, &thread);
 	setUnknownNames("Device Runtime");
 
