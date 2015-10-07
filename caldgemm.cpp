@@ -515,19 +515,20 @@ void caldgemm::ensure_omp_thread_pinning(const char* baseName)
 #pragma omp critical
 		{
 			int nFreeCores = 0;
+			bool checkBroadcastCore = Config->ForceNumCPUThreads == 0 || broadcast_cpu_core < Config->ForceNumCPUThreads;
 			if (thread_id == nFreeCores) localcore = main_blas_core;
 			nFreeCores++;
 			for (int i = 0;i < conf_numprocs;i++)
 			{
-				if (cpuUsed(cpu_order[i]) == false && cpu_order[i] != broadcast_cpu_core && cpu_order[i] != main_blas_core)
+				if (cpuUsed(cpu_order[i]) == false && (!checkBroadcastCore || cpu_order[i] != broadcast_cpu_core) && cpu_order[i] != main_blas_core)
 				{
 					if (thread_id == nFreeCores) localcore = cpu_order[i];
 					nFreeCores++;
 				}
 			}
-			if ((Config->ForceNumCPUThreads == 0 || broadcast_cpu_core < Config->ForceNumCPUThreads) && thread_id == nFreeCores)
+			if (checkBroadcastCore)
 			{
-				localcore = broadcast_cpu_core;
+				if (thread_id == nFreeCores) localcore = broadcast_cpu_core;
 				nFreeCores++;
 			}
 
