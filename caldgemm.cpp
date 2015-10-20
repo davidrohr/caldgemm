@@ -2420,7 +2420,7 @@ endimprovedphase:
 					while (DGEMMPrepareTaskEventReady[use_device][oldj[use_device]] == false);
 					DGEMMPrepareTaskEventReady[use_device][oldj[use_device]] = false;
 					if (WaitForEvent(oldj[use_device], use_device, must_lock)) return(1);
-					if (Config->Debug) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
+					if (Config->Debug && Config->GPU_C == 0) fprintf(STD_OUT, "Processing Output (Iteration %lld) for device %d tile %lld (m = %lld, n = %lld)\n", (long long int) k, use_device, (long long int) lastk[use_device], (long long int) lastm, (long long int) lastn);
 					if (Config->UseDMAFetchQueue >= matrix_n && Config->DstMemory == 'g')
 					{
 						if (CheckDMAQueue(use_device, oldj[use_device])) return(1);
@@ -2437,7 +2437,7 @@ endimprovedphase:
 				{
 					if (lastk[use_device] < nBlocks)
 					{
-						if (Config->Debug) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
+						if (Config->Debug && Config->GPU_C == 0) fprintf(STD_OUT, "\tMerging buffer (device %d, obuffer %d, k = %lld, main thread)\n", use_device, oldj[use_device], (long long int) lastk[use_device]);
 						if (RunMergeBuffers(C + lastn * Config->Height + lastm * C_pitch * Config->Height, use_device, oldj[use_device], (lastn == gpu_n / Config->Height) ? (gpu_n % Config->Height) : Config->Height, (lastm == gpu_m / Config->Height) ? (gpu_m % Config->Height) : Config->Height, BufferHeight, BufferHeight, C_pitch)) {fprintf(STD_OUT, "Error merging\n"); return(1);}
 						if (!Config->SimpleGPUQueuing) CheckAlternateTilesRemaining(lastm);
 						if (Config->Debug) fprintf(STD_OUT, "Main thread unlocking obuffer mutex device %d obuffer %d\n", use_device, oldj[use_device]);

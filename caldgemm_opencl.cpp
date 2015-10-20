@@ -1224,9 +1224,9 @@ int caldgemm_opencl::ExitRuntime()
 
 int caldgemm_opencl::FetchResult(int device, int j, int m, int n, int mustlock)
 {
-	if (Config->Debug) fprintf(STD_OUT, "OPENCL FetchResult\n");
 	if (Config->GPU_C == 0 && Config->DstMemory == 'g')
 	{
+		if (Config->Debug) fprintf(STD_OUT, "OPENCL FetchResult\n");
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 		CHKRET(clEnqueueCopyBuffer(ocl_command_queues[device][j], ocl_cbuffers[pipelineBuffer][device][j], ocl_tmp_cbuffers[device][j], 0, 0, Config->Height * Config->Height * sizeof(double), 0, NULL, &ocl_events[device][j]), "Error copying resulg from GPU to host");
 		CHKRET(clFlush(ocl_command_queues[device][j]), "Error in clFlush");
