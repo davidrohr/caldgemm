@@ -386,7 +386,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 			WaitForEventAndRelease(&cuda_conversion_events[num_device][iMat]);
 			cuda_conversion_events_use[num_device][iMat] = 0;
 		}
-		if (iMat ? prepareM : prepareN)
+		if (iMat ? prepareN : prepareM)
 		{
 			CALDGEMM_PREPARE_BACKEND_VARS2;
 			
