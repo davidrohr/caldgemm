@@ -1,7 +1,7 @@
 /**
  * Utility header to complete configuration given in caldgemm_config.h
  *
- * Copyright 2010:
+ * Copyright 2015:
  *  - David Rohr (drohr@jwdt.org)
  *  - Matthias Bach (bach@compeng.uni-frankfurt.de)
  *  - Matthias Kretz (kretz@compeng.uni-frankfurt.de)

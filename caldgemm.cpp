@@ -1,7 +1,7 @@
 /**
  * CPU side of CALDGEMM implementation.
  *
- * Copyright 2010:
+ * Copyright 2015:
  *  - David Rohr (drohr@jwdt.org)
  *  - Matthias Bach (bach@compeng.uni-frankfurt.de)
  *  - Matthias Kretz (kretz@compeng.uni-frankfurt.de)
