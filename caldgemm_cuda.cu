@@ -333,6 +333,8 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 		CHKRET(cudaStreamSynchronize(cuda_command_queues[Task.device][Task.j]), "Synchronizing CUDA Stream");
 		Timers.CounterCopyFrom.Stop();
 	}
+	
+	if (Config->AlternateLookahead > matrix_n) CHKRET(cudaEventRecord(cuda_events[Task.device][Task.j], cuda_command_queues[Task.device][Task.j]), "Recording event %d %d", Task.device, Task.j); //This is only needed to check whether alternate lookahead has finished
 
 	return(0);
 }
@@ -410,7 +412,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 				size_t arg_width = width / sizeof(double), arg_height = height;
 				convTasks[nConvTasks++] = conversionKernelTaskStruct(dest_buffer_tmp, dest_image, arg_width, arg_height, myMat);
 			}
-			CHKRET(cudaEventRecord(cuda_conversion_events[num_device][iMat], cuda_command_queues[num_device][j]), "Recording event %d %d", num_device, iMat);
+			CHKRET(cudaEventRecord(cuda_conversion_events[num_device][iMat], cuda_command_queues[num_device][j]), "Recording conversion event %d %d", num_device, iMat);
 			cuda_conversion_events_use[num_device][iMat] = 1;
 		}
 	}
