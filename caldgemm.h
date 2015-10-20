@@ -605,6 +605,8 @@ protected:
 	dma_fetch_queue_task dma_fetch_queue_tasks[max_devices];
 
 	virtual int CheckDMAQueue(int device, int forcej = -1) = 0;
+	
+	bool warn_wrong_memory_allocation;
 };
 
 #endif

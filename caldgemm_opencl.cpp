@@ -2608,6 +2608,7 @@ double* caldgemm_opencl::AllocMemory(size_t nDoubles, bool page_locked, bool hug
 			}
 #endif
 		}
+		warn_wrong_memory_allocation = false;
 		return((double*) gpu_mem[nGPUMEM++].ptr);
 	}
 	else
@@ -2633,6 +2634,7 @@ int caldgemm_opencl::FreeMemory(double* ptr, bool gpuaccessible)
 				//CHKRET(clFinish(ocl_command_queue_cpu), "Error in clFinish");
 				CHKRET(clReleaseMemObject(gpu_mem[i].mem_obj), "Error in clReleaseMemObject");
 				gpu_mem[i] = gpu_mem[--nGPUMEM];
+				warn_wrong_memory_allocation = (nGPUMEM == 0);
 				return(0);
 			}
 		}

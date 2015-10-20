@@ -528,6 +528,7 @@ double* caldgemm_cuda::AllocMemory(size_t nDoubles, bool page_locked, bool huge_
 				return(NULL);
 			}
 		}
+		warn_wrong_memory_allocation = false;
 		return((double*) ptr);
 	}
 	double* ptr = caldgemm::AllocMemory(nDoubles, page_locked, huge_pages, gpuaccessible, interleave);
@@ -544,6 +545,7 @@ int caldgemm_cuda::FreeMemory(double* ptr, bool gpuaccessible)
 			{
 				cudaFreeHost(ptr);
 				gpu_mem[i] = gpu_mem[--nGPUMEM];
+				warn_wrong_memory_allocation = (nGPUMEM == 0);
 				return(0);
 			}
 		}

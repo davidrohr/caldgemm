@@ -192,6 +192,8 @@ caldgemm::caldgemm()
 		    dma_pending[i][j] = false;
 		}
 	}
+	
+	warn_wrong_memory_allocation = true;
 }
 
 caldgemm::~caldgemm()
@@ -2949,6 +2951,12 @@ recalculate_ratio:
 		}
 		else
 		{
+			if (warn_wrong_memory_allocation && (Config->GPU_C || Config->DstMemory == 'c'))
+			{
+				warn_wrong_memory_allocation = false; //Only warn once
+				fprintf(STD_OUT, "WARNING, you are using GPU_C or '-o g' option, but apparently you did not use CALDGEMM memory allocation with gpu_accessible feature ('-_' is missing).\nYou must take care to allocate GPU accessible memory yourself, or this can lead to invalid memory accesses.\n");
+			}
+			
 			DGEMM_split_m = 0;
 			if (matrix_n % SmallTileHeight || matrix_m % SmallTileHeight)
 			{

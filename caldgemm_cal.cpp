@@ -1306,6 +1306,7 @@ int caldgemm_cal::Initialize(bool nocalinit)
 	    CHKERR(calDeviceOpen(&devices[i], device_nums[i]), "opening CAL device");
 	    CHKERR(calCtxCreate(&ctxs[i], devices[i]), "creating CAL context");
 	}
+	warn_wrong_memory_allocation = false; //Can never be the case for CAL runtime
 	return(0);
 }
 
