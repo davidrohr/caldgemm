@@ -443,6 +443,7 @@ void caldgemm::print_submatrices(double* M, size_t width, size_t height, size_t 
 void caldgemm::ensure_omp_thread_pinning(const char* baseName)
 {
 #ifndef USE_GOTO_BLAS
+	if (!Config->UseCPU) return;
 	if (Config->Debug) fprintf(STD_OUT, "Performing OpenMP Blas Thread Pinning\n");
 	int* cpu_order = new int[conf_numprocs];
 	if (Config->NumaPinning && conf_numprocs % 4 == 0)
