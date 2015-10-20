@@ -2005,6 +2005,31 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 		}
 	}
+	
+	if (Config->GPU_C && Config->DstMemory == 'g')
+	{
+		int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
+		Timers.divideC++;
+		region[0] = HeightN * sizeof(double);
+		region[1] = HeightM;
+		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
+	
+		if (Config->AlternateSimpleQueuing && alternateSimpleQueueCBuffferEvent[num_device][j].event != 0)
+		{
+			nTransferEvents = 1;
+			transferEvents[0] = alternateSimpleQueueCBuffferEvent[num_device][j].event;
+		}
+		else
+		{
+			nTransferEvents = 0;
+		}
+
+		pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
+
+		CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], ocl_cbuffers[pipelineBuffer][num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, nTransferEvents, nTransferEvents ? transferEvents : NULL, Config->AlternateSimpleQueuing ? &alternateSimpleQueueCopyCEvent[num_device][j] : NULL), "Error copying C");
+		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
+	}
 
 	for (int i = 0;i < nConvTasks;i++)
 	{
@@ -2054,31 +2079,6 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			clRetainEvent(*convTasks[i].ev);
 		}
 		if (Config->AlternateSimpleQueuing) CHKRET(clReleaseEvent(convTasks[i].ev2), "Error releasing event");
-	}
-	
-	if (Config->GPU_C && Config->DstMemory == 'g')
-	{
-		int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
-		Timers.divideC++;
-		region[0] = HeightN * sizeof(double);
-		region[1] = HeightM;
-		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
-		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
-	
-		if (Config->AlternateSimpleQueuing && alternateSimpleQueueCBuffferEvent[num_device][j].event != 0)
-		{
-			nTransferEvents = 1;
-			transferEvents[0] = alternateSimpleQueueCBuffferEvent[num_device][j].event;
-		}
-		else
-		{
-			nTransferEvents = 0;
-		}
-
-		pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
-
-		CHKRET(clEnqueueWriteBufferRectUse(ocl_command_queues[num_device][use_queue], ocl_cbuffers[pipelineBuffer][num_device][j], CL_FALSE, origin, origin, region, 0, 0, C_pitch * sizeof(double), 0, C + blockn * Config->Height + blockm * Config->Height * C_pitch, nTransferEvents, nTransferEvents ? transferEvents : NULL, Config->AlternateSimpleQueuing ? &alternateSimpleQueueCopyCEvent[num_device][j] : NULL), "Error copying C");
-		if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 	}
 	
 	if (Config->AlternateSimpleQueuing)
