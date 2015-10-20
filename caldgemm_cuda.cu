@@ -97,9 +97,11 @@ int caldgemm_cuda::Initialize(bool nocalinit)
 	}
 
 	nDevices = nGoodDevices;
+	if (nDevices > (signed) max_devices) nDevices = max_devices;
 	if (nDevices > Config->NumDevices) nDevices = Config->NumDevices;
 	if (deviceNum >= nDevices) ERRRET("CUDA Device %d not available\n", deviceNum);
 	if (deviceNum >= 0) nDevices = 1;
+	if (!Config->UseGPU) nDevices = 0;
 	gpu_available = (nDevices > 0);
 	
 	if (nDevices > 1 && !Config->MultiThread)
@@ -173,7 +175,6 @@ int caldgemm_cuda::ValidateRuntime()
 
 int caldgemm_cuda::CheckDevices()
 {
-	if (Config->Debug) fprintf(STD_OUT, "CUDA CheckDevices\n");
 	return(0);
 }
 
@@ -252,7 +253,6 @@ int caldgemm_cuda::ReinitDevices()
 
 int caldgemm_cuda::InitConstantData(double alpha)
 {
-	if (Config->Debug) fprintf(STD_OUT, "CUDA InitConstantData\n");
 	return(0);
 }
 

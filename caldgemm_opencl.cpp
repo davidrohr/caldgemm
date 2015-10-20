@@ -620,7 +620,6 @@ int caldgemm_opencl::ValidateRuntime()
 
 int caldgemm_opencl::CheckDevices()
 {
-	if (Config->Debug) fprintf(STD_OUT, "OPENCL CheckDevices\n");
 	return(0);
 }
 
@@ -903,7 +902,6 @@ int caldgemm_opencl::ReinitDevices()
 
 int caldgemm_opencl::InitConstantData(double alpha)
 {
-	if (Config->Debug) fprintf(STD_OUT, "OPENCL InitConstantData\n");
 	return(0);
 }
 
