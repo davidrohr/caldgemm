@@ -457,7 +457,7 @@ protected:
 	double linpackBcastTime[max_linpack_callback_types];
 	double linpackCPUDGEMMTime[max_linpack_callback_types];
 
-	qSem alternateLinpackMutex;
+	qSem alternateLookaheadMutex;
 	int AlternateLookaheadTilesFull;
 	volatile unsigned int AlternateLookaheadTilesRemaining;
 	int AlternateLookaheadBlocksM;

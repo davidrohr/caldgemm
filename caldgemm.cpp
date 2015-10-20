@@ -855,7 +855,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (Config->AlternateLookahead)
 	{
 		pthread_mutex_init(&tilesRemainingMutex, NULL);
-		alternateLinpackMutex.Lock();
+		alternateLookaheadMutex.Lock();
 	}
 
 	if (Config->MultiThread)
@@ -1287,7 +1287,7 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int& require_thread
 		if (Config->AlternateLookahead > matrix_n)
 		{
 			if (!Config->Quiet) fprintf(STD_OUT, "\t\t\tWaiting for GPUs to finish initial DGEMM part to start Linpack factorization\n");
-			alternateLinpackMutex.Lock();
+			alternateLookaheadMutex.Lock();
 			if (Config->SimpleGPUQueuing)
 			{
 				CheckAlternateTilesRemainingSimpleQuieing();
@@ -2018,7 +2018,7 @@ void caldgemm::CheckAlternateTilesRemaining(size_t m)
 			if (--AlternateLookaheadTilesRemaining == 0)
 			{
 				if (Config->Debug) fprintf(STD_OUT, "GPU done with initial part, factorization may start\n");
-				alternateLinpackMutex.Unlock();
+				alternateLookaheadMutex.Unlock();
 			}
 			pthread_mutex_unlock(&tilesRemainingMutex);
 		}
