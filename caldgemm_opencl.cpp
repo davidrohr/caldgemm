@@ -1880,7 +1880,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		{
 			CALDGEMM_PREPARE_BACKEND_VARS2;
 			cl_event* my_alternateSimpleQueueEvent_tmp_buffers = iMat ? alternateSimpleQueueEvent_tmp_bbuffers[num_device] : alternateSimpleQueueEvent_tmp_abuffers[num_device];
-			cl_mem* my_ocl_tmp_buffers = iMat && Config->AlternateSimpleQueuing ? ocl_tmp_bbuffers[pipelineBuffer][num_device] : ocl_tmp_abuffers[pipelineBuffer][num_device];
+			cl_mem* my_ocl_tmp_buffers = iMat ? ocl_tmp_bbuffers[pipelineBuffer][num_device] : ocl_tmp_abuffers[pipelineBuffer][num_device];
 			
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of %c to GPU (k = %lld, m = %lld, n = %lld)\n", myMat, (long long int) k, (long long int) blockm, (long long int) blockn);
 			nTransferEvents = 0;
