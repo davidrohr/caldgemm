@@ -148,8 +148,8 @@ int caldgemm_cuda::ValidateRuntime()
 
 	SetDefaultKernelSettings();
 #ifdef CALDGEMM_CUDA_CUBLAS
-	KernelSettings.transposeA = false;
-	KernelSettings.transposeB = true;
+	KernelSettings.transposeA = true;
+	KernelSettings.transposeB = false;
 #else
 	KernelSettings.transposeA = false;
 	KernelSettings.transposeB = true;
