@@ -2086,7 +2086,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			if (i == 1) continue;
 			if (!Config->AlternateSimpleQueuing) i = j;
 			CHKRET(clFinish(ocl_command_queues[num_device][i]), "Error in clFinish");
-			if (Config->AlternateSimpleQueuing) break;
+			if (!Config->AlternateSimpleQueuing) break;
 		}
 		Timers.CounterCopyTo.Stop();
 	}
