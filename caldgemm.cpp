@@ -635,6 +635,16 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->DynamicSched = false;
 		Config->SmallTiles = 1;
 	}
+	if (SimpleQueuingAvailable() < 2 && Config->AlternateSimpleQueuing)
+	{
+		fprintf(STD_OUT, "Alternate Simple Queuing not supported by backend, disabling\n");
+		Config->AlternateSimpleQueuing = false;
+	}
+	if (SimpleQueuingAvailable() < 1 && Config->SimpleGPUQueuing)
+	{
+		fprintf(STD_OUT, "Simple GPU Queuing not supported by backend, disabling\n");
+		Config->SimpleGPUQueuing = false;
+	}
 	if (Config->AlternateSimpleQueuing) Config->SimpleGPUQueuing = true;
 	if (!Config->SimpleGPUQueuing && Config->PipelinedOperation)
 	{
@@ -3951,6 +3961,11 @@ int caldgemm::ParseParameters(char* params, caldgemm_config* Config)
 int caldgemm::AllowCPUFallback()
 {
 	return(1);
+}
+
+int caldgemm::SimpleQueuingAvailable()
+{
+	return(0);
 }
 
 #ifndef USE_GOTO_BLAS

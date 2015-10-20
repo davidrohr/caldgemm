@@ -333,6 +333,7 @@ protected:
 	virtual int UseInputPthreads() = 0;
 	virtual int AllowCPUFallback();
 	virtual int UseMutexPerDevice() = 0;
+	virtual int SimpleQueuingAvailable();
 
 	virtual int ValidateRuntime() = 0;
 	virtual int CheckDevices() = 0;
