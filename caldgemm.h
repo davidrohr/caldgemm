@@ -464,7 +464,7 @@ protected:
 	pthread_mutex_t tilesRemainingMutex;
 	
 	void CheckAlternateTilesRemaining(size_t m);
-	virtual int CheckAlternateTilesRemainingSimpleQuieing();
+	virtual int CheckAlternateTilesRemainingSQ();
 
 	bool buffersSwitchable;
 

@@ -1290,7 +1290,7 @@ void caldgemm::RunLinpackFactorization(int old_goto_threads, int& require_thread
 			alternateLookaheadMutex.Lock();
 			if (Config->SimpleGPUQueuing)
 			{
-				CheckAlternateTilesRemainingSimpleQuieing();
+				CheckAlternateTilesRemainingSQ();
 			}
 			_mm_mfence();
 		}
@@ -2002,7 +2002,7 @@ void caldgemm::WaitForLASWP(size_t blockm)
 	}
 }
 
-int caldgemm::CheckAlternateTilesRemainingSimpleQuieing()
+int caldgemm::CheckAlternateTilesRemainingSQ()
 {
 	return(0);
 }

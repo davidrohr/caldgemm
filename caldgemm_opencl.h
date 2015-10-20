@@ -169,9 +169,9 @@ private:
 	bool pipelinedModeStartBarrierDone[max_devices][obuffercount];
 	void pipelinedModeSetStartBarriers(unsigned int num_device, int j, int &nTransferEvents, cl_event* transferEvents, bool &freeTransferEvents);
 
-	cl_event* AlternateLookaheadTilesRemaining_events;
-	virtual int CheckAlternateTilesRemainingSimpleQuieing();
-	qSem AlternateLookaheadDoneMutex;
+	cl_event* AlternateLookaheadTilesRemainingSQ_events;
+	virtual int CheckAlternateTilesRemainingSQ();
+	qSem AlternateLookaheadDoneMutexSQ;
 
 	double* ocl_tmp_abuffers_ptr[max_devices][ibuffercount];
 	double* ocl_tmp_bbuffers_ptr[max_devices][ibuffercount];

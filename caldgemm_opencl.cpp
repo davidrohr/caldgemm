@@ -467,7 +467,7 @@ int caldgemm_opencl::Initialize(bool nocalinit)
 #endif
 		CHKRET(ocl_error, "Error creating OpenCL CPU command queue");
 	}
-	AlternateLookaheadDoneMutex.Lock();
+	AlternateLookaheadDoneMutexSQ.Lock();
 
 	return(0);
 }
@@ -990,7 +990,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 	{
 		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesRemaining && blockm < AlternateLookaheadBlocksM)
 		{
-			simple_queue_lookahead_event = &AlternateLookaheadTilesRemaining_events[AlternateLookaheadTilesRemaining - 1];
+			simple_queue_lookahead_event = &AlternateLookaheadTilesRemainingSQ_events[AlternateLookaheadTilesRemaining - 1];
 		}
 
 		if (Config->DstMemory == 'g')
@@ -1215,7 +1215,7 @@ int caldgemm_opencl::ExitRuntime()
 	}
 
 	CHKRET(clReleaseContext(ocl_context), "Error in clReleaseContext");
-	AlternateLookaheadDoneMutex.Unlock();
+	AlternateLookaheadDoneMutexSQ.Unlock();
 
 	return(0);
 }
@@ -2171,13 +2171,13 @@ int caldgemm_opencl::UseMutexPerDevice() {return(0);}
 int caldgemm_opencl::AllowCPUFallback() {return(0);}
 
 
-int caldgemm_opencl::CheckAlternateTilesRemainingSimpleQuieing()
+int caldgemm_opencl::CheckAlternateTilesRemainingSQ()
 {
 	if (AlternateLookaheadTilesFull)
 	{
-		CHKRET(clWaitForEvents(AlternateLookaheadTilesFull, AlternateLookaheadTilesRemaining_events), "Error waiting for alternate lookahead tiles events");
+		CHKRET(clWaitForEvents(AlternateLookaheadTilesFull, AlternateLookaheadTilesRemainingSQ_events), "Error waiting for alternate lookahead tiles events");
 	}
-	AlternateLookaheadDoneMutex.Unlock();
+	AlternateLookaheadDoneMutexSQ.Unlock();
 	return(0);
 }
 
@@ -2188,8 +2188,8 @@ void caldgemm_opencl::Preallocate()
 	simple_queue_event_requested[0][0][0] = new int[nDevices * obuffercount * (Config->PreallocData + Config->PreallocData)];
 	memset(simple_queue_events[0][0], 0, nDevices * (Config->PreallocData + Config->PreallocData) * sizeof(caldgemm_opencl_simple_queue_event));
 	memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (Config->PreallocData + Config->PreallocData) * sizeof(int));
-	AlternateLookaheadTilesRemaining_events = new cl_event[Config->PreallocData * Config->PreallocData];
-	memset(AlternateLookaheadTilesRemaining_events, 0, Config->PreallocData * Config->PreallocData * sizeof(cl_event));
+	AlternateLookaheadTilesRemainingSQ_events = new cl_event[Config->PreallocData * Config->PreallocData];
+	memset(AlternateLookaheadTilesRemainingSQ_events, 0, Config->PreallocData * Config->PreallocData * sizeof(cl_event));
 }
 
 void caldgemm_opencl::PreallocateFree()
@@ -2197,7 +2197,7 @@ void caldgemm_opencl::PreallocateFree()
 	caldgemm::PreallocateFree();
 	delete[] simple_queue_events[0][0];
 	delete[] simple_queue_event_requested[0][0][0];
-	delete[] AlternateLookaheadTilesRemaining_events;
+	delete[] AlternateLookaheadTilesRemainingSQ_events;
 }
 
 void caldgemm_opencl::SetupSimpleQueue(size_t mb, size_t nb)
@@ -2270,7 +2270,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 			simple_queue_event_requested[0][0][0] = new int[nDevices * obuffercount * (mb + nb)];
 			if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesFull)
 			{
-				AlternateLookaheadTilesRemaining_events = new cl_event[AlternateLookaheadTilesFull];
+				AlternateLookaheadTilesRemainingSQ_events = new cl_event[AlternateLookaheadTilesFull];
 			}
 		}
 
@@ -2315,12 +2315,12 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 {
 	if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && Config->SimpleGPUQueuing)
 	{
-		AlternateLookaheadDoneMutex.Lock();
+		AlternateLookaheadDoneMutexSQ.Lock();
 		if (AlternateLookaheadTilesFull)
 		{
 			for (int i = 0;i < AlternateLookaheadTilesFull;i++)
 			{
-				CHKRET(clReleaseEvent(AlternateLookaheadTilesRemaining_events[i]), "Error releasing alternate lookahead tiles event");
+				CHKRET(clReleaseEvent(AlternateLookaheadTilesRemainingSQ_events[i]), "Error releasing alternate lookahead tiles event");
 			}
 		}
 	}
@@ -2402,7 +2402,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 		delete[] simple_queue_event_requested[0][0][0];
 		if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesFull)
 		{
-			delete[] AlternateLookaheadTilesRemaining_events;
+			delete[] AlternateLookaheadTilesRemainingSQ_events;
 		}
 	}
 	return(0);
