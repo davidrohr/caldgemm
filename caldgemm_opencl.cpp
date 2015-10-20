@@ -512,9 +512,23 @@ int caldgemm_opencl::ValidateRuntime()
 		if (Config->Debug) fprintf(STD_OUT, "Platform %d: (%s %s) %s %s\n", i, platform_profile, platform_version, platform_vendor, platform_name);
 	}
 
-	if (Config->OpenCLPlatform >= (signed)num_platforms) ERRRET("OpenCL Platform %d not available\n", Config->OpenCLPlatform);
+	if (Config->OpenCLPlatform >= (signed) num_platforms) ERRRET("OpenCL Platform %d not available\n", Config->OpenCLPlatform);
 	ocl_platform = platforms[Config->OpenCLPlatform];
 	delete[] platforms;
+	
+#ifdef CL_VERSION_2_0
+	{
+		char platform_version[64], info[64];
+		double version;
+		CHKRET(clGetPlatformInfo(ocl_platform, CL_PLATFORM_VERSION, 64, platform_version, NULL), "Error getting platform info");
+		sscanf(platform_version, "OpenCL %lf %s", &version, info);
+		if (version < 2.0)
+		{
+			fprintf(STD_OUT, "This binary was compiled with OpenCL 2.0 headers and uses OpenCL 2.0 features, but your runtime is only at version %.1lf\n", version);
+			return(1);
+		}
+	}
+#endif
 
 	if (Config->config_backend == NULL) Config->config_backend = new caldgemm_config_backend_opencl;
 	config_backend = (caldgemm_config_backend_opencl*) Config->config_backend;
