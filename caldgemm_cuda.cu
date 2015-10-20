@@ -379,6 +379,9 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 	CHKRET(cudaSetDevice(cuda_devices[num_device]), "Setting CUDA Device");
 	if (Config->VerboseTiming) Timers.CounterCopyTo.Start();
 
+	conversionKernelTaskStruct convTasks[2];
+	int nConvTasks = 0;
+
 	for (int iMat = 0;iMat < 2;iMat++)
 	{
 		if (cuda_conversion_events_use[num_device][iMat])
@@ -404,12 +407,8 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 
 			if (arg_transpose)
 			{
-				dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
 				size_t arg_width = width / sizeof(double), arg_height = height;
-				if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel %c: x %d y %d\n", myMat, (int) arg_width, (int) arg_height);
-				CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) dest_buffer_tmp, (double*) dest_image, arg_width, arg_height);
-				CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
-				if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
+				convTasks[nConvTasks++] = conversionKernelTaskStruct(dest_buffer_tmp, dest_image, arg_width, arg_height, myMat);
 			}
 			CHKRET(cudaEventRecord(cuda_conversion_events[num_device][iMat], cuda_command_queues[num_device][j]), "Recording event %d %d", num_device, iMat);
 			cuda_conversion_events_use[num_device][iMat] = 1;
@@ -423,6 +422,15 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		Timers.divideC++;
 		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) width, (int) height);
 		CHKRET(cudaMemcpy2DAsync(cuda_cbuffers[num_device][j], width, C + blockn * Config->Height + blockm * Config->Height * C_pitch, C_pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying C to device");
+	}
+	
+	for (int i = 0;i < nConvTasks;i++)
+	{
+		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
+		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel %c: x %d y %d\n", convTasks[i].myMat, (int) convTasks[i].arg_width, (int) convTasks[i].arg_height);
+		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) convTasks[i].dest_buffer_tmp, (double*) convTasks[i].dest_image, convTasks[i].arg_width, convTasks[i].arg_height);
+		CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
+		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
 	}
 
 	if (Config->VerboseTiming)

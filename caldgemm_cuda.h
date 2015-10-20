@@ -80,6 +80,17 @@ private:
 	int WaitForEventAndRelease(cudaEvent_t* pEvent);
 
 	static const int GROUP_SIZE_X = 16, GROUP_SIZE_Y = 16, GROUP_COUNT_X = 16, GROUP_COUNT_Y = 16;	//Group and block size for conversion kernels and for DGEMM kernel
+	
+	struct conversionKernelTaskStruct
+	{
+		conversionKernelTaskStruct() {}
+		conversionKernelTaskStruct(void* c1, void* c2, int c3, int c4, char c5) : dest_buffer_tmp(c1), dest_image(c2), arg_width(c3), arg_height(c4), myMat(c5) {}
+		void* dest_buffer_tmp;
+		void* dest_image;
+		size_t arg_width;
+		size_t arg_height;
+		char myMat;
+	};
 };
 
 #endif
