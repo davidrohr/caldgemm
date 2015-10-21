@@ -998,6 +998,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 	if (FinishDataInit()) return(1);
 	finishData->running = false;
 
+	for (int i = 0;i < nDevices;i++) for (int j = 0;j < 2;j++) DGEMMTasks[i].PrepareTasks[j].j = DGEMMTasks[i].PrepareTasks[j].k = 0; //Fix valgrind warning
 	nDevicesInitialized = nDevices;
 	if (Config->NumActiveDevices > 0 && Config->NumActiveDevices < nDevices) nDevices = Config->NumActiveDevices;
 
