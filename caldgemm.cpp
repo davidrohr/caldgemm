@@ -3235,7 +3235,7 @@ int caldgemm::ExitCALDGEMM()
 	}
 	nDevices = nDevicesInitialized;
 	if (Config->Debug) fprintf(STD_OUT, "Uninitializing CALDGEMM\n");
-	if (Config->PipelinedOperation) delete finishData;
+	delete finishData;
 	if (Config->PreallocData) if (PreallocateFree()) return(1);
 
 	if (Config->UseGPU && ExitDevices()) return(1);

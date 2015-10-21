@@ -45,7 +45,7 @@ class lockClass
 {
 public:
     lockClass() {pthread_mutex_init(&lock, NULL);}
-    ~lockClass() {pthread_mutex_destroy(&lock);}
+    ~lockClass() {pthread_mutex_destroy(&lock);threadNames.clear();}
     std::vector<threadNameStruct> threadNames;
     pthread_mutex_t lock;
 };
