@@ -136,15 +136,18 @@ private:
 	cl_event StartMarker[max_devices][obuffercount];
 	cl_event MidMarker[max_devices][obuffercount];
 	cl_event EndMarker[max_devices][obuffercount];
+	bool MidMarkerCreated[max_devices][obuffercount];
 
 	caldgemm_opencl_simple_queue_event* simple_queue_events[max_devices][2]; //2 for m and n direction
-	int* simple_queue_event_requested[max_devices][obuffercount][2];
+	bool* simple_queue_event_requested[max_devices][obuffercount][2];
 	cl_event simple_queue_event_kernels[max_devices][ibuffercount][obuffercount];
+	bool simple_queue_event_kernels_used[max_devices][ibuffercount][obuffercount];
 	
 	struct alternateSimpleQueueCBuffferEventStruct
 	{
 		cl_event event;
 		bool must_release;
+		bool used;
 	};
 
 	struct conversionKernelTaskStruct
@@ -166,6 +169,8 @@ private:
 	alternateSimpleQueueCBuffferEventStruct alternateSimpleQueueCBuffferEvent[max_devices][obuffercount];
 	cl_event alternateSimpleQueueEvent_tmp_abuffers[max_devices][obuffercount];
 	cl_event alternateSimpleQueueEvent_tmp_bbuffers[max_devices][obuffercount];
+	bool alternateSimpleQueueEvent_tmp_abuffers_used[max_devices][obuffercount];
+	bool alternateSimpleQueueEvent_tmp_bbuffers_used[max_devices][obuffercount];
 	
 	bool pipelinedModeStartBarrierDone[max_devices][obuffercount];
 	void pipelinedModeSetStartBarriers(unsigned int num_device, int j, int &nTransferEvents, cl_event* transferEvents, bool &freeTransferEvents);

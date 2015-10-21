@@ -1007,15 +1007,15 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		}
 		else
 		{
-			if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][0][blockm].num_queue) && simple_queue_event_requested[Task.device][use_queue][0][blockm] == 0)
+			if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][0][blockm].num_queue) && simple_queue_event_requested[Task.device][use_queue][0][blockm] == false)
 			{
 				simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][0][blockm].event;
-				simple_queue_event_requested[Task.device][use_queue][0][blockm] = 1;
+				simple_queue_event_requested[Task.device][use_queue][0][blockm] = true;
 			}
-			if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][1][blockn].num_queue) && simple_queue_event_requested[Task.device][use_queue][1][blockn] == 0)
+			if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][1][blockn].num_queue) && simple_queue_event_requested[Task.device][use_queue][1][blockn] == false)
 			{
 				simple_queue_event[wait_num_events++] = simple_queue_events[Task.device][1][blockn].event;
-				simple_queue_event_requested[Task.device][use_queue][1][blockn] = 1;
+				simple_queue_event_requested[Task.device][use_queue][1][blockn] = true;
 			}
 		}
 		if (wait_num_events) wait_event = simple_queue_event;
@@ -1026,7 +1026,9 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 
 		if (NeedSimpleQueueKernelEvent(blockm, blockn, mb, nb, Task.k, Task.device))
 		{
-			cl_event* ev = &simple_queue_event_kernels[Task.device][(DGEMM_favor_m ? buffer_pointers_A[Task.device][blockm] : buffer_pointers_B[Task.device][blockn]) % ibuffercount][use_queue];
+			const int buf = (DGEMM_favor_m ? buffer_pointers_A[Task.device][blockm] : buffer_pointers_B[Task.device][blockn]) % ibuffercount;
+			cl_event* ev = &simple_queue_event_kernels[Task.device][buf][use_queue];
+			simple_queue_event_kernels_used[Task.device][buf][use_queue] = true;
 			if (Config->AlternateSimpleQueuing && *ev != NULL)
 			{
 				CHKRET(clReleaseEvent(*ev), "Error releasing event");
@@ -1138,6 +1140,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 					if (alternateSimpleQueueCBuffferEvent[Task.device][Task.j].must_release) CHKRET(clReleaseEvent(alternateSimpleQueueCBuffferEvent[Task.device][Task.j].event), "Error releasing event");
 					simple_queue_lookahead_event = &alternateSimpleQueueCBuffferEvent[Task.device][Task.j].event;
 					alternateSimpleQueueCBuffferEvent[Task.device][Task.j].must_release = true;
+					alternateSimpleQueueCBuffferEvent[Task.device][Task.j].used = true;
 				}
 				else
 				{
@@ -1149,6 +1152,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			{
 				alternateSimpleQueueCBuffferEvent[Task.device][Task.j].event = *simple_queue_lookahead_event;
 				alternateSimpleQueueCBuffferEvent[Task.device][Task.j].must_release = false;
+				alternateSimpleQueueCBuffferEvent[Task.device][Task.j].used = true;
 			}
 			if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 		}
@@ -1158,9 +1162,10 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		}
 	}
 	if (need_release_kernel_event_after_transfer) CHKRET(clReleaseEvent(*kernel_event), "Error releasing event");
-	if (Config->PipelinedMidMarker && blockm * Config->Height >= Config->PipelinedMidMarker && MidMarker[Task.device][use_queue] == 0)
+	if (Config->PipelinedMidMarker && blockm * Config->Height >= Config->PipelinedMidMarker && MidMarkerCreated[Task.device][use_queue] == false)
 	{
 		CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[Task.device][use_queue], 0, NULL, &MidMarker[Task.device][Task.j]), "Error enqueuing OpenCL mid marker");
+		MidMarkerCreated[Task.device][Task.j] = true;
 		if (Config->Debug) fprintf(STD_OUT, "Mid Marker Device %d queue %d block %d (Event %lld)\n", Task.device, Task.j, (int) blockm, (long long int) MidMarker[Task.device][Task.j]);
 	}
 
@@ -1866,6 +1871,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		{
 			CALDGEMM_PREPARE_BACKEND_VARS2;
 			cl_event* my_alternateSimpleQueueEvent_tmp_buffers = iMat ? alternateSimpleQueueEvent_tmp_bbuffers[num_device] : alternateSimpleQueueEvent_tmp_abuffers[num_device];
+			bool* my_alternateSimpleQueueEvent_tmp_buffers_used = iMat ? alternateSimpleQueueEvent_tmp_bbuffers_used[num_device] : alternateSimpleQueueEvent_tmp_abuffers_used[num_device];
 			cl_mem* my_ocl_tmp_buffers = iMat ? ocl_tmp_bbuffers[pipelineBuffer][num_device] : ocl_tmp_abuffers[pipelineBuffer][num_device];
 			
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of %c to GPU (k = %lld, m = %lld, n = %lld)\n", myMat, (long long int) k, (long long int) blockm, (long long int) blockn);
@@ -1878,7 +1884,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				for (int i = 0;i < obuffercount;i++)
 				{
 					if (Config->AlternateSimpleQueuing) i = 2;
-					if (simple_queue_event_kernels[num_device][destbuffer][i] != NULL)
+					if (simple_queue_event_kernels_used[num_device][destbuffer][i])
 					{
 						//printf("DEBUG: %cBuffer block%c %d Need to wait for device %d Buffer %d Context %d\n", myMat, iMat ? 'n' : 'm', (int) myblock, num_device, destbuffer, i);
 						if (!Config->AlternateSimpleQueuing && i == j)
@@ -1889,7 +1895,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 						{
 							transferEvents[nTransferEvents++] = simple_queue_event_kernels[num_device][destbuffer][i];
 						}
-						simple_queue_event_kernels[num_device][destbuffer][i] = 0;
+						simple_queue_event_kernels_used[num_device][destbuffer][i] = false;
 					}
 					if (Config->AlternateSimpleQueuing) break;
 				}
@@ -1940,11 +1946,11 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			else
 			{
 				pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
-				if (Config->AlternateSimpleQueuing && (arg_transpose || KernelSettings.texture_buffers) && my_alternateSimpleQueueEvent_tmp_buffers[j] != 0)
+				if (Config->AlternateSimpleQueuing && (arg_transpose || KernelSettings.texture_buffers) && my_alternateSimpleQueueEvent_tmp_buffers_used[j])
 				{
 					if (!freeTransferEvents) forceFreeTransferEvent = nTransferEvents;
 					transferEvents[nTransferEvents++] = my_alternateSimpleQueueEvent_tmp_buffers[j];
-					my_alternateSimpleQueueEvent_tmp_buffers[j] = 0;
+					my_alternateSimpleQueueEvent_tmp_buffers_used[j] = false;
 				}
 
 				if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
@@ -1982,6 +1988,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				if (run_conversion_kernel)
 				{
 					convTasks[nConvTasks++] = conversionKernelTaskStruct(dest_buffer_tmp, dest_image, arg_width, arg_height, arg_transpose, ev, ev2, &my_alternateSimpleQueueEvent_tmp_buffers[j], myMat);
+					if (Config->AlternateSimpleQueuing) my_alternateSimpleQueueEvent_tmp_buffers_used[j] = true;
 				}
 				if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			}
@@ -1999,7 +2006,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) region[0], (int) region[1]);
 		if (Config->ThreadSaveDriver == -1) pthread_mutex_lock(&globalDriverLock);
 	
-		if (Config->AlternateSimpleQueuing && alternateSimpleQueueCBuffferEvent[num_device][j].event != 0)
+		if (Config->AlternateSimpleQueuing && alternateSimpleQueueCBuffferEvent[num_device][j].used)
 		{
 			nTransferEvents = 1;
 			transferEvents[0] = alternateSimpleQueueCBuffferEvent[num_device][j].event;
@@ -2169,11 +2176,9 @@ void caldgemm_opencl::Preallocate()
 {
 	caldgemm::Preallocate();
 	simple_queue_events[0][0] = new caldgemm_opencl_simple_queue_event[nDevices * (Config->PreallocData + Config->PreallocData)];
-	simple_queue_event_requested[0][0][0] = new int[nDevices * obuffercount * (Config->PreallocData + Config->PreallocData)];
-	memset(simple_queue_events[0][0], 0, nDevices * (Config->PreallocData + Config->PreallocData) * sizeof(caldgemm_opencl_simple_queue_event));
-	memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (Config->PreallocData + Config->PreallocData) * sizeof(int));
-	AlternateLookaheadTilesRemainingSQ_events = new cl_event[Config->PreallocData * Config->PreallocData];
-	memset(AlternateLookaheadTilesRemainingSQ_events, 0, Config->PreallocData * Config->PreallocData * sizeof(cl_event));
+	simple_queue_event_requested[0][0][0] = new bool[nDevices * obuffercount * (Config->PreallocData + Config->PreallocData)];
+	memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (Config->PreallocData + Config->PreallocData) * sizeof(bool));
+	AlternateLookaheadTilesRemainingSQ_events = new cl_event[Config->PreallocData * PREALLOC_ALTERNATE_LOOKAHEAD];
 }
 
 void caldgemm_opencl::PreallocateFree()
@@ -2251,29 +2256,33 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		if (!Config->PreallocData)
 		{
 			simple_queue_events[0][0] = new caldgemm_opencl_simple_queue_event[nDevices * (mb + nb)];
-			simple_queue_event_requested[0][0][0] = new int[nDevices * obuffercount * (mb + nb)];
+			simple_queue_event_requested[0][0][0] = new bool[nDevices * obuffercount * (mb + nb)];
 			if (ExecLinpack >= 2 && Config->AlternateLookahead > matrix_n && AlternateLookaheadTilesFull)
 			{
 				AlternateLookaheadTilesRemainingSQ_events = new cl_event[AlternateLookaheadTilesFull];
 			}
 		}
+		else if (AlternateLookaheadTilesFull > Config->PreallocData * PREALLOC_ALTERNATE_LOOKAHEAD)
+		{
+			fprintf(STD_OUT, "Insufficient preallocation for alternate lookahead, increase PreallocData or increase constant!");
+			return(1);
+		}
 
 		SetupSimpleQueue(mb, nb);
 		if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
 		{
-			memset(alternateSimpleQueueCBuffferEvent, 0, nDevices * obuffercount * sizeof(alternateSimpleQueueCBuffferEventStruct));
+			for (int i = 0;i < nDevices;i++) for (int j = 0;j < obuffercount;j++) alternateSimpleQueueCBuffferEvent[i][j].must_release = alternateSimpleQueueCBuffferEvent[i][j].used = false;
 		}
 		else
 		{
-			memset(simple_queue_events[0][0], 0, nDevices * (mb + nb) * sizeof(caldgemm_opencl_simple_queue_event));
-			memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(int));
+			memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(bool));
 		}
 		if (Config->AlternateSimpleQueuing)
 		{
-			memset(alternateSimpleQueueEvent_tmp_abuffers, 0, nDevices * obuffercount * sizeof(cl_event));
-			memset(alternateSimpleQueueEvent_tmp_bbuffers, 0, nDevices * obuffercount * sizeof(cl_event));
+			memset(alternateSimpleQueueEvent_tmp_abuffers_used, 0, nDevices * obuffercount * sizeof(bool));
+			memset(alternateSimpleQueueEvent_tmp_bbuffers_used, 0, nDevices * obuffercount * sizeof(bool));
 		}
-		memset(&simple_queue_event_kernels[0][0][0], 0, nDevices * ibuffercount * obuffercount * sizeof(cl_event));
+		memset(&simple_queue_event_kernels_used[0][0][0], 0, nDevices * ibuffercount * obuffercount * sizeof(bool));
 	}
 	
 	if (Config->PipelinedOperation && !CPUOnlyRun && pipelinedRun)
@@ -2288,7 +2297,7 @@ int caldgemm_opencl::RunCALDGEMM_Init()
 		
 		if (Config->PipelinedMidMarker)
 		{
-			memset(MidMarker, 0, sizeof(MidMarker));
+			memset(MidMarkerCreated, 0, sizeof(MidMarkerCreated));
 		}
 		if (Config->PipelinedOperation && finishData->running) memset(pipelinedModeStartBarrierDone, 0, sizeof(pipelinedModeStartBarrierDone));
 	}
@@ -2335,7 +2344,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 				{
 					if (Config->PipelinedOperation && !CPUOnlyRun && pipelinedRun)
 					{
-						if (Config->PipelinedMidMarker && MidMarker[i][j] == 0)
+						if (Config->PipelinedMidMarker && MidMarkerCreated[i][j] == false)
 						{
 							CHKRET(clEnqueueMarkerWithWaitList(ocl_command_queues[i][j], 0, NULL, &MidMarker[i][j]), "Error enqueuing OpenCL marker");
 							if (Config->Debug) fprintf(STD_OUT, "Enqueueing Fake Mid Marker at end (Device %d Queue %d) (Event %lld)\n", i, j, (long long int) MidMarker[i][j]);
@@ -2349,8 +2358,8 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 				}
 				if (Config->AlternateSimpleQueuing)
 				{
-					if (alternateSimpleQueueEvent_tmp_abuffers[i][j] != 0) CHKRET(clReleaseEvent(alternateSimpleQueueEvent_tmp_abuffers[i][j]), "Error releasing event");
-					if (alternateSimpleQueueEvent_tmp_bbuffers[i][j] != 0) CHKRET(clReleaseEvent(alternateSimpleQueueEvent_tmp_bbuffers[i][j]), "Error releasing event");
+					if (alternateSimpleQueueEvent_tmp_abuffers_used[i][j]) CHKRET(clReleaseEvent(alternateSimpleQueueEvent_tmp_abuffers[i][j]), "Error releasing event");
+					if (alternateSimpleQueueEvent_tmp_bbuffers_used[i][j]) CHKRET(clReleaseEvent(alternateSimpleQueueEvent_tmp_bbuffers[i][j]), "Error releasing event");
 				}
 				if (Config->AlternateSimpleQueuing && alternateSimpleQueueCBuffferEvent[i][j].must_release)
 				{
@@ -2358,7 +2367,7 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 				}
 				for (int k = 0;k < ibuffercount;k++)
 				{
-					if (simple_queue_event_kernels[i][k][j] != 0) CHKRET(clReleaseEvent(simple_queue_event_kernels[i][k][j]), "Error releasing event");
+					if (simple_queue_event_kernels_used[i][k][j] != 0) CHKRET(clReleaseEvent(simple_queue_event_kernels[i][k][j]), "Error releasing event");
 				}
 			}
 		}

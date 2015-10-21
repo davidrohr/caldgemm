@@ -197,5 +197,6 @@ extern pthread_mutex_t global_vt_mutex;
 		my_next_buffer % ibuffercount; \
 	if (iMat) Timers.divideB++; else Timers.divideA++;
 
+#define PREALLOC_ALTERNATE_LOOKAHEAD 4
 
 #endif
