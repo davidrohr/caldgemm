@@ -1873,26 +1873,23 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			freeTransferEvents = true;
 			int forceFreeTransferEvent = -1;
 
-			if (!access_bbuffers)
+			if (!access_bbuffers && Config->SimpleGPUQueuing)
 			{
-				if (Config->SimpleGPUQueuing)
+				for (int i = 0;i < obuffercount;i++)
 				{
-					for (int i = 0;i < obuffercount;i++)
+					if (Config->AlternateSimpleQueuing && iMat == 0) i = 2;
+					if (simple_queue_event_kernels[num_device][destbuffer][i] != NULL)
 					{
-						if (Config->AlternateSimpleQueuing && iMat == 0) i = 2;
-						if (simple_queue_event_kernels[num_device][destbuffer][i] != NULL)
+						//printf("DEBUG: %cBuffer block%c %d Need to wait for device %d Buffer %d Context %d\n", myMat, iMat ? 'n' : 'm', (int) myblock, num_device, destbuffer, i);
+						if (!Config->AlternateSimpleQueuing && i == j)
 						{
-							//printf("DEBUG: %cBuffer block%c %d Need to wait for device %d Buffer %d Context %d\n", myMat, iMat ? 'n' : 'm', (int) myblock, num_device, destbuffer, i);
-							if (!Config->AlternateSimpleQueuing && i == j)
-							{
-								CHKRET(clReleaseEvent(simple_queue_event_kernels[num_device][destbuffer][i]), "Error in clReleaseEvent");
-							}
-							else
-							{
-								transferEvents[nTransferEvents++] = simple_queue_event_kernels[num_device][destbuffer][i];
-							}
-							simple_queue_event_kernels[num_device][destbuffer][i] = 0;
+							CHKRET(clReleaseEvent(simple_queue_event_kernels[num_device][destbuffer][i]), "Error in clReleaseEvent");
 						}
+						else
+						{
+							transferEvents[nTransferEvents++] = simple_queue_event_kernels[num_device][destbuffer][i];
+						}
+						simple_queue_event_kernels[num_device][destbuffer][i] = 0;
 					}
 				}
 			}
