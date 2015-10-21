@@ -1943,7 +1943,8 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			else
 			{
 				pipelinedModeSetStartBarriers(num_device, j, nTransferEvents, transferEvents, freeTransferEvents);
-				if (Config->AlternateSimpleQueuing && (arg_transpose || KernelSettings.texture_buffers) && my_alternateSimpleQueueEvent_tmp_buffers_used[j])
+				bool run_conversion_kernel = arg_transpose || KernelSettings.texture_buffers;
+				if (Config->AlternateSimpleQueuing && run_conversion_kernel && my_alternateSimpleQueueEvent_tmp_buffers_used[j])
 				{
 					if (!freeTransferEvents) forceFreeTransferEvent = nTransferEvents;
 					transferEvents[nTransferEvents++] = my_alternateSimpleQueueEvent_tmp_buffers[j];
@@ -1954,7 +1955,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				region[0] = (((bool) iMat ^ myTranspose) ? myHeight : Config->Width) * sizeof(double); //It is either transposeA or transposeB !
 				region[1] = (((bool) iMat ^ myTranspose) ? Config->Width : myHeight);
 				int arg_width = region[0] / sizeof(double), arg_height = region[1];
-				bool run_conversion_kernel = arg_transpose || KernelSettings.texture_buffers;
+				
 				cl_mem& dest_buffer_tmp = run_conversion_kernel ? my_ocl_tmp_buffers[j] : *dest_image;
 				if (Config->Debug) fprintf(STD_OUT, "Transfer %c to GPU: region %d x %d\n", myMat, (int) region[0], (int) region[1]);
 

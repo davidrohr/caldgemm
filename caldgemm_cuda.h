@@ -79,7 +79,6 @@ private:
 	struct alternateSimpleQueueCBuffferEventStruct
 	{
 		cudaEvent_t event;
-		bool must_release;
 		bool used;
 	};
 	cudaEvent_t alternateSimpleQueueCopyCEvent[max_devices][obuffercount];
@@ -88,6 +87,7 @@ private:
 	cudaEvent_t alternateSimpleQueueEvent_tmp_bbuffers[max_devices][obuffercount];
 	bool alternateSimpleQueueEvent_tmp_abuffers_used[max_devices][obuffercount];
 	bool alternateSimpleQueueEvent_tmp_bbuffers_used[max_devices][obuffercount];
+	cudaEvent_t alternateSimpleQueueTmpEvents[2];
 	
 	cudaEvent_t* AlternateLookaheadTilesRemainingSQ_events;
 	virtual int CheckAlternateTilesRemainingSQ();

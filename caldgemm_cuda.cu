@@ -126,7 +126,7 @@ int caldgemm_cuda::Initialize(bool nocalinit)
 	for (int i = 0;i < nDevices;i++)
 	{
 		CHKRET(cudaSetDevice(cuda_devices[i]), "Settig CUDA Device");
-		for (int j = 0;j < obuffercount;j++)
+		for (int j = 0;j < (Config->AlternateSimpleQueuing ? 3 : obuffercount);j++)
 		{
 			CHKRET(cudaStreamCreate(&cuda_command_queues[i][j]), "Creating CUDA Stream");
 		}
@@ -136,6 +136,7 @@ int caldgemm_cuda::Initialize(bool nocalinit)
 	}
 
 	AlternateLookaheadDoneMutexSQ.Lock();
+	if (Config->AlternateSimpleQueuing) for (int i = 0;i < 2;i++) CHKRET(cudaEventCreateWithFlags(&alternateSimpleQueueTmpEvents[i], cudaEventDisableTiming), "Creating Event");
 	
 	return(0);
 }
@@ -289,24 +290,24 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 
 	if (Config->Debug) fprintf(STD_OUT, "\tExecuting MM kernel (device %d obuffer %d, k=%lld m=%lld n=%lld)\n", Task.device, Task.j, (long long int) Task.k, (long long int) blockm, (long long int) blockn);
 	
-	int use_queue = Task.j;
+	int use_queue = Config->AlternateSimpleQueuing ? 2 : Task.j;
 	
 	if (Config->SimpleGPUQueuing)
 	{
 		if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
 		{
-			CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][Task.j], alternateSimpleQueueCopyCEvent[Task.device][Task.j], 0), "StreamWaitEvent");
+			CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][use_queue], alternateSimpleQueueCopyCEvent[Task.device][Task.j], 0), "StreamWaitEvent");
 		}
 		else
 		{
 			if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][0][blockm].num_queue) && simple_queue_event_requested[Task.device][use_queue][0][blockm] == 0)
 			{
-				CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][Task.j], simple_queue_events[Task.device][0][blockm].event, 0), "StreamWaitEvent");
+				CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][use_queue], simple_queue_events[Task.device][0][blockm].event, 0), "StreamWaitEvent");
 				simple_queue_event_requested[Task.device][use_queue][0][blockm] = 1;
 			}
 			if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][1][blockn].num_queue) && simple_queue_event_requested[Task.device][use_queue][1][blockn] == 0)
 			{
-				CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][Task.j], simple_queue_events[Task.device][1][blockn].event, 0), "StreamWaitEvent");
+				CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][use_queue], simple_queue_events[Task.device][1][blockn].event, 0), "StreamWaitEvent");
 				simple_queue_event_requested[Task.device][use_queue][1][blockn] = 1;
 			}
 		}
@@ -352,30 +353,54 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 	CHKRET(cudaSetDevice(cuda_devices[Task.device]), "Setting CUDA Device");
 	if (Config->VerboseTiming)
 	{
-		CHKRET(cudaStreamSynchronize(cuda_command_queues[Task.device][Task.j]), "Synchronizing CUDA Stream");
+		CHKRET(cudaStreamSynchronize(cuda_command_queues[Task.device][use_queue]), "Synchronizing CUDA Stream");
 		Timers.Kernel.Start();
 	}
 	if (Config->Debug) fprintf(STD_OUT, "MM Kernel: height1 %d height2 %d width %d alpha %f beta %f pitch %d\n", (int) height1, (int) height2, (int) width, Alpha, Beta, (int) pitch);
 	dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
 #ifndef CALDGEMM_CUDA_CUBLAS
-	CUDAKernel <<<blocks, threads, 0, cuda_command_queues[Task.device][Task.j]>>> (cbuffer, abuffer, bbuffer, height1, height2, width, Alpha, Beta, pitch);
+	CUDAKernel <<<blocks, threads, 0, cuda_command_queues[Task.device][use_queue]>>> (cbuffer, abuffer, bbuffer, height1, height2, width, Alpha, Beta, pitch);
 #else
-	cublasSetStream(cublas_handles[Task.device], cuda_command_queues[Task.device][Task.j]);
+	cublasSetStream(cublas_handles[Task.device], cuda_command_queues[Task.device][use_queue]);
 	cublasDgemm(cublas_handles[Task.device], CUBLAS_OP_N, CUBLAS_OP_T, height1, height2, width, &Alpha, bbuffer, height1, abuffer, height2, &Beta, cbuffer, pitch);
 #endif
 	CHKRET(cudaGetLastError(), "CUDA Kernel Execution");
 
 	if (Config->VerboseTiming)
 	{
-		CHKRET(cudaStreamSynchronize(cuda_command_queues[Task.device][Task.j]), "Synchronizing CUDA Stream");
+		CHKRET(cudaStreamSynchronize(cuda_command_queues[Task.device][use_queue]), "Synchronizing CUDA Stream");
 		Timers.Kernel.Stop();
 		Timers.CounterCopyFrom.Start();
 	}
 
+	cudaEvent_t* retrieveCEvent = NULL;
+	if (Config->SimpleGPUQueuing && NeedSimpleQueueKernelEvent(blockm, blockn, Task.k, Task.device))
+	{
+		const int buf = (DGEMM_favor_m ? buffer_pointers_A[Task.device][blockm] : buffer_pointers_B[Task.device][blockn]) % ibuffercount;
+		CHKRET(cudaEventRecord(simple_queue_event_kernels[Task.device][buf][use_queue], cuda_command_queues[Task.device][use_queue]), "Recording simple queue kernel buffer event  %d %d", Task.device, use_queue);
+		simple_queue_event_kernels_used[Task.device][buf][use_queue] = true;
+		retrieveCEvent = &simple_queue_event_kernels[Task.device][buf][use_queue];
+	}
+	else if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
+	{
+		retrieveCEvent = &alternateSimpleQueueTmpEvents[0];
+		CHKRET(cudaEventRecord(alternateSimpleQueueTmpEvents[0], cuda_command_queues[Task.device][use_queue]), "Recording simple queue kernel buffer event  %d %d", Task.device, use_queue);
+	}
+
 	if (Config->DstMemory == 'g')
 	{
+		if (Config->AlternateSimpleQueuing)
+		{
+			use_queue = 1;
+			CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][use_queue], *retrieveCEvent, 0), "StreamWaitEvent");
+		}
 		if (Config->Debug) fprintf(STD_OUT, "Transfer C from GPU: region %d x %d\n", (int) (height1 * sizeof(double)), (int) height2);
-		CHKRET(cudaMemcpy2DAsync(C + blockn * Config->Height + blockm * Config->Height * C_pitch, C_pitch * sizeof(double), cuda_cbuffers[Task.device][Task.j], height1 * sizeof(double), height1 * sizeof(double), height2, cudaMemcpyDeviceToHost, cuda_command_queues[Task.device][Task.j]), "Fetching result");
+		CHKRET(cudaMemcpy2DAsync(C + blockn * Config->Height + blockm * Config->Height * C_pitch, C_pitch * sizeof(double), cuda_cbuffers[Task.device][Task.j], height1 * sizeof(double), height1 * sizeof(double), height2, cudaMemcpyDeviceToHost, cuda_command_queues[Task.device][use_queue]), "Fetching result");
+		if (Config->AlternateSimpleQueuing)
+		{
+			CHKRET(cudaEventRecord(alternateSimpleQueueCBuffferEvent[Task.device][Task.j].event, cuda_command_queues[Task.device][use_queue]), "Recording alternateSimpleQueueCBuffferEvent %d %d", Task.device, Task.j);
+			alternateSimpleQueueCBuffferEvent[Task.device][Task.j].used = true;
+		}
 	}
 
 	if (Config->VerboseTiming)
@@ -392,17 +417,10 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 		}
 		else if(AlternateLookaheadTilesRemaining && blockm < AlternateLookaheadBlocksM)
 		{
-			CHKRET(cudaEventRecord(AlternateLookaheadTilesRemainingSQ_events[AlternateLookaheadTilesRemaining - 1], cuda_command_queues[Task.device][Task.j]), "Recording alternateLookeadSQevent %d", AlternateLookaheadTilesRemaining); //This is only needed to check whether alternate lookahead has finished
+			CHKRET(cudaEventRecord(AlternateLookaheadTilesRemainingSQ_events[AlternateLookaheadTilesRemaining - 1], cuda_command_queues[Task.device][use_queue]), "Recording alternateLookeadSQevent %d", AlternateLookaheadTilesRemaining); //This is only needed to check whether alternate lookahead has finished
 		}
 	}
 	
-	if (Config->SimpleGPUQueuing && NeedSimpleQueueKernelEvent(blockm, blockn, Task.k, Task.device))
-	{
-		const int buf = (DGEMM_favor_m ? buffer_pointers_A[Task.device][blockm] : buffer_pointers_B[Task.device][blockn]) % ibuffercount;
-		CHKRET(cudaEventRecord(simple_queue_event_kernels[Task.device][buf][Task.j], cuda_command_queues[Task.device][Task.j]), "Recording simple queue kernel buffer event  %d %d", Task.device, Task.j);
-		simple_queue_event_kernels_used[Task.device][buf][use_queue] = true;
-	}
-
 	return(0);
 }
 
@@ -413,12 +431,13 @@ int caldgemm_cuda::ExitRuntime()
 	for (int i = 0;i < nDevices;i++)
 	{
 		CHKRET(cudaSetDevice(cuda_devices[i]), "Setting CUDA Device");
-		for (int j = 0;j < obuffercount;j++)
+		for (int j = 0;j < (Config->AlternateSimpleQueuing ? 3 : obuffercount);j++)
 		{
 			CHKRET(cudaStreamDestroy(cuda_command_queues[i][j]), "Destroying CUDA Stream");
 		}
 	}
 	AlternateLookaheadDoneMutexSQ.Unlock();
+	if (Config->AlternateSimpleQueuing) for (int i = 0;i < 2;i++) CHKRET(cudaEventDestroy(alternateSimpleQueueTmpEvents[i]), "Destroying Event");
 
 	return(0);
 }
@@ -451,6 +470,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 
 	conversionKernelTaskStruct convTasks[2];
 	int nConvTasks = 0;
+	int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
 
 	for (int iMat = 0;iMat < 2;iMat++)
 	{
@@ -462,6 +482,8 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		if (iMat ? prepareN : prepareM)
 		{
 			CALDGEMM_PREPARE_BACKEND_VARS2;
+			cudaEvent_t* my_alternateSimpleQueueEvent_tmp_buffers = iMat ? alternateSimpleQueueEvent_tmp_bbuffers[num_device] : alternateSimpleQueueEvent_tmp_abuffers[num_device];
+			bool* my_alternateSimpleQueueEvent_tmp_buffers_used = iMat ? alternateSimpleQueueEvent_tmp_bbuffers_used[num_device] : alternateSimpleQueueEvent_tmp_abuffers_used[num_device];
 			
 			if (Config->Debug) fprintf(STD_OUT, "\tCopying part of %c to GPU (k = %lld, m = %lld, n = %lld)\n", myMat, (long long int) k, (long long int) blockm, (long long int) blockn);
 			
@@ -472,7 +494,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 					if (Config->AlternateSimpleQueuing) i = 2;
 					if ((Config->AlternateSimpleQueuing || i != j) && simple_queue_event_kernels_used[num_device][destbuffer][i])
 					{
-						CHKRET(cudaStreamWaitEvent(cuda_command_queues[num_device][j], simple_queue_event_kernels[num_device][destbuffer][i], 0), "StreamWaitEvent");
+						CHKRET(cudaStreamWaitEvent(cuda_command_queues[num_device][use_queue], simple_queue_event_kernels[num_device][destbuffer][i], 0), "StreamWaitEvent");
 					}
 					simple_queue_event_kernels_used[num_device][destbuffer][i] = false;
 					if (Config->AlternateSimpleQueuing) break;
@@ -484,15 +506,23 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 			int arg_transpose = myTranspose ^ myKernelTranspose;
 			void* dest_image = access_bbuffers ? cuda_bbuffers[num_device][destbuffer] : cuda_abuffers[num_device][destbuffer];
 			void*& dest_buffer_tmp = arg_transpose ? (iMat ? cuda_tmp_bbuffers[num_device][j] : cuda_tmp_abuffers[num_device][j]) : dest_image;
+			
+			if (Config->AlternateSimpleQueuing && arg_transpose && my_alternateSimpleQueueEvent_tmp_buffers_used[j])
+			{
+				CHKRET(cudaStreamWaitEvent(cuda_command_queues[num_device][use_queue], my_alternateSimpleQueueEvent_tmp_buffers[j], 0), "StreamWaitEvent");
+				my_alternateSimpleQueueEvent_tmp_buffers_used[j] = false;
+			}
 
 			if (Config->Debug) fprintf(STD_OUT, "Transfer %c to GPU: region %d x %d\n", myMat, (int) width, (int) height);
-			CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying %c to device", myMat);
-			if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
+			CHKRET(cudaMemcpy2DAsync(dest_buffer_tmp, width, src_ptr, pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][use_queue]), "Copying %c to device", myMat);
+			if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][use_queue]);
 
 			if (arg_transpose)
 			{
+				if (Config->AlternateSimpleQueuing) CHKRET(cudaEventRecord(alternateSimpleQueueTmpEvents[iMat], cuda_command_queues[num_device][use_queue]), "Recording tmp event %d", iMat);
 				size_t arg_width = width / sizeof(double), arg_height = height;
 				convTasks[nConvTasks++] = conversionKernelTaskStruct(dest_buffer_tmp, dest_image, arg_width, arg_height, myMat);
+				if (Config->AlternateSimpleQueuing) my_alternateSimpleQueueEvent_tmp_buffers_used[j] = true;
 			}
 		}
 	}
@@ -503,16 +533,20 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		height = HeightM;
 		Timers.divideC++;
 		if (Config->Debug) fprintf(STD_OUT, "Transfer C to GPU: region %d x %d\n", (int) width, (int) height);
-		CHKRET(cudaMemcpy2DAsync(cuda_cbuffers[num_device][j], width, C + blockn * Config->Height + blockm * Config->Height * C_pitch, C_pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][j]), "Copying C to device");
+		if (Config->AlternateSimpleQueuing && alternateSimpleQueueCBuffferEvent[num_device][j].used) CHKRET(cudaStreamWaitEvent(cuda_command_queues[num_device][use_queue], alternateSimpleQueueCBuffferEvent[num_device][j].event, 0), "StreamWaitEvent");
+		CHKRET(cudaMemcpy2DAsync(cuda_cbuffers[num_device][j], width, C + blockn * Config->Height + blockm * Config->Height * C_pitch, C_pitch * sizeof(double), width, height, cudaMemcpyHostToDevice, cuda_command_queues[num_device][use_queue]), "Copying C to device");
+		if (Config->AlternateSimpleQueuing) CHKRET(cudaEventRecord(alternateSimpleQueueCopyCEvent[num_device][j], cuda_command_queues[num_device][use_queue]), "Recording alternateSimpleQueueCopyCEvent event %d %d", num_device, j);
 	}
 	
+	if (Config->AlternateSimpleQueuing) use_queue = 2;
 	for (int i = 0;i < nConvTasks;i++)
 	{
 		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
 		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel %c: x %d y %d\n", convTasks[i].myMat, (int) convTasks[i].arg_width, (int) convTasks[i].arg_height);
-		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][j]>>> ((double*) convTasks[i].dest_buffer_tmp, (double*) convTasks[i].dest_image, convTasks[i].arg_width, convTasks[i].arg_height);
+		if (Config->AlternateSimpleQueuing) CHKRET(cudaStreamWaitEvent(cuda_command_queues[num_device][use_queue], alternateSimpleQueueTmpEvents[convTasks[i].myMat - 'A'], 0), "StreamWaitEvent");
+		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][use_queue]>>> ((double*) convTasks[i].dest_buffer_tmp, (double*) convTasks[i].dest_image, convTasks[i].arg_width, convTasks[i].arg_height);
 		CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
-		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][j]);
+		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][use_queue]);
 	}
 	
 	for (int iMat = 0;iMat < 2;iMat++)
@@ -525,7 +559,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 				{
 					size_t& myblock = iMat ? blockn : blockm;
 					simple_queue_events[num_device][iMat][myblock].num_queue = j;
-					CHKRET(cudaEventRecord(simple_queue_events[num_device][iMat][myblock].event, cuda_command_queues[num_device][j]), "Recording simpleQueueEvent event %d %d", num_device, iMat);
+					CHKRET(cudaEventRecord(simple_queue_events[num_device][iMat][myblock].event, cuda_command_queues[num_device][use_queue]), "Recording simpleQueueEvent event %d %d", num_device, iMat);
 				}
 			}
 			else
@@ -538,7 +572,8 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 	
 	if (Config->VerboseTiming)
 	{
-		CHKRET(cudaStreamSynchronize(cuda_command_queues[num_device][j]), "Synchronizing CUDA Stream");
+		CHKRET(cudaStreamSynchronize(cuda_command_queues[num_device][use_queue]), "Synchronizing CUDA Stream");
+		if (Config->AlternateSimpleQueuing) CHKRET(cudaStreamSynchronize(cuda_command_queues[num_device][0]), "Synchronizing CUDA Stream");
 		Timers.CounterCopyTo.Stop();
 	}
 
@@ -671,7 +706,7 @@ int caldgemm_cuda::RunCALDGEMM_Init()
 		SetupSimpleQueue(mb, nb);
 		if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
 		{
-			for (int i = 0;i < nDevices;i++) for (int j = 0;j < obuffercount;j++) alternateSimpleQueueCBuffferEvent[i][j].must_release = alternateSimpleQueueCBuffferEvent[i][j].used = false;
+			for (int i = 0;i < nDevices;i++) for (int j = 0;j < obuffercount;j++) alternateSimpleQueueCBuffferEvent[i][j].used = false;
 		}
 		memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(bool));
 
@@ -790,4 +825,4 @@ void caldgemm_cuda::SetupSimpleQueue(size_t mb, size_t nb)
 		}
 }
 
-int caldgemm_cuda::SimpleQueuingAvailable() {return(1);}
+int caldgemm_cuda::SimpleQueuingAvailable() {return(2);}
