@@ -1877,7 +1877,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 			{
 				for (int i = 0;i < obuffercount;i++)
 				{
-					if (Config->AlternateSimpleQueuing && iMat == 0) i = 2;
+					if (Config->AlternateSimpleQueuing) i = 2;
 					if (simple_queue_event_kernels[num_device][destbuffer][i] != NULL)
 					{
 						//printf("DEBUG: %cBuffer block%c %d Need to wait for device %d Buffer %d Context %d\n", myMat, iMat ? 'n' : 'm', (int) myblock, num_device, destbuffer, i);
@@ -1891,6 +1891,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 						}
 						simple_queue_event_kernels[num_device][destbuffer][i] = 0;
 					}
+					if (Config->AlternateSimpleQueuing) break;
 				}
 			}
 			cl_mem* dest_image = access_bbuffers ? &ocl_bbuffers[pipelineBuffer][num_device][destbuffer] : &ocl_abuffers[pipelineBuffer][num_device][destbuffer];
