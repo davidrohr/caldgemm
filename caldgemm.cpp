@@ -193,6 +193,9 @@ caldgemm::caldgemm()
 		}
 	}
 	
+	conf_gpushaders = 0;
+	conf_gpufreq = 0;
+	
 	warn_wrong_memory_allocation = true;
 }
 
