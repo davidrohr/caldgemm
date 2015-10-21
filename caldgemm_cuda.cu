@@ -623,10 +623,8 @@ int caldgemm_cuda::RunCALDGEMM_Init()
 		{
 			for (int i = 0;i < nDevices;i++) for (int j = 0;j < obuffercount;j++) alternateSimpleQueueCBuffferEvent[i][j].must_release = alternateSimpleQueueCBuffferEvent[i][j].used = false;
 		}
-		else
-		{
-			memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(bool));
-		}
+		memset(simple_queue_event_requested[0][0][0], 0, nDevices * obuffercount * (mb + nb) * sizeof(bool));
+
 		if (Config->AlternateSimpleQueuing)
 		{
 			memset(alternateSimpleQueueEvent_tmp_abuffers_used, 0, nDevices * obuffercount * sizeof(bool));
