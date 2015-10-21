@@ -1039,7 +1039,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			}
 			if (num < ibuffercount)
 			{
-				cl_event* ev = &simple_queue_event_kernels[Task.device][DGEMM_favor_m ? (buffer_pointers_A[Task.device][blockm] % ibuffercount) : (buffer_pointers_B[Task.device][blockn] % ibuffercount)][use_queue];
+				cl_event* ev = &simple_queue_event_kernels[Task.device][(DGEMM_favor_m ? buffer_pointers_A[Task.device][blockm] buffer_pointers_B[Task.device][blockn]) % ibuffercount][use_queue];
 				if (Config->AlternateSimpleQueuing && *ev != NULL)
 				{
 					CHKRET(clReleaseEvent(*ev), "Error releasing event");
