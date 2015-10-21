@@ -334,7 +334,7 @@ protected:
 	virtual int AllowCPUFallback();
 	virtual int UseMutexPerDevice() = 0;
 	virtual int SimpleQueuingAvailable();
-	bool NeedSimpleQueueKernelEvent(int blockm, int blockn, int mb, int nb, int k, int device);
+	bool NeedSimpleQueueKernelEvent(int blockm, int blockn, int k, int device);
 
 	virtual int ValidateRuntime() = 0;
 	virtual int CheckDevices() = 0;
@@ -356,8 +356,8 @@ protected:
 	virtual int FinishDataInit();
 	virtual void FinishDataFill();
 	virtual int CheckParams();
-	virtual void Preallocate();
-	virtual void PreallocateFree();
+	virtual int Preallocate();
+	virtual int PreallocateFree();
 	
 	virtual int CaldgemmCustomAutoHeight(size_t MaxGpuM, size_t MaxGpuN, int nDevices);
 	virtual int CaldgemmCustomModHeight(size_t MOD_OVER, size_t MOD_GPU);

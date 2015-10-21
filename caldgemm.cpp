@@ -973,7 +973,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 
 	if (Config->PreallocData)
 	{
-		Preallocate();
+		if (Preallocate()) return(1);
 	}
 	
 	/*fprintf(STD_OUT, "Setting FIFO scheduler\n");
@@ -2035,7 +2035,7 @@ void caldgemm::CheckAlternateTilesRemaining(size_t m)
 	}
 }
 
-void caldgemm::Preallocate()
+int caldgemm::Preallocate()
 {
 	for (int l = 0;l < nDevices;l++)
 	{
@@ -2046,9 +2046,10 @@ void caldgemm::Preallocate()
 	}
 	tileDistribution = new int[Config->PreallocData * Config->PreallocData];
 	memset(tileDistribution, 0, Config->PreallocData * Config->PreallocData * sizeof(int));
+	return(0);
 }
 
-void caldgemm::PreallocateFree()
+int caldgemm::PreallocateFree()
 {
 	for (int l = 0;l < nDevices;l++)
 	{
@@ -2056,6 +2057,7 @@ void caldgemm::PreallocateFree()
 		delete[] buffer_pointers_B[l];
 	}
 	delete[] tileDistribution;
+	return(0);
 }
 
 void caldgemm::SetNumberDevices(int n)
@@ -3228,7 +3230,7 @@ int caldgemm::ExitCALDGEMM()
 	nDevices = nDevicesInitialized;
 	if (Config->Debug) fprintf(STD_OUT, "Uninitializing CALDGEMM\n");
 	if (Config->PipelinedOperation) delete finishData;
-	if (Config->PreallocData) PreallocateFree();
+	if (Config->PreallocData) if (PreallocateFree()) return(1);
 
 	if (Config->UseGPU && ExitDevices()) return(1);
 	if (Config->MultiThread && UseOutputPthreads())
@@ -3968,8 +3970,11 @@ int caldgemm::SimpleQueuingAvailable()
 	return(0);
 }
 
-bool caldgemm::NeedSimpleQueueKernelEvent(int blockm, int blockn, int mb, int nb, int k, int device)
+bool caldgemm::NeedSimpleQueueKernelEvent(int blockm, int blockn, int k, int device)
 {
+	int mb = (gpu_m + Config->Height - 1) / Config->Height;
+	int nb = (gpu_n + Config->Height - 1) / Config->Height;
+
 	if (DGEMM_favor_m ? (blockm != mb - 1) : (blockn != nb - 1))
 	{
 		int kklast = k + (DGEMM_favor_m ? nb : mb);
