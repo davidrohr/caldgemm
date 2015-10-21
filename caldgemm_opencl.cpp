@@ -1023,35 +1023,21 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		//Find whether we have to create an event, such that DGEMM_prepare_backend can check we are done
 		int mb = (gpu_m + Config->Height - 1) / Config->Height;
 		int nb = (gpu_n + Config->Height - 1) / Config->Height;
-				
-		if (DGEMM_favor_m ? (blockm != mb - 1) : (blockn != nb - 1))
-		{
-			size_t kklast = Task.k + (DGEMM_favor_m ? nb : mb);
-			kklast -= kklast % (DGEMM_favor_m ? nb : mb);
 
-			int num = 0;
-			for (size_t kk = Task.k;kk < kklast;kk++)
+		if (NeedSimpleQueueKernelEvent(blockm, blockn, mb, nb, Task.k, Task.device))
+		{
+			cl_event* ev = &simple_queue_event_kernels[Task.device][(DGEMM_favor_m ? buffer_pointers_A[Task.device][blockm] : buffer_pointers_B[Task.device][blockn]) % ibuffercount][use_queue];
+			if (Config->AlternateSimpleQueuing && *ev != NULL)
 			{
-				if (tileDistribution[kk] == Task.device)
-				{
-					if (++num == ibuffercount) break;
-				}
+				CHKRET(clReleaseEvent(*ev), "Error releasing event");
 			}
-			if (num < ibuffercount)
+			if (kernel_event == NULL)
 			{
-				cl_event* ev = &simple_queue_event_kernels[Task.device][(DGEMM_favor_m ? buffer_pointers_A[Task.device][blockm] buffer_pointers_B[Task.device][blockn]) % ibuffercount][use_queue];
-				if (Config->AlternateSimpleQueuing && *ev != NULL)
-				{
-					CHKRET(clReleaseEvent(*ev), "Error releasing event");
-				}
-				if (kernel_event == NULL)
-				{
-					kernel_event = ev;
-				}
-				else
-				{
-					need_retain_kernel_event = ev;
-				}
+				kernel_event = ev;
+			}
+			else
+			{
+				need_retain_kernel_event = ev;
 			}
 		}
 	}

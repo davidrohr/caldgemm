@@ -334,6 +334,7 @@ protected:
 	virtual int AllowCPUFallback();
 	virtual int UseMutexPerDevice() = 0;
 	virtual int SimpleQueuingAvailable();
+	bool NeedSimpleQueueKernelEvent(int blockm, int blockn, int mb, int nb, int k, int device);
 
 	virtual int ValidateRuntime() = 0;
 	virtual int CheckDevices() = 0;

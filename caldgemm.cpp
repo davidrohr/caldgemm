@@ -3968,6 +3968,29 @@ int caldgemm::SimpleQueuingAvailable()
 	return(0);
 }
 
+bool caldgemm::NeedSimpleQueueKernelEvent(int blockm, int blockn, int mb, int nb, int k, int device)
+{
+	if (DGEMM_favor_m ? (blockm != mb - 1) : (blockn != nb - 1))
+	{
+		int kklast = k + (DGEMM_favor_m ? nb : mb);
+		kklast -= kklast % (DGEMM_favor_m ? nb : mb);
+
+		int num = 0;
+		for (int kk = k;kk < kklast;kk++)
+		{
+			if (tileDistribution[kk] == device)
+			{
+				if (++num == ibuffercount) break;
+			}
+		}
+		if (num < ibuffercount)
+		{
+			return(true);
+		}
+	}
+	return(false);
+}
+
 #ifndef USE_GOTO_BLAS
 static int caldgemm_restrict_cpus = 0;
 static int current_num_threads = get_num_procs();
