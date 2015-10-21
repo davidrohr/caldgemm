@@ -218,6 +218,7 @@ caldgemm::caldgemm_config::caldgemm_config()
 	ImprovedSchedulerBalance = 1;
 	SimpleGPUQueuing = false;
 	AlternateSimpleQueuing = false;
+	AlternateSimpleQueuingMulti = false;
 	NumDevices = max_devices;
 	NumActiveDevices = 0;
 	max_bbuffers = 0;
@@ -638,6 +639,11 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		Config->DynamicSched = false;
 		Config->SmallTiles = 1;
 	}
+	if (SimpleQueuingAvailable() < 3 && Config->AlternateSimpleQueuingMulti)
+	{
+		fprintf(STD_OUT, "Alternate Simple Multi Queuing not supported by backend, disabling\n");
+		Config->AlternateSimpleQueuingMulti = false;
+	}
 	if (SimpleQueuingAvailable() < 2 && Config->AlternateSimpleQueuing)
 	{
 		fprintf(STD_OUT, "Alternate Simple Queuing not supported by backend, disabling\n");
@@ -648,6 +654,7 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		fprintf(STD_OUT, "Simple GPU Queuing not supported by backend, disabling\n");
 		Config->SimpleGPUQueuing = false;
 	}
+	if (Config->AlternateSimpleQueuingMulti) Config->AlternateSimpleQueuing = true;
 	if (Config->AlternateSimpleQueuing) Config->SimpleGPUQueuing = true;
 	if (!Config->SimpleGPUQueuing && Config->PipelinedOperation)
 	{
@@ -3800,6 +3807,7 @@ void caldgemm::printConfig(caldgemm::caldgemm_config* newConfig, caldgemm::caldg
 	PRINT_CONFIG_INT(ImprovedSchedulerBalance);
 	PRINT_CONFIG_INT(SimpleGPUQueuing);
 	PRINT_CONFIG_INT(AlternateSimpleQueuing);
+	PRINT_CONFIG_INT(AlternateSimpleQueuingMulti);
 	PRINT_CONFIG_INT(ParallelDMA);
 	PRINT_CONFIG_INT(GroupParallelDMA);
 	PRINT_CONFIG_DOUBLE(GPURatio);

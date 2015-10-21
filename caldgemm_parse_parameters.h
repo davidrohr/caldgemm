@@ -309,6 +309,10 @@ for (unsigned int x = 1; x < argc; ++x)
 		{
 			Config->AlternateSimpleQueuing = GET_BOOLEAN(true);
 		}
+		else if (argv[x][2] == 'M')
+		{
+			Config->AlternateSimpleQueuingMulti = GET_BOOLEAN(true);
+		}
 		else if (argv[x][2] == 'p')
 		{
 			if (++x >= argc) return(1);

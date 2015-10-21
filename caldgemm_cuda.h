@@ -94,7 +94,7 @@ private:
 	qSem AlternateLookaheadDoneMutexSQ;
 
 	int cuda_devices[max_devices];
-	cudaStream_t cuda_command_queues[max_devices][obuffercount];
+	cudaStream_t cuda_command_queues[max_devices][obuffercount + 2];
 	void* cuda_abuffers[max_devices][ibuffercount];
 	void* cuda_bbuffers[max_devices][max_bbuffers];
 	void* cuda_cbuffers[max_devices][obuffercount];
