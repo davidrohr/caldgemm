@@ -242,6 +242,30 @@ int caldgemm_cuda::InitDevices()
 		{
 			CHKRET(cudaEventCreateWithFlags(&cuda_conversion_events[i][j], cudaEventDisableTiming), "Creating Event 1 %d %d\n", i, j);
 		}
+		if (Config->SimpleGPUQueuing)
+		{
+			for (int j = 0;j < ibuffercount;j++) for (int k = 0;k < obuffercount;k++)
+			{
+				CHKRET(cudaEventCreateWithFlags(&simple_queue_event_kernels[i][j][k], cudaEventDisableTiming), "Creating Event 2 %d %d %d\n", i, j, k);
+			}
+			if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
+			{
+				for (int j = 0;j < obuffercount;j++)
+				{
+					CHKRET(cudaEventCreateWithFlags(&alternateSimpleQueueCopyCEvent[i][j], cudaEventDisableTiming), "Creating Event 3 %d %d\n", i, j);
+					CHKRET(cudaEventCreateWithFlags(&alternateSimpleQueueCBuffferEvent[i][j].event, cudaEventDisableTiming), "Creating Event 4 %d %d\n", i, j);
+
+				}
+			}
+			if (Config->AlternateSimpleQueuing)
+			{
+				for (int j = 0;j < obuffercount;j++)
+				{
+					CHKRET(cudaEventCreateWithFlags(&alternateSimpleQueueEvent_tmp_abuffers[i][j], cudaEventDisableTiming), "Creating Event 5 %d %d\n", i, j);
+					CHKRET(cudaEventCreateWithFlags(&alternateSimpleQueueEvent_tmp_bbuffers[i][j], cudaEventDisableTiming), "Creating Event 6 %d %d\n", i, j);
+				}
+			}
+		}
 	}
 
 	return(0);
@@ -552,6 +576,29 @@ int caldgemm_cuda::ExitDevices()
 		for (int j = 0;j < 2;j++)
 		{
 			CHKRET(cudaEventDestroy(cuda_conversion_events[i][j]), "Destroying Event 1 %d %d\n", i, j);
+		}
+		if (Config->SimpleGPUQueuing)
+		{
+			for (int j = 0;j < ibuffercount;j++) for (int k = 0;k < obuffercount;k++)
+			{
+				CHKRET(cudaEventDestroy(simple_queue_event_kernels[i][j][k]), "Destroying Event 2 %d %d %d\n", i, j, k);
+			}
+			if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
+			{
+				for (int j = 0;j < obuffercount;j++)
+				{
+					CHKRET(cudaEventDestroy(alternateSimpleQueueCopyCEvent[i][j]), "Destroying Event 3 %d %d\n", i, j);
+					CHKRET(cudaEventDestroy(alternateSimpleQueueCBuffferEvent[i][j].event), "Destroying Event 4 %d %d\n", i, j);
+				}
+			}
+			if (Config->AlternateSimpleQueuing)
+			{
+				for (int j = 0;j < obuffercount;j++)
+				{
+					CHKRET(cudaEventDestroy(alternateSimpleQueueEvent_tmp_abuffers[i][j]), "Destroying Event 5 %d %d\n", i, j);
+					CHKRET(cudaEventDestroy(alternateSimpleQueueEvent_tmp_bbuffers[i][j]), "Destroying Event 6 %d %d\n", i, j);
+				}
+			}
 		}
 	}
 	return(0);
