@@ -267,24 +267,26 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 	
 	int use_queue = Task.j;
 	
-	if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
+	if (Config->SimpleGPUQueuing)
 	{
-		CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][Task.j], alternateSimpleQueueCopyCEvent[Task.device][Task.j], 0), "StreamWaitEvent");
-	}
-	else
-	{
-		if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][0][blockm].num_queue) && simple_queue_event_requested[Task.device][use_queue][0][blockm] == 0)
+		if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g')
 		{
-			CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][Task.j], simple_queue_events[Task.device][0][blockm].event, 0), "StreamWaitEvent");
-			simple_queue_event_requested[Task.device][use_queue][0][blockm] = 1;
+			CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][Task.j], alternateSimpleQueueCopyCEvent[Task.device][Task.j], 0), "StreamWaitEvent");
 		}
-		if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][1][blockn].num_queue) && simple_queue_event_requested[Task.device][use_queue][1][blockn] == 0)
+		else
 		{
-			CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][Task.j], simple_queue_events[Task.device][1][blockn].event, 0), "StreamWaitEvent");
-			simple_queue_event_requested[Task.device][use_queue][1][blockn] = 1;
+			if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][0][blockm].num_queue) && simple_queue_event_requested[Task.device][use_queue][0][blockm] == 0)
+			{
+				CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][Task.j], simple_queue_events[Task.device][0][blockm].event, 0), "StreamWaitEvent");
+				simple_queue_event_requested[Task.device][use_queue][0][blockm] = 1;
+			}
+			if ((Config->AlternateSimpleQueuing || Task.j != simple_queue_events[Task.device][1][blockn].num_queue) && simple_queue_event_requested[Task.device][use_queue][1][blockn] == 0)
+			{
+				CHKRET(cudaStreamWaitEvent(cuda_command_queues[Task.device][Task.j], simple_queue_events[Task.device][1][blockn].event, 0), "StreamWaitEvent");
+				simple_queue_event_requested[Task.device][use_queue][1][blockn] = 1;
+			}
 		}
 	}
-	
 
 	double *abuffer, *bbuffer;
 #ifdef REUSE_BBUFFERS
@@ -369,7 +371,8 @@ int caldgemm_cuda::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, in
 			CHKRET(cudaEventRecord(AlternateLookaheadTilesRemainingSQ_events[AlternateLookaheadTilesRemaining - 1], cuda_command_queues[Task.device][Task.j]), "Recording alternateLookeadSQevent %d", AlternateLookaheadTilesRemaining); //This is only needed to check whether alternate lookahead has finished
 		}
 	}
-	if (NeedSimpleQueueKernelEvent(blockm, blockn, Task.k, Task.device))
+	
+	if (Config->SimpleGPUQueuing && NeedSimpleQueueKernelEvent(blockm, blockn, Task.k, Task.device))
 	{
 		const int buf = (DGEMM_favor_m ? buffer_pointers_A[Task.device][blockm] : buffer_pointers_B[Task.device][blockn]) % ibuffercount;
 		CHKRET(cudaEventRecord(simple_queue_event_kernels[Task.device][buf][Task.j], cuda_command_queues[Task.device][Task.j]), "Recording simple queue kernel buffer event  %d %d", Task.device, Task.j);
@@ -739,3 +742,5 @@ void caldgemm_cuda::SetupSimpleQueue(size_t mb, size_t nb)
 			}
 		}
 }
+
+int caldgemm_cuda::SimpleQueuingAvailable() {return(1);}

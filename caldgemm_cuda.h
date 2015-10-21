@@ -64,6 +64,7 @@ private:
 	virtual int FreeMemory(double* ptr, bool gpuaccessible = false);
 	virtual int Preallocate();
 	virtual int PreallocateFree();
+	virtual int SimpleQueuingAvailable();
 	
 	void SetupSimpleQueue(size_t mb, size_t nb);
 	struct caldgemm_cuda_simple_queue_event
