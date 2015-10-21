@@ -62,6 +62,35 @@ private:
 
 	virtual double* AllocMemory(size_t nDoubles, bool page_locked, bool huge_pages, bool gpuaccessible = false, bool interleave = false);
 	virtual int FreeMemory(double* ptr, bool gpuaccessible = false);
+	virtual int Preallocate();
+	virtual int PreallocateFree();
+	
+	void SetupSimpleQueue(size_t mb, size_t nb);
+	struct caldgemm_cuda_simple_queue_event
+	{
+		cudaEvent_t event;
+		int num_queue;
+	};
+	caldgemm_cuda_simple_queue_event* simple_queue_events[max_devices][2]; //2 for m and n direction
+	bool* simple_queue_event_requested[max_devices][obuffercount][2];
+	cudaEvent_t simple_queue_event_kernels[max_devices][ibuffercount][obuffercount];
+	bool simple_queue_event_kernels_used[max_devices][ibuffercount][obuffercount];
+	struct alternateSimpleQueueCBuffferEventStruct
+	{
+		cudaEvent_t event;
+		bool must_release;
+		bool used;
+	};
+	cudaEvent_t alternateSimpleQueueCopyCEvent[max_devices][obuffercount];
+	alternateSimpleQueueCBuffferEventStruct alternateSimpleQueueCBuffferEvent[max_devices][obuffercount];
+	cudaEvent_t alternateSimpleQueueEvent_tmp_abuffers[max_devices][obuffercount];
+	cudaEvent_t alternateSimpleQueueEvent_tmp_bbuffers[max_devices][obuffercount];
+	bool alternateSimpleQueueEvent_tmp_abuffers_used[max_devices][obuffercount];
+	bool alternateSimpleQueueEvent_tmp_bbuffers_used[max_devices][obuffercount];
+	
+	cudaEvent_t* AlternateLookaheadTilesRemainingSQ_events;
+	virtual int CheckAlternateTilesRemainingSQ();
+	qSem AlternateLookaheadDoneMutexSQ;
 
 	int cuda_devices[max_devices];
 	cudaStream_t cuda_command_queues[max_devices][obuffercount];

@@ -2191,23 +2191,15 @@ int caldgemm_opencl::PreallocateFree()
 void caldgemm_opencl::SetupSimpleQueue(size_t mb, size_t nb)
 {
 	if (Config->AlternateSimpleQueuing && Config->DstMemory == 'g') return;
-	for (int i = 0;i < nDevices;i++)
-	{
-		for (int j = 0;j < obuffercount;j++)
+	for (int i = 0;i < nDevices;i++) for (int j = 0;j < obuffercount;j++) for (int k = 0;k < 2;k++)
+		if (i || j || k)
 		{
-			for (int k = 0;k < 2;k++)
+			simple_queue_event_requested[i][j][k] = &simple_queue_event_requested[0][0][0][(k ? mb : 0) + j * (mb + nb) + i * obuffercount * (mb + nb)];
+			if (j == 0)
 			{
-				if (i || j || k)
-				{
-					simple_queue_event_requested[i][j][k] = &simple_queue_event_requested[0][0][0][(k ? mb : 0) + j * (mb + nb) + i * obuffercount * (mb + nb)];
-					if (j == 0)
-					{
-						simple_queue_events[i][k] = &simple_queue_events[0][0][(k ? mb : 0) + i * (mb + nb)];
-					}
-				}
+				simple_queue_events[i][k] = &simple_queue_events[0][0][(k ? mb : 0) + i * (mb + nb)];
 			}
 		}
-	}
 }
 
 int caldgemm_opencl::FinishDataInit()
@@ -2319,15 +2311,15 @@ int caldgemm_opencl::RunCALDGEMM_Exit()
 
 	if (Config->SimpleGPUQueuing)
 	{
+		const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
+		const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
+
 		if (!(Config->AlternateSimpleQueuing && Config->DstMemory == 'g'))
 		{
 			for (int i = 0;i < nDevices;i++)
 			{
 				for (int j = 0;j < 2;j++)
 				{
-					const size_t mb = (gpu_m + Config->Height - 1) / Config->Height;
-					const size_t nb = (gpu_n + Config->Height - 1) / Config->Height;
-
 					for (int k = 0;k < (int) (j ? nb : mb);k++)
 					{
 						if (simple_queue_events[i][j][k].event != NULL) CHKRET(clReleaseEvent(simple_queue_events[i][j][k].event), "Error in clReleaseEvent");
