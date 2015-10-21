@@ -541,11 +541,14 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 	if (Config->AlternateSimpleQueuing) use_queue = 2;
 	for (int i = 0;i < nConvTasks;i++)
 	{
+		const int iMat = convTasks[i].myMat - 'A';
+		cudaEvent_t* my_alternateSimpleQueueEvent_tmp_buffers = iMat ? alternateSimpleQueueEvent_tmp_bbuffers[num_device] : alternateSimpleQueueEvent_tmp_abuffers[num_device];
 		dim3 threads(GROUP_SIZE_X, GROUP_SIZE_Y), blocks(GROUP_COUNT_X, GROUP_COUNT_Y);
 		if (Config->Debug) fprintf(STD_OUT, "Conversion Kernel %c: x %d y %d\n", convTasks[i].myMat, (int) convTasks[i].arg_width, (int) convTasks[i].arg_height);
-		if (Config->AlternateSimpleQueuing) CHKRET(cudaStreamWaitEvent(cuda_command_queues[num_device][use_queue], alternateSimpleQueueTmpEvents[convTasks[i].myMat - 'A'], 0), "StreamWaitEvent");
+		if (Config->AlternateSimpleQueuing) CHKRET(cudaStreamWaitEvent(cuda_command_queues[num_device][use_queue], alternateSimpleQueueTmpEvents[iMat], 0), "StreamWaitEvent");
 		CUDAConversionKernel <<<blocks, threads, 0, cuda_command_queues[num_device][use_queue]>>> ((double*) convTasks[i].dest_buffer_tmp, (double*) convTasks[i].dest_image, convTasks[i].arg_width, convTasks[i].arg_height);
 		CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
+		if (Config->AlternateSimpleQueuing) CHKRET(cudaEventRecord(my_alternateSimpleQueueEvent_tmp_buffers[j], cuda_command_queues[num_device][use_queue]), "Recording my_alternateSimpleQueueEvent_tmp_buffers_used event %d %d", num_device, j);
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][use_queue]);
 	}
 	
