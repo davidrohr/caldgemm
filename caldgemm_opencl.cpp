@@ -1987,7 +1987,7 @@ int caldgemm_opencl::DGEMM_prepare_backend(size_t k, int j, unsigned int num_dev
 				}
 				if (Config->ThreadSaveDriver == -1) pthread_mutex_unlock(&globalDriverLock);
 			}
-			ocl_conversion_events_use[num_device][iMat] = 1;
+			if (!Config->SimpleGPUQueuing) ocl_conversion_events_use[num_device][iMat] = 1;
 			if (Config->Debug && Config->VerboseTiming) CHKRET(clFinish(ocl_command_queues[num_device][use_queue]), "Error in clFinish");
 		}
 	}
