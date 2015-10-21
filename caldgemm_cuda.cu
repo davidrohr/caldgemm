@@ -471,6 +471,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 	conversionKernelTaskStruct convTasks[2];
 	int nConvTasks = 0;
 	int use_queue = Config->AlternateSimpleQueuing ? 0 : j;
+	int event_queue[2];
 
 	for (int iMat = 0;iMat < 2;iMat++)
 	{
@@ -524,6 +525,10 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 				convTasks[nConvTasks++] = conversionKernelTaskStruct(dest_buffer_tmp, dest_image, arg_width, arg_height, myMat);
 				if (Config->AlternateSimpleQueuing) my_alternateSimpleQueueEvent_tmp_buffers_used[j] = true;
 			}
+			else
+			{
+				event_queue[iMat] = use_queue;
+			}
 		}
 	}
 
@@ -550,6 +555,7 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 		CHKRET(cudaGetLastError(), "CUDA Conversion Kernel Execution");
 		if (Config->AlternateSimpleQueuing) CHKRET(cudaEventRecord(my_alternateSimpleQueueEvent_tmp_buffers[j], cuda_command_queues[num_device][use_queue]), "Recording my_alternateSimpleQueueEvent_tmp_buffers_used event %d %d", num_device, j);
 		if (Config->Debug && Config->VerboseTiming) cudaStreamSynchronize(cuda_command_queues[num_device][use_queue]);
+		event_queue[convTasks[i].myMat - 'A'] = use_queue;
 	}
 	
 	for (int iMat = 0;iMat < 2;iMat++)
@@ -562,12 +568,12 @@ int caldgemm_cuda::DGEMM_prepare_backend(size_t k, int j, unsigned int num_devic
 				{
 					size_t& myblock = iMat ? blockn : blockm;
 					simple_queue_events[num_device][iMat][myblock].num_queue = j;
-					CHKRET(cudaEventRecord(simple_queue_events[num_device][iMat][myblock].event, cuda_command_queues[num_device][use_queue]), "Recording simpleQueueEvent event %d %d", num_device, iMat);
+					CHKRET(cudaEventRecord(simple_queue_events[num_device][iMat][myblock].event, cuda_command_queues[num_device][event_queue[iMat]]), "Recording simpleQueueEvent event %d %d", num_device, iMat);
 				}
 			}
 			else
 			{
-				CHKRET(cudaEventRecord(cuda_conversion_events[num_device][iMat], cuda_command_queues[num_device][j]), "Recording conversion event %d %d", num_device, iMat);
+				CHKRET(cudaEventRecord(cuda_conversion_events[num_device][iMat], cuda_command_queues[num_device][event_queue[iMat]]), "Recording conversion event %d %d", num_device, iMat);
 				cuda_conversion_events_use[num_device][iMat] = 1;
 			}
 		}
