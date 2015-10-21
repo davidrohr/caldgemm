@@ -1025,8 +1025,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 		{
 			const int buf = (DGEMM_favor_m ? buffer_pointers_A[Task.device][blockm] : buffer_pointers_B[Task.device][blockn]) % ibuffercount;
 			cl_event* ev = &simple_queue_event_kernels[Task.device][buf][use_queue];
-			simple_queue_event_kernels_used[Task.device][buf][use_queue] = true;
-			if (Config->AlternateSimpleQueuing && *ev != NULL)
+			if (Config->AlternateSimpleQueuing && simple_queue_event_kernels_used[Task.device][buf][use_queue])
 			{
 				CHKRET(clReleaseEvent(*ev), "Error releasing event");
 			}
@@ -1038,6 +1037,7 @@ int caldgemm_opencl::ExecuteKernels(caldgemm::DGEMMPrepareAndExecuteTask& Task, 
 			{
 				need_retain_kernel_event = ev;
 			}
+			simple_queue_event_kernels_used[Task.device][buf][use_queue] = true;
 		}
 	}
 	else
