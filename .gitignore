@@ -7,4 +7,4 @@ vcproject
 caldgemm_config.h
 config_options.mak
 3rd_party_template/dgemm_template.so
-amd_dgemm
+amd_dgemm*
