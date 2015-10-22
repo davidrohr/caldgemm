@@ -266,6 +266,7 @@ public:
 	int avgngflops;
 
 	virtual bool cpuUsed(int cpu);
+	int GetMainBLASCPU() {return main_blas_core;}
 	virtual double getMaxGPUTemperature();
 	
 	void printConfig(caldgemm_config* newConfig = NULL, caldgemm_config* oldConfig = NULL);
