@@ -2781,6 +2781,8 @@ int caldgemm::RunCALDGEMM(double* a, double* b, double* c, double alpha, double 
 	if (forceCPU)
 	{
 		if (Config->Debug) fprintf(STD_OUT, "Running CPU only DGEMM\n");
+		if (Config->ShowThreadPinning) printThreadPinning();
+
 		if (Config->LinpackSwapN != NULL)
 		{
 			HPL_CALDGEMM_gpu_height = 0;
