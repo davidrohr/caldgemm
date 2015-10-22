@@ -2159,6 +2159,8 @@ int caldgemm_opencl::UseInputPthreads() {return(!Config->GPU_C);}
 int caldgemm_opencl::UseMutexPerDevice() {return(0);}
 int caldgemm_opencl::AllowCPUFallback() {return(0);}
 int caldgemm_opencl::SimpleQueuingAvailable() {return(2);}
+int caldgemm_opencl::PipelinedModeAvailable() {return(2);}
+int caldgemm_opencl::AsyncModeAvailable() {return(2);}
 
 int caldgemm_opencl::CheckAlternateTilesRemainingSQ()
 {

@@ -654,6 +654,27 @@ int caldgemm::InitCALDGEMM(caldgemm_config* pInfo, bool nocalinit)
 		fprintf(STD_OUT, "Simple GPU Queuing not supported by backend, disabling\n");
 		Config->SimpleGPUQueuing = false;
 	}
+	if (PipelinedModeAvailable() < 2 && Config->PipelineDoubleBuffer)
+	{
+		fprintf(STD_OUT, "Pipelined mode with double buffering not supported by backend, disabling\n");
+		Config->PipelineDoubleBuffer = false;
+	}
+	if (PipelinedModeAvailable() < 1 && Config->PipelinedOperation)
+	{
+		fprintf(STD_OUT, "Pipelined operation not supported by backend, disabling\n");
+		Config->PipelinedOperation = false;
+		Config->PipelinedMidMarker = 0;
+	}
+	if (AsyncModeAvailable() < 2 && Config->AsyncDTRSM)
+	{
+		fprintf(STD_OUT, "Async Side-queue with DTRSM not supported by backend, disabling async DTRSM\n");
+		Config->AsyncDTRSM = false;
+	}
+	if (AsyncModeAvailable() < 1 && Config->AsyncSideQueue)
+	{
+		fprintf(STD_OUT, "Async Side-queue not supported by backend, disabling\n");
+		Config->AsyncSideQueue = false;
+	}
 	if (Config->AlternateSimpleQueuingMulti) Config->AlternateSimpleQueuing = true;
 	if (Config->AlternateSimpleQueuing) Config->SimpleGPUQueuing = true;
 	if (!Config->SimpleGPUQueuing && Config->PipelinedOperation)
@@ -3974,15 +3995,10 @@ int caldgemm::ParseParameters(char* params, caldgemm_config* Config)
 	return(retVal);
 }
 
-int caldgemm::AllowCPUFallback()
-{
-	return(1);
-}
-
-int caldgemm::SimpleQueuingAvailable()
-{
-	return(0);
-}
+int caldgemm::AllowCPUFallback() {return(1);}
+int caldgemm::SimpleQueuingAvailable() {return(0);}
+int caldgemm::PipelinedModeAvailable() {return(0);}
+int caldgemm::AsyncModeAvailable() {return(0);}
 
 bool caldgemm::NeedSimpleQueueKernelEvent(int blockm, int blockn, int k, int device)
 {
