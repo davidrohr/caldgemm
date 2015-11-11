@@ -27,7 +27,7 @@ INTELFLAGS64					= $(INTELFLAGSCOMMON) -m64 -D_AMD64_
 ifeq ($(GCCARCH), )
 GCCARCHA							= -march=native -msse4.2 -m$(ARCHBITS)
 else
-GCCARCHA							= -march=$(GCCARCH) -msse4.2 -m$(ARCHBITS)
+GCCARCHA							= -march=$(GCCARCH) -m$(ARCHBITS)
 endif
 
 ifeq ("$(CONFIG_OPENMP)", "1")
