@@ -3,11 +3,11 @@ CUDASDKPATH						= $(CUDAPATH)/sdk
 AMDPATH							= $(AMDAPPSDKROOT)
 INTELPATH						:= $(shell which icc 2> /dev/null | sed "s,/bin/.*/icc$$,,")
 ifeq ($(INTELPATH), )
-INTELPATH						= /opt/intel/composerxe-2015.0.090
+INTELPATH						= /opt/intel/compilers_and_libraries_2016.2.181/linux
 endif
 
 GCC3264							= c++
-CLANG3264						= clang
+CLANG3264						= clang++
 ICC32							= $(INTELPATH)/bin/ia32/icc
 ICC64							= $(INTELPATH)/bin/intel64/icc
 
@@ -27,11 +27,11 @@ INTELFLAGS64					= $(INTELFLAGSCOMMON) -m64 -D_AMD64_
 ifeq ($(GCCARCH), )
 GCCARCHA							= -march=native -msse4.2 -m$(ARCHBITS)
 else
-GCCARCHA							= -march=$(GCCARCH) -m$(ARCHBITS)
+GCCARCHA							= -march=$(GCCARCH) -msse4.2 -m$(ARCHBITS)
 endif
 
 ifeq ("$(CONFIG_OPENMP)", "1")
-INTELFLAGSCOMMON					+= -openmp
+INTELFLAGSCOMMON					+= -qopenmp
 ifneq ("0$(CPPFILES_ICC)", "0")
 LIBSUSE							+= -liomp5
 endif
@@ -99,8 +99,13 @@ ifeq ($(CC_x86_64-pc-linux-gnu), ICC)
 CC								= $(ICC)
 LINK							= $(ICCLINK)
 else
+ifeq ($(CC_x86_64-pc-linux-gnu), clang)
+CC								= $(CLANG)
+LINK							= $(CLANG)
+else
 CC								= $(GCC)
 LINK							= $(GCCLINK)
+endif
 ifneq ($(CPPFILES_ICC), )
 LIBSUSE							+= -lintlc -lsvml -limf -lirc
 endif
@@ -109,18 +114,18 @@ CC_SELECTED						= $(CC_x86_64-pc-linux-gnu)
 
 CCCUDA							= $(GCC) -x c++ -Wno-effc++
 ASMPRE							= $(GCC3264)
-NVCC							= $(CUDAPATH)/bin/nvcc
+NVCC							= $(CUDAPATH)/bin/nvcc --compiler-bindir $(GCCCUDA)
 
 COMMONINCLUDEPATHS				=
 LIBPATHSUSE						=
 
 ifneq ($(CUFILES), )
 LIBSUSE							+= -lcudart -lcuda
-ifeq ($(CONFIG_CUBLAS), 1)
-LIBSUSE							+= -lcublas
-endif
 ifeq ($(CONFIG_CUDA_DC), 1)
 LIBSUSE							+= -lcudadevrt
+endif
+ifeq ($(CONFIG_CUBLAS), 1)
+LIBSUSE							+= -lcublas
 endif
 endif
 #$(CUDASDKPATH)/C/lib/libcutil.a

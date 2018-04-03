@@ -43,12 +43,10 @@ GCCPROF							=
 MULTITHREAD						= /MT
 MULTITHREADLIBS					= /nodefaultlib:libc.lib
 
-NVCCFLAGSOPT					= --use_fast_math --maxrregcount $(CUDAREGS) -O4 -Xptxas -v -Xptxas -O4 -m$(ARCHBITS) $(NVCCARCHS)
+NVCCFLAGSOPT					= --use_fast_math --maxrregcount $(CUDAREGS) -O4 -Xptxas -v -Xptxas -O4 -Xcompiler -O4 -m$(ARCHBITS) $(NVCCARCHS)
 NVCCFLAGSDBG					= --maxrregcount $(CUDAREGS) -Xptxas -v -Xptxas -O0 -O0 -m$(ARCHBITS) $(NVCCARCHS)
 
-#Default settings
 TARGETTYPE						= EXECUTABLE
-CONFIG_RO_RESOURCE					= 1
 
 WORKPATHSUFFIX					= $(TARGETTYPE)_$(TARGET)
 include							$(CONFIGFILE)
@@ -62,6 +60,7 @@ VSNETFLAGSUSE					= $(VSNETFLAGSDBG)
 GCCFLAGSUSE						= $(GCCFLAGSDBG)
 CLANGFLAGSUSE					= $(CLANGFLAGSDBG)
 NVCCFLAGSUSE					= $(NVCCFLAGSDBG)
+OPENCL_DEF_OPTIONS				= "-O0 -g"
 CONFIG_LTO						= 0
 endif
 ifeq ($(COMPILER_FLAGS), OPT)
@@ -70,12 +69,10 @@ VSNETFLAGSUSE					= $(VSNETFLAGSOPT)
 GCCFLAGSUSE						= $(GCCFLAGSOPT)
 CLANGFLAGSUSE					= $(CLANGFLAGSOPT)
 NVCCFLAGSUSE					= $(NVCCFLAGSOPT)
+OPENCL_DEF_OPTIONS				= "-O3"
 endif
-
-ifeq ($(CONFIG_RO_RESOURCE), 1)
-CONFIG_RO_RESOURCE				= rodata
-else
-CONFIG_RO_RESOURCE				= data
+ifeq ($(GCCCUDA), )
+GCCCUDA						= $(GCC3264)
 endif
 
 MKDIR							= $(HIDEECHOB) mkdir -p `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'` `echo $@ | sed 's,/[a-zA-Z0-9._-]*$$,,'`
@@ -85,10 +82,15 @@ include							makefiles/$(ARCHFILE)
 GCCFLAGSARCH					+= $(GCCARCHA)
 ifeq ($(CONFIG_CPP11), 1)
 GCCFLAGSCOMMON						+= -std=c++11
+CLANGFLAGSCOMMON					+= -std=c++11
+endif
+ifneq ($(CONFIG_CPP), )
+GCCFLAGSCOMMON						+= -std=$(CONFIG_CPP)
+CLANGFLAGSCOMMON					+= -std=$(CONFIG_CPP)
 endif
 ifeq ($(CONFIG_OPENMP), 1)
 GCCFLAGSCOMMON						+= -fopenmp
-CLANGFLAGSCOMMON					+= -openmp
+CLANGFLAGSCOMMON					+= -fopenmp
 GCCLINK							+= -fopenmp
 endif
 
@@ -137,6 +139,9 @@ endif
 ifeq ($(CC_SELECTED), GCC)
 CPPFILES_GCC					+= $(CPPFILES:%.cpp=$(WORKPATH)/cpp/%.$(OBJ)) $(CXXFILES:%.cxx=$(WORKPATH)/cxx/%.$(OBJ)) $(CFILES:%.c=$(WORKPATH)/c/%.$(OBJ)) 
 endif
+ifeq ($(CC_SELECTED), clang)
+CPPFILES_CLANG					+= $(CPPFILES:%.cpp=$(WORKPATH)/cpp/%.$(OBJ)) $(CXXFILES:%.cxx=$(WORKPATH)/cxx/%.$(OBJ)) $(CFILES:%.c=$(WORKPATH)/c/%.$(OBJ)) 
+endif
 
 ifeq ($(CONFIG_LTO), 1)
 ifneq ("0$(CPPFILES_ICC)", "0")
@@ -167,7 +172,7 @@ GCCINCLUDEPATHSB				:= $(shell cygpath -u $(GCCINCLUDEPATHSA))
 GCCINCLUDEPATHS					:= $(GCCINCLUDEPATHSB:%=-I%)
 endif
 else
-GCCINCLUDEPATHS					:= $(INCLUDEPATHS:%=-I%) $(COMMONINCLUDEPATHS:%=-I%)
+GCCINCLUDEPATHS					:= $(INCLUDEPATHS:%=-I%) $(COMMONINCLUDEPATHS:%=-I%) $(INCLUDEPATHSSYSTEM:%=-isystem %)
 endif
 VSINCLUDEPATHS					:= $(INCLUDEPATHS:%=/I%) $(COMMONINCLUDEPATHS:%=/I%)
 
@@ -245,15 +250,15 @@ $(WORKPATH)/_makefiles_support_opencl.exe:	$(WORKPATH)/_makefiles_support_opencl
 								$(LINK) $(LIBPATHSUSE) $< $(LINKFLAGSUSE) $(LINKOUTPUT) $(LINKFLAGSARCH) $(OPENCLLIB)
 
 $(WORKPATH)/cl/%.clbin:			%.cl $(WORKPATH)/_makefiles_support_opencl.exe $(ALLDEP)
-								$(HIDEECHOA) $(OPENCL_ENVIRONMENT) ./$(WORKPATH)/_makefiles_support_opencl.exe -output-file $@ $< -- -I. $(GCCINCLUDEPATHS) $(GCCDEFINES) $(OPENCL_OPTIONS) > /dev/null
+								$(HIDEECHOA) $(OPENCL_ENVIRONMENT) ./$(WORKPATH)/_makefiles_support_opencl.exe -output-file $@ $< -- -I. $(GCCINCLUDEPATHS) $(GCCDEFINES) $(OPENCL_DEF_OPTIONS) $(OPENCL_OPTIONS) > /dev/null
 
 $(WORKPATH)/cl/%.$(OBJ):		$(WORKPATH)/cl/%.clbin $(ALLDEP)
 								@echo $<
-								$(HIDEECHOA) sed -e "s&READONLYTYPE&$(CONFIG_RO_RESOURCE)&" -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_makefile_opencl_program_`echo $< | sed -e "s&$(WORKPATH)/cl/&&g" -e "s&\.clbin&\.cl&g" -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
+								$(HIDEECHOA) sed -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_makefile_opencl_program_`echo $< | sed -e "s&$(WORKPATH)/cl/&&g" -e "s&\.clbin&\.cl&g" -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
 $(WORKPATH)/res/%.$(OBJ):		% $(ALLDEP)
 								@echo $<
 								$(MKDIR)
-								$(HIDEECHOA) sed -e "s&READONLYTYPE&$(CONFIG_RO_RESOURCE)&" -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_resource_`echo $< | sed -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
+								$(HIDEECHOA) sed -e "s&FILENAMENORMAL&$<&g" -e "s&FILENAMEMOD&_resource_`echo $< | sed -e "s&\.&_&g" -e "s&/&_&g" -e "s& &_&g"`&g" makefiles/include.S | $(GCC3264) -c -x assembler -o $@ -
 
 
 
@@ -266,7 +271,7 @@ $(WORKPATH)/make_cuda_device_link/dl_$(TARGET).$(OBJ):	$(CUFILES:%.cu=$(WORKPATH
 								$(NVCC) $(NVCCFLAGSUSE) -dlink $(CUFILES:%.cu=$(WORKPATH)/cu/%.$(OBJ)) -o $@ -lcudadevrt
 							
 clean:							$(SUBTARGETS:%=subclean/%.mak)
-								rm -Rf *.plg *.dpi *.exp *.lib $(EXECUTABLE) $(COPIED_EXECUTABLE) x64/release/* *.cubin *.gpu *.ptx *.linkinfo *.ii cuda.compute_* $(DEPENDS) $(OBJFILES) $(CUFILES:%.cu=$(WORKPATH)/cu/%.cpp) $(ASMFILES:%.asm=$(WORKPATH)/asm/%.asm) $(CLEANRELEASEDIR)
+								rm -Rf *.plg *.dpi *.exp *.lib $(EXECUTABLE) $(COPIED_EXECUTABLE) x64/release/* *.cubin *.gpu *.ptx *.linkinfo *.ii cuda.compute_* $(DEPENDS) $(OBJFILES) $(CUFILES:%.cu=$(WORKPATH)/cu/%.cpp) $(ASMFILES:%.asm=$(WORKPATH)/asm/%.asm) $(CLEANRELEASEDIR) $(SUBTARGETS_CLEAN)
 							
 subclean/%.mak:
 								+export CONFIGFILE=config_`echo $@ | sed s,subclean/,,` && $(MAKE) -f makefile clean

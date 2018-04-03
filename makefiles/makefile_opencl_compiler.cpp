@@ -68,7 +68,7 @@ int main(int argc, char** argv)
 		if (strcmp(pinfo.platform_vendor, "Advanced Micro Devices, Inc.") == 0)
 		{
 			found = true;
-			printf("AMD OpenCL Platform found\n");
+			printf("AMD OpenCL Platform found (%d)\n", i_platform);
 			platform = platforms[i_platform];
 			break;
 		}
