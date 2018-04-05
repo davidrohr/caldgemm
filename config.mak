@@ -1,7 +1,7 @@
 include config_options_load.mak
 
 INTELARCH					= SSE4.2
-CUDAVERSION					= 35
+CUDAVERSION					= 35 61
 CUDAREGS					= 255
 ARCHBITS					= 64
 
@@ -111,7 +111,7 @@ endif
 caldgemm_config.h:
 							cp caldgemm_config.sample caldgemm_config.h
 
-ALLDEP						+= caldgemm_config.h
+ALLDEP						+= caldgemm_config.h config_options.mak
 
 config_options.mak:
 							cp config_options.sample config_options.mak 

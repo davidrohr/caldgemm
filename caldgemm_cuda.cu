@@ -52,10 +52,13 @@ __global__ void CUDAConversionKernel(const double* __restrict__ iBuffer, double*
 #define ERRRET(...) {fprintf(STD_OUT, __VA_ARGS__);fprintf(STD_OUT, "\n");return(1);}
 
 #define CHKRET(result, ...) \
-	if (result != cudaSuccess) \
 	{ \
-		fprintf(STD_OUT, "CUDA Error %d: %s\n%s:%d\n", result, cudaGetErrorString(result), __FILE__, __LINE__); \
-		ERRRET(__VA_ARGS__); \
+		cudaError_t tmp_cuda_result = result; \
+		if (tmp_cuda_result != cudaSuccess) \
+		{ \
+			fprintf(STD_OUT, "CUDA Error %d: %s\n%s:%d\n", tmp_cuda_result, cudaGetErrorString(tmp_cuda_result), __FILE__, __LINE__); \
+			ERRRET(__VA_ARGS__); \
+		} \
 	}
 
 caldgemm_cuda::caldgemm_cuda() : caldgemm()

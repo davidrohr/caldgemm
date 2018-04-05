@@ -2142,7 +2142,7 @@ int caldgemm::RunCALDGEMMMain(int parallelDevice)
 
 	int myUseDevice = 0;
 	int myNDevices;
-	int myDevices[max_devices];
+	int myDevices[max_devices] = {0};
 	if (parallelDevice == -1)
 	{
 		myNDevices = nDevices;

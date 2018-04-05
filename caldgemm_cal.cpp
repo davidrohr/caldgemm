@@ -86,7 +86,12 @@ const char* caldgemm_cal::ILConvertKernel =
 
 //#define fprintf(file, ...) {fprintf(STD_OUT, "Thread %d ", gettid());fprintf(stderr, __VA_ARGS__);}
 
-#define CHKERR(cmd, text) if ((cmd) != CAL_RESULT_OK) {fprintf(STD_OUT, "Error '%s' while " text "\n", calGetErrorString());return(1);}
+#define CHKERR(cmd, text) \
+	{ \
+		int tmp_cmd_result = cmd; \
+		if (tmp_cmd_result != CAL_RESULT_OK) {fprintf(STD_OUT, "Error %d: '%s' while " text "\n", tmp_cmd_result, calGetErrorString());return(1);} \
+	}
+	
 #define WAITFOREVENTA(ctx, event) { CALresult r; do { r = calCtxIsEventDone(ctx, event); if (r == CAL_RESULT_ERROR) { fprintf(STD_OUT, "Error while waiting for event\nError String: %s\n", calGetErrorString()); return(1);} } while (r == CAL_RESULT_PENDING);}
 
 int caldgemm_cal::WaitForEvent(int eventnr, int devicenr, int lock)
